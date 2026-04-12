@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CD91 금리 전망 — 금리 도구 모음</title>
+  <link rel="stylesheet" href="/assets/css/main.css">
+</head>
+<body>
+<div class="container">
+
+  <nav class="nav">
+    <a href="/" class="nav-brand">금리 도구 모음</a>
+    <div class="nav-links">
+      <a href="/tools/cd91/" class="nav-link active">CD91 전망</a>
+    </div>
+  </nav>
+
+  <div class="hdr">
+    <h1>CD91 금리 전망 계산기</h1>
+    <p>선반영 + 스무딩 모형 &nbsp;|&nbsp; 2020–2026 실증 계절성</p>
+  </div>
+
+  <div class="metrics">
+    <div class="metric">
+      <div class="ml">현재 기준금리</div>
+      <div class="mv">2.50%</div>
+    </div>
+    <div class="metric">
+      <div class="ml">현재 CD91</div>
+      <div class="mv">2.82%</div>
+    </div>
+    <div class="metric">
+      <div class="ml">CD − 기준금리</div>
+      <div class="mv" style="color:var(--blue);">+32 bp</div>
+    </div>
+    <div class="metric">
+      <div class="ml">모델 CD91 (현시점)</div>
+      <div class="mv" id="mCurrentCD">—</div>
+    </div>
+  </div>
+
+  <div class="panels">
+
+    <div class="panel">
+      <div class="stl">기준금리 경로 (금통위 시나리오)</div>
+      <table class="sttbl" id="stepTable">
+        <thead id="stepHead"></thead>
+        <tbody id="stepRows"></tbody>
+      </table>
+      <button class="add-btn" onclick="addRow()">+ 경로 추가</button>
+      <div class="pre-events" id="preEventTags"></div>
+    </div>
+
+    <div class="panel">
+      <div class="stl">CD 스프레드 가정</div>
+      <div class="sr">
+        <label>기준 스프레드</label>
+        <input type="range" id="baseSpread" min="0" max="60" step="1" value="25" oninput="updateAll()">
+        <span class="sv"><span id="bsv">25</span> bp</span>
+      </div>
+      <div class="sr">
+        <label>계절성 강도</label>
+        <input type="range" id="seasonStr" min="0" max="200" step="5" value="100" oninput="updateAll()">
+        <span class="sv"><span id="ssv">100</span>%</span>
+      </div>
+      <div class="sr">
+        <label>연초 추가</label>
+        <input type="range" id="ysExtra" min="0" max="30" step="1" value="9" oninput="updateAll()">
+        <span class="sv">+<span id="ysv">9</span> bp</span>
+      </div>
+      <div class="emp-note">
+        <strong>실증:</strong> 분기말(3·6·9월) 효과 = 0bp.
+        Q4 계절 상승 (Oct +8 / Nov +15 / Dec +16 bp), 연초(1/1~10) +9 bp.
+        BR 변경 후 CD 반영 속도 = 당일.
+      </div>
+    </div>
+
+  </div>
+
+  <div class="opt-bar" style="margin-bottom:10px;">
+    <div class="opt-row">
+      <label class="toggle-wrap">
+        <span class="toggle">
+          <input type="checkbox" id="smoothToggle" checked>
+          <span class="toggle-slider"></span>
+        </span>
+        <span class="tgl-label">스무딩</span>
+      </label>
+      <span style="font-size:11px;color:var(--t3);">CD(2.82%) → 전망 경로 지수 평활 (현재값 앵커링)</span>
+      <div class="opt-divider"></div>
+      <div class="ctrl-group" id="smoothCtrls">
+        <label>반감기</label>
+        <input type="range" id="halfLife" min="3" max="45" step="1" value="14"
+               oninput="updateAll()" style="width:90px;flex:none;">
+        <span class="val"><span id="hlv">14</span>일</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="opt-bar" style="border-color:rgba(167,139,250,.2);">
+    <div class="opt-row">
+      <label class="toggle-wrap">
+        <span class="toggle">
+          <input type="checkbox" id="preToggle" checked onchange="togglePre()">
+          <span class="toggle-slider purple-on"></span>
+        </span>
+        <span class="tgl-label" style="color:var(--purple);">선반영</span>
+      </label>
+      <span style="font-size:11px;color:var(--t3);">인하 전 CD 선제 하락 (BR 불변) — 경로 테이블에서 날짜 입력</span>
+      <div class="opt-divider"></div>
+      <div class="ctrl-group" id="preCtrls">
+        <label>형태</label>
+        <div class="shape-btns">
+          <button class="shape-btn active" data-shape="linear"  onclick="setShape(this)">선형</button>
+          <button class="shape-btn"        data-shape="convex"  onclick="setShape(this)">볼록</button>
+          <button class="shape-btn"        data-shape="concave" onclick="setShape(this)">오목</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="chart-card">
+    <div class="chart-hdr">
+      <div class="stl" style="margin:0;">CD91 전망 경로</div>
+      <div id="legend"></div>
+    </div>
+    <div style="position:relative;height:310px;">
+      <canvas id="cdChart"></canvas>
+    </div>
+    <div style="margin-top:6px;text-align:center;font-size:10px;color:var(--t3);">
+      실선: 실제 이력 &nbsp;/&nbsp; 파선: 전망 (선반영+스무딩) &nbsp;/&nbsp;
+      점선: 기준금리 경로 &nbsp;/&nbsp;
+      <span style="color:rgba(167,139,250,.7);">보라:</span> 선반영 없는 raw CD
+    </div>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stats-card">
+      <div class="stl">월별 평균 스프레드 (2020–2026)</div>
+      <div style="position:relative;height:155px;"><canvas id="monthChart"></canvas></div>
+    </div>
+    <div class="stats-card">
+      <div class="stl">구간별 스프레드 기초통계 (bp)</div>
+      <table class="period-table">
+        <thead>
+          <tr><th>구간</th><th>n</th><th>평균</th><th>중위</th><th>p25~p75</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>평시</td>                         <td style="color:var(--t3);">1,834</td><td>21.5</td><td>20.0</td><td>10~28</td></tr>
+          <tr><td>월말 (비분기)</td>                 <td style="color:var(--t3);">141</td>  <td>21.6</td><td>20.0</td><td>10~28</td></tr>
+          <tr><td>분기말 3·6·9 <span style="font-size:9px;color:var(--t3);">← 효과없음</span></td>
+                                                    <td style="color:var(--t3);">90</td>   <td>21.2</td><td>21.5</td><td>9~29</td></tr>
+          <tr><td>연말 12/26~31 <span class="pill high">+17</span></td>
+                                                    <td style="color:var(--t3);">36</td>   <td>38.3</td><td>33.0</td><td>28~44</td></tr>
+          <tr><td>연초 1/1~10 <span class="pill mid">+9</span></td>
+                                                    <td style="color:var(--t3);">60</td>   <td>30.6</td><td>29.0</td><td>16~32</td></tr>
+        </tbody>
+      </table>
+      <div style="margin-top:9px;padding-top:9px;border-top:.5px solid var(--bd);font-size:10px;color:var(--t3);line-height:1.8;">
+        BR → CD 반영 속도: <strong style="color:var(--t1);">당일</strong>&nbsp;|&nbsp;
+        2024 평균 13bp &nbsp;/&nbsp; 2025 평균 7bp &nbsp;/&nbsp; 2026 평균 27bp
+      </div>
+    </div>
+  </div>
+
+  <div class="stl">분기별 평균 CD91 전망</div>
+  <div class="qgrid" id="qout"></div>
+
+  <div style="margin-top:2rem;border-top:.5px solid var(--bd);padding-top:1.5rem;">
+    <div class="stl">데이터 서버 연결</div>
+    <div class="panel" style="margin-bottom:0;">
+      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
+        <input type="text" id="apiUrlInput" placeholder="https://xxxx.ngrok-free.app"
+          style="flex:1;min-width:240px;background:var(--s2);border:.5px solid var(--bd2);
+                 border-radius:var(--rs);color:var(--t1);font-size:12px;padding:6px 10px;
+                 outline:none;font-family:monospace;"
+          oninput="onApiUrlChange(this.value)">
+        <button onclick="testConnection()"
+          style="background:none;border:.5px solid var(--bd2);border-radius:var(--rs);
+                 color:var(--t2);font-size:12px;cursor:pointer;padding:5px 14px;transition:all .15s;"
+          onmouseover="this.style.borderColor='var(--blue)';this.style.color='var(--blue)'"
+          onmouseout="this.style.borderColor='var(--bd2)';this.style.color='var(--t2)'">연결 테스트</button>
+        <button onclick="loadTables()"
+          style="background:none;border:.5px solid var(--bd2);border-radius:var(--rs);
+                 color:var(--t2);font-size:12px;cursor:pointer;padding:5px 14px;transition:all .15s;"
+          onmouseover="this.style.borderColor='var(--green)';this.style.color='var(--green)'"
+          onmouseout="this.style.borderColor='var(--bd2)';this.style.color='var(--t2)'">테이블 조회</button>
+      </div>
+      <div id="apiStatus" style="font-size:11px;color:var(--t3);min-height:16px;"></div>
+      <div id="tableList" style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;"></div>
+      <div id="previewArea" style="margin-top:12px;overflow-x:auto;"></div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="/assets/js/data.js"></script>
+<script src="/assets/js/model.js"></script>
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/ui.js"></script>
+<script>
+(function initApiPanel() {
+  const saved = getApiBase();
+  if (saved) document.getElementById('apiUrlInput').value = saved;
+})();
+
+function onApiUrlChange(val) { setApiBase(val); }
+
+function setStatus(msg, color) {
+  const el = document.getElementById('apiStatus');
+  el.style.color = color || 'var(--t3)';
+  el.textContent = msg;
+}
+
+async function testConnection() {
+  setStatus('연결 중…', 'var(--t3)');
+  try {
+    const data = await apiGet('/health');
+    setStatus(data.status === 'ok' ? '✓ 연결 성공 — DB: ' + data.db : '⚠ ' + JSON.stringify(data),
+              data.status === 'ok' ? 'var(--green)' : 'var(--amber)');
+  } catch (e) { setStatus('✗ ' + e.message, 'var(--red)'); }
+}
+
+async function loadTables() {
+  setStatus('조회 중…', 'var(--t3)');
+  document.getElementById('tableList').innerHTML = '';
+  document.getElementById('previewArea').innerHTML = '';
+  try {
+    const data = await apiGet('/tables');
+    if (!data.tables?.length) { setStatus('테이블 없음', 'var(--amber)'); return; }
+    setStatus(`테이블 ${data.tables.length}개 — 클릭하면 미리보기`, 'var(--blue)');
+    data.tables.forEach(tbl => {
+      const btn = document.createElement('button');
+      btn.textContent = tbl;
+      btn.style.cssText = 'background:var(--s2);border:.5px solid var(--bd2);border-radius:var(--rs);color:var(--t2);font-size:11px;cursor:pointer;padding:3px 10px;transition:all .15s;';
+      btn.onmouseover = () => { btn.style.borderColor='var(--blue)'; btn.style.color='var(--blue)'; };
+      btn.onmouseout  = () => { btn.style.borderColor='var(--bd2)';  btn.style.color='var(--t2)'; };
+      btn.onclick = () => previewTable(tbl);
+      document.getElementById('tableList').appendChild(btn);
+    });
+  } catch (e) { setStatus('✗ ' + e.message, 'var(--red)'); }
+}
+
+async function previewTable(tbl) {
+  setStatus(`${tbl} 로딩 중…`, 'var(--t3)');
+  const area = document.getElementById('previewArea');
+  area.innerHTML = '';
+  try {
+    const data = await apiGet(`/preview/${encodeURIComponent(tbl)}?limit=10`);
+    if (!data.rows?.length) { setStatus('데이터 없음', 'var(--amber)'); return; }
+    const cols = Object.keys(data.rows[0]);
+    const t = document.createElement('table');
+    t.style.cssText = 'width:100%;border-collapse:collapse;font-size:11px;';
+    t.innerHTML = '<thead><tr>' + cols.map(c =>
+      `<th style="font-size:10px;font-weight:500;color:var(--t3);padding:4px 8px;text-align:left;border-bottom:.5px solid var(--bd);white-space:nowrap;">${c}</th>`
+    ).join('') + '</tr></thead>';
+    const tbody = document.createElement('tbody');
+    data.rows.forEach(row => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = cols.map(c =>
+        `<td style="padding:4px 8px;color:var(--t2);border-bottom:.5px solid rgba(255,255,255,.03);white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis;">${row[c] ?? ''}</td>`
+      ).join('');
+      tbody.appendChild(tr);
+    });
+    t.appendChild(tbody);
+    area.appendChild(t);
+    setStatus(`${tbl} — ${data.rows.length}행`, 'var(--t1)');
+  } catch (e) { setStatus('✗ ' + e.message, 'var(--red)'); }
+}
+</script>
+</body>
+</html>

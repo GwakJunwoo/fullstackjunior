@@ -40,8 +40,13 @@
 #     ngrok-skip-browser-warning = "1"
 
 # ── 멀티페이지 라우팅 ─────────────────────────────────────────
-# 새 도구 페이지 추가 시:
-#   [[redirects]]
-#   from   = "/tools/cofix/*"
-#   to     = "/tools/cofix/index.html"
-#   status = 200
+[[redirects]]
+  from   = "/tools/cd91"
+  to     = "/tools/cd91/"
+  status = 301
+
+# 새 도구 추가 시 아래 패턴으로 추가:
+# [[redirects]]
+#   from   = "/tools/cofix"
+#   to     = "/tools/cofix/"
+#   status = 301

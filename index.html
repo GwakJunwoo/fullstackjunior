@@ -3,344 +3,160 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CD91 금리 전망</title>
+  <title>금리 도구 모음</title>
   <link rel="stylesheet" href="/assets/css/main.css">
+  <style>
+    .home-hero {
+      padding: 2.5rem 0 2rem;
+      border-bottom: .5px solid var(--bd);
+      margin-bottom: 2rem;
+    }
+    .home-hero h1 {
+      font-size: 22px;
+      font-weight: 700;
+      letter-spacing: -.5px;
+      margin-bottom: 6px;
+    }
+    .home-hero p {
+      font-size: 12px;
+      color: var(--t3);
+      line-height: 1.7;
+    }
+
+    .tool-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 2rem;
+    }
+    .tool-card {
+      background: var(--s1);
+      border: .5px solid var(--bd);
+      border-radius: var(--r);
+      padding: 1.25rem 1.25rem 1rem;
+      text-decoration: none;
+      display: block;
+      transition: border-color .15s, background .15s;
+      position: relative;
+      overflow: hidden;
+    }
+    .tool-card:hover {
+      border-color: var(--bd2);
+      background: var(--s2);
+    }
+    .tool-card.disabled {
+      opacity: .45;
+      pointer-events: none;
+    }
+    .tool-card-icon {
+      font-size: 22px;
+      margin-bottom: 10px;
+      line-height: 1;
+    }
+    .tool-card-name {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--t1);
+      margin-bottom: 4px;
+    }
+    .tool-card-desc {
+      font-size: 11px;
+      color: var(--t3);
+      line-height: 1.6;
+    }
+    .tool-card-badge {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      font-size: 9px;
+      font-weight: 600;
+      letter-spacing: .4px;
+      padding: 2px 7px;
+      border-radius: 3px;
+      text-transform: uppercase;
+    }
+    .badge-live  { background: rgba(52,211,153,.15); color: var(--green); border: .5px solid rgba(52,211,153,.3); }
+    .badge-soon  { background: rgba(255,255,255,.05); color: var(--t3);   border: .5px solid var(--bd); }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .7px;
+      color: var(--t3);
+      text-transform: uppercase;
+      margin-bottom: 12px;
+    }
+
+    @media (max-width: 620px) {
+      .tool-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 400px) {
+      .tool-grid { grid-template-columns: 1fr; }
+    }
+  </style>
 </head>
 <body>
 <div class="container">
 
-  <!-- ── Nav (사이트가 커지면 여기에 링크 추가) ── -->
   <nav class="nav">
     <span class="nav-brand">금리 도구 모음</span>
     <div class="nav-links">
-      <a href="/" class="nav-link active">CD91 전망</a>
-      <!-- <a href="/tools/cofix/" class="nav-link">COFIX</a> -->
-      <!-- <a href="/tools/swap/"  class="nav-link">IRS 스왑</a> -->
+      <a href="/" class="nav-link active">홈</a>
     </div>
   </nav>
 
-  <!-- ── Page Header ── -->
-  <div class="hdr">
-    <h1>CD91 금리 전망 계산기</h1>
-    <p>선반영 + 스무딩 모형 &nbsp;|&nbsp; 2020–2026 실증 계절성</p>
+  <div class="home-hero">
+    <h1>금리 도구 모음</h1>
+    <p>한국 금리 시장 분석 · 전망 · 프라이싱 도구</p>
   </div>
 
-  <!-- ── Metric Cards ── -->
-  <div class="metrics">
-    <div class="metric">
-      <div class="ml">현재 기준금리</div>
-      <div class="mv">2.50%</div>
+  <div class="section-label">도구</div>
+  <div class="tool-grid">
+
+    <a href="/tools/cd91/" class="tool-card">
+      <span class="tool-card-badge badge-live">Live</span>
+      <div class="tool-card-icon">📈</div>
+      <div class="tool-card-name">CD91 금리 전망</div>
+      <div class="tool-card-desc">선반영 + 스무딩 모형으로 CD91 경로 시뮬레이션. 기준금리 시나리오별 전망.</div>
+    </a>
+
+    <div class="tool-card disabled">
+      <span class="tool-card-badge badge-soon">Soon</span>
+      <div class="tool-card-icon">🏦</div>
+      <div class="tool-card-name">COFIX 전망</div>
+      <div class="tool-card-desc">CD91 전망 기반 신규·잔액 COFIX 경로 추정.</div>
     </div>
-    <div class="metric">
-      <div class="ml">현재 CD91</div>
-      <div class="mv">2.82%</div>
+
+    <div class="tool-card disabled">
+      <span class="tool-card-badge badge-soon">Soon</span>
+      <div class="tool-card-icon">🔄</div>
+      <div class="tool-card-name">IRS 스왑</div>
+      <div class="tool-card-desc">원화 IRS 금리 스왑 프라이싱 및 듀레이션 계산.</div>
     </div>
-    <div class="metric">
-      <div class="ml">CD − 기준금리</div>
-      <div class="mv" style="color:var(--blue);">+32 bp</div>
+
+    <div class="tool-card disabled">
+      <span class="tool-card-badge badge-soon">Soon</span>
+      <div class="tool-card-icon">📊</div>
+      <div class="tool-card-name">국채 수익률 곡선</div>
+      <div class="tool-card-desc">KTB 수익률 곡선 시각화 및 스프레드 분석.</div>
     </div>
-    <div class="metric">
-      <div class="ml">모델 CD91 (현시점)</div>
-      <div class="mv" id="mCurrentCD">—</div>
+
+    <div class="tool-card disabled">
+      <span class="tool-card-badge badge-soon">Soon</span>
+      <div class="tool-card-icon">🏠</div>
+      <div class="tool-card-name">주담대 금리 계산기</div>
+      <div class="tool-card-desc">COFIX 연동 변동금리 · 혼합금리 대출 시뮬레이션.</div>
     </div>
+
+    <div class="tool-card disabled">
+      <span class="tool-card-badge badge-soon">Soon</span>
+      <div class="tool-card-icon">⚡</div>
+      <div class="tool-card-name">실시간 시장 데이터</div>
+      <div class="tool-card-desc">DB 연동 전일 종가 기반 자동 업데이트.</div>
+    </div>
+
   </div>
 
-  <!-- ── Input Panels ── -->
-  <div class="panels">
-
-    <!-- 기준금리 경로 -->
-    <div class="panel">
-      <div class="stl">기준금리 경로 (금통위 시나리오)</div>
-      <table class="sttbl" id="stepTable">
-        <thead id="stepHead"></thead>
-        <tbody id="stepRows"></tbody>
-      </table>
-      <button class="add-btn" onclick="addRow()">+ 경로 추가</button>
-      <div class="pre-events" id="preEventTags"></div>
-    </div>
-
-    <!-- CD 스프레드 가정 -->
-    <div class="panel">
-      <div class="stl">CD 스프레드 가정</div>
-
-      <div class="sr">
-        <label>기준 스프레드</label>
-        <input type="range" id="baseSpread" min="0" max="60" step="1" value="25" oninput="updateAll()">
-        <span class="sv"><span id="bsv">25</span> bp</span>
-      </div>
-      <div class="sr">
-        <label>계절성 강도</label>
-        <input type="range" id="seasonStr" min="0" max="200" step="5" value="100" oninput="updateAll()">
-        <span class="sv"><span id="ssv">100</span>%</span>
-      </div>
-      <div class="sr">
-        <label>연초 추가</label>
-        <input type="range" id="ysExtra" min="0" max="30" step="1" value="9" oninput="updateAll()">
-        <span class="sv">+<span id="ysv">9</span> bp</span>
-      </div>
-
-      <div class="emp-note">
-        <strong>실증:</strong> 분기말(3·6·9월) 효과 = 0bp.
-        Q4 계절 상승 (Oct +8 / Nov +15 / Dec +16 bp), 연초(1/1~10) +9 bp.
-        BR 변경 후 CD 반영 속도 = 당일.
-      </div>
-    </div>
-
-  </div><!-- /.panels -->
-
-  <!-- ── Smoothing Bar ── -->
-  <div class="opt-bar" style="margin-bottom:10px;">
-    <div class="opt-row">
-      <label class="toggle-wrap">
-        <span class="toggle">
-          <input type="checkbox" id="smoothToggle" checked>
-          <span class="toggle-slider"></span>
-        </span>
-        <span class="tgl-label">스무딩</span>
-      </label>
-      <span style="font-size:11px;color:var(--t3);">CD(2.82%) → 전망 경로 지수 평활 (현재값 앵커링)</span>
-      <div class="opt-divider"></div>
-      <div class="ctrl-group" id="smoothCtrls">
-        <label>반감기</label>
-        <input type="range" id="halfLife" min="3" max="45" step="1" value="14"
-               oninput="updateAll()" style="width:90px;flex:none;">
-        <span class="val"><span id="hlv">14</span>일</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── 선반영 Bar ── -->
-  <div class="opt-bar" style="border-color:rgba(167,139,250,.2);">
-    <div class="opt-row">
-      <label class="toggle-wrap">
-        <span class="toggle">
-          <input type="checkbox" id="preToggle" checked onchange="togglePre()">
-          <span class="toggle-slider purple-on"></span>
-        </span>
-        <span class="tgl-label" style="color:var(--purple);">선반영</span>
-      </label>
-      <span style="font-size:11px;color:var(--t3);">인하 전 CD 선제 하락 (BR 불변) — 경로 테이블에서 날짜 입력</span>
-      <div class="opt-divider"></div>
-      <div class="ctrl-group" id="preCtrls">
-        <label>형태</label>
-        <div class="shape-btns">
-          <button class="shape-btn active" data-shape="linear"  onclick="setShape(this)">선형</button>
-          <button class="shape-btn"        data-shape="convex"  onclick="setShape(this)">볼록</button>
-          <button class="shape-btn"        data-shape="concave" onclick="setShape(this)">오목</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Chart ── -->
-  <div class="chart-card">
-    <div class="chart-hdr">
-      <div class="stl" style="margin:0;">CD91 전망 경로</div>
-      <div id="legend"></div>
-    </div>
-    <div style="position:relative;height:310px;">
-      <canvas id="cdChart"></canvas>
-    </div>
-    <div style="margin-top:6px;text-align:center;font-size:10px;color:var(--t3);">
-      실선: 실제 이력 &nbsp;/&nbsp; 파선: 전망 (선반영+스무딩) &nbsp;/&nbsp;
-      점선: 기준금리 경로 &nbsp;/&nbsp;
-      <span style="color:rgba(167,139,250,.7);">보라:</span> 선반영 없는 raw CD
-    </div>
-  </div>
-
-  <!-- ── Stats ── -->
-  <div class="stats-grid">
-    <div class="stats-card">
-      <div class="stl">월별 평균 스프레드 (2020–2026)</div>
-      <div style="position:relative;height:155px;"><canvas id="monthChart"></canvas></div>
-    </div>
-    <div class="stats-card">
-      <div class="stl">구간별 스프레드 기초통계 (bp)</div>
-      <table class="period-table">
-        <thead>
-          <tr><th>구간</th><th>n</th><th>평균</th><th>중위</th><th>p25~p75</th></tr>
-        </thead>
-        <tbody>
-          <tr>
-            <td>평시</td>
-            <td style="color:var(--t3);">1,834</td><td>21.5</td><td>20.0</td><td>10~28</td>
-          </tr>
-          <tr>
-            <td>월말 (비분기)</td>
-            <td style="color:var(--t3);">141</td><td>21.6</td><td>20.0</td><td>10~28</td>
-          </tr>
-          <tr>
-            <td>분기말 3·6·9 <span style="font-size:9px;color:var(--t3);">← 효과없음</span></td>
-            <td style="color:var(--t3);">90</td><td>21.2</td><td>21.5</td><td>9~29</td>
-          </tr>
-          <tr>
-            <td>연말 12/26~31 <span class="pill high">+17</span></td>
-            <td style="color:var(--t3);">36</td><td>38.3</td><td>33.0</td><td>28~44</td>
-          </tr>
-          <tr>
-            <td>연초 1/1~10 <span class="pill mid">+9</span></td>
-            <td style="color:var(--t3);">60</td><td>30.6</td><td>29.0</td><td>16~32</td>
-          </tr>
-        </tbody>
-      </table>
-      <div style="margin-top:9px;padding-top:9px;border-top:.5px solid var(--bd);font-size:10px;color:var(--t3);line-height:1.8;">
-        BR → CD 반영 속도: <strong style="color:var(--t1);">당일</strong>&nbsp;|&nbsp;
-        2024 평균 13bp &nbsp;/&nbsp; 2025 평균 7bp &nbsp;/&nbsp; 2026 평균 27bp
-      </div>
-    </div>
-  </div>
-
-  <!-- ── Quarterly Cards ── -->
-  <div class="stl">분기별 평균 CD91 전망</div>
-  <div class="qgrid" id="qout"></div>
-
-  <!-- ── API 연결 테스트 ── -->
-  <div style="margin-top:2rem;border-top:.5px solid var(--bd);padding-top:1.5rem;">
-    <div class="stl">데이터 서버 연결</div>
-    <div class="panel" style="margin-bottom:0;">
-
-      <!-- URL 입력 -->
-      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
-        <input type="text" id="apiUrlInput" placeholder="https://xxxx.ngrok-free.app"
-          style="flex:1;min-width:240px;background:var(--s2);border:.5px solid var(--bd2);
-                 border-radius:var(--rs);color:var(--t1);font-size:12px;padding:6px 10px;
-                 outline:none;font-family:monospace;"
-          oninput="onApiUrlChange(this.value)">
-        <button onclick="testConnection()"
-          style="background:none;border:.5px solid var(--bd2);border-radius:var(--rs);
-                 color:var(--t2);font-size:12px;cursor:pointer;padding:5px 14px;
-                 transition:all .15s;white-space:nowrap;"
-          onmouseover="this.style.borderColor='var(--blue)';this.style.color='var(--blue)'"
-          onmouseout="this.style.borderColor='var(--bd2)';this.style.color='var(--t2)'">
-          연결 테스트
-        </button>
-        <button onclick="loadTables()"
-          style="background:none;border:.5px solid var(--bd2);border-radius:var(--rs);
-                 color:var(--t2);font-size:12px;cursor:pointer;padding:5px 14px;
-                 transition:all .15s;white-space:nowrap;"
-          onmouseover="this.style.borderColor='var(--green)';this.style.color='var(--green)'"
-          onmouseout="this.style.borderColor='var(--bd2)';this.style.color='var(--t2)'">
-          테이블 조회
-        </button>
-      </div>
-
-      <!-- 상태 표시 -->
-      <div id="apiStatus" style="font-size:11px;color:var(--t3);min-height:16px;"></div>
-
-      <!-- 테이블 목록 -->
-      <div id="tableList" style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;"></div>
-
-      <!-- 테이블 미리보기 -->
-      <div id="previewArea" style="margin-top:12px;overflow-x:auto;"></div>
-
-    </div>
-  </div>
-
-</div><!-- /.container -->
-
-<!-- ── Scripts (순서 중요: data → model → api → ui) ── -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script src="/assets/js/data.js"></script>
-<script src="/assets/js/model.js"></script>
-<script src="/assets/js/api.js"></script>
-<script src="/assets/js/ui.js"></script>
-<script>
-/* ── API 테스트 패널 ── */
-(function initApiPanel() {
-  const saved = getApiBase();
-  if (saved) document.getElementById('apiUrlInput').value = saved;
-})();
-
-function onApiUrlChange(val) {
-  setApiBase(val);
-}
-
-function setStatus(msg, color) {
-  const el = document.getElementById('apiStatus');
-  el.style.color = color || 'var(--t3)';
-  el.textContent = msg;
-}
-
-async function testConnection() {
-  setStatus('연결 중…', 'var(--t3)');
-  try {
-    const data = await apiGet('/health');
-    if (data.status === 'ok') {
-      setStatus('✓ 연결 성공 — DB: ' + data.db, 'var(--green)');
-    } else {
-      setStatus('⚠ 서버 응답: ' + (data.detail || JSON.stringify(data)), 'var(--amber)');
-    }
-  } catch (e) {
-    setStatus('✗ ' + e.message, 'var(--red)');
-  }
-}
-
-async function loadTables() {
-  setStatus('테이블 목록 조회 중…', 'var(--t3)');
-  document.getElementById('tableList').innerHTML = '';
-  document.getElementById('previewArea').innerHTML = '';
-  try {
-    const data = await apiGet('/tables');
-    const el = document.getElementById('tableList');
-    if (!data.tables?.length) {
-      setStatus('테이블 없음', 'var(--amber)');
-      return;
-    }
-    setStatus(`테이블 ${data.tables.length}개 발견 — 클릭하면 미리보기`, 'var(--blue)');
-    data.tables.forEach(tbl => {
-      const btn = document.createElement('button');
-      btn.textContent = tbl;
-      btn.style.cssText = `background:var(--s2);border:.5px solid var(--bd2);border-radius:var(--rs);
-        color:var(--t2);font-size:11px;cursor:pointer;padding:3px 10px;transition:all .15s;`;
-      btn.onmouseover = () => { btn.style.borderColor = 'var(--blue)'; btn.style.color = 'var(--blue)'; };
-      btn.onmouseout  = () => { btn.style.borderColor = 'var(--bd2)';  btn.style.color = 'var(--t2)'; };
-      btn.onclick = () => previewTable(tbl);
-      el.appendChild(btn);
-    });
-  } catch (e) {
-    setStatus('✗ ' + e.message, 'var(--red)');
-  }
-}
-
-async function previewTable(tbl) {
-  setStatus(`${tbl} 미리보기 로딩 중…`, 'var(--t3)');
-  const area = document.getElementById('previewArea');
-  area.innerHTML = '';
-  try {
-    const data = await apiGet(`/preview/${encodeURIComponent(tbl)}?limit=10`);
-    if (!data.rows?.length) { setStatus('데이터 없음', 'var(--amber)'); return; }
-
-    const cols = Object.keys(data.rows[0]);
-    const tblEl = document.createElement('table');
-    tblEl.style.cssText = 'width:100%;border-collapse:collapse;font-size:11px;';
-
-    // 헤더
-    const thead = document.createElement('thead');
-    thead.innerHTML = '<tr>' + cols.map(c =>
-      `<th style="font-size:10px;font-weight:500;color:var(--t3);padding:4px 8px;
-                  text-align:left;border-bottom:.5px solid var(--bd);white-space:nowrap;">${c}</th>`
-    ).join('') + '</tr>';
-    tblEl.appendChild(thead);
-
-    // 바디
-    const tbody = document.createElement('tbody');
-    data.rows.forEach(row => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = cols.map(c =>
-        `<td style="padding:4px 8px;color:var(--t2);border-bottom:.5px solid rgba(255,255,255,.03);
-                    white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis;">
-           ${row[c] ?? ''}
-         </td>`
-      ).join('');
-      tbody.appendChild(tr);
-    });
-    tblEl.appendChild(tbody);
-    area.appendChild(tblEl);
-    setStatus(`${tbl} — 최근 ${data.rows.length}행 표시 (전체 조회 가능)`, 'var(--t1)');
-  } catch (e) {
-    setStatus('✗ ' + e.message, 'var(--red)');
-  }
-}
-</script>
+</div>
 </body>
 </html>
