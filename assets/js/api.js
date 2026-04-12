@@ -22,7 +22,7 @@ function getApiBase() {
   return (
     localStorage.getItem(API_BASE_KEY) ||
     (typeof window !== 'undefined' && window.API_BASE) ||
-    ''
+    'https://anaconda-implosion-decipher.ngrok-free.dev'
   );
 }
 
