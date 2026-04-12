@@ -18,22 +18,39 @@
       position: absolute; top: calc(100% + 4px); left: 0; right: 0;
       background: var(--s2); border: .5px solid var(--bd2); border-radius: var(--rs);
       z-index: 100; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.4);
+      max-height: 260px; overflow-y: auto;
     }
     .search-item {
-      padding: 8px 12px; cursor: pointer; font-size: 12px; color: var(--t1);
+      padding: 7px 12px; cursor: pointer; font-size: 12px;
+      display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
       transition: background .1s;
     }
     .search-item:hover, .search-item.focused { background: var(--s3); }
+    .si-nick { font-weight: 600; color: var(--blue); font-size: 11px; flex-shrink: 0; }
+    .si-name { color: var(--t2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .si-meta { font-size: 10px; color: var(--t3); flex-shrink: 0; }
 
-    /* ── 기간 선택 ── */
-    .period-btns { display: flex; gap: 4px; }
+    /* ── 기간 버튼 ── */
     .period-btn {
       background: none; border: .5px solid var(--bd2); border-radius: var(--rs);
       color: var(--t3); font-size: 11px; cursor: pointer; padding: 3px 9px;
       transition: all .15s;
     }
-    .period-btn:hover { color: var(--t1); border-color: var(--bd2); }
+    .period-btn:hover { color: var(--t1); }
     .period-btn.active { border-color: var(--blue); color: var(--blue); background: rgba(74,158,255,.1); }
+
+    /* ── 토글 버튼 (카테고리, 비교일) ── */
+    .toggle-group { display: flex; gap: 4px; flex-wrap: wrap; }
+    .tgl-btn {
+      background: none; border: .5px solid var(--bd2); border-radius: var(--rs);
+      color: var(--t3); font-size: 10px; cursor: pointer; padding: 2px 8px;
+      transition: all .15s;
+    }
+    .tgl-btn:hover { color: var(--t1); }
+    .tgl-btn.active { background: rgba(74,158,255,.12); border-color: var(--blue); color: var(--blue); }
+    .tgl-btn.active.green  { background: rgba(52,211,153,.12); border-color: var(--green); color: var(--green); }
+    .tgl-btn.active.orange { background: rgba(251,146,60,.12);  border-color: #fb923c; color: #fb923c; }
+    .tgl-btn.active.purple { background: rgba(167,139,250,.12); border-color: var(--purple); color: var(--purple); }
 
     /* ── 대형 검색 차트 ── */
     .big-chart-card {
@@ -45,17 +62,26 @@
       margin-bottom: 10px; flex-wrap: wrap; gap: 8px;
     }
     .big-chart-title { font-size: 13px; font-weight: 600; color: var(--t1); }
-    .big-chart-meta  { font-size: 10px; color: var(--t3); }
+    .big-chart-meta  { font-size: 10px; color: var(--t3); margin-left: 6px; }
 
-    /* ── 섹션 미니 차트 그리드 ── */
+    /* ── 수익률 곡선 카드 ── */
+    .curve-card {
+      background: var(--s1); border: .5px solid var(--bd); border-radius: var(--r);
+      padding: 1rem 1.125rem; margin-bottom: 16px;
+    }
+    .curve-toolbar {
+      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+      margin-bottom: 10px;
+    }
+    .curve-label { font-size: 10px; color: var(--t3); white-space: nowrap; }
+
+    /* ── 미니 차트 그리드 ── */
     .mini-section { margin-bottom: 20px; }
     .mini-section-label {
       font-size: 10px; font-weight: 600; letter-spacing: .7px;
       color: var(--t3); text-transform: uppercase; margin-bottom: 8px;
     }
-    .mini-grid {
-      display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
-    }
+    .mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
     .mini-card {
       background: var(--s1); border: .5px solid var(--bd); border-radius: var(--r);
       padding: .75rem .875rem .5rem;
@@ -67,11 +93,24 @@
     .mini-title { font-size: 10px; font-weight: 600; color: var(--t3); letter-spacing: .3px; }
     .mini-val   { font-size: 14px; font-weight: 600; letter-spacing: -.3px; }
     .mini-chg   { font-size: 10px; margin-left: 4px; }
-
     .empty-mini {
       display: flex; align-items: center; justify-content: center;
       height: 90px; font-size: 10px; color: var(--t3);
     }
+
+    /* ── 연결 바 ── */
+    .conn-bar {
+      background: var(--s1); border: .5px solid var(--bd); border-radius: var(--r);
+      padding: .5rem 1rem; margin-bottom: 12px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .conn-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--t3); flex-shrink: 0; transition: background .2s;
+    }
+    .conn-dot.ok  { background: var(--green); box-shadow: 0 0 5px rgba(52,211,153,.4); }
+    .conn-dot.err { background: var(--red); }
+    .conn-status  { font-size: 10px; color: var(--t3); }
 
     @media (max-width: 640px) { .mini-grid { grid-template-columns: 1fr 1fr; } }
     @media (max-width: 400px) { .mini-grid { grid-template-columns: 1fr; } }
@@ -83,72 +122,107 @@
   <nav class="nav">
     <a href="/" class="nav-brand">금리 도구 모음</a>
     <div class="nav-links">
-      <a href="/tools/cd91/"       class="nav-link">CD91 전망</a>
-      <a href="/tools/dashboard/"  class="nav-link active">금리 대시보드</a>
-      <a href="/tools/supply/"     class="nav-link">시장 수급</a>
-      <a href="/tools/db/"         class="nav-link">DB 탐색</a>
+      <a href="/tools/cd91/"      class="nav-link">CD91 전망</a>
+      <a href="/tools/dashboard/" class="nav-link active">금리 대시보드</a>
+      <a href="/tools/supply/"    class="nav-link">시장 수급</a>
+      <a href="/tools/db/"        class="nav-link">DB 탐색</a>
     </div>
   </nav>
 
   <div class="hdr" style="margin-bottom:1rem;">
     <h1>금리 대시보드</h1>
-    <p>rates 테이블 — 금리 레벨 · 스프레드 · 커브</p>
+    <p>ktb 테이블 — 수익률 곡선 · 스프레드 · 버터플라이 · IRS</p>
+  </div>
+
+  <!-- 연결 상태 -->
+  <div class="conn-bar">
+    <div class="conn-dot" id="connDot"></div>
+    <span class="conn-status" id="connStatus">연결 중...</span>
   </div>
 
   <!-- 검색 + 기간 -->
-  <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px;flex-wrap:wrap;">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
     <div class="search-wrap">
       <input class="search-input" id="searchInput" type="text"
-             placeholder="종목 검색 (alias, 예: 국고10년, CD91...)"
+             placeholder="종목 검색 (nickname · 채권명 · 코드)"
              oninput="onSearch(this.value)"
              onkeydown="onKeyDown(event)"
              autocomplete="off">
       <div class="search-dropdown" id="searchDropdown" style="display:none;"></div>
     </div>
-    <div class="period-btns" id="periodBtns">
-      <button class="period-btn" onclick="setPeriod(30)">1M</button>
-      <button class="period-btn" onclick="setPeriod(90)">3M</button>
-      <button class="period-btn" onclick="setPeriod(180)">6M</button>
-      <button class="period-btn active" onclick="setPeriod(365)">1Y</button>
-      <button class="period-btn" onclick="setPeriod(730)">2Y</button>
-      <button class="period-btn" onclick="setPeriod(1825)">5Y</button>
-      <button class="period-btn" onclick="setPeriod(0)">전체</button>
+    <div style="display:flex;gap:4px;" id="periodBtns">
+      <button class="period-btn" onclick="setPeriod(this,30)">1M</button>
+      <button class="period-btn" onclick="setPeriod(this,90)">3M</button>
+      <button class="period-btn" onclick="setPeriod(this,180)">6M</button>
+      <button class="period-btn active" onclick="setPeriod(this,365)">1Y</button>
+      <button class="period-btn" onclick="setPeriod(this,730)">2Y</button>
+      <button class="period-btn" onclick="setPeriod(this,1825)">5Y</button>
+      <button class="period-btn" onclick="setPeriod(this,0)">전체</button>
     </div>
   </div>
 
-  <!-- 대형 검색 차트 -->
+  <!-- 대형 검색 차트 (선택 시 표시) -->
   <div class="big-chart-card" id="bigChartCard" style="display:none;">
     <div class="big-chart-hdr">
       <div>
-        <span class="big-chart-title" id="bigChartTitle">—</span>
-        <span class="big-chart-meta" id="bigChartMeta" style="margin-left:8px;"></span>
+        <span class="big-chart-title" id="bigTitle">—</span>
+        <span class="big-chart-meta"  id="bigMeta"></span>
       </div>
-      <div id="bigChartVal" style="font-size:18px;font-weight:700;letter-spacing:-.5px;"></div>
+      <div id="bigVal" style="font-size:18px;font-weight:700;letter-spacing:-.5px;"></div>
     </div>
-    <div style="position:relative;height:300px;">
+    <div style="position:relative;height:280px;">
       <canvas id="bigChart"></canvas>
     </div>
   </div>
 
-  <!-- ── 섹션 1: 레벨 + CD 스프레드 ── -->
+  <!-- 수익률 곡선 -->
+  <div class="stl">수익률 곡선</div>
+  <div class="curve-card">
+    <div class="curve-toolbar">
+      <span class="curve-label">카테고리</span>
+      <div class="toggle-group" id="catBtns">
+        <button class="tgl-btn active" data-cat="" onclick="setCat(this)">전체</button>
+      </div>
+      <div style="width:.5px;height:14px;background:var(--bd);flex-shrink:0;"></div>
+      <span class="curve-label">비교</span>
+      <div class="toggle-group">
+        <button class="tgl-btn active blue"   data-offset="0"   onclick="toggleCurveDate(this)">오늘</button>
+        <button class="tgl-btn"               data-offset="30"  onclick="toggleCurveDate(this)">1M전</button>
+        <button class="tgl-btn green"         data-offset="91"  onclick="toggleCurveDate(this)">3M전</button>
+        <button class="tgl-btn orange"        data-offset="182" onclick="toggleCurveDate(this)">6M전</button>
+        <button class="tgl-btn purple"        data-offset="365" onclick="toggleCurveDate(this)">1Y전</button>
+      </div>
+      <div style="width:.5px;height:14px;background:var(--bd);flex-shrink:0;"></div>
+      <span class="curve-label">바스켓</span>
+      <div class="toggle-group">
+        <button class="tgl-btn" id="basketBtn" onclick="toggleBasket()">선물만</button>
+      </div>
+    </div>
+    <div style="position:relative;height:280px;">
+      <canvas id="curveChart"></canvas>
+    </div>
+    <div id="curveInfo" style="margin-top:6px;font-size:10px;color:var(--t3);text-align:center;"></div>
+  </div>
+
+  <!-- 레벨 · CD스프레드 -->
   <div class="mini-section">
     <div class="mini-section-label">레벨 · CD 스프레드</div>
     <div class="mini-grid" id="row-levels"></div>
   </div>
 
-  <!-- ── 섹션 2: 커브 스프레드 ── -->
+  <!-- 커브 스프레드 -->
   <div class="mini-section">
     <div class="mini-section-label">커브 스프레드</div>
     <div class="mini-grid" id="row-spreads"></div>
   </div>
 
-  <!-- ── 섹션 3: 버터플라이 ── -->
+  <!-- 버터플라이 -->
   <div class="mini-section">
     <div class="mini-section-label">버터플라이</div>
     <div class="mini-grid" id="row-butterfly"></div>
   </div>
 
-  <!-- ── 섹션 4: IRS ── -->
+  <!-- IRS 스프레드 -->
   <div class="mini-section">
     <div class="mini-section-label">IRS 스프레드</div>
     <div class="mini-grid" id="row-irs"></div>
@@ -160,165 +234,299 @@
 <script src="/assets/js/api.js"></script>
 <script>
 // ══════════════════════════════════════════════════════════════
-//  CONFIG — alias 이름이 다를 경우 여기만 수정
+//  CONFIG
 // ══════════════════════════════════════════════════════════════
-const ALIAS = {
-  기준금리: '기준금리',
-  CD91:     'CD91',
-  KTB2:     '국고2년',
-  KTB3:     '국고3년',
-  KTB5:     '국고5년',
-  KTB10:    '국고10년',
-  KTB20:    '국고20년',
-  KTB30:    '국고30년',
-  IRS1:     'IRS1년',
-  IRS3:     'IRS3년',
-  IRS5:     'IRS5년',
-  IRS10:    'IRS10년',
+// ktb tenor 키:  'k2', 'k3', 'k5', 'k10', 'k20', 'k30'
+// rates 키:      'CD91', '기준금리', 'IRS1년', 'IRS3년', 'IRS5년', 'IRS10년'
+const KTB_TENORS   = [2, 3, 5, 10, 20, 30];
+const RATES_NEEDED = ['기준금리', 'CD91', 'IRS1년', 'IRS3년', 'IRS5년', 'IRS10년'];
+
+// 수익률 곡선 비교일별 색상
+const CURVE_COLORS = {
+  0:   { line: '#4a9eff', label: '오늘' },
+  30:  { line: '#8b93a8', label: '1M전' },
+  91:  { line: '#34d399', label: '3M전' },
+  182: { line: '#fb923c', label: '6M전' },
+  365: { line: '#a78bfa', label: '1Y전' },
 };
 
-// 차트 섹션 정의
-// type: 'single' | 'multi' | 'derived'
-// formula(seriesObj): seriesObj = {alias: [{ date, value }]}  → 단일 derived 시리즈 반환
+// 미니 차트 섹션 정의
+// formula(s) → [{date, value}]  (s 키: 'k3','k10',... or rates alias)
 const SECTIONS = [
   {
     rowId: 'row-levels',
     charts: [
-      {
-        id: 'cd_spread', title: 'CD91 − 기준금리', unit: 'bp', color: '#4a9eff',
-        aliases: [ALIAS.CD91, ALIAS.기준금리],
-        formula: s => diff(s, ALIAS.CD91, ALIAS.기준금리, 100),
-      },
-      {
-        id: 'ktb3', title: '국고 3년', unit: '%', color: '#34d399',
-        aliases: [ALIAS.KTB3],
-        formula: s => single(s, ALIAS.KTB3),
-      },
-      {
-        id: 'ktb10', title: '국고 10년', unit: '%', color: '#fbbf24',
-        aliases: [ALIAS.KTB10],
-        formula: s => single(s, ALIAS.KTB10),
-      },
+      { id: 'cd_sp',  title: 'CD91 − 기준금리', unit: 'bp', color: '#4a9eff',
+        formula: s => diff(s, 'CD91', '기준금리', 100) },
+      { id: 'ktb3',   title: '국고 3년',         unit: '%',  color: '#34d399',
+        formula: s => single(s, 'k3') },
+      { id: 'ktb10',  title: '국고 10년',        unit: '%',  color: '#fbbf24',
+        formula: s => single(s, 'k10') },
     ],
   },
   {
     rowId: 'row-spreads',
     charts: [
-      {
-        id: 'sp_5_3', title: '5Y − 3Y', unit: 'bp', color: '#4a9eff',
-        aliases: [ALIAS.KTB5, ALIAS.KTB3],
-        formula: s => diff(s, ALIAS.KTB5, ALIAS.KTB3, 100),
-      },
-      {
-        id: 'sp_10_3', title: '10Y − 3Y', unit: 'bp', color: '#a78bfa',
-        aliases: [ALIAS.KTB10, ALIAS.KTB3],
-        formula: s => diff(s, ALIAS.KTB10, ALIAS.KTB3, 100),
-      },
-      {
-        id: 'sp_30_10', title: '30Y − 10Y', unit: 'bp', color: '#f87171',
-        aliases: [ALIAS.KTB30, ALIAS.KTB10],
-        formula: s => diff(s, ALIAS.KTB30, ALIAS.KTB10, 100),
-      },
+      { id: 'sp53',   title: '5Y − 3Y',   unit: 'bp', color: '#4a9eff',
+        formula: s => diff(s, 'k5',  'k3',  100) },
+      { id: 'sp103',  title: '10Y − 3Y',  unit: 'bp', color: '#a78bfa',
+        formula: s => diff(s, 'k10', 'k3',  100) },
+      { id: 'sp3010', title: '30Y − 10Y', unit: 'bp', color: '#f87171',
+        formula: s => diff(s, 'k30', 'k10', 100) },
     ],
   },
   {
     rowId: 'row-butterfly',
     charts: [
-      {
-        id: 'bf_3510', title: '3-5-10 BF', unit: 'bp', color: '#34d399',
-        aliases: [ALIAS.KTB3, ALIAS.KTB5, ALIAS.KTB10],
-        // 3년 숏 / 5년 롱 2배 / 10년 숏 → 2*5Y - 3Y - 10Y
-        formula: s => butterfly(s, ALIAS.KTB3, ALIAS.KTB5, ALIAS.KTB10),
-      },
-      {
-        id: 'bf_2510', title: '2-5-10 BF', unit: 'bp', color: '#fbbf24',
-        aliases: [ALIAS.KTB2, ALIAS.KTB5, ALIAS.KTB10],
-        formula: s => butterfly(s, ALIAS.KTB2, ALIAS.KTB5, ALIAS.KTB10),
-      },
-      {
-        id: 'bf_102030', title: '10-20-30 BF', unit: 'bp', color: '#fb923c',
-        aliases: [ALIAS.KTB10, ALIAS.KTB20, ALIAS.KTB30],
-        formula: s => butterfly(s, ALIAS.KTB10, ALIAS.KTB20, ALIAS.KTB30),
-      },
+      { id: 'bf3510',   title: '3-5-10 BF',   unit: 'bp', color: '#34d399',
+        formula: s => butterfly(s, 'k3',  'k5',  'k10') },
+      { id: 'bf2510',   title: '2-5-10 BF',   unit: 'bp', color: '#fbbf24',
+        formula: s => butterfly(s, 'k2',  'k5',  'k10') },
+      { id: 'bf102030', title: '10-20-30 BF',  unit: 'bp', color: '#fb923c',
+        formula: s => butterfly(s, 'k10', 'k20', 'k30') },
     ],
   },
   {
     rowId: 'row-irs',
     charts: [
-      {
-        id: 'irs3_1', title: 'IRS 3Y − 1Y', unit: 'bp', color: '#38bdf8',
-        aliases: [ALIAS.IRS3, ALIAS.IRS1],
-        formula: s => diff(s, ALIAS.IRS3, ALIAS.IRS1, 100),
-      },
-      {
-        id: 'irs5_3', title: 'IRS 5Y − 3Y', unit: 'bp', color: '#e879f9',
-        aliases: [ALIAS.IRS5, ALIAS.IRS3],
-        formula: s => diff(s, ALIAS.IRS5, ALIAS.IRS3, 100),
-      },
-      {
-        id: 'irs10_5', title: 'IRS 10Y − 5Y', unit: 'bp', color: '#4ade80',
-        aliases: [ALIAS.IRS10, ALIAS.IRS5],
-        formula: s => diff(s, ALIAS.IRS10, ALIAS.IRS5, 100),
-      },
+      { id: 'irs31',  title: 'IRS 3Y − 1Y',  unit: 'bp', color: '#38bdf8',
+        formula: s => diff(s, 'IRS3년', 'IRS1년', 100) },
+      { id: 'irs53',  title: 'IRS 5Y − 3Y',  unit: 'bp', color: '#e879f9',
+        formula: s => diff(s, 'IRS5년', 'IRS3년', 100) },
+      { id: 'irs105', title: 'IRS 10Y − 5Y', unit: 'bp', color: '#4ade80',
+        formula: s => diff(s, 'IRS10년', 'IRS5년', 100) },
     ],
   },
 ];
 
 // ══════════════════════════════════════════════════════════════
-//  공식 헬퍼
+//  상태
 // ══════════════════════════════════════════════════════════════
-function single(s, a) {
-  return (s[a] || []).map(p => ({ date: p.date, value: p.value != null ? +p.value : null }));
+let currentDays    = 365;
+let curveCategory  = '';          // '' = 전체
+let curveBasket    = null;        // null | 1
+let activeCurveOffsets = new Set([0]);  // 오늘만
+
+let bigChartInst   = null;
+let curveChartInst = null;
+let miniCharts     = {};
+let searchTimer    = null;
+let dropFocusIdx   = -1;
+
+// ══════════════════════════════════════════════════════════════
+//  수식 헬퍼
+// ══════════════════════════════════════════════════════════════
+function single(s, key) {
+  return (s[key] || []).map(p => ({ date: p.date, value: p.value != null ? +p.value : null }));
+}
+function toMap(arr) {
+  if (!arr) return {};
+  return Object.fromEntries(arr.map(p => [p.date?.slice(0, 10), p.value != null ? +p.value : null]));
 }
 function diff(s, a, b, mult = 1) {
-  const ma = toMap(s[a]); const mb = toMap(s[b]);
+  const ma = toMap(s[a]), mb = toMap(s[b]);
   const dates = [...new Set([...Object.keys(ma), ...Object.keys(mb)])].sort();
   return dates.map(d => ({
     date: d,
     value: ma[d] != null && mb[d] != null ? +((ma[d] - mb[d]) * mult).toFixed(4) : null,
   }));
 }
-function butterfly(s, wing1, body, wing2, mult = 100) {
-  const mw1 = toMap(s[wing1]); const mb = toMap(s[body]); const mw2 = toMap(s[wing2]);
-  const dates = [...new Set([...Object.keys(mw1), ...Object.keys(mb), ...Object.keys(mw2)])].sort();
+function butterfly(s, w1, body, w2, mult = 100) {
+  const m1 = toMap(s[w1]), mb = toMap(s[body]), m2 = toMap(s[w2]);
+  const dates = [...new Set([...Object.keys(m1), ...Object.keys(mb), ...Object.keys(m2)])].sort();
   return dates.map(d => ({
     date: d,
-    value: mw1[d] != null && mb[d] != null && mw2[d] != null
-      ? +((2 * mb[d] - mw1[d] - mw2[d]) * mult).toFixed(4) : null,
+    value: m1[d] != null && mb[d] != null && m2[d] != null
+      ? +((2 * mb[d] - m1[d] - m2[d]) * mult).toFixed(4) : null,
   }));
-}
-function toMap(arr) {
-  if (!arr) return {};
-  return Object.fromEntries(arr.map(p => [p.date?.slice(0, 10), p.value != null ? +p.value : null]));
 }
 
 // ══════════════════════════════════════════════════════════════
-//  상태
+//  연결 상태
 // ══════════════════════════════════════════════════════════════
-let currentDays   = 365;
-let bigChart      = null;
-let miniCharts    = {};   // id → Chart instance
-let searchTimer   = null;
-let dropFocusIdx  = -1;
+async function checkConn() {
+  try {
+    const d = await apiGet('/health');
+    if (d.status === 'ok') {
+      document.getElementById('connDot').className = 'conn-dot ok';
+      document.getElementById('connStatus').textContent = '연결됨';
+    } else throw new Error(d.detail);
+  } catch (e) {
+    document.getElementById('connDot').className = 'conn-dot err';
+    document.getElementById('connStatus').textContent = '연결 실패 — ' + e.message;
+  }
+}
 
 // ══════════════════════════════════════════════════════════════
 //  기간 선택
 // ══════════════════════════════════════════════════════════════
-function setPeriod(days) {
+function setPeriod(btn, days) {
   currentDays = days;
-  document.querySelectorAll('.period-btn').forEach(b => {
-    b.classList.toggle('active', +b.textContent === (
-      days === 30 ? 1 : days === 90 ? 3 : days === 180 ? 6 :
-      days === 365 ? 1 : days === 730 ? 2 : days === 1825 ? 5 : -1
-    ) || (days === 0 && b.textContent === '전체') || (days === 365 && b.textContent === '1Y'));
-  });
-  // 간단하게: 해당 버튼에 active
   document.querySelectorAll('.period-btn').forEach(b => b.classList.remove('active'));
-  event.currentTarget.classList.add('active');
-
+  btn.classList.add('active');
   loadAllMini();
-  if (bigChart && document.getElementById('searchInput').value)
-    loadBigChart(document.getElementById('searchInput').dataset.alias);
+  if (document.getElementById('bigChartCard').style.display !== 'none') {
+    const nick = document.getElementById('searchInput').dataset.nickname;
+    if (nick) loadBigChart(nick);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  카테고리 로드 + 필터
+// ══════════════════════════════════════════════════════════════
+async function loadCategories() {
+  try {
+    const d = await apiGet('/ktb/categories');
+    const wrap = document.getElementById('catBtns');
+    (d.categories || []).forEach(cat => {
+      const btn = document.createElement('button');
+      btn.className = 'tgl-btn';
+      btn.dataset.cat = cat;
+      btn.textContent = cat;
+      btn.onclick = () => setCat(btn);
+      wrap.appendChild(btn);
+    });
+  } catch { /* 카테고리 필터 생략 */ }
+}
+
+function setCat(btn) {
+  document.querySelectorAll('#catBtns .tgl-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  curveCategory = btn.dataset.cat;
+  loadCurve();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  바스켓 토글
+// ══════════════════════════════════════════════════════════════
+function toggleBasket() {
+  const btn = document.getElementById('basketBtn');
+  if (curveBasket === 1) {
+    curveBasket = null;
+    btn.classList.remove('active');
+  } else {
+    curveBasket = 1;
+    btn.classList.add('active');
+  }
+  loadCurve();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  수익률 곡선 비교일 토글
+// ══════════════════════════════════════════════════════════════
+function toggleCurveDate(btn) {
+  const offset = +btn.dataset.offset;
+  if (offset === 0) return; // 오늘은 항상 표시
+  if (activeCurveOffsets.has(offset)) {
+    activeCurveOffsets.delete(offset);
+    btn.classList.remove('active');
+  } else {
+    activeCurveOffsets.add(offset);
+    btn.classList.add('active');
+  }
+  loadCurve();
+}
+
+// ── 날짜 계산 헬퍼 ─────────────────────────────────────────────
+function offsetDate(days) {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  return d.toISOString().slice(0, 10);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  수익률 곡선 로드 + 렌더
+// ══════════════════════════════════════════════════════════════
+async function loadCurve() {
+  const offsets = [...activeCurveOffsets].sort((a, b) => a - b);
+
+  // 각 날짜 데이터 병렬 fetch
+  const catParam    = curveCategory ? `&category=${encodeURIComponent(curveCategory)}` : '';
+  const basketParam = curveBasket != null ? `&basket=${curveBasket}` : '';
+
+  const fetches = offsets.map(offset => {
+    const dateParam = offset > 0 ? `?date=${offsetDate(offset)}` : '?';
+    return apiGet(`/ktb/curve${dateParam}${catParam}${basketParam}`)
+      .catch(() => null);
+  });
+
+  const results = await Promise.all(fetches);
+  drawCurve(results, offsets);
+}
+
+function drawCurve(results, offsets) {
+  const datasets = [];
+  let infoTexts = [];
+
+  results.forEach((res, i) => {
+    if (!res || !res.rows?.length) return;
+    const offset = offsets[i];
+    const cfg    = CURVE_COLORS[offset] || { line: '#8b93a8', label: `${offset}일전` };
+    const rows   = res.rows.filter(r => r.remain_year != null && r.ytm != null);
+
+    datasets.push({
+      label:        cfg.label + ' (' + res.date + ')',
+      data:         rows.map(r => ({ x: +r.remain_year, y: +r.ytm })),
+      borderColor:  cfg.line,
+      borderWidth:  offset === 0 ? 2 : 1.2,
+      pointRadius:  offset === 0 ? 3 : 2,
+      pointHoverRadius: 5,
+      tension:      0.3,
+      spanGaps:     true,
+      fill:         false,
+    });
+    infoTexts.push(`${cfg.label}: ${res.date}  n=${res.count}`);
+  });
+
+  document.getElementById('curveInfo').textContent = infoTexts.join('   |   ');
+
+  if (curveChartInst) {
+    curveChartInst.data.datasets = datasets;
+    curveChartInst.update('none');
+    return;
+  }
+
+  const canvas = document.getElementById('curveChart');
+  curveChartInst = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'nearest', axis: 'x', intersect: false },
+      plugins: {
+        legend: {
+          display: true,
+          labels: { color: '#8b93a8', font: { size: 10 }, boxWidth: 20, padding: 10 },
+        },
+        tooltip: {
+          backgroundColor: '#181c27', borderColor: 'rgba(255,255,255,.1)', borderWidth: 1,
+          titleColor: '#8b93a8', bodyColor: '#e8eaf0', padding: 8,
+          callbacks: {
+            title: items => `잔존 ${items[0]?.parsed.x?.toFixed(2)}년`,
+            label: c => {
+              const dp = c.dataset.data[c.dataIndex];
+              const nick = results[c.datasetIndex]?.rows
+                ?.find(r => Math.abs(+r.remain_year - dp.x) < 0.01)?.nickname ?? '';
+              return ` ${c.dataset.label.split(' ')[0]}: ${dp.y?.toFixed(4)}%  ${nick}`;
+            },
+          },
+        },
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          title: { display: true, text: '잔존만기 (년)', color: '#555e75', font: { size: 10 } },
+          grid: { color: 'rgba(255,255,255,.04)' },
+          ticks: { font: { size: 10 }, color: '#555e75' },
+        },
+        y: {
+          title: { display: true, text: 'YTM (%)', color: '#555e75', font: { size: 10 } },
+          grid: { color: 'rgba(255,255,255,.04)' },
+          ticks: { font: { size: 10 }, color: '#555e75', callback: v => v.toFixed(2) + '%' },
+        },
+      },
+    },
+  });
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -332,24 +540,28 @@ function onSearch(val) {
 
 async function fetchSearch(q) {
   try {
-    const data = await apiGet(`/rates/search?q=${encodeURIComponent(q)}`);
-    renderDropdown(data.results || []);
+    const d = await apiGet(`/ktb/search?q=${encodeURIComponent(q)}`);
+    renderDropdown(d.results || []);
   } catch { hideDropdown(); }
 }
 
 function renderDropdown(results) {
   const dd = document.getElementById('searchDropdown');
-  if (!results.length) { hideDropdown(); return; }
+  if (!results.length) { dd.style.display = 'none'; return; }
   dd.innerHTML = '';
-  results.forEach((r, i) => {
+  results.forEach(r => {
     const div = document.createElement('div');
     div.className = 'search-item';
-    div.textContent = r.alias;
+    const ytmStr = r.ytm != null ? (+r.ytm).toFixed(3) + '%' : '';
+    div.innerHTML = `
+      <span class="si-nick">${r.nickname ?? ''}</span>
+      <span class="si-name">${r.bond_name ?? ''}</span>
+      <span class="si-meta">${r.remain_year != null ? (+r.remain_year).toFixed(1) + 'Y' : ''}  ${ytmStr}</span>`;
     div.onclick = () => {
-      document.getElementById('searchInput').value = r.alias;
-      document.getElementById('searchInput').dataset.alias = r.alias;
+      document.getElementById('searchInput').value = r.nickname ?? r.bond_name;
+      document.getElementById('searchInput').dataset.nickname = r.nickname;
       hideDropdown();
-      loadBigChart(r.alias);
+      loadBigChart(r.nickname);
     };
     dd.appendChild(div);
   });
@@ -357,58 +569,61 @@ function renderDropdown(results) {
   dropFocusIdx = -1;
 }
 
-function hideDropdown() {
-  document.getElementById('searchDropdown').style.display = 'none';
-}
+function hideDropdown() { document.getElementById('searchDropdown').style.display = 'none'; }
 
 function onKeyDown(e) {
   const items = document.querySelectorAll('.search-item');
   if (!items.length) return;
-  if (e.key === 'ArrowDown') { e.preventDefault(); dropFocusIdx = Math.min(dropFocusIdx+1, items.length-1); }
-  else if (e.key === 'ArrowUp') { e.preventDefault(); dropFocusIdx = Math.max(dropFocusIdx-1, 0); }
+  if      (e.key === 'ArrowDown')  { e.preventDefault(); dropFocusIdx = Math.min(dropFocusIdx + 1, items.length - 1); }
+  else if (e.key === 'ArrowUp')    { e.preventDefault(); dropFocusIdx = Math.max(dropFocusIdx - 1, 0); }
   else if (e.key === 'Enter' && dropFocusIdx >= 0) { e.preventDefault(); items[dropFocusIdx].click(); return; }
-  else if (e.key === 'Escape') { hideDropdown(); return; }
+  else if (e.key === 'Escape')     { hideDropdown(); return; }
   items.forEach((el, i) => el.classList.toggle('focused', i === dropFocusIdx));
 }
 
 document.addEventListener('click', e => { if (!e.target.closest('.search-wrap')) hideDropdown(); });
 
 // ── 대형 차트 ─────────────────────────────────────────────────
-async function loadBigChart(alias) {
-  if (!alias) return;
+async function loadBigChart(nickname) {
+  if (!nickname) return;
   try {
-    const data = await apiGet(`/rates/series?aliases=${encodeURIComponent(alias)}&days=${currentDays}`);
-    const pts = (data.series[alias] || []);
-    if (!pts.length) return;
+    const d = await apiGet(`/ktb/series?nickname=${encodeURIComponent(nickname)}&days=${currentDays}`);
+    const rows = d.rows || [];
+    if (!rows.length) return;
 
-    const labels = pts.map(p => p.date?.slice(0, 10));
-    const values = pts.map(p => p.value != null ? +p.value : null);
+    const labels = rows.map(r => r.price_date?.slice(0, 10));
+    const values = rows.map(r => r.ytm != null ? +r.ytm : null);
     const last   = values.filter(v => v != null).at(-1);
     const prev   = values.filter(v => v != null).at(-2);
-    const chg    = last != null && prev != null ? (last - prev) : null;
+    const chg    = last != null && prev != null ? last - prev : null;
+    const firstRow = rows[0];
 
-    document.getElementById('bigChartTitle').textContent = alias;
-    document.getElementById('bigChartMeta').textContent  =
-      `${pts[0]?.date?.slice(0,10)} ~ ${pts.at(-1)?.date?.slice(0,10)}  |  ${pts.length}일`;
-    document.getElementById('bigChartVal').innerHTML = last != null
+    document.getElementById('bigTitle').textContent =
+      `${nickname}  ${firstRow?.bond_name ?? ''}`;
+    document.getElementById('bigMeta').textContent =
+      `${firstRow?.category ?? ''}  |  잔존 ${rows.at(-1)?.remain_year != null ? (+rows.at(-1).remain_year).toFixed(1) + 'Y' : ''}`;
+    document.getElementById('bigVal').innerHTML = last != null
       ? `<span style="color:var(--t1);">${last.toFixed(4)}%</span>`
-      + (chg != null ? `<span style="font-size:11px;margin-left:6px;color:${chg>0?'var(--red)':chg<0?'var(--blue)':'var(--t3)'};">`
-          + `${chg > 0 ? '+' : ''}${(chg*100).toFixed(1)}bp</span>` : '') : '';
+      + (chg != null
+          ? `<span style="font-size:11px;margin-left:6px;color:${chg > 0 ? 'var(--red)' : chg < 0 ? 'var(--blue)' : 'var(--t3)'};">`
+            + `${chg > 0 ? '+' : ''}${(chg * 100).toFixed(1)}bp</span>`
+          : '')
+      : '';
 
     document.getElementById('bigChartCard').style.display = 'block';
 
-    const dataset = {
+    const ds = {
       data: values, borderColor: '#4a9eff', borderWidth: 1.8,
       pointRadius: 0, pointHoverRadius: 3, tension: 0.1, spanGaps: true,
     };
-    if (bigChart) {
-      bigChart.data.labels      = labels;
-      bigChart.data.datasets[0] = dataset;
-      bigChart.update('none');
+    if (bigChartInst) {
+      bigChartInst.data.labels = labels;
+      bigChartInst.data.datasets[0] = ds;
+      bigChartInst.update('none');
     } else {
-      bigChart = new Chart(document.getElementById('bigChart').getContext('2d'), {
+      bigChartInst = new Chart(document.getElementById('bigChart').getContext('2d'), {
         type: 'line',
-        data: { labels, datasets: [dataset] },
+        data: { labels, datasets: [ds] },
         options: {
           responsive: true, maintainAspectRatio: false,
           interaction: { mode: 'index', intersect: false },
@@ -417,28 +632,43 @@ async function loadBigChart(alias) {
             tooltip: {
               backgroundColor: '#181c27', borderColor: 'rgba(255,255,255,.1)', borderWidth: 1,
               titleColor: '#8b93a8', bodyColor: '#e8eaf0', padding: 9,
-              callbacks: { label: c => `  ${alias}: ${c.parsed.y?.toFixed(4) ?? '—'}%` },
+              callbacks: { label: c => `  YTM: ${c.parsed.y?.toFixed(4) ?? '—'}%` },
             },
           },
           scales: {
-            x: { grid: { color:'rgba(255,255,255,.04)' }, ticks: { font:{size:10}, color:'#555e75', maxTicksLimit:10, maxRotation:0 } },
-            y: { grid: { color:'rgba(255,255,255,.04)' }, ticks: { font:{size:10}, color:'#555e75', callback: v => v.toFixed(2)+'%' } },
+            x: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { font: { size: 10 }, color: '#555e75', maxTicksLimit: 10, maxRotation: 0 } },
+            y: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { font: { size: 10 }, color: '#555e75', callback: v => v.toFixed(2) + '%' } },
           },
         },
       });
     }
-  } catch(e) { console.error('bigChart error', e); }
+  } catch (e) { console.error('bigChart', e); }
 }
 
 // ══════════════════════════════════════════════════════════════
 //  미니 차트 전체 로드
 // ══════════════════════════════════════════════════════════════
 async function loadAllMini() {
-  // 모든 섹션의 distinct aliases 수집
-  const allAliases = [...new Set(SECTIONS.flatMap(sec => sec.charts.flatMap(c => c.aliases)))];
   try {
-    const data = await apiGet(`/rates/series?aliases=${encodeURIComponent(allAliases.join(','))}&days=${currentDays}`);
-    const series = data.series;
+    const [ktbData, ratesData] = await Promise.all([
+      apiGet(`/ktb/multi_series?tenors=${KTB_TENORS.join(',')}&days=${currentDays}`),
+      apiGet(`/rates/series?aliases=${encodeURIComponent(RATES_NEEDED.join(','))}&days=${currentDays}`)
+        .catch(() => ({ series: {} })),
+    ]);
+
+    // 통합 series 객체 빌드
+    // ktb: 키 = 'k2', 'k3', 'k5', 'k10', 'k20', 'k30'
+    // rates: 키 = alias 그대로
+    const series = {};
+    Object.entries(ktbData.series || {}).forEach(([tenorStr, rows]) => {
+      const key = 'k' + parseFloat(tenorStr);   // "3.0" → 'k3'
+      series[key] = rows.map(r => ({ date: r.price_date, value: r.ytm }));
+    });
+    Object.entries(ratesData.series || {}).forEach(([alias, pts]) => {
+      series[alias] = pts;
+    });
+
+    // 섹션 렌더
     SECTIONS.forEach(sec => {
       const row = document.getElementById(sec.rowId);
       row.innerHTML = '';
@@ -447,14 +677,15 @@ async function loadAllMini() {
         row.appendChild(buildMiniCard(cfg, pts));
       });
     });
-  } catch(e) {
+  } catch (e) {
     SECTIONS.forEach(sec => {
       const row = document.getElementById(sec.rowId);
       row.innerHTML = '';
       sec.charts.forEach(cfg => {
         const card = document.createElement('div');
         card.className = 'mini-card';
-        card.innerHTML = `<div class="mini-title">${cfg.title}</div><div class="empty-mini" style="color:var(--red);font-size:10px;">${e.message}</div>`;
+        card.innerHTML = `<div class="mini-title">${cfg.title}</div>
+          <div class="empty-mini" style="color:var(--red);font-size:10px;">${e.message}</div>`;
         row.appendChild(card);
       });
     });
@@ -466,33 +697,28 @@ function buildMiniCard(cfg, pts) {
   const card = document.createElement('div');
   card.className = 'mini-card';
 
-  const valid  = pts.filter(p => p.value != null);
-  const last   = valid.at(-1)?.value;
-  const prev   = valid.at(-2)?.value;
-  const chg    = last != null && prev != null ? last - prev : null;
-  const isPercent = cfg.unit === '%';
+  const valid = pts.filter(p => p.value != null);
+  const last  = valid.at(-1)?.value;
+  const prev  = valid.at(-2)?.value;
+  const chg   = last != null && prev != null ? last - prev : null;
+  const isPct = cfg.unit === '%';
 
   const valStr = last != null
-    ? `${last.toFixed(isPercent ? 3 : 1)}${isPercent ? '%' : 'bp'}`
-    : '—';
+    ? `${last.toFixed(isPct ? 3 : 1)}${isPct ? '%' : 'bp'}` : '—';
   const chgStr = chg != null
-    ? `${chg > 0 ? '+' : ''}${(isPercent ? chg * 100 : chg).toFixed(1)}${isPercent ? 'bp' : 'bp'}`
-    : '';
-  const chgColor = chg == null ? 'var(--t3)' : chg > 0 ? 'var(--red)' : chg < 0 ? 'var(--blue)' : 'var(--t3)';
+    ? `${chg > 0 ? '+' : ''}${(isPct ? chg * 100 : chg).toFixed(1)}bp` : '';
+  const chgCol = chg == null ? 'var(--t3)' : chg > 0 ? 'var(--red)' : 'var(--blue)';
 
   card.innerHTML = `
     <div class="mini-card-hdr">
       <span class="mini-title">${cfg.title}</span>
       <div>
         <span class="mini-val" style="color:${cfg.color};">${valStr}</span>
-        <span class="mini-chg" style="color:${chgColor};">${chgStr}</span>
+        <span class="mini-chg" style="color:${chgCol};">${chgStr}</span>
       </div>
     </div>
-    <div style="position:relative;height:90px;">
-      <canvas id="mini_${cfg.id}"></canvas>
-    </div>`;
+    <div style="position:relative;height:90px;"><canvas id="mini_${cfg.id}"></canvas></div>`;
 
-  // 차트는 다음 tick에 그려야 캔버스 크기가 잡힘
   setTimeout(() => drawMiniChart(cfg, pts), 0);
   return card;
 }
@@ -502,23 +728,19 @@ function drawMiniChart(cfg, pts) {
   if (!canvas) return;
   if (miniCharts[cfg.id]) { miniCharts[cfg.id].destroy(); }
 
-  const labels = pts.map(p => p.date?.slice(0, 10) ?? '');
-  const values = pts.map(p => p.value != null ? p.value : null);
-
   miniCharts[cfg.id] = new Chart(canvas.getContext('2d'), {
     type: 'line',
     data: {
-      labels,
+      labels: pts.map(p => p.date?.slice(0, 10) ?? ''),
       datasets: [{
-        data: values, borderColor: cfg.color, borderWidth: 1.2,
+        data: pts.map(p => p.value != null ? p.value : null),
+        borderColor: cfg.color, borderWidth: 1.2,
         pointRadius: 0, tension: 0.15, spanGaps: true,
-        fill: true,
-        backgroundColor: cfg.color + '12',
+        fill: true, backgroundColor: cfg.color + '12',
       }],
     },
     options: {
-      responsive: true, maintainAspectRatio: false,
-      animation: false,
+      responsive: true, maintainAspectRatio: false, animation: false,
       interaction: { mode: 'index', intersect: false },
       plugins: {
         legend: { display: false },
@@ -527,19 +749,15 @@ function drawMiniChart(cfg, pts) {
           titleColor: '#8b93a8', bodyColor: '#e8eaf0', padding: 7,
           callbacks: {
             title: items => items[0]?.label ?? '',
-            label: c => ` ${cfg.title}: ${c.parsed.y != null ? c.parsed.y.toFixed(cfg.unit==='%'?3:1) + cfg.unit : '—'}`,
+            label: c => ` ${cfg.title}: ${c.parsed.y != null ? c.parsed.y.toFixed(cfg.unit === '%' ? 3 : 1) + cfg.unit : '—'}`,
           },
         },
       },
       scales: {
         x: { display: false },
         y: {
-          display: true,
-          grid: { color: 'rgba(255,255,255,.03)' },
-          ticks: {
-            font: { size: 9 }, color: '#555e75', maxTicksLimit: 3,
-            callback: v => v.toFixed(1),
-          },
+          display: true, grid: { color: 'rgba(255,255,255,.03)' },
+          ticks: { font: { size: 9 }, color: '#555e75', maxTicksLimit: 3, callback: v => v.toFixed(1) },
           border: { display: false },
         },
       },
@@ -550,7 +768,14 @@ function drawMiniChart(cfg, pts) {
 // ══════════════════════════════════════════════════════════════
 //  Init
 // ══════════════════════════════════════════════════════════════
-loadAllMini();
+async function init() {
+  checkConn();
+  loadCategories();
+  loadCurve();
+  loadAllMini();
+}
+
+init();
 </script>
 </body>
 </html>
