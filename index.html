@@ -11,88 +11,42 @@
       border-bottom: .5px solid var(--bd);
       margin-bottom: 2rem;
     }
-    .home-hero h1 {
-      font-size: 22px;
-      font-weight: 700;
-      letter-spacing: -.5px;
-      margin-bottom: 6px;
-    }
-    .home-hero p {
-      font-size: 12px;
-      color: var(--t3);
-      line-height: 1.7;
-    }
+    .home-hero h1 { font-size: 22px; font-weight: 700; letter-spacing: -.5px; margin-bottom: 6px; }
+    .home-hero p  { font-size: 12px; color: var(--t3); line-height: 1.7; }
 
     .tool-grid {
       display: grid;
       grid-template-columns: repeat(3, 1fr);
-      gap: 12px;
+      gap: 10px;
       margin-bottom: 2rem;
     }
     .tool-card {
       background: var(--s1);
       border: .5px solid var(--bd);
       border-radius: var(--r);
-      padding: 1.25rem 1.25rem 1rem;
+      padding: 1.125rem 1.125rem .9rem;
       text-decoration: none;
       display: block;
       transition: border-color .15s, background .15s;
       position: relative;
-      overflow: hidden;
     }
-    .tool-card:hover {
-      border-color: var(--bd2);
-      background: var(--s2);
-    }
-    .tool-card.disabled {
-      opacity: .45;
-      pointer-events: none;
-    }
-    .tool-card-icon {
-      font-size: 22px;
-      margin-bottom: 10px;
-      line-height: 1;
-    }
-    .tool-card-name {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--t1);
-      margin-bottom: 4px;
-    }
-    .tool-card-desc {
-      font-size: 11px;
-      color: var(--t3);
-      line-height: 1.6;
-    }
+    .tool-card:hover              { border-color: var(--bd2); background: var(--s2); }
+    .tool-card.disabled           { opacity: .4; pointer-events: none; }
+
+    .tool-card-num  { font-size: 10px; color: var(--t3); margin-bottom: 8px; letter-spacing: .3px; }
+    .tool-card-name { font-size: 13px; font-weight: 600; color: var(--t1); margin-bottom: 5px; }
+    .tool-card-desc { font-size: 11px; color: var(--t3); line-height: 1.6; }
+
     .tool-card-badge {
-      position: absolute;
-      top: 10px;
-      right: 10px;
-      font-size: 9px;
-      font-weight: 600;
-      letter-spacing: .4px;
-      padding: 2px 7px;
-      border-radius: 3px;
-      text-transform: uppercase;
+      position: absolute; top: 10px; right: 10px;
+      font-size: 9px; font-weight: 600; letter-spacing: .4px;
+      padding: 2px 7px; border-radius: 3px; text-transform: uppercase;
     }
-    .badge-live  { background: rgba(52,211,153,.15); color: var(--green); border: .5px solid rgba(52,211,153,.3); }
-    .badge-soon  { background: rgba(255,255,255,.05); color: var(--t3);   border: .5px solid var(--bd); }
+    .badge-live { background: rgba(52,211,153,.12); color: var(--green); border: .5px solid rgba(52,211,153,.25); }
+    .badge-soon { background: rgba(255,255,255,.04); color: var(--t3);   border: .5px solid var(--bd); }
 
-    .section-label {
-      font-size: 10px;
-      font-weight: 600;
-      letter-spacing: .7px;
-      color: var(--t3);
-      text-transform: uppercase;
-      margin-bottom: 12px;
-    }
-
-    @media (max-width: 620px) {
-      .tool-grid { grid-template-columns: 1fr 1fr; }
-    }
-    @media (max-width: 400px) {
-      .tool-grid { grid-template-columns: 1fr; }
-    }
+    @media (max-width: 620px) { .tool-grid { grid-template-columns: 1fr 1fr; } }
+    @media (max-width: 400px) { .tool-grid { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -110,49 +64,49 @@
     <p>한국 금리 시장 분석 · 전망 · 프라이싱 도구</p>
   </div>
 
-  <div class="section-label">도구</div>
+  <div class="stl">도구</div>
   <div class="tool-grid">
 
     <a href="/tools/cd91/" class="tool-card">
       <span class="tool-card-badge badge-live">Live</span>
-      <div class="tool-card-icon">📈</div>
+      <div class="tool-card-num">01</div>
       <div class="tool-card-name">CD91 금리 전망</div>
-      <div class="tool-card-desc">선반영 + 스무딩 모형으로 CD91 경로 시뮬레이션. 기준금리 시나리오별 전망.</div>
+      <div class="tool-card-desc">선반영 + 스무딩 모형. 기준금리 시나리오별 CD91 경로 시뮬레이션.</div>
+    </a>
+
+    <a href="/tools/db/" class="tool-card">
+      <span class="tool-card-badge badge-live">Live</span>
+      <div class="tool-card-num">02</div>
+      <div class="tool-card-name">DB 탐색</div>
+      <div class="tool-card-desc">시장 데이터 DB 연결 및 테이블 조회.</div>
     </a>
 
     <div class="tool-card disabled">
       <span class="tool-card-badge badge-soon">Soon</span>
-      <div class="tool-card-icon">🏦</div>
-      <div class="tool-card-name">COFIX 전망</div>
-      <div class="tool-card-desc">CD91 전망 기반 신규·잔액 COFIX 경로 추정.</div>
+      <div class="tool-card-num">03</div>
+      <div class="tool-card-name">금리 대시보드</div>
+      <div class="tool-card-desc">주요 금리 지표 한눈에 보기. CD, COFIX, KTB, 기준금리.</div>
     </div>
 
     <div class="tool-card disabled">
       <span class="tool-card-badge badge-soon">Soon</span>
-      <div class="tool-card-icon">🔄</div>
+      <div class="tool-card-num">04</div>
       <div class="tool-card-name">IRS 스왑</div>
-      <div class="tool-card-desc">원화 IRS 금리 스왑 프라이싱 및 듀레이션 계산.</div>
+      <div class="tool-card-desc">원화 IRS 프라이싱 및 듀레이션 계산.</div>
     </div>
 
     <div class="tool-card disabled">
       <span class="tool-card-badge badge-soon">Soon</span>
-      <div class="tool-card-icon">📊</div>
-      <div class="tool-card-name">국채 수익률 곡선</div>
-      <div class="tool-card-desc">KTB 수익률 곡선 시각화 및 스프레드 분석.</div>
+      <div class="tool-card-num">05</div>
+      <div class="tool-card-name">시장 수급</div>
+      <div class="tool-card-desc">외국인·기관 수급 동향 및 포지션 분석.</div>
     </div>
 
     <div class="tool-card disabled">
       <span class="tool-card-badge badge-soon">Soon</span>
-      <div class="tool-card-icon">🏠</div>
-      <div class="tool-card-name">주담대 금리 계산기</div>
-      <div class="tool-card-desc">COFIX 연동 변동금리 · 혼합금리 대출 시뮬레이션.</div>
-    </div>
-
-    <div class="tool-card disabled">
-      <span class="tool-card-badge badge-soon">Soon</span>
-      <div class="tool-card-icon">⚡</div>
-      <div class="tool-card-name">실시간 시장 데이터</div>
-      <div class="tool-card-desc">DB 연동 전일 종가 기반 자동 업데이트.</div>
+      <div class="tool-card-num">06</div>
+      <div class="tool-card-name">백테스트</div>
+      <div class="tool-card-desc">금리 전략 과거 성과 검증.</div>
     </div>
 
   </div>

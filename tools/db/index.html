@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DB 탐색 — 금리 도구 모음</title>
+  <link rel="stylesheet" href="/assets/css/main.css">
+  <style>
+    .db-layout {
+      display: grid;
+      grid-template-columns: 200px 1fr;
+      gap: 12px;
+      align-items: start;
+    }
+    .sidebar {
+      background: var(--s1);
+      border: .5px solid var(--bd);
+      border-radius: var(--r);
+      padding: .75rem 0;
+      position: sticky;
+      top: 1rem;
+    }
+    .sidebar-title {
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: .7px;
+      color: var(--t3);
+      text-transform: uppercase;
+      padding: 0 .875rem .5rem;
+    }
+    .tbl-btn {
+      display: block;
+      width: 100%;
+      text-align: left;
+      background: none;
+      border: none;
+      color: var(--t2);
+      font-size: 12px;
+      cursor: pointer;
+      padding: 5px .875rem;
+      transition: background .1s, color .1s;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .tbl-btn:hover  { background: var(--s2); color: var(--t1); }
+    .tbl-btn.active { background: var(--s3); color: var(--blue); }
+
+    .main-panel {
+      background: var(--s1);
+      border: .5px solid var(--bd);
+      border-radius: var(--r);
+      padding: 1rem 1.125rem;
+      min-height: 400px;
+    }
+    .main-panel-hdr {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11px;
+    }
+    .data-table th {
+      font-size: 10px;
+      font-weight: 500;
+      color: var(--t3);
+      padding: 5px 10px;
+      text-align: left;
+      border-bottom: .5px solid var(--bd);
+      white-space: nowrap;
+      cursor: pointer;
+      user-select: none;
+    }
+    .data-table th:hover { color: var(--t1); }
+    .data-table td {
+      padding: 5px 10px;
+      color: var(--t2);
+      border-bottom: .5px solid rgba(255,255,255,.03);
+      white-space: nowrap;
+      max-width: 220px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .data-table tr:last-child td { border-bottom: none; }
+    .data-table tr:hover td { background: rgba(255,255,255,.02); color: var(--t1); }
+
+    .conn-bar {
+      background: var(--s1);
+      border: .5px solid var(--bd);
+      border-radius: var(--r);
+      padding: .75rem 1.125rem;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .conn-dot {
+      width: 7px; height: 7px;
+      border-radius: 50%;
+      background: var(--t3);
+      flex-shrink: 0;
+      transition: background .2s;
+    }
+    .conn-dot.ok  { background: var(--green); box-shadow: 0 0 6px rgba(52,211,153,.4); }
+    .conn-dot.err { background: var(--red); }
+    .conn-status  { font-size: 11px; color: var(--t3); flex: 1; }
+
+    .action-btn {
+      background: none;
+      border: .5px solid var(--bd2);
+      border-radius: var(--rs);
+      color: var(--t2);
+      font-size: 11px;
+      cursor: pointer;
+      padding: 4px 12px;
+      transition: all .15s;
+    }
+    .action-btn:hover { border-color: var(--blue); color: var(--blue); }
+
+    .empty-state {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 300px;
+      color: var(--t3);
+      font-size: 12px;
+    }
+
+    @media (max-width: 620px) {
+      .db-layout { grid-template-columns: 1fr; }
+      .sidebar   { position: static; }
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+
+  <nav class="nav">
+    <a href="/" class="nav-brand">금리 도구 모음</a>
+    <div class="nav-links">
+      <a href="/tools/cd91/" class="nav-link">CD91 전망</a>
+      <a href="/tools/db/"   class="nav-link active">DB 탐색</a>
+    </div>
+  </nav>
+
+  <div class="hdr">
+    <h1>DB 탐색</h1>
+    <p>시장 데이터 테이블 조회</p>
+  </div>
+
+  <!-- 연결 상태 바 -->
+  <div class="conn-bar">
+    <div class="conn-dot" id="connDot"></div>
+    <span class="conn-status" id="connStatus">서버에 연결 중...</span>
+    <button class="action-btn" onclick="connect()">재연결</button>
+  </div>
+
+  <!-- 레이아웃 -->
+  <div class="db-layout">
+
+    <!-- 사이드바: 테이블 목록 -->
+    <div class="sidebar">
+      <div class="sidebar-title">테이블</div>
+      <div id="tableList"><div style="padding:8px .875rem;font-size:11px;color:var(--t3);">로딩 중...</div></div>
+    </div>
+
+    <!-- 메인: 데이터 -->
+    <div class="main-panel">
+      <div class="main-panel-hdr">
+        <div>
+          <span class="stl" style="margin:0;" id="panelTitle">테이블을 선택하세요</span>
+          <span id="rowCount" style="font-size:10px;color:var(--t3);margin-left:8px;"></span>
+        </div>
+        <div style="display:flex;gap:6px;align-items:center;">
+          <span style="font-size:11px;color:var(--t3);">표시 행</span>
+          <select id="limitSel" onchange="reloadTable()"
+            style="background:var(--s2);border:.5px solid var(--bd2);border-radius:var(--rs);
+                   color:var(--t1);font-size:11px;padding:3px 6px;outline:none;">
+            <option value="20">20</option>
+            <option value="50">50</option>
+            <option value="100">100</option>
+            <option value="200">200</option>
+          </select>
+        </div>
+      </div>
+      <div style="overflow-x:auto;">
+        <div id="dataArea"><div class="empty-state">← 테이블을 선택하세요</div></div>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script src="/assets/js/api.js"></script>
+<script>
+let currentTable = null;
+
+/* ── 연결 ── */
+async function connect() {
+  setConnStatus('연결 중...', '');
+  try {
+    const data = await apiGet('/health');
+    if (data.status === 'ok') {
+      setConnStatus('연결됨 — ' + data.db, 'ok');
+      loadTableList();
+    } else {
+      setConnStatus('오류: ' + (data.detail || JSON.stringify(data)), 'err');
+    }
+  } catch (e) {
+    setConnStatus(e.message, 'err');
+  }
+}
+
+function setConnStatus(msg, state) {
+  document.getElementById('connStatus').textContent = msg;
+  const dot = document.getElementById('connDot');
+  dot.className = 'conn-dot' + (state ? ' ' + state : '');
+}
+
+/* ── 테이블 목록 ── */
+async function loadTableList() {
+  try {
+    const data = await apiGet('/tables');
+    const el = document.getElementById('tableList');
+    if (!data.tables?.length) {
+      el.innerHTML = '<div style="padding:8px .875rem;font-size:11px;color:var(--t3);">테이블 없음</div>';
+      return;
+    }
+    el.innerHTML = '';
+    data.tables.forEach(tbl => {
+      const btn = document.createElement('button');
+      btn.className   = 'tbl-btn';
+      btn.textContent = tbl;
+      btn.title       = tbl;
+      btn.onclick     = () => selectTable(tbl, btn);
+      el.appendChild(btn);
+    });
+  } catch (e) {
+    document.getElementById('tableList').innerHTML =
+      `<div style="padding:8px .875rem;font-size:11px;color:var(--red);">${e.message}</div>`;
+  }
+}
+
+/* ── 테이블 선택 ── */
+function selectTable(tbl, btn) {
+  document.querySelectorAll('.tbl-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentTable = tbl;
+  loadData(tbl);
+}
+
+/* ── 데이터 로드 ── */
+async function loadData(tbl) {
+  const limit = document.getElementById('limitSel').value;
+  document.getElementById('panelTitle').textContent = tbl;
+  document.getElementById('rowCount').textContent = '';
+  document.getElementById('dataArea').innerHTML =
+    '<div class="empty-state" style="height:200px;">로딩 중...</div>';
+
+  try {
+    const data = await apiGet(`/preview/${encodeURIComponent(tbl)}?limit=${limit}`);
+    if (!data.rows?.length) {
+      document.getElementById('dataArea').innerHTML = '<div class="empty-state">데이터 없음</div>';
+      return;
+    }
+
+    const cols = Object.keys(data.rows[0]);
+    const table = document.createElement('table');
+    table.className = 'data-table';
+
+    // 헤더
+    table.innerHTML = '<thead><tr>' +
+      cols.map(c => `<th onclick="sortBy('${c}')">${c}</th>`).join('') +
+      '</tr></thead>';
+
+    // 바디
+    const tbody = document.createElement('tbody');
+    data.rows.forEach(row => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = cols.map(c => `<td title="${row[c] ?? ''}">${row[c] ?? ''}</td>`).join('');
+      tbody.appendChild(tr);
+    });
+    table.appendChild(tbody);
+
+    document.getElementById('dataArea').innerHTML = '';
+    document.getElementById('dataArea').appendChild(table);
+    document.getElementById('rowCount').textContent = `${data.rows.length}행`;
+  } catch (e) {
+    document.getElementById('dataArea').innerHTML =
+      `<div class="empty-state" style="color:var(--red);">${e.message}</div>`;
+  }
+}
+
+function reloadTable() {
+  if (currentTable) loadData(currentTable);
+}
+
+/* ── 컬럼 정렬 (클라이언트 사이드) ── */
+let sortCol = null, sortAsc = true;
+function sortBy(col) {
+  if (sortCol === col) sortAsc = !sortAsc;
+  else { sortCol = col; sortAsc = true; }
+
+  const tbody = document.querySelector('.data-table tbody');
+  if (!tbody) return;
+  const rows = Array.from(tbody.querySelectorAll('tr'));
+  const cols = Array.from(document.querySelectorAll('.data-table th')).map(th => th.textContent);
+  const idx  = cols.indexOf(col);
+
+  rows.sort((a, b) => {
+    const av = a.cells[idx]?.textContent ?? '';
+    const bv = b.cells[idx]?.textContent ?? '';
+    const n  = (v) => isNaN(v) ? v : +v;
+    return sortAsc
+      ? (n(av) > n(bv) ? 1 : -1)
+      : (n(av) < n(bv) ? 1 : -1);
+  });
+  rows.forEach(r => tbody.appendChild(r));
+
+  // 헤더 표시
+  document.querySelectorAll('.data-table th').forEach((th, i) => {
+    th.textContent = cols[i] + (i === idx ? (sortAsc ? ' ▲' : ' ▼') : '');
+  });
+}
+
+/* ── Init ── */
+connect();
+</script>
+</body>
+</html>

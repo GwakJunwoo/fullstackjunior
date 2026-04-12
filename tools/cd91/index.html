@@ -13,6 +13,7 @@
     <a href="/" class="nav-brand">금리 도구 모음</a>
     <div class="nav-links">
       <a href="/tools/cd91/" class="nav-link active">CD91 전망</a>
+      <a href="/tools/db/"   class="nav-link">DB 탐색</a>
     </div>
   </nav>
 
@@ -167,32 +168,6 @@
   <div class="stl">분기별 평균 CD91 전망</div>
   <div class="qgrid" id="qout"></div>
 
-  <div style="margin-top:2rem;border-top:.5px solid var(--bd);padding-top:1.5rem;">
-    <div class="stl">데이터 서버 연결</div>
-    <div class="panel" style="margin-bottom:0;">
-      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
-        <input type="text" id="apiUrlInput" placeholder="https://xxxx.ngrok-free.app"
-          style="flex:1;min-width:240px;background:var(--s2);border:.5px solid var(--bd2);
-                 border-radius:var(--rs);color:var(--t1);font-size:12px;padding:6px 10px;
-                 outline:none;font-family:monospace;"
-          oninput="onApiUrlChange(this.value)">
-        <button onclick="testConnection()"
-          style="background:none;border:.5px solid var(--bd2);border-radius:var(--rs);
-                 color:var(--t2);font-size:12px;cursor:pointer;padding:5px 14px;transition:all .15s;"
-          onmouseover="this.style.borderColor='var(--blue)';this.style.color='var(--blue)'"
-          onmouseout="this.style.borderColor='var(--bd2)';this.style.color='var(--t2)'">연결 테스트</button>
-        <button onclick="loadTables()"
-          style="background:none;border:.5px solid var(--bd2);border-radius:var(--rs);
-                 color:var(--t2);font-size:12px;cursor:pointer;padding:5px 14px;transition:all .15s;"
-          onmouseover="this.style.borderColor='var(--green)';this.style.color='var(--green)'"
-          onmouseout="this.style.borderColor='var(--bd2)';this.style.color='var(--t2)'">테이블 조회</button>
-      </div>
-      <div id="apiStatus" style="font-size:11px;color:var(--t3);min-height:16px;"></div>
-      <div id="tableList" style="margin-top:10px;display:flex;gap:6px;flex-wrap:wrap;"></div>
-      <div id="previewArea" style="margin-top:12px;overflow-x:auto;"></div>
-    </div>
-  </div>
-
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
@@ -200,75 +175,5 @@
 <script src="/assets/js/model.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/ui.js"></script>
-<script>
-(function initApiPanel() {
-  const saved = getApiBase();
-  if (saved) document.getElementById('apiUrlInput').value = saved;
-})();
-
-function onApiUrlChange(val) { setApiBase(val); }
-
-function setStatus(msg, color) {
-  const el = document.getElementById('apiStatus');
-  el.style.color = color || 'var(--t3)';
-  el.textContent = msg;
-}
-
-async function testConnection() {
-  setStatus('연결 중…', 'var(--t3)');
-  try {
-    const data = await apiGet('/health');
-    setStatus(data.status === 'ok' ? '✓ 연결 성공 — DB: ' + data.db : '⚠ ' + JSON.stringify(data),
-              data.status === 'ok' ? 'var(--green)' : 'var(--amber)');
-  } catch (e) { setStatus('✗ ' + e.message, 'var(--red)'); }
-}
-
-async function loadTables() {
-  setStatus('조회 중…', 'var(--t3)');
-  document.getElementById('tableList').innerHTML = '';
-  document.getElementById('previewArea').innerHTML = '';
-  try {
-    const data = await apiGet('/tables');
-    if (!data.tables?.length) { setStatus('테이블 없음', 'var(--amber)'); return; }
-    setStatus(`테이블 ${data.tables.length}개 — 클릭하면 미리보기`, 'var(--blue)');
-    data.tables.forEach(tbl => {
-      const btn = document.createElement('button');
-      btn.textContent = tbl;
-      btn.style.cssText = 'background:var(--s2);border:.5px solid var(--bd2);border-radius:var(--rs);color:var(--t2);font-size:11px;cursor:pointer;padding:3px 10px;transition:all .15s;';
-      btn.onmouseover = () => { btn.style.borderColor='var(--blue)'; btn.style.color='var(--blue)'; };
-      btn.onmouseout  = () => { btn.style.borderColor='var(--bd2)';  btn.style.color='var(--t2)'; };
-      btn.onclick = () => previewTable(tbl);
-      document.getElementById('tableList').appendChild(btn);
-    });
-  } catch (e) { setStatus('✗ ' + e.message, 'var(--red)'); }
-}
-
-async function previewTable(tbl) {
-  setStatus(`${tbl} 로딩 중…`, 'var(--t3)');
-  const area = document.getElementById('previewArea');
-  area.innerHTML = '';
-  try {
-    const data = await apiGet(`/preview/${encodeURIComponent(tbl)}?limit=10`);
-    if (!data.rows?.length) { setStatus('데이터 없음', 'var(--amber)'); return; }
-    const cols = Object.keys(data.rows[0]);
-    const t = document.createElement('table');
-    t.style.cssText = 'width:100%;border-collapse:collapse;font-size:11px;';
-    t.innerHTML = '<thead><tr>' + cols.map(c =>
-      `<th style="font-size:10px;font-weight:500;color:var(--t3);padding:4px 8px;text-align:left;border-bottom:.5px solid var(--bd);white-space:nowrap;">${c}</th>`
-    ).join('') + '</tr></thead>';
-    const tbody = document.createElement('tbody');
-    data.rows.forEach(row => {
-      const tr = document.createElement('tr');
-      tr.innerHTML = cols.map(c =>
-        `<td style="padding:4px 8px;color:var(--t2);border-bottom:.5px solid rgba(255,255,255,.03);white-space:nowrap;max-width:200px;overflow:hidden;text-overflow:ellipsis;">${row[c] ?? ''}</td>`
-      ).join('');
-      tbody.appendChild(tr);
-    });
-    t.appendChild(tbody);
-    area.appendChild(t);
-    setStatus(`${tbl} — ${data.rows.length}행`, 'var(--t1)');
-  } catch (e) { setStatus('✗ ' + e.message, 'var(--red)'); }
-}
-</script>
 </body>
 </html>
