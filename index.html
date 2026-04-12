@@ -1,623 +1,205 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CD91 금리 전망 계산기</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<style>
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-:root{
-  --bg:#0f1117;--s1:#181c27;--s2:#1e2336;--s3:#252b3e;--s4:#2a3045;
-  --bd:rgba(255,255,255,.07);--bd2:rgba(255,255,255,.13);
-  --t1:#e8eaf0;--t2:#8b93a8;--t3:#555e75;
-  --blue:#4a9eff;--green:#34d399;--amber:#fbbf24;--red:#f87171;--purple:#a78bfa;
-  --r:10px;--rs:6px;
-}
-body{background:var(--bg);color:var(--t1);font-family:'SF Pro Text','Pretendard',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:13px;line-height:1.6;min-height:100vh;padding:1.75rem 1rem 4rem;}
-.container{max-width:980px;margin:0 auto;}
-
-.hdr{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:.5px solid var(--bd);}
-.hdr h1{font-size:17px;font-weight:600;letter-spacing:-.3px;}
-.hdr p{font-size:11px;color:var(--t3);}
-
-.metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:9px;margin-bottom:1rem;}
-.metric{background:var(--s1);border:.5px solid var(--bd);border-radius:var(--rs);padding:11px 13px;}
-.metric .ml{font-size:10px;color:var(--t3);margin-bottom:3px;letter-spacing:.3px;}
-.metric .mv{font-size:20px;font-weight:600;letter-spacing:-.5px;}
-
-.stl{font-size:10px;font-weight:600;letter-spacing:.7px;color:var(--t3);text-transform:uppercase;margin-bottom:9px;}
-
-/* Two-panel layout for inputs */
-.panels{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
-.panel{background:var(--s1);border:.5px solid var(--bd);border-radius:var(--r);padding:1rem 1.125rem;}
-
-/* Step table */
-.sttbl{width:100%;border-collapse:collapse;}
-.sttbl th{font-size:10px;font-weight:500;color:var(--t3);padding:0 5px 7px;text-align:left;white-space:nowrap;}
-.sttbl td{padding:2px 4px;vertical-align:middle;}
-input[type=date]{background:var(--s2);border:.5px solid var(--bd2);border-radius:var(--rs);color:var(--t1);font-size:12px;padding:4px 6px;outline:none;transition:border-color .15s;width:116px;}
-input[type=number]{background:var(--s2);border:.5px solid var(--bd2);border-radius:var(--rs);color:var(--t1);font-size:12px;padding:4px 6px;outline:none;transition:border-color .15s;width:60px;text-align:right;}
-input[type=date]:focus,input[type=number]:focus{border-color:var(--blue);}
-.fixed-lbl{font-size:10px;color:var(--t3);background:var(--s3);border-radius:3px;padding:2px 6px;white-space:nowrap;}
-.del-btn{background:none;border:.5px solid var(--bd2);border-radius:var(--rs);color:var(--t2);font-size:13px;cursor:pointer;padding:1px 7px;line-height:1.6;transition:all .15s;}
-.del-btn:hover{border-color:var(--red);color:var(--red);background:rgba(248,113,113,.08);}
-.add-btn{margin-top:8px;background:none;border:.5px solid var(--bd2);border-radius:var(--rs);color:var(--t2);font-size:12px;cursor:pointer;padding:4px 11px;transition:all .15s;}
-.add-btn:hover{border-color:var(--blue);color:var(--blue);}
-.pre-date-cell input[type=date]{width:104px;border-color:rgba(167,139,250,.35);}
-.pre-date-cell input[type=date]:focus{border-color:var(--purple);}
-.pre-empty{font-size:10px;color:var(--t3);padding:0 4px;}
-
-/* Sliders */
-.sr{display:flex;align-items:center;gap:8px;margin-bottom:9px;}
-.sr label{font-size:12px;color:var(--t2);flex:0 0 76px;white-space:nowrap;}
-.sr .sv{font-size:12px;font-weight:600;min-width:46px;text-align:right;color:var(--t1);}
-input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:3px;background:var(--s3);border-radius:2px;outline:none;cursor:pointer;}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;border:2px solid var(--s1);}
-input[type=range]::-moz-range-thumb{width:14px;height:14px;border-radius:50%;background:var(--blue);cursor:pointer;border:2px solid var(--s1);}
-input[type=range].purple::-webkit-slider-thumb{background:var(--purple);}
-input[type=range].purple::-moz-range-thumb{background:var(--purple);}
-
-.emp-note{margin-top:11px;padding:9px 11px;background:rgba(251,191,36,.05);border:.5px solid rgba(251,191,36,.2);border-radius:var(--rs);font-size:11px;color:var(--t2);line-height:1.7;}
-.emp-note strong{color:var(--amber);}
-
-/* Option bars (smoothing + 선반영) */
-.opt-bar{background:var(--s1);border:.5px solid var(--bd);border-radius:var(--r);padding:.75rem 1.125rem;margin-bottom:10px;}
-.opt-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
-.opt-divider{width:.5px;height:18px;background:var(--bd2);flex-shrink:0;}
-
-/* Toggle */
-.toggle-wrap{display:flex;align-items:center;gap:7px;cursor:pointer;user-select:none;}
-.toggle{position:relative;width:34px;height:19px;}
-.toggle input{opacity:0;width:0;height:0;}
-.toggle-slider{position:absolute;inset:0;background:var(--s3);border-radius:10px;transition:.2s;cursor:pointer;border:.5px solid var(--bd2);}
-.toggle input:checked+.toggle-slider{background:var(--blue);}
-.toggle input:checked+.toggle-slider.purple-on{background:var(--purple);}
-.toggle-slider:before{content:'';position:absolute;width:13px;height:13px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.2s;}
-.toggle input:checked+.toggle-slider:before{transform:translateX(15px);}
-.tgl-label{font-size:13px;font-weight:500;color:var(--t1);}
-.ctrl-group{display:flex;align-items:center;gap:8px;transition:opacity .2s;}
-.ctrl-group.dim{opacity:.35;pointer-events:none;}
-.ctrl-group label{font-size:12px;color:var(--t2);white-space:nowrap;}
-.ctrl-group .val{font-size:12px;font-weight:600;color:var(--t1);min-width:36px;}
-
-/* 선반영 shape selector */
-.shape-btns{display:flex;gap:4px;}
-.shape-btn{background:none;border:.5px solid var(--bd2);border-radius:var(--rs);color:var(--t2);font-size:11px;cursor:pointer;padding:3px 9px;transition:all .15s;}
-.shape-btn.active{border-color:var(--purple);color:var(--purple);background:rgba(167,139,250,.1);}
-
-/* Chart */
-.chart-card{background:var(--s1);border:.5px solid var(--bd);border-radius:var(--r);padding:1rem 1.125rem;margin-bottom:12px;}
-.chart-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;}
-#legend{display:flex;gap:14px;font-size:11px;color:var(--t2);align-items:center;flex-wrap:wrap;}
-#legend span{display:flex;align-items:center;gap:5px;}
-.legend-line{display:inline-block;height:0;}
-
-/* Stats */
-.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px;}
-.stats-card{background:var(--s1);border:.5px solid var(--bd);border-radius:var(--r);padding:1rem 1.125rem;}
-.period-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:4px;}
-.period-table th{font-size:10px;font-weight:500;color:var(--t3);padding:4px 8px;text-align:right;border-bottom:.5px solid var(--bd);}
-.period-table th:first-child{text-align:left;}
-.period-table td{padding:5px 8px;text-align:right;color:var(--t2);border-bottom:.5px solid rgba(255,255,255,.03);}
-.period-table td:first-child{text-align:left;color:var(--t1);}
-.period-table tr:last-child td{border-bottom:none;}
-.pill{display:inline-block;font-size:10px;padding:1px 5px;border-radius:3px;font-weight:600;}
-.pill.high{background:rgba(248,113,113,.15);color:var(--red);}
-.pill.mid{background:rgba(74,158,255,.12);color:var(--blue);}
-
-/* Quarterly */
-.qgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:1rem;}
-.qcard{background:var(--s1);border:.5px solid var(--bd);border-radius:var(--rs);padding:11px 13px;text-align:center;}
-.qcard .ql{font-size:10px;color:var(--t3);margin-bottom:3px;}
-.qcard .qv{font-size:18px;font-weight:600;letter-spacing:-.5px;color:var(--blue);}
-.qcard .qb{font-size:10px;color:var(--t3);margin-top:2px;}
-
-/* 선반영 event marker row */
-.pre-events{margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;}
-.pre-tag{font-size:10px;padding:2px 8px;border-radius:3px;background:rgba(167,139,250,.12);color:var(--purple);border:.5px solid rgba(167,139,250,.3);}
-
-@media(max-width:620px){
-  .panels,.stats-grid{grid-template-columns:1fr;}
-  .qgrid{grid-template-columns:repeat(2,1fr);}
-  .metrics{grid-template-columns:repeat(2,1fr);}
-  input[type=date]{width:100px;}
-}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CD91 금리 전망 계산기</title>
+  <link rel="stylesheet" href="/assets/css/main.css">
 </head>
 <body>
 <div class="container">
 
-<div class="hdr">
-  <h1>CD91 금리 전망 계산기</h1>
-  <p>선반영 + 스무딩 모형 &nbsp;|&nbsp; 2020-2026 실증 계절성</p>
-</div>
+  <!-- ── Nav (사이트가 커지면 여기에 링크 추가) ── -->
+  <nav class="nav">
+    <span class="nav-brand">금리 도구 모음</span>
+    <div class="nav-links">
+      <a href="/" class="nav-link active">CD91 전망</a>
+      <!-- <a href="/tools/cofix/" class="nav-link">COFIX</a> -->
+      <!-- <a href="/tools/swap/"  class="nav-link">IRS 스왑</a> -->
+    </div>
+  </nav>
 
-<div class="metrics">
-  <div class="metric"><div class="ml">현재 기준금리</div><div class="mv">2.50%</div></div>
-  <div class="metric"><div class="ml">현재 CD91</div><div class="mv">2.82%</div></div>
-  <div class="metric"><div class="ml">CD − 기준금리</div><div class="mv" style="color:var(--blue);">+32 bp</div></div>
-  <div class="metric"><div class="ml">모델 CD91 (현시점)</div><div class="mv" id="mCurrentCD">—</div></div>
-</div>
-
-<!-- Input panels -->
-<div class="panels">
-  <!-- BR Path -->
-  <div class="panel">
-    <div class="stl">기준금리 경로 (금통위 시나리오)</div>
-    <table class="sttbl" id="stepTable">
-      <thead id="stepHead"></thead>
-      <tbody id="stepRows"></tbody>
-    </table>
-    <button class="add-btn" onclick="addRow()">+ 경로 추가</button>
-    <div class="pre-events" id="preEventTags"></div>
+  <!-- ── Page Header ── -->
+  <div class="hdr">
+    <h1>CD91 금리 전망 계산기</h1>
+    <p>선반영 + 스무딩 모형 &nbsp;|&nbsp; 2020–2026 실증 계절성</p>
   </div>
 
-  <!-- Spread params -->
-  <div class="panel">
-    <div class="stl">CD 스프레드 가정</div>
-    <div class="sr">
-      <label>기준 스프레드</label>
-      <input type="range" id="baseSpread" min="0" max="60" step="1" value="25" oninput="updateAll()">
-      <span class="sv"><span id="bsv">25</span> bp</span>
+  <!-- ── Metric Cards ── -->
+  <div class="metrics">
+    <div class="metric">
+      <div class="ml">현재 기준금리</div>
+      <div class="mv">2.50%</div>
     </div>
-    <div class="sr">
-      <label>계절성 강도</label>
-      <input type="range" id="seasonStr" min="0" max="200" step="5" value="100" oninput="updateAll()">
-      <span class="sv"><span id="ssv">100</span>%</span>
+    <div class="metric">
+      <div class="ml">현재 CD91</div>
+      <div class="mv">2.82%</div>
     </div>
-    <div class="sr">
-      <label>연초 추가</label>
-      <input type="range" id="ysExtra" min="0" max="30" step="1" value="9" oninput="updateAll()">
-      <span class="sv">+<span id="ysv">9</span> bp</span>
+    <div class="metric">
+      <div class="ml">CD − 기준금리</div>
+      <div class="mv" style="color:var(--blue);">+32 bp</div>
     </div>
-    <div class="emp-note">
-      <strong>실증:</strong> 분기말(3·6·9월) 효과 = 0bp.
-      Q4 계절 상승 (Oct +8 / Nov +15 / Dec +16 bp), 연초(1/1~10) +9 bp.
-      BR 변경 후 CD 반영 속도 = 당일.
+    <div class="metric">
+      <div class="ml">모델 CD91 (현시점)</div>
+      <div class="mv" id="mCurrentCD">—</div>
     </div>
   </div>
-</div>
 
-<!-- Smoothing bar -->
-<div class="opt-bar" style="margin-bottom:10px;">
-  <div class="opt-row">
-    <label class="toggle-wrap">
-      <span class="toggle"><input type="checkbox" id="smoothToggle" checked onchange="updateAll()">
-        <span class="toggle-slider"></span></span>
-      <span class="tgl-label">스무딩</span>
-    </label>
-    <span style="font-size:11px;color:var(--t3);">CD(2.82%) → 전망 경로 지수 평활</span>
-    <div class="opt-divider"></div>
-    <div class="ctrl-group" id="smoothCtrls">
-      <label>반감기</label>
-      <input type="range" id="halfLife" min="3" max="45" step="1" value="14" oninput="updateAll()" style="width:90px;flex:none;">
-      <span class="val"><span id="hlv">14</span>일</span>
+  <!-- ── Input Panels ── -->
+  <div class="panels">
+
+    <!-- 기준금리 경로 -->
+    <div class="panel">
+      <div class="stl">기준금리 경로 (금통위 시나리오)</div>
+      <table class="sttbl" id="stepTable">
+        <thead id="stepHead"></thead>
+        <tbody id="stepRows"></tbody>
+      </table>
+      <button class="add-btn" onclick="addRow()">+ 경로 추가</button>
+      <div class="pre-events" id="preEventTags"></div>
     </div>
-  </div>
-</div>
 
-<!-- 선반영 bar -->
-<div class="opt-bar" style="border-color:rgba(167,139,250,.2);">
-  <div class="opt-row">
-    <label class="toggle-wrap">
-      <span class="toggle"><input type="checkbox" id="preToggle" checked onchange="togglePre()">
-        <span class="toggle-slider purple-on"></span></span>
-      <span class="tgl-label" style="color:var(--purple);">선반영</span>
-    </label>
-    <span style="font-size:11px;color:var(--t3);">인하 전 CD가 선제적으로 하락 — 경로 테이블에서 날짜 입력</span>
-    <div class="opt-divider"></div>
-    <div class="ctrl-group" id="preCtrls">
-      <label>형태</label>
-      <div class="shape-btns">
-        <button class="shape-btn active" data-shape="linear" onclick="setShape(this)">선형</button>
-        <button class="shape-btn" data-shape="convex" onclick="setShape(this)">볼록</button>
-        <button class="shape-btn" data-shape="concave" onclick="setShape(this)">오목</button>
+    <!-- CD 스프레드 가정 -->
+    <div class="panel">
+      <div class="stl">CD 스프레드 가정</div>
+
+      <div class="sr">
+        <label>기준 스프레드</label>
+        <input type="range" id="baseSpread" min="0" max="60" step="1" value="25" oninput="updateAll()">
+        <span class="sv"><span id="bsv">25</span> bp</span>
+      </div>
+      <div class="sr">
+        <label>계절성 강도</label>
+        <input type="range" id="seasonStr" min="0" max="200" step="5" value="100" oninput="updateAll()">
+        <span class="sv"><span id="ssv">100</span>%</span>
+      </div>
+      <div class="sr">
+        <label>연초 추가</label>
+        <input type="range" id="ysExtra" min="0" max="30" step="1" value="9" oninput="updateAll()">
+        <span class="sv">+<span id="ysv">9</span> bp</span>
+      </div>
+
+      <div class="emp-note">
+        <strong>실증:</strong> 분기말(3·6·9월) 효과 = 0bp.
+        Q4 계절 상승 (Oct +8 / Nov +15 / Dec +16 bp), 연초(1/1~10) +9 bp.
+        BR 변경 후 CD 반영 속도 = 당일.
+      </div>
+    </div>
+
+  </div><!-- /.panels -->
+
+  <!-- ── Smoothing Bar ── -->
+  <div class="opt-bar" style="margin-bottom:10px;">
+    <div class="opt-row">
+      <label class="toggle-wrap">
+        <span class="toggle">
+          <input type="checkbox" id="smoothToggle" checked>
+          <span class="toggle-slider"></span>
+        </span>
+        <span class="tgl-label">스무딩</span>
+      </label>
+      <span style="font-size:11px;color:var(--t3);">CD(2.82%) → 전망 경로 지수 평활 (현재값 앵커링)</span>
+      <div class="opt-divider"></div>
+      <div class="ctrl-group" id="smoothCtrls">
+        <label>반감기</label>
+        <input type="range" id="halfLife" min="3" max="45" step="1" value="14"
+               oninput="updateAll()" style="width:90px;flex:none;">
+        <span class="val"><span id="hlv">14</span>일</span>
       </div>
     </div>
   </div>
-</div>
 
-<!-- Chart -->
-<div class="chart-card">
-  <div class="chart-hdr">
-    <div class="stl" style="margin:0;">CD91 전망 경로</div>
-    <div id="legend"></div>
-  </div>
-  <div style="position:relative;height:310px;">
-    <canvas id="cdChart"></canvas>
-  </div>
-  <div style="margin-top:6px;text-align:center;font-size:10px;color:var(--t3);">
-    실선: 실제 이력 &nbsp;/&nbsp; 파선: 전망 (선반영+스무딩) &nbsp;/&nbsp; 점선: 기준금리 경로 &nbsp;/&nbsp; <span style="color:rgba(167,139,250,.7);">보라:</span> 선반영 없는 raw CD
-  </div>
-</div>
-
-<!-- Stats -->
-<div class="stats-grid">
-  <div class="stats-card">
-    <div class="stl">월별 평균 스프레드 (2020-2026)</div>
-    <div style="position:relative;height:155px;"><canvas id="monthChart"></canvas></div>
-  </div>
-  <div class="stats-card">
-    <div class="stl">구간별 스프레드 기초통계 (bp)</div>
-    <table class="period-table">
-      <thead><tr><th>구간</th><th>n</th><th>평균</th><th>중위</th><th>p25~p75</th></tr></thead>
-      <tbody>
-        <tr><td>평시</td><td style="color:var(--t3);">1,834</td><td>21.5</td><td>20.0</td><td>10~28</td></tr>
-        <tr><td>월말 (비분기)</td><td style="color:var(--t3);">141</td><td>21.6</td><td>20.0</td><td>10~28</td></tr>
-        <tr><td>분기말 3·6·9 <span style="font-size:9px;color:var(--t3);">← 효과없음</span></td><td style="color:var(--t3);">90</td><td>21.2</td><td>21.5</td><td>9~29</td></tr>
-        <tr><td>연말 12/26~31 <span class="pill high">+17</span></td><td style="color:var(--t3);">36</td><td>38.3</td><td>33.0</td><td>28~44</td></tr>
-        <tr><td>연초 1/1~10 <span class="pill mid">+9</span></td><td style="color:var(--t3);">60</td><td>30.6</td><td>29.0</td><td>16~32</td></tr>
-      </tbody>
-    </table>
-    <div style="margin-top:9px;padding-top:9px;border-top:.5px solid var(--bd);font-size:10px;color:var(--t3);line-height:1.8;">
-      BR → CD 반영 속도: <strong style="color:var(--t1);">당일</strong>&nbsp;|&nbsp;
-      2024 평균 13bp &nbsp;/&nbsp; 2025 평균 7bp &nbsp;/&nbsp; 2026 평균 27bp
+  <!-- ── 선반영 Bar ── -->
+  <div class="opt-bar" style="border-color:rgba(167,139,250,.2);">
+    <div class="opt-row">
+      <label class="toggle-wrap">
+        <span class="toggle">
+          <input type="checkbox" id="preToggle" checked onchange="togglePre()">
+          <span class="toggle-slider purple-on"></span>
+        </span>
+        <span class="tgl-label" style="color:var(--purple);">선반영</span>
+      </label>
+      <span style="font-size:11px;color:var(--t3);">인하 전 CD 선제 하락 (BR 불변) — 경로 테이블에서 날짜 입력</span>
+      <div class="opt-divider"></div>
+      <div class="ctrl-group" id="preCtrls">
+        <label>형태</label>
+        <div class="shape-btns">
+          <button class="shape-btn active" data-shape="linear"  onclick="setShape(this)">선형</button>
+          <button class="shape-btn"        data-shape="convex"  onclick="setShape(this)">볼록</button>
+          <button class="shape-btn"        data-shape="concave" onclick="setShape(this)">오목</button>
+        </div>
+      </div>
     </div>
   </div>
-</div>
 
-<div class="stl">분기별 평균 CD91 전망</div>
-<div class="qgrid" id="qout"></div>
+  <!-- ── Chart ── -->
+  <div class="chart-card">
+    <div class="chart-hdr">
+      <div class="stl" style="margin:0;">CD91 전망 경로</div>
+      <div id="legend"></div>
+    </div>
+    <div style="position:relative;height:310px;">
+      <canvas id="cdChart"></canvas>
+    </div>
+    <div style="margin-top:6px;text-align:center;font-size:10px;color:var(--t3);">
+      실선: 실제 이력 &nbsp;/&nbsp; 파선: 전망 (선반영+스무딩) &nbsp;/&nbsp;
+      점선: 기준금리 경로 &nbsp;/&nbsp;
+      <span style="color:rgba(167,139,250,.7);">보라:</span> 선반영 없는 raw CD
+    </div>
+  </div>
 
-</div><!-- container -->
+  <!-- ── Stats ── -->
+  <div class="stats-grid">
+    <div class="stats-card">
+      <div class="stl">월별 평균 스프레드 (2020–2026)</div>
+      <div style="position:relative;height:155px;"><canvas id="monthChart"></canvas></div>
+    </div>
+    <div class="stats-card">
+      <div class="stl">구간별 스프레드 기초통계 (bp)</div>
+      <table class="period-table">
+        <thead>
+          <tr><th>구간</th><th>n</th><th>평균</th><th>중위</th><th>p25~p75</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>평시</td>
+            <td style="color:var(--t3);">1,834</td><td>21.5</td><td>20.0</td><td>10~28</td>
+          </tr>
+          <tr>
+            <td>월말 (비분기)</td>
+            <td style="color:var(--t3);">141</td><td>21.6</td><td>20.0</td><td>10~28</td>
+          </tr>
+          <tr>
+            <td>분기말 3·6·9 <span style="font-size:9px;color:var(--t3);">← 효과없음</span></td>
+            <td style="color:var(--t3);">90</td><td>21.2</td><td>21.5</td><td>9~29</td>
+          </tr>
+          <tr>
+            <td>연말 12/26~31 <span class="pill high">+17</span></td>
+            <td style="color:var(--t3);">36</td><td>38.3</td><td>33.0</td><td>28~44</td>
+          </tr>
+          <tr>
+            <td>연초 1/1~10 <span class="pill mid">+9</span></td>
+            <td style="color:var(--t3);">60</td><td>30.6</td><td>29.0</td><td>16~32</td>
+          </tr>
+        </tbody>
+      </table>
+      <div style="margin-top:9px;padding-top:9px;border-top:.5px solid var(--bd);font-size:10px;color:var(--t3);line-height:1.8;">
+        BR → CD 반영 속도: <strong style="color:var(--t1);">당일</strong>&nbsp;|&nbsp;
+        2024 평균 13bp &nbsp;/&nbsp; 2025 평균 7bp &nbsp;/&nbsp; 2026 평균 27bp
+      </div>
+    </div>
+  </div>
 
-<script>
-/* ── Constants ── */
-const LAST_CD   = 2.82;
-const LAST_DATE = '2026-04-10';
-const SEASONAL_BP = [0.51,-5.53,-1.79,-9.39,-7.59,-2.96,-2.64,-3.23,-1.28,7.67,14.85,15.67];
-const MONTHLY_AVG = [21.96,15.92,19.66,12.06,13.86,18.49,18.81,18.22,20.17,29.12,36.30,37.12];
+  <!-- ── Quarterly Cards ── -->
+  <div class="stl">분기별 평균 CD91 전망</div>
+  <div class="qgrid" id="qout"></div>
 
-/* ── Historical data ── */
-const hist=[
-  {d:'2025-11-25',cd:2.76},{d:'2025-12-01',cd:2.80},{d:'2025-12-08',cd:2.83},
-  {d:'2025-12-15',cd:2.83},{d:'2025-12-22',cd:2.85},{d:'2025-12-29',cd:2.87},
-  {d:'2026-01-05',cd:2.76},{d:'2026-01-12',cd:2.69},{d:'2026-01-19',cd:2.68},
-  {d:'2026-01-26',cd:2.70},{d:'2026-02-02',cd:2.74},{d:'2026-02-09',cd:2.78},
-  {d:'2026-02-16',cd:2.78},{d:'2026-02-23',cd:2.80},{d:'2026-03-02',cd:2.81},
-  {d:'2026-03-09',cd:2.84},{d:'2026-03-16',cd:2.82},{d:'2026-03-23',cd:2.81},
-  {d:'2026-03-30',cd:2.82},{d:'2026-04-07',cd:2.82},{d:'2026-04-10',cd:2.82}
-];
+</div><!-- /.container -->
 
-/* ── State ── */
-let steps=[
-  {date:'2026-04-10', rate:2.50, fixed:true,  preDate:null},
-  {date:'2026-05-28', rate:2.25, fixed:false, preDate:'2026-05-07'},
-  {date:'2026-07-16', rate:2.00, fixed:false, preDate:'2026-06-25'},
-];
-let preShape='linear';
-let mainChart=null, monthChartInst=null;
-
-/* ── Date helpers ── */
-const d2ms = d => new Date(d).getTime();
-const msPerDay = 86400000;
-const dateAdd = (d, days) => new Date(d2ms(d) + days*msPerDay).toISOString().split('T')[0];
-const dateDiff = (a, b) => Math.round((d2ms(b) - d2ms(a)) / msPerDay); // b-a in days
-
-/* ── Step table rendering ── */
-function renderHead(){
-  const preOn = document.getElementById('preToggle').checked;
-  document.getElementById('stepHead').innerHTML =
-    `<tr>
-      <th>날짜</th>
-      <th style="text-align:right;">기준금리(%)</th>
-      ${preOn ? '<th style="color:rgba(167,139,250,.8);">선반영 시작</th>' : ''}
-      <th></th>
-    </tr>`;
-}
-
-function renderRows(){
-  const preOn = document.getElementById('preToggle').checked;
-  const tb = document.getElementById('stepRows');
-  tb.innerHTML = '';
-  steps.forEach((s,i) => {
-    const tr = document.createElement('tr');
-    if(s.fixed){
-      tr.innerHTML =
-        `<td style="padding:4px 5px;font-size:12px;color:var(--t2);">${s.date}</td>
-         <td style="padding:4px 5px;text-align:right;font-size:12px;font-weight:600;">${s.rate.toFixed(2)}%</td>
-         ${preOn ? `<td class="pre-date-cell"><span class="pre-empty">—</span></td>` : ''}
-         <td><span class="fixed-lbl">현재</span></td>`;
-    } else {
-      const preCell = preOn
-        ? `<td class="pre-date-cell">
-             <input type="date" value="${s.preDate||''}"
-               oninput="updatePreDate(${i},this.value)"
-               placeholder="없음"
-               style="border-color:${s.preDate?'rgba(167,139,250,.5)':'rgba(255,255,255,.08)'};">
-           </td>`
-        : '';
-      tr.innerHTML =
-        `<td><input type="date" value="${s.date}" onchange="updateStep(${i},'date',this.value)"></td>
-         <td><input type="number" min="0" max="5" step="0.25" value="${s.rate}" onchange="updateStep(${i},'rate',+this.value)" style="width:58px;"></td>
-         ${preCell}
-         <td><button class="del-btn" onclick="removeRow(${i})">×</button></td>`;
-    }
-    tb.appendChild(tr);
-  });
-  renderPreTags();
-}
-
-function renderPreTags(){
-  const preOn = document.getElementById('preToggle').checked;
-  const el = document.getElementById('preEventTags');
-  el.innerHTML = '';
-  if(!preOn) return;
-  steps.filter(s=>!s.fixed && s.preDate).forEach(s=>{
-    const diff = dateDiff(s.preDate, s.date);
-    const bp = (s.rate - steps[steps.findIndex(x=>x.date===s.date)-1]?.rate)*100 || 0;
-    const tag = document.createElement('div');
-    tag.className = 'pre-tag';
-    tag.textContent = `${s.preDate} 선반영 시작 → ${s.date} 인하 (${diff}일 전, ${bp<0?bp:'+'+bp}bp)`;
-    el.appendChild(tag);
-  });
-}
-
-function addRow(){
-  const last = steps[steps.length-1];
-  const nd = dateAdd(last.date, 60);
-  const sugPre = dateAdd(nd, -21);
-  steps.push({date:nd, rate:Math.max(0,+(last.rate-0.25).toFixed(2)), fixed:false, preDate:sugPre});
-  renderHead(); renderRows(); updateAll();
-}
-function removeRow(i){ if(steps.length<=2)return; steps.splice(i,1); renderHead(); renderRows(); updateAll(); }
-function updateStep(i,field,val){
-  steps[i][field] = field==='rate'?+val:val;
-  steps.sort((a,b)=>a.date.localeCompare(b.date));
-  renderHead(); renderRows(); updateAll();
-}
-function updatePreDate(i,val){
-  steps[i].preDate = val||null;
-  renderPreTags(); updateAll();
-}
-
-/* ── 선반영 toggle ── */
-function togglePre(){
-  const on = document.getElementById('preToggle').checked;
-  document.getElementById('preCtrls').className = 'ctrl-group' + (on?'':' dim');
-  renderHead(); renderRows(); updateAll();
-}
-
-/* ── Shape selector ── */
-function setShape(btn){
-  document.querySelectorAll('.shape-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-  preShape = btn.dataset.shape;
-  updateAll();
-}
-
-/* ── Smoothing toggle ── */
-document.getElementById('smoothToggle').addEventListener('change', ()=>{
-  const on = document.getElementById('smoothToggle').checked;
-  document.getElementById('smoothCtrls').className = 'ctrl-group' + (on?'':' dim');
-  updateAll();
-});
-
-/* ── Progress function (선반영 ramp shape) ── */
-function applyShape(t, shape){
-  // t in [0,1]
-  if(shape==='linear') return t;
-  if(shape==='convex')  return Math.pow(t, 0.45);  // fast early, slow later
-  if(shape==='concave') return Math.pow(t, 2.2);    // slow early, fast later (rush to meeting)
-  return t;
-}
-
-/* ── BR step function (선반영 없이 실제 기준금리 경로만) ── */
-function getBR(ds){
-  let curRate = steps[0].rate;
-  for(let i=0; i<steps.length; i++){
-    if(steps[i].date <= ds) curRate = steps[i].rate;
-    else break;
-  }
-  return curRate;
-}
-
-/* ── 선반영: BR과 독립된 CD additive 조정값 ── */
-// BR은 그대로 step function, CD만 선제적으로 움직임
-function getPreAdj(ds, usePrePricing){
-  if(!usePrePricing) return 0;
-  for(let i=1; i<steps.length; i++){
-    const s = steps[i];
-    if(!s.preDate) continue;
-    if(ds >= s.preDate && ds < s.date){
-      // 선반영 구간 [preDate, cutDate) 안에 있음
-      const total   = dateDiff(s.preDate, s.date);
-      const elapsed = dateDiff(s.preDate, ds);
-      const t       = Math.max(0, Math.min(1, elapsed / total));
-      // steps[i-1].rate = 이 인하 직전의 기준금리
-      return (s.rate - steps[i-1].rate) * applyShape(t, preShape);
-    }
-  }
-  return 0;
-}
-
-/* ── Spread ── */
-function getSpread(ds){
-  const base = +document.getElementById('baseSpread').value/100;
-  const str  = +document.getElementById('seasonStr').value/100;
-  const ysE  = +document.getElementById('ysExtra').value/100;
-  const d = new Date(ds); const m = d.getMonth(); const day = d.getDate();
-  const seasonal = (SEASONAL_BP[m]/100)*str;
-  const ysExtra  = (m===0 && day<=10) ? ysE : 0;
-  return Math.max(0, base + seasonal + ysExtra);
-}
-
-/* ── Generate forecast points (weekly) ── */
-function genFc(usePrePricing){
-  const pts = [];
-  let d = new Date(LAST_DATE);
-  const end = new Date('2027-04-17');
-  while(d <= end){
-    const ds = d.toISOString().split('T')[0];
-    const br = getBR(ds);
-    const sp = getSpread(ds);
-    const pa = getPreAdj(ds, usePrePricing);   // 선반영 조정값 (CD에만 가산, BR 불변)
-    pts.push({date:ds, br, sp, cd: +(br+sp+pa).toFixed(4)});
-    d.setDate(d.getDate()+7);
-  }
-  return pts;
-}
-
-/* ── Apply CD-level smoothing (from LAST_CD) ── */
-function applySmooth(fc, halfLifeDays){
-  if(!halfLifeDays || halfLifeDays<=0) return fc;
-  const res = fc.map(f=>({...f}));
-  for(let i=0;i<res.length;i++){
-    const days = dateDiff(LAST_DATE, res[i].date);
-    if(days<=0){ res[i].cd = LAST_CD; continue; }
-    const decay = Math.exp(-(Math.LN2/halfLifeDays)*days);
-    res[i].cd = +(res[i].cd + (LAST_CD - res[i].cd)*decay).toFixed(4);
-  }
-  return res;
-}
-
-
-/* ── Main update ── */
-function updateAll(){
-  // Display values
-  document.getElementById('bsv').textContent = document.getElementById('baseSpread').value;
-  document.getElementById('ssv').textContent = document.getElementById('seasonStr').value;
-  document.getElementById('ysv').textContent = document.getElementById('ysExtra').value;
-  document.getElementById('hlv').textContent = document.getElementById('halfLife').value;
-
-  const smoothOn = document.getElementById('smoothToggle').checked;
-  const preOn    = document.getElementById('preToggle').checked;
-  const hl       = +document.getElementById('halfLife').value;
-
-  // Generate forecast variants
-  // fcNoPreRaw: BR step + spread, 선반영 없음 (비교용 raw 선)
-  // fcPreRaw:   BR step + spread + preAdj (선반영 조정값 additive)
-  // fcFinal:    선반영 경로에 초기값(LAST_CD) 앵커링 스무딩만 적용
-  const fcNoPreRaw = genFc(false);
-  const fcPreRaw   = genFc(preOn);
-  let   fcFinal    = smoothOn ? applySmooth(fcPreRaw, hl) : fcPreRaw;
-
-  // Update current model CD metric
-  document.getElementById('mCurrentCD').textContent = fcFinal[0]?.cd.toFixed(2)+'%';
-
-  // Build chart data
-  const hDates = hist.map(h=>h.d);
-  const fDates = fcFinal.map(f=>f.date);
-  const allDates = [...new Set([...hDates,...fDates])].sort();
-
-  const hMap  = Object.fromEntries(hist.map(h=>[h.d,h.cd]));
-  const fMap  = Object.fromEntries(fcFinal.map(f=>[f.date,f]));
-  const rawMap= Object.fromEntries(fcNoPreRaw.map(f=>[f.date,f.cd]));
-
-  const labels= allDates.map(d=>{
-    const dt=new Date(d);
-    return dt.getDate()<=7 ? `${dt.getFullYear()}.${String(dt.getMonth()+1).padStart(2,'0')}` : '';
-  });
-
-  const hArr   = allDates.map(d=>hMap[d]??null);
-  const fArr   = allDates.map(d=>fMap[d]?.cd??null);
-  const noPreArr = allDates.map(d=>rawMap[d]??null);
-  const brArr  = allDates.map(d=>fMap[d]?.br??null);
-
-  const allVals=[...hist.map(h=>h.cd),...fcFinal.map(f=>f.cd),...fcFinal.map(f=>f.br)];
-  const yMin=Math.floor((Math.min(...allVals)-0.15)*4)/4;
-  const yMax=Math.ceil( (Math.max(...allVals)+0.2 )*4)/4;
-
-  // Pre-pricing event annotations (vertical lines as fake data)
-  const preEvents = steps.filter(s=>!s.fixed && s.preDate && preOn).map(s=>s.preDate);
-  const cutEvents = steps.filter(s=>!s.fixed && preOn && s.preDate).map(s=>s.date);
-
-  if(mainChart){
-    mainChart.data.labels=labels;
-    mainChart.data.datasets[0].data=hArr;
-    mainChart.data.datasets[1].data=fArr;
-    mainChart.data.datasets[2].data=preOn ? noPreArr : null;
-    mainChart.data.datasets[3].data=brArr;
-    mainChart.options.scales.y.min=yMin;
-    mainChart.options.scales.y.max=yMax;
-    mainChart.update('none');
-  } else {
-    const ctx=document.getElementById('cdChart').getContext('2d');
-    mainChart=new Chart(ctx,{
-      type:'line',
-      data:{
-        labels,
-        datasets:[
-          {label:'CD91 실제',       data:hArr,    borderColor:'#4a9eff',borderWidth:2.5,pointRadius:0,pointHoverRadius:4,tension:.3,spanGaps:true},
-          {label:'CD91 전망',       data:fArr,    borderColor:'#4a9eff',borderWidth:2,borderDash:[6,4],pointRadius:0,tension:.3,spanGaps:true},
-          {label:'선반영 없는 raw', data:preOn?noPreArr:null, borderColor:'rgba(167,139,250,.45)',borderWidth:1.2,borderDash:[2,3],pointRadius:0,tension:.2,spanGaps:true},
-          {label:'기준금리 경로',   data:brArr,   borderColor:'#555e75',borderWidth:1.5,borderDash:[3,3],pointRadius:0,tension:0,spanGaps:true},
-        ]
-      },
-      options:{
-        responsive:true, maintainAspectRatio:false,
-        interaction:{mode:'index',intersect:false},
-        plugins:{
-          legend:{display:false},
-          tooltip:{backgroundColor:'#181c27',borderColor:'rgba(255,255,255,.1)',borderWidth:1,
-            titleColor:'#8b93a8',bodyColor:'#e8eaf0',padding:10,
-            callbacks:{label:c=>`  ${c.dataset.label}: ${c.parsed.y!=null?c.parsed.y.toFixed(3)+'%':'—'}`}}
-        },
-        scales:{
-          x:{grid:{color:'rgba(255,255,255,.04)'},ticks:{font:{size:10},color:'#555e75',autoSkip:false,maxRotation:0,callback:v=>v||null}},
-          y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{font:{size:10},color:'#555e75',callback:v=>v.toFixed(2)+'%'},min:yMin,max:yMax}
-        }
-      }
-    });
-  }
-
-  // Legend
-  const noPreLegend = preOn
-    ? `<span><span class="legend-line" style="width:18px;border-top:1.5px dashed rgba(167,139,250,.5);"></span>선반영 없는 raw</span>`
-    : '';
-  document.getElementById('legend').innerHTML=`
-    <span><span class="legend-line" style="width:18px;border-top:2.5px solid #4a9eff;"></span>CD91 실제</span>
-    <span><span class="legend-line" style="width:18px;border-top:2px dashed #4a9eff;"></span>CD91 전망</span>
-    ${noPreLegend}
-    <span><span class="legend-line" style="width:18px;border-top:2px dashed #555e75;"></span>기준금리</span>
-  `;
-
-  // Quarterly cards
-  const qtrs=[
-    {l:'2026 Q2',s:'2026-04-01',e:'2026-06-30'},
-    {l:'2026 Q3',s:'2026-07-01',e:'2026-09-30'},
-    {l:'2026 Q4',s:'2026-10-01',e:'2026-12-31'},
-    {l:'2027 Q1',s:'2027-01-01',e:'2027-03-31'},
-  ];
-  document.getElementById('qout').innerHTML=qtrs.map(q=>{
-    const pts=fcFinal.filter(f=>f.date>=q.s&&f.date<=q.e);
-    if(!pts.length)return`<div class="qcard"><div class="ql">${q.l}</div><div class="qv" style="color:var(--t3);">—</div></div>`;
-    const avgCD=pts.reduce((s,p)=>s+p.cd,0)/pts.length;
-    const avgBR=pts.reduce((s,p)=>s+p.br,0)/pts.length;
-    const avgSp=pts.reduce((s,p)=>s+p.sp,0)/pts.length;
-    return`<div class="qcard"><div class="ql">${q.l}</div><div class="qv">${avgCD.toFixed(2)}%</div><div class="qb">BR ${avgBR.toFixed(2)}% + ${(avgSp*100).toFixed(0)}bp</div></div>`;
-  }).join('');
-}
-
-/* ── Monthly chart (static) ── */
-function buildMonthChart(){
-  const ctx=document.getElementById('monthChart').getContext('2d');
-  const colors=MONTHLY_AVG.map(v=>v>30?'rgba(248,113,113,.7)':v<16?'rgba(52,211,153,.6)':'rgba(74,158,255,.55)');
-  monthChartInst=new Chart(ctx,{
-    type:'bar',
-    data:{
-      labels:['1','2','3','4','5','6','7','8','9','10','11','12'],
-      datasets:[{data:MONTHLY_AVG,backgroundColor:colors,borderRadius:3,borderSkipped:false}]
-    },
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      plugins:{legend:{display:false},
-        tooltip:{backgroundColor:'#181c27',borderColor:'rgba(255,255,255,.1)',borderWidth:1,
-          callbacks:{label:c=>`${c.parsed.y.toFixed(1)}bp`}}},
-      scales:{
-        x:{grid:{display:false},ticks:{font:{size:10},color:'#555e75'}},
-        y:{grid:{color:'rgba(255,255,255,.04)'},ticks:{font:{size:10},color:'#555e75',callback:v=>v+'bp'},min:0,max:45}
-      }
-    }
-  });
-}
-
-/* ── Init ── */
-renderHead();
-renderRows();
-buildMonthChart();
-updateAll();
-</script>
+<!-- ── Scripts (순서 중요: data → model → ui) ── -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="/assets/js/data.js"></script>
+<script src="/assets/js/model.js"></script>
+<script src="/assets/js/ui.js"></script>
 </body>
 </html>

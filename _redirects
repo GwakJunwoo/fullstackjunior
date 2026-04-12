@@ -1,0 +1,7 @@
+# Netlify _redirects
+# 새 도구 페이지가 생기면 여기에 추가
+# 형식: /경로  /실제파일  상태코드
+
+# 현재: 루트 = CD91 계산기
+# /tools/cofix/*  /tools/cofix/index.html  200
+# /tools/swap/*   /tools/swap/index.html   200
