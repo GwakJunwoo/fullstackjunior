@@ -27,9 +27,21 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-# ── SPA / 멀티페이지 라우팅 ────────────────────────────────────
-# 새 페이지 추가 시 아래에 추가:
+# ── API 프록시 (ngrok → 로컬 FastAPI) ─────────────────────────
+# ngrok URL이 바뀔 때마다 아래 to 값만 교체 후 git push → Netlify 자동 재배포
+# 프론트엔드는 항상 /api/* 로만 호출하므로 코드 변경 불필요
+#
+# [[redirects]]
+#   from   = "/api/*"
+#   to     = "https://xxxx.ngrok-free.app/:splat"
+#   status = 200
+#   force  = true
+#   [redirects.headers]
+#     ngrok-skip-browser-warning = "1"
+
+# ── 멀티페이지 라우팅 ─────────────────────────────────────────
+# 새 도구 페이지 추가 시:
 #   [[redirects]]
-#   from = "/tools/cofix"
-#   to   = "/tools/cofix/index.html"
+#   from   = "/tools/cofix/*"
+#   to     = "/tools/cofix/index.html"
 #   status = 200
