@@ -6,11 +6,10 @@
 
 // ── 앱 상태 ──────────────────────────────────────────────────────
 let steps = [
-  { date: '2026-04-10', rate: 2.50, fixed: true,  preDate: null },
-  { date: '2026-05-28', rate: 2.25, fixed: false, preDate: '2026-05-07' },
-  { date: '2026-07-16', rate: 2.00, fixed: false, preDate: '2026-06-25' },
+  { date: '2026-04-10', rate: 2.50, fixed: true  },
+  { date: '2026-05-28', rate: 2.25, fixed: false },
+  { date: '2026-07-16', rate: 2.00, fixed: false },
 ];
-let preShape    = 'linear';
 let mainChart   = null;
 let monthChart  = null;
 
@@ -19,7 +18,7 @@ function getParams() {
   return {
     preOn:      document.getElementById('preToggle').checked,
     smoothOn:   document.getElementById('smoothToggle').checked,
-    preShape,
+    preWindow:  +document.getElementById('preWindow').value,
     baseSpread: +document.getElementById('baseSpread').value / 100,
     seasonStr:  +document.getElementById('seasonStr').value / 100,
     ysExtra:    +document.getElementById('ysExtra').value / 100,
@@ -29,18 +28,15 @@ function getParams() {
 
 // ── Step Table ───────────────────────────────────────────────────
 function renderHead() {
-  const { preOn } = getParams();
   document.getElementById('stepHead').innerHTML = `
     <tr>
       <th>날짜</th>
       <th style="text-align:right;">기준금리(%)</th>
-      ${preOn ? '<th style="color:rgba(167,139,250,.8);">선반영 시작</th>' : ''}
       <th></th>
     </tr>`;
 }
 
 function renderRows() {
-  const { preOn } = getParams();
   const tb = document.getElementById('stepRows');
   tb.innerHTML = '';
 
@@ -50,20 +46,12 @@ function renderRows() {
       tr.innerHTML = `
         <td style="padding:4px 5px;font-size:12px;color:var(--t2);">${s.date}</td>
         <td style="padding:4px 5px;text-align:right;font-size:12px;font-weight:600;">${s.rate.toFixed(2)}%</td>
-        ${preOn ? `<td class="pre-date-cell"><span class="pre-empty">—</span></td>` : ''}
         <td><span class="fixed-lbl">현재</span></td>`;
     } else {
-      const preCell = preOn ? `
-        <td class="pre-date-cell">
-          <input type="date" value="${s.preDate || ''}"
-            oninput="updatePreDate(${i}, this.value)"
-            style="border-color:${s.preDate ? 'rgba(167,139,250,.5)' : 'rgba(255,255,255,.08)'};">
-        </td>` : '';
       tr.innerHTML = `
         <td><input type="date" value="${s.date}"    onchange="updateStep(${i},'date', this.value)"></td>
         <td><input type="number" min="0" max="5" step="0.25" value="${s.rate}"
               onchange="updateStep(${i},'rate', +this.value)" style="width:58px;"></td>
-        ${preCell}
         <td><button class="del-btn" onclick="removeRow(${i})">×</button></td>`;
     }
     tb.appendChild(tr);
@@ -73,28 +61,30 @@ function renderRows() {
 }
 
 function renderPreTags() {
-  const { preOn } = getParams();
+  const { preOn, preWindow } = getParams();
   const el = document.getElementById('preEventTags');
   el.innerHTML = '';
-  if (!preOn) return;
+  if (!preOn || preWindow <= 0) return;
 
-  steps.filter(s => !s.fixed && s.preDate).forEach(s => {
-    const idx  = steps.findIndex(x => x.date === s.date);
-    const diff = dateDiff(s.preDate, s.date);
-    const bp   = Math.round((s.rate - (steps[idx - 1]?.rate ?? s.rate)) * 100);
-    const tag  = document.createElement('div');
-    tag.className   = 'pre-tag';
-    tag.textContent = `${s.preDate} 선반영 시작 → ${s.date} 인하 (${diff}일 전, ${bp < 0 ? bp : '+' + bp}bp)`;
+  steps.filter(s => !s.fixed).forEach(s => {
+    const idx    = steps.findIndex(x => x.date === s.date);
+    const daysTo = dateDiff(LAST_DATE, s.date);
+    const bp     = Math.round((s.rate - (steps[idx - 1]?.rate ?? s.rate)) * 100);
+    const inWin  = daysTo > 0 && daysTo <= preWindow;
+    const tag    = document.createElement('div');
+    tag.className = 'pre-tag' + (inWin ? '' : ' pre-tag-dim');
+    tag.textContent = inWin
+      ? `${s.date} — ${daysTo}일 후 (윈도우 ${preWindow}일 내) → ${bp < 0 ? bp : '+' + bp}bp 선반영 중`
+      : `${s.date} — ${daysTo}일 후 (윈도우 ${preWindow}일 밖, 아직 미반영)`;
     el.appendChild(tag);
   });
 }
 
 // ── Step CRUD ────────────────────────────────────────────────────
 function addRow() {
-  const last   = steps[steps.length - 1];
-  const nd     = dateAdd(last.date, 60);
-  const sugPre = dateAdd(nd, -21);
-  steps.push({ date: nd, rate: Math.max(0, +(last.rate - 0.25).toFixed(2)), fixed: false, preDate: sugPre });
+  const last = steps[steps.length - 1];
+  const nd   = dateAdd(last.date, 60);
+  steps.push({ date: nd, rate: Math.max(0, +(last.rate - 0.25).toFixed(2)), fixed: false });
   renderHead(); renderRows(); updateAll();
 }
 
@@ -110,16 +100,11 @@ function updateStep(i, field, val) {
   renderHead(); renderRows(); updateAll();
 }
 
-function updatePreDate(i, val) {
-  steps[i].preDate = val || null;
-  renderPreTags(); updateAll();
-}
-
 // ── Toggle Handlers ──────────────────────────────────────────────
 function togglePre() {
   const on = document.getElementById('preToggle').checked;
   document.getElementById('preCtrls').classList.toggle('dim', !on);
-  renderHead(); renderRows(); updateAll();
+  renderPreTags(); updateAll();
 }
 
 document.getElementById('smoothToggle').addEventListener('change', () => {
@@ -128,20 +113,14 @@ document.getElementById('smoothToggle').addEventListener('change', () => {
   updateAll();
 });
 
-// ── Shape Selector ───────────────────────────────────────────────
-function setShape(btn) {
-  document.querySelectorAll('.shape-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  preShape = btn.dataset.shape;
-  updateAll();
-}
-
 // ── Slider Display Sync ──────────────────────────────────────────
 function syncSliderLabels(p) {
   document.getElementById('bsv').textContent = Math.round(p.baseSpread * 100);
   document.getElementById('ssv').textContent = Math.round(p.seasonStr  * 100);
   document.getElementById('ysv').textContent = Math.round(p.ysExtra    * 100);
   document.getElementById('hlv').textContent = p.halfLife;
+  document.getElementById('pwv').textContent = p.preWindow;
+  renderPreTags();
 }
 
 // ── Main Update ──────────────────────────────────────────────────

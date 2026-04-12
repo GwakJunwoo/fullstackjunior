@@ -90,7 +90,7 @@
         </span>
         <span class="tgl-label">스무딩</span>
       </label>
-      <span style="font-size:11px;color:var(--t3);">CD(2.82%) → 전망 경로 지수 평활 (현재값 앵커링)</span>
+      <span style="font-size:11px;color:var(--t3);">현재 CD(2.82%) → 전망 경로로 지수 수렴 (선반영과 독립)</span>
       <div class="opt-divider"></div>
       <div class="ctrl-group" id="smoothCtrls">
         <label>반감기</label>
@@ -110,15 +110,13 @@
         </span>
         <span class="tgl-label" style="color:var(--purple);">선반영</span>
       </label>
-      <span style="font-size:11px;color:var(--t3);">인하 전 CD 선제 하락 (BR 불변) — 경로 테이블에서 날짜 입력</span>
+      <span style="font-size:11px;color:var(--t3);">금통위 N일 전부터 기준금리 변동 100% 선반영 (BR 불변, 스텝)</span>
       <div class="opt-divider"></div>
       <div class="ctrl-group" id="preCtrls">
-        <label>형태</label>
-        <div class="shape-btns">
-          <button class="shape-btn active" data-shape="linear"  onclick="setShape(this)">선형</button>
-          <button class="shape-btn"        data-shape="convex"  onclick="setShape(this)">볼록</button>
-          <button class="shape-btn"        data-shape="concave" onclick="setShape(this)">오목</button>
-        </div>
+        <label>윈도우</label>
+        <input type="range" id="preWindow" min="0" max="60" step="1" value="21"
+               oninput="updateAll()" style="width:90px;flex:none;">
+        <span class="val"><span id="pwv">21</span>일</span>
       </div>
     </div>
   </div>

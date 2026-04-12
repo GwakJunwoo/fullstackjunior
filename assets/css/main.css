@@ -394,6 +394,11 @@ input[type=range].purple::-moz-range-thumb     { background: var(--purple); }
   color: var(--purple);
   border: .5px solid rgba(167,139,250,.3);
 }
+.pre-tag-dim {
+  background: rgba(255,255,255,.03);
+  color: var(--t3);
+  border-color: var(--bd);
+}
 
 /* ─────────────────────────────────────────
    Responsive

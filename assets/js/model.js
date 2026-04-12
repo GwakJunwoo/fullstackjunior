@@ -4,12 +4,11 @@
  * 외부 의존: data.js (LAST_CD, LAST_DATE, SEASONAL_BP)
  *
  * 내보내는 함수:
- *   applyShape(t, shape)              → 선반영 진행 곡선 [0,1]→[0,1]
- *   getBR(ds, steps)                  → 해당일의 기준금리 (step function)
- *   getPreAdj(ds, steps, shape, on)   → 선반영 CD additive 조정값
- *   getSpread(ds, params)             → 해당일의 CD 스프레드
- *   genFc(steps, params)              → 주간 전망 포인트 배열
- *   applySmooth(fc, halfLifeDays)     → LAST_CD 기준 지수 평활
+ *   getBR(ds, steps)                       → 해당일의 기준금리 (step function)
+ *   getPreAdj(ds, steps, preWindow, on)    → 선반영 CD additive 조정값 (step)
+ *   getSpread(ds, params)                  → 해당일의 CD 스프레드
+ *   genFc(steps, params)                   → 주간 전망 포인트 배열
+ *   applySmooth(fc, halfLifeDays)          → LAST_CD 기준 지수 평활
  */
 
 // ── Date Helpers ────────────────────────────────────────────────
@@ -35,19 +34,6 @@ function dateDiff(a, b) {
   return Math.round((d2ms(b) - d2ms(a)) / msPerDay);
 }
 
-// ── 선반영 곡선 형태 ────────────────────────────────────────────
-/**
- * t ∈ [0,1] → progress ∈ [0,1]
- * @param {number} t
- * @param {'linear'|'convex'|'concave'} shape
- * @returns {number}
- */
-function applyShape(t, shape) {
-  if (shape === 'convex')  return Math.pow(t, 0.45); // 초반 급하락, 후반 완만
-  if (shape === 'concave') return Math.pow(t, 2.20); // 초반 완만, 후반 급하락
-  return t;                                           // linear (default)
-}
-
 // ── 기준금리 Step Function ───────────────────────────────────────
 /**
  * 해당일의 실제 기준금리 (인하 발표일에 즉시 반영, 선반영 없음)
@@ -64,31 +50,29 @@ function getBR(ds, steps) {
   return cur;
 }
 
-// ── 선반영 Additive 조정값 ──────────────────────────────────────
+// ── 선반영 Additive 조정값 (Step 방식) ────────────────────────
 /**
- * CD만 선제적으로 움직임 — BR 경로는 불변
- * 선반영 구간 [preDate, cutDate) 안에서 (nextRate - prevRate) * progress 반환
- * 구간 밖: 0
+ * CD만 선제적으로 움직임 — BR 경로는 불변.
  *
- * @param {string}                       ds       - 'YYYY-MM-DD'
- * @param {object[]}                     steps
- * @param {'linear'|'convex'|'concave'}  shape
- * @param {boolean}                      enabled
+ * 로직: ds 기준으로 앞으로 preWindow일 이내에 예정된 기준금리 변동을
+ *       합산해서 즉시(100%) 반영. 구간 밖이거나 미사용이면 0.
+ *
+ * @param {string}   ds        - 'YYYY-MM-DD'
+ * @param {object[]} steps     - [{date, rate}]
+ * @param {number}   preWindow - 선반영 윈도우(일), 0 이면 사실상 비활성
+ * @param {boolean}  enabled
  * @returns {number}
  */
-function getPreAdj(ds, steps, shape, enabled) {
-  if (!enabled) return 0;
+function getPreAdj(ds, steps, preWindow, enabled) {
+  if (!enabled || preWindow <= 0) return 0;
+  let adj = 0;
   for (let i = 1; i < steps.length; i++) {
-    const s = steps[i];
-    if (!s.preDate) continue;
-    if (ds >= s.preDate && ds < s.date) {
-      const total   = dateDiff(s.preDate, s.date);
-      const elapsed = dateDiff(s.preDate, ds);
-      const t       = Math.max(0, Math.min(1, elapsed / total));
-      return (s.rate - steps[i - 1].rate) * applyShape(t, shape);
+    const daysTo = dateDiff(ds, steps[i].date);
+    if (daysTo > 0 && daysTo <= preWindow) {
+      adj += steps[i].rate - steps[i - 1].rate;
     }
   }
-  return 0;
+  return adj;
 }
 
 // ── 스프레드 ─────────────────────────────────────────────────────
@@ -123,7 +107,7 @@ function getSpread(ds, { baseSpread, seasonStr, ysExtra }) {
  * @returns {{ date: string, br: number, sp: number, cd: number }[]}
  */
 function genFc(steps, params) {
-  const { preOn, preShape, baseSpread, seasonStr, ysExtra } = params;
+  const { preOn, preWindow, baseSpread, seasonStr, ysExtra } = params;
   const endDate = params.endDate || '2027-04-17';
   const pts  = [];
   const d    = new Date(LAST_DATE);
@@ -133,7 +117,7 @@ function genFc(steps, params) {
     const ds = d.toISOString().split('T')[0];
     const br = getBR(ds, steps);
     const sp = getSpread(ds, { baseSpread, seasonStr, ysExtra });
-    const pa = getPreAdj(ds, steps, preShape, preOn);
+    const pa = getPreAdj(ds, steps, preWindow, preOn);
     pts.push({ date: ds, br, sp, cd: +(br + sp + pa).toFixed(4) });
     d.setDate(d.getDate() + 7);
   }
