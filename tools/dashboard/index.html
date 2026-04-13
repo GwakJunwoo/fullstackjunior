@@ -234,12 +234,17 @@
 <script src="/assets/js/api.js"></script>
 <script>
 // ══════════════════════════════════════════════════════════════
-//  CONFIG
+//  CONFIG  — ktb 테이블 label 기반
+//  CD91    → label "CD"
+//  기준금리 → label "한국기준금리"
+//  국고채   → label "3년지표", "5년지표", "10년지표" ...
+//  IRS      → label "IRS1년", "IRS3년", "IRS5년", "IRS10년"
 // ══════════════════════════════════════════════════════════════
-// ktb tenor 키:  'k2', 'k3', 'k5', 'k10', 'k20', 'k30'
-// rates 키:      'CD91', '기준금리', 'IRS1년', 'IRS3년', 'IRS5년', 'IRS10년'
-const KTB_TENORS   = [2, 3, 5, 10, 20, 30];
-const RATES_NEEDED = ['기준금리', 'CD91', 'IRS1년', 'IRS3년', 'IRS5년', 'IRS10년'];
+const ALL_LABELS = [
+  'CD', '한국기준금리',
+  '2년지표', '3년지표', '5년지표', '10년지표', '20년지표', '30년지표',
+  'IRS1년', 'IRS3년', 'IRS5년', 'IRS10년',
+];
 
 // 수익률 곡선 비교일별 색상
 const CURVE_COLORS = {
@@ -251,39 +256,39 @@ const CURVE_COLORS = {
 };
 
 // 미니 차트 섹션 정의
-// formula(s) → [{date, value}]  (s 키: 'k3','k10',... or rates alias)
+// formula(s) → [{date, value}]   s 키 = ktb label 그대로
 const SECTIONS = [
   {
     rowId: 'row-levels',
     charts: [
-      { id: 'cd_sp',  title: 'CD91 − 기준금리', unit: 'bp', color: '#4a9eff',
-        formula: s => diff(s, 'CD91', '기준금리', 100) },
-      { id: 'ktb3',   title: '국고 3년',         unit: '%',  color: '#34d399',
-        formula: s => single(s, 'k3') },
-      { id: 'ktb10',  title: '국고 10년',        unit: '%',  color: '#fbbf24',
-        formula: s => single(s, 'k10') },
+      { id: 'cd_sp',  title: 'CD − 기준금리', unit: 'bp', color: '#4a9eff',
+        formula: s => diff(s, 'CD', '한국기준금리', 100) },
+      { id: 'ktb3',   title: '국고 3년',       unit: '%',  color: '#34d399',
+        formula: s => single(s, '3년지표') },
+      { id: 'ktb10',  title: '국고 10년',      unit: '%',  color: '#fbbf24',
+        formula: s => single(s, '10년지표') },
     ],
   },
   {
     rowId: 'row-spreads',
     charts: [
       { id: 'sp53',   title: '5Y − 3Y',   unit: 'bp', color: '#4a9eff',
-        formula: s => diff(s, 'k5',  'k3',  100) },
+        formula: s => diff(s, '5년지표',  '3년지표',  100) },
       { id: 'sp103',  title: '10Y − 3Y',  unit: 'bp', color: '#a78bfa',
-        formula: s => diff(s, 'k10', 'k3',  100) },
+        formula: s => diff(s, '10년지표', '3년지표',  100) },
       { id: 'sp3010', title: '30Y − 10Y', unit: 'bp', color: '#f87171',
-        formula: s => diff(s, 'k30', 'k10', 100) },
+        formula: s => diff(s, '30년지표', '10년지표', 100) },
     ],
   },
   {
     rowId: 'row-butterfly',
     charts: [
-      { id: 'bf3510',   title: '3-5-10 BF',   unit: 'bp', color: '#34d399',
-        formula: s => butterfly(s, 'k3',  'k5',  'k10') },
-      { id: 'bf2510',   title: '2-5-10 BF',   unit: 'bp', color: '#fbbf24',
-        formula: s => butterfly(s, 'k2',  'k5',  'k10') },
-      { id: 'bf102030', title: '10-20-30 BF',  unit: 'bp', color: '#fb923c',
-        formula: s => butterfly(s, 'k10', 'k20', 'k30') },
+      { id: 'bf3510',   title: '3-5-10 BF',  unit: 'bp', color: '#34d399',
+        formula: s => butterfly(s, '3년지표',  '5년지표',  '10년지표') },
+      { id: 'bf2510',   title: '2-5-10 BF',  unit: 'bp', color: '#fbbf24',
+        formula: s => butterfly(s, '2년지표',  '5년지표',  '10년지표') },
+      { id: 'bf102030', title: '10-20-30 BF', unit: 'bp', color: '#fb923c',
+        formula: s => butterfly(s, '10년지표', '20년지표', '30년지표') },
     ],
   },
   {
@@ -315,6 +320,8 @@ let dropFocusIdx   = -1;
 
 // ══════════════════════════════════════════════════════════════
 //  수식 헬퍼
+//  multi_label_series 반환값: [{price_date, ytm}]
+//  → single/diff/butterfly 는 {date, value} 형식 사용
 // ══════════════════════════════════════════════════════════════
 function single(s, key) {
   return (s[key] || []).map(p => ({ date: p.date, value: p.value != null ? +p.value : null }));
@@ -366,8 +373,8 @@ function setPeriod(btn, days) {
   btn.classList.add('active');
   loadAllMini();
   if (document.getElementById('bigChartCard').style.display !== 'none') {
-    const nick = document.getElementById('searchInput').dataset.nickname;
-    if (nick) loadBigChart(nick);
+    const lbl = document.getElementById('searchInput').dataset.label;
+    if (lbl) loadBigChart(lbl);
   }
 }
 
@@ -506,7 +513,7 @@ function drawCurve(results, offsets) {
             label: c => {
               const dp = c.dataset.data[c.dataIndex];
               const nick = results[c.datasetIndex]?.rows
-                ?.find(r => Math.abs(+r.remain_year - dp.x) < 0.01)?.nickname ?? '';
+                ?.find(r => Math.abs(+r.remain_year - dp.x) < 0.01)?.label ?? '';
               return ` ${c.dataset.label.split(' ')[0]}: ${dp.y?.toFixed(4)}%  ${nick}`;
             },
           },
@@ -552,16 +559,19 @@ function renderDropdown(results) {
   results.forEach(r => {
     const div = document.createElement('div');
     div.className = 'search-item';
-    const ytmStr = r.ytm != null ? (+r.ytm).toFixed(3) + '%' : '';
+    const ytmStr  = r.ytm        != null ? (+r.ytm).toFixed(3) + '%' : '';
+    const remStr  = r.remain_year != null ? (+r.remain_year).toFixed(1) + 'Y' : '';
+    // label을 primary 식별자로, bond_name 보조 표시
+    const nameStr = r.bond_name && r.bond_name !== r.label ? r.bond_name : '';
     div.innerHTML = `
-      <span class="si-nick">${r.nickname ?? ''}</span>
-      <span class="si-name">${r.bond_name ?? ''}</span>
-      <span class="si-meta">${r.remain_year != null ? (+r.remain_year).toFixed(1) + 'Y' : ''}  ${ytmStr}</span>`;
+      <span class="si-nick">${r.label ?? ''}</span>
+      <span class="si-name">${nameStr}</span>
+      <span class="si-meta">${r.category ?? ''}  ${remStr}  ${ytmStr}</span>`;
     div.onclick = () => {
-      document.getElementById('searchInput').value = r.nickname ?? r.bond_name;
-      document.getElementById('searchInput').dataset.nickname = r.nickname;
+      document.getElementById('searchInput').value        = r.label;
+      document.getElementById('searchInput').dataset.label = r.label;
       hideDropdown();
-      loadBigChart(r.nickname);
+      loadBigChart(r.label);
     };
     dd.appendChild(div);
   });
@@ -584,10 +594,10 @@ function onKeyDown(e) {
 document.addEventListener('click', e => { if (!e.target.closest('.search-wrap')) hideDropdown(); });
 
 // ── 대형 차트 ─────────────────────────────────────────────────
-async function loadBigChart(nickname) {
-  if (!nickname) return;
+async function loadBigChart(label) {
+  if (!label) return;
   try {
-    const d = await apiGet(`/ktb/series?nickname=${encodeURIComponent(nickname)}&days=${currentDays}`);
+    const d = await apiGet(`/ktb/series?label=${encodeURIComponent(label)}&days=${currentDays}`);
     const rows = d.rows || [];
     if (!rows.length) return;
 
@@ -599,7 +609,7 @@ async function loadBigChart(nickname) {
     const firstRow = rows[0];
 
     document.getElementById('bigTitle').textContent =
-      `${nickname}  ${firstRow?.bond_name ?? ''}`;
+      `${label}  ${firstRow?.bond_name && firstRow.bond_name !== label ? firstRow.bond_name : ''}`;
     document.getElementById('bigMeta').textContent =
       `${firstRow?.category ?? ''}  |  잔존 ${rows.at(-1)?.remain_year != null ? (+rows.at(-1).remain_year).toFixed(1) + 'Y' : ''}`;
     document.getElementById('bigVal').innerHTML = last != null
@@ -632,7 +642,7 @@ async function loadBigChart(nickname) {
             tooltip: {
               backgroundColor: '#181c27', borderColor: 'rgba(255,255,255,.1)', borderWidth: 1,
               titleColor: '#8b93a8', bodyColor: '#e8eaf0', padding: 9,
-              callbacks: { label: c => `  YTM: ${c.parsed.y?.toFixed(4) ?? '—'}%` },
+              callbacks: { label: c => `  ${label}: ${c.parsed.y?.toFixed(4) ?? '—'}%` },
             },
           },
           scales: {
@@ -646,35 +656,26 @@ async function loadBigChart(nickname) {
 }
 
 // ══════════════════════════════════════════════════════════════
-//  미니 차트 전체 로드
+//  미니 차트 전체 로드 — ktb/multi_label_series 단일 호출
 // ══════════════════════════════════════════════════════════════
 async function loadAllMini() {
   try {
-    const [ktbData, ratesData] = await Promise.all([
-      apiGet(`/ktb/multi_series?tenors=${KTB_TENORS.join(',')}&days=${currentDays}`),
-      apiGet(`/rates/series?aliases=${encodeURIComponent(RATES_NEEDED.join(','))}&days=${currentDays}`)
-        .catch(() => ({ series: {} })),
-    ]);
+    const data = await apiGet(
+      `/ktb/multi_label_series?labels=${encodeURIComponent(ALL_LABELS.join(','))}&days=${currentDays}`
+    );
 
-    // 통합 series 객체 빌드
-    // ktb: 키 = 'k2', 'k3', 'k5', 'k10', 'k20', 'k30'
-    // rates: 키 = alias 그대로
+    // series 키 = label 그대로 (예: 'CD', '한국기준금리', '3년지표', 'IRS3년' …)
+    // 각 값: [{price_date, ytm}] → {date, value} 로 정규화
     const series = {};
-    Object.entries(ktbData.series || {}).forEach(([tenorStr, rows]) => {
-      const key = 'k' + parseFloat(tenorStr);   // "3.0" → 'k3'
-      series[key] = rows.map(r => ({ date: r.price_date, value: r.ytm }));
-    });
-    Object.entries(ratesData.series || {}).forEach(([alias, pts]) => {
-      series[alias] = pts;
+    Object.entries(data.series || {}).forEach(([lbl, rows]) => {
+      series[lbl] = rows.map(r => ({ date: r.price_date, value: r.ytm != null ? +r.ytm : null }));
     });
 
-    // 섹션 렌더
     SECTIONS.forEach(sec => {
       const row = document.getElementById(sec.rowId);
       row.innerHTML = '';
       sec.charts.forEach(cfg => {
-        const pts = cfg.formula(series);
-        row.appendChild(buildMiniCard(cfg, pts));
+        row.appendChild(buildMiniCard(cfg, cfg.formula(series)));
       });
     });
   } catch (e) {
