@@ -21,9 +21,7 @@
 
   <div class="hdr">
     <h1>CD91 금리 전망 계산기</h1>
-    <p>선반영 + 스무딩 모형 &nbsp;|&nbsp; 2020–2026 실증 계절성
-      &nbsp;<span id="cdLoadStatus" style="font-size:10px;color:var(--t3);">DB 연결 중...</span>
-    </p>
+    <p>선반영 + 스무딩 모형 &nbsp;|&nbsp; 2020–2026 실증 계절성</p>
   </div>
 
   <div class="metrics">
@@ -32,12 +30,14 @@
       <div class="mv" id="mBR">2.50%</div>
     </div>
     <div class="metric">
-      <div class="ml">현재 CD91</div>
-      <div class="mv" id="mCD">—</div>
+      <div class="ml">현재 CD91
+        <span id="cdDot" style="display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--t3);margin-left:5px;vertical-align:middle;"></span>
+      </div>
+      <div class="mv" id="mCD">2.82%</div>
     </div>
     <div class="metric">
       <div class="ml">CD − 기준금리</div>
-      <div class="mv" id="mSpread" style="color:var(--blue);">—</div>
+      <div class="mv" id="mSpread" style="color:var(--blue);">+32 bp</div>
     </div>
     <div class="metric">
       <div class="ml">모델 CD91 (현시점)</div>

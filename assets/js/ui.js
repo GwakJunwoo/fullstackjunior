@@ -313,7 +313,7 @@ function buildMonthChart() {
  * 실패 시 data.js 의 fallback 값으로 동작합니다.
  */
 async function loadCDHistory() {
-  const statusEl = document.getElementById('cdLoadStatus');
+  const dot = document.getElementById('cdDot');
 
   try {
     const data = await apiGet('/ktb/series?label=CD&days=730');
@@ -329,16 +329,18 @@ async function loadCDHistory() {
     updateCDMetrics();
     updateAll();          // 실제 DB 데이터로 차트 재렌더
 
-    if (statusEl) {
-      statusEl.textContent = `DB 연동 · 기준일 ${LAST_DATE} · ${rows.length}개`;
-      statusEl.style.color = 'var(--green)';
+    if (dot) {
+      dot.style.background  = 'var(--green)';
+      dot.style.boxShadow   = '0 0 5px rgba(52,211,153,.5)';
+      dot.title = `DB 연동 · 기준일 ${LAST_DATE} · ${rows.length}개`;
     }
   } catch (e) {
     // fallback: data.js 하드코딩 값 유지
     updateCDMetrics();
-    if (statusEl) {
-      statusEl.textContent = 'DB 연결 실패 — fallback 데이터 사용';
-      statusEl.style.color = 'var(--red)';
+    if (dot) {
+      dot.style.background  = 'var(--red)';
+      dot.style.boxShadow   = 'none';
+      dot.title = 'DB 연결 실패 — fallback 데이터 사용';
     }
     console.warn('loadCDHistory:', e.message);
   }
