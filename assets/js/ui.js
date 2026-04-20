@@ -12,6 +12,7 @@ let steps = [
 ];
 let mainChart   = null;
 let monthChart  = null;
+let chartDates  = [];   // tooltip용 날짜 배열 (모듈 스코프)
 
 // ── DOM 파라미터 읽기 ────────────────────────────────────────────
 function getParams() {
@@ -128,36 +129,47 @@ function updateAll() {
   const p = getParams();
   syncSliderLabels(p);
 
-  // 전망 계산
-  const fcRaw   = genFc(steps, { ...p, preOn: false });          // 선반영 없는 raw (비교용)
-  const fcPre   = genFc(steps, p);                               // 선반영 포함
+  // 전망 계산 (약 2년 전망)
+  const FC_END  = '2028-04-01';
+  const fcRaw   = genFc(steps, { ...p, preOn: false, endDate: FC_END }); // 선반영 없는 raw (비교용)
+  const fcPre   = genFc(steps, { ...p, endDate: FC_END });               // 선반영 포함
   const fcFinal = p.smoothOn ? applySmooth(fcPre, p.halfLife) : fcPre;
 
   // 현재 모델 CD
   document.getElementById('mCurrentCD').textContent = (fcFinal[0]?.cd.toFixed(2) ?? '—') + '%';
 
+  // 차트용 이력: 최근 31일만 표시
+  const histCutoff = dateAdd(LAST_DATE, -31);
+  const hChart = hist.filter(h => h.d >= histCutoff);
+
   // 차트 데이터 구성
-  const hDates   = hist.map(h => h.d);
+  const hDates   = hChart.map(h => h.d);
   const fDates   = fcFinal.map(f => f.date);
   const allDates = [...new Set([...hDates, ...fDates])].sort();
+  chartDates     = allDates;   // tooltip 접근용
 
-  const hMap   = Object.fromEntries(hist.map(h    => [h.d,     h.cd]));
-  const fMap   = Object.fromEntries(fcFinal.map(f => [f.date,  f]));
-  const rawMap = Object.fromEntries(fcRaw.map(f   => [f.date,  f.cd]));
+  const hMap   = Object.fromEntries(hChart.map(h   => [h.d,     h.cd]));
+  const fMap   = Object.fromEntries(fcFinal.map(f  => [f.date,  f]));
+  const rawMap = Object.fromEntries(fcRaw.map(f    => [f.date,  f.cd]));
 
-  const labels    = allDates.map(d => {
-    const dt = new Date(d);
-    return dt.getDate() <= 7
-      ? `${dt.getFullYear()}.${String(dt.getMonth() + 1).padStart(2, '0')}`
-      : '';
+  // x축: 분기 첫 번째 주(1·4·7·10월, day≤7)에만 라벨
+  const labels = allDates.map(d => {
+    const dt  = new Date(d);
+    const m   = dt.getMonth();   // 0-indexed
+    const day = dt.getDate();
+    if (day <= 7 && (m === 0 || m === 3 || m === 6 || m === 9)) {
+      return `${dt.getFullYear()}.${String(m + 1).padStart(2, '0')}`;
+    }
+    return '';
   });
-  const hArr      = allDates.map(d => hMap[d]        ?? null);
-  const fArr      = allDates.map(d => fMap[d]?.cd    ?? null);
-  const noPreArr  = allDates.map(d => rawMap[d]      ?? null);
-  const brArr     = allDates.map(d => fMap[d]?.br    ?? null);
+
+  const hArr     = allDates.map(d => hMap[d]        ?? null);
+  const fArr     = allDates.map(d => fMap[d]?.cd    ?? null);
+  const noPreArr = allDates.map(d => rawMap[d]       ?? null);
+  const brArr    = allDates.map(d => fMap[d]?.br     ?? null);
 
   const allVals = [
-    ...hist.map(h    => h.cd),
+    ...hChart.map(h  => h.cd),
     ...fcFinal.map(f => f.cd),
     ...fcFinal.map(f => f.br),
   ];
@@ -222,6 +234,7 @@ function updateAll() {
             borderColor: 'rgba(255,255,255,.1)', borderWidth: 1,
             titleColor: '#8b93a8', bodyColor: '#e8eaf0', padding: 10,
             callbacks: {
+              title: items => chartDates[items[0]?.dataIndex] ?? '',
               label: c => `  ${c.dataset.label}: ${c.parsed.y != null ? c.parsed.y.toFixed(3) + '%' : '—'}`,
             },
           },
