@@ -21,21 +21,23 @@
 
   <div class="hdr">
     <h1>CD91 금리 전망 계산기</h1>
-    <p>선반영 + 스무딩 모형 &nbsp;|&nbsp; 2020–2026 실증 계절성</p>
+    <p>선반영 + 스무딩 모형 &nbsp;|&nbsp; 2020–2026 실증 계절성
+      &nbsp;<span id="cdLoadStatus" style="font-size:10px;color:var(--t3);">DB 연결 중...</span>
+    </p>
   </div>
 
   <div class="metrics">
     <div class="metric">
       <div class="ml">현재 기준금리</div>
-      <div class="mv">2.50%</div>
+      <div class="mv" id="mBR">2.50%</div>
     </div>
     <div class="metric">
       <div class="ml">현재 CD91</div>
-      <div class="mv">2.82%</div>
+      <div class="mv" id="mCD">—</div>
     </div>
     <div class="metric">
       <div class="ml">CD − 기준금리</div>
-      <div class="mv" style="color:var(--blue);">+32 bp</div>
+      <div class="mv" id="mSpread" style="color:var(--blue);">—</div>
     </div>
     <div class="metric">
       <div class="ml">모델 CD91 (현시점)</div>
@@ -90,7 +92,7 @@
         </span>
         <span class="tgl-label">스무딩</span>
       </label>
-      <span style="font-size:11px;color:var(--t3);">현재 CD(2.82%) → 전망 경로로 지수 수렴 (선반영과 독립)</span>
+      <span style="font-size:11px;color:var(--t3);" id="smoothDesc">현재 CD(—) → 전망 경로로 지수 수렴 (선반영과 독립)</span>
       <div class="opt-divider"></div>
       <div class="ctrl-group" id="smoothCtrls">
         <label>반감기</label>
@@ -114,7 +116,7 @@
       <div class="opt-divider"></div>
       <div class="ctrl-group" id="preCtrls">
         <label>윈도우</label>
-        <input type="range" id="preWindow" min="0" max="60" step="1" value="21"
+        <input type="range" id="preWindow" min="0" max="180" step="1" value="21"
                oninput="updateAll()" style="width:90px;flex:none;">
         <span class="val"><span id="pwv">21</span>일</span>
       </div>

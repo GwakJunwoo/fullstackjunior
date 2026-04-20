@@ -306,8 +306,68 @@ function buildMonthChart() {
   });
 }
 
+// ── CD 이력 DB 로드 ───────────────────────────────────────────────
+/**
+ * /ktb/series?label=CD&days=730 에서 CD 금리 이력을 받아
+ * hist[], LAST_CD, LAST_DATE 를 갱신하고 차트를 다시 그립니다.
+ * 실패 시 data.js 의 fallback 값으로 동작합니다.
+ */
+async function loadCDHistory() {
+  const statusEl = document.getElementById('cdLoadStatus');
+
+  try {
+    const data = await apiGet('/ktb/series?label=CD&days=730');
+    const rows  = (data.rows || []).filter(r => r.ytm != null);
+
+    if (!rows.length) throw new Error('데이터 없음');
+
+    // 전역 갱신
+    hist      = rows.map(r => ({ d: r.price_date, cd: +r.ytm }));
+    LAST_DATE = rows.at(-1).price_date;
+    LAST_CD   = +rows.at(-1).ytm;
+
+    updateCDMetrics();
+    updateAll();          // 실제 DB 데이터로 차트 재렌더
+
+    if (statusEl) {
+      statusEl.textContent = `DB 연동 · 기준일 ${LAST_DATE} · ${rows.length}개`;
+      statusEl.style.color = 'var(--green)';
+    }
+  } catch (e) {
+    // fallback: data.js 하드코딩 값 유지
+    updateCDMetrics();
+    if (statusEl) {
+      statusEl.textContent = 'DB 연결 실패 — fallback 데이터 사용';
+      statusEl.style.color = 'var(--red)';
+    }
+    console.warn('loadCDHistory:', e.message);
+  }
+}
+
+/** 상단 메트릭 카드와 스무딩 설명 텍스트를 최신값으로 업데이트 */
+function updateCDMetrics() {
+  const br = steps[0]?.rate ?? 0;
+  const sp = Math.round((LAST_CD - br) * 100);
+
+  const mCD     = document.getElementById('mCD');
+  const mSpread = document.getElementById('mSpread');
+  const mBR     = document.getElementById('mBR');
+  const sdEl    = document.getElementById('smoothDesc');
+
+  if (mBR)     mBR.textContent     = br.toFixed(2) + '%';
+  if (mCD)     mCD.textContent     = LAST_CD.toFixed(2) + '%';
+  if (mSpread) {
+    mSpread.textContent = (sp >= 0 ? '+' : '') + sp + ' bp';
+    mSpread.style.color = sp >= 0 ? 'var(--blue)' : 'var(--red)';
+  }
+  if (sdEl)    sdEl.textContent    =
+    `현재 CD(${LAST_CD.toFixed(2)}%) → 전망 경로로 지수 수렴 (선반영과 독립)`;
+}
+
 // ── Init ─────────────────────────────────────────────────────────
 renderHead();
 renderRows();
 buildMonthChart();
-updateAll();
+updateCDMetrics();    // fallback 값으로 즉시 메트릭 표시
+updateAll();          // fallback 데이터로 차트 먼저 표시
+loadCDHistory();      // 비동기 DB 로드 → 완료 시 자동 갱신
