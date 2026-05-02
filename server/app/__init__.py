@@ -1,0 +1,27 @@
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from .routers.base import router as base_router
+from .routers.supply import router as supply_router
+from .routers.rates import router as rates_router
+from .routers.ktb import router as ktb_router
+from .routers.beta import router as beta_router
+
+
+def create_app() -> FastAPI:
+    app = FastAPI(title="scon API", version="0.3.0")
+
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_methods=["GET", "POST"],
+        allow_headers=["*"],
+    )
+
+    app.include_router(base_router)
+    app.include_router(supply_router)
+    app.include_router(rates_router)
+    app.include_router(ktb_router)
+    app.include_router(beta_router)
+
+    return app
