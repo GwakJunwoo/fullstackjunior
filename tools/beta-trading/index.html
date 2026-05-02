@@ -320,7 +320,6 @@
         <div class="search-dropdown" id="searchDropdown" style="display:none;"></div>
       </div>
       <input class="date-input" id="betaStartDate" type="date" value="2023-01-01">
-      <label class="toggle-label"><input id="showCategoryAvg" type="checkbox" checked> 카테고리 평균</label>
       <button class="btn" id="applyBetaBtn" type="button">적용</button>
     </div>
     <div class="selected-codes" id="selectedCodes"></div>
@@ -585,7 +584,7 @@ function destroyCharts() {
   betaCharts = {};
 }
 
-function buildDatasets(metricKey, data, showCategoryAvg) {
+function buildDatasets(metricKey, data) {
   const datasets = [];
   selectedKeys.forEach((key, idx) => {
     const meta = data.meta?.[key] || universeMap[key] || {};
@@ -601,32 +600,12 @@ function buildDatasets(metricKey, data, showCategoryAvg) {
       spanGaps: true,
     });
   });
-
-  if (showCategoryAvg) {
-    Object.entries(data.category_series || {}).forEach(([category, payload]) => {
-      if (!payload?.[metricKey]) return;
-      datasets.push({
-        label: `avg ${category}`,
-        data: payload[metricKey],
-        borderColor: CATEGORY_COLORS[category] || "#8b93a8",
-        backgroundColor: CATEGORY_COLORS[category] || "#8b93a8",
-        borderDash: [6, 4],
-        pointRadius: 0,
-        pointHoverRadius: 0,
-        borderWidth: 1.1,
-        tension: 0.08,
-        spanGaps: true,
-      });
-    });
-  }
-
   return datasets;
 }
 
 function renderMetricChart(canvasId, metricKey, labels, data, yLabel) {
   const ctx = document.getElementById(canvasId).getContext("2d");
-  const showCategoryAvg = document.getElementById("showCategoryAvg").checked;
-  const datasets = buildDatasets(metricKey, data, showCategoryAvg);
+  const datasets = buildDatasets(metricKey, data);
 
   if (betaCharts[canvasId]) betaCharts[canvasId].destroy();
   betaCharts[canvasId] = new Chart(ctx, {
@@ -785,7 +764,6 @@ document.getElementById("remainMin").addEventListener("keydown", e => { if (e.ke
 document.getElementById("remainMax").addEventListener("keydown", e => { if (e.key === "Enter") loadAll(); });
 document.getElementById("refreshBtn").addEventListener("click", loadAll);
 document.getElementById("betaStartDate").addEventListener("change", async () => { await loadBetaCharts(); await loadSpreadChart(); });
-document.getElementById("showCategoryAvg").addEventListener("change", loadBetaCharts);
 document.addEventListener("click", e => { if (!e.target.closest(".search-wrap")) hideDropdown(); });
 
 renderCategoryButtons();
