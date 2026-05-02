@@ -71,31 +71,19 @@
     }
     .metric .ml { font-size: 10px; color: var(--t3); margin-bottom: 3px; letter-spacing: .3px; }
     .metric .mv { font-size: 20px; font-weight: 600; letter-spacing: -.5px; }
-    .panels {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      margin-bottom: 12px;
+    .toggle-group { display: flex; gap: 4px; flex-wrap: wrap; }
+    .tgl-btn {
+      background: none;
+      border: .5px solid var(--bd2);
+      border-radius: var(--rs);
+      color: var(--t3);
+      font-size: 10px;
+      cursor: pointer;
+      padding: 3px 8px;
+      transition: all .15s;
     }
-    .list-mini {
-      font-size: 12px;
-      color: var(--t2);
-      line-height: 1.7;
-      margin-top: 4px;
-      max-height: 310px;
-      overflow-y: auto;
-    }
-    .row {
-      display: flex;
-      justify-content: space-between;
-      gap: 8px;
-      border-bottom: .5px solid var(--bd);
-      padding: 5px 0;
-    }
-    .row:last-child { border-bottom: 0; }
-    .nm { color: var(--t1); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .meta { font-size: 10px; color: var(--t3); }
-    .sc { font-size: 11px; font-weight: 600; }
+    .tgl-btn:hover { color: var(--t1); }
+    .tgl-btn.active { background: rgba(74,158,255,.12); border-color: var(--blue); color: var(--blue); }
     .chart-card {
       background: var(--s1);
       border: .5px solid var(--bd);
@@ -215,19 +203,54 @@
       border: .5px dashed var(--bd2);
       border-radius: var(--rs);
     }
+    .panels {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+    .list-mini {
+      font-size: 12px;
+      color: var(--t2);
+      line-height: 1.6;
+      margin-top: 4px;
+      max-height: 320px;
+      overflow-y: auto;
+    }
+    .candidate-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      border: .5px solid transparent;
+      border-radius: var(--rs);
+      padding: 7px 8px;
+      cursor: pointer;
+      margin-bottom: 4px;
+      transition: all .12s;
+    }
+    .candidate-row:hover { background: var(--s2); }
+    .candidate-row.selected-long {
+      background: rgba(52,211,153,.08);
+      border-color: rgba(52,211,153,.28);
+    }
+    .candidate-row.selected-short {
+      background: rgba(248,113,113,.08);
+      border-color: rgba(248,113,113,.28);
+    }
+    .nm { color: var(--t1); font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .meta { font-size: 10px; color: var(--t3); }
+    .sc { font-size: 11px; font-weight: 600; }
     @media (max-width: 860px) {
       .metrics { grid-template-columns: 1fr 1fr; }
       .panels { grid-template-columns: 1fr; }
     }
     @media (max-width: 640px) {
-      .metrics { grid-template-columns: 1fr 1fr; }
       .search-wrap { min-width: 100%; }
     }
   </style>
 </head>
 <body>
 <div class="container">
-
   <nav class="nav">
     <a href="/" class="nav-brand">금리 도구 모음</a>
     <div class="nav-links">
@@ -271,22 +294,21 @@
   </div>
 
   <div class="chart-card">
-    <div class="stl">종목별 베타 시계열</div>
-    <div class="ctrl-row" style="margin-top:10px;">
+    <div class="stl">분석 대상</div>
+    <div class="ctrl-row" style="margin-top:10px; margin-bottom:10px;">
+      <div class="toggle-group" id="catBtns"></div>
+    </div>
+    <div class="ctrl-row">
       <div class="search-wrap">
-        <input class="search-input" id="searchInput" type="text" placeholder="종목 검색 (채권명 · 종목코드)" autocomplete="off">
+        <input class="search-input" id="searchInput" type="text" placeholder="종목 검색 (상품명 · 코드 · label · nickname)" autocomplete="off">
         <div class="search-dropdown" id="searchDropdown" style="display:none;"></div>
       </div>
       <input class="date-input" id="betaStartDate" type="date" value="2023-01-01">
-      <label class="toggle-label"><input id="showBucketAvg" type="checkbox" checked> 만기 평균</label>
+      <label class="toggle-label"><input id="showCategoryAvg" type="checkbox" checked> 카테고리 평균</label>
       <button class="btn" id="applyBetaBtn" type="button">적용</button>
     </div>
     <div class="selected-codes" id="selectedCodes"></div>
     <div class="beta-grid" id="betaGrid">
-      <div class="mini-chart-card">
-        <div class="mini-chart-title">γ_level</div>
-        <div style="position:relative;height:220px;"><canvas id="gammaLevelChart"></canvas></div>
-      </div>
       <div class="mini-chart-card">
         <div class="mini-chart-title">γ_slope</div>
         <div style="position:relative;height:220px;"><canvas id="gammaSlopeChart"></canvas></div>
@@ -314,27 +336,38 @@
     </div>
   </div>
 
+  <div class="chart-card" id="spreadCard" style="display:none;">
+    <div class="stl">선택한 Long / Short 금리 차</div>
+    <div class="status" id="spreadMeta" style="margin:8px 0 10px;"></div>
+    <div style="position:relative;height:300px;"><canvas id="spreadChart"></canvas></div>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script>
+const CATEGORY_OPTIONS = ["국고채", "통안채", "국채선물", "IRS"];
+const LINE_COLORS = ["#4a9eff", "#f87171", "#34d399", "#fbbf24", "#a78bfa", "#38bdf8"];
+const CATEGORY_COLORS = {
+  "국고채": "#4a9eff",
+  "통안채": "#34d399",
+  "국채선물": "#fbbf24",
+  "IRS": "#f87171",
+};
+
 let betaCharts = {};
-let selectedCodes = [];
+let spreadChart = null;
+let selectedKeys = [];
 let universeMap = {};
 let searchTimer = null;
 let dropFocusIdx = -1;
-const LINE_COLORS = ["#4a9eff", "#f87171", "#34d399", "#fbbf24", "#a78bfa", "#38bdf8"];
-const BUCKET_COLORS = {
-  short: "#4a9eff",
-  mid: "#8b93a8",
-  long: "#f87171",
-};
-const BUCKET_LABELS = {
-  short: "avg ≤5Y",
-  mid: "avg 5~10Y",
-  long: "avg >10Y",
-};
+let selectedCategories = new Set(CATEGORY_OPTIONS);
+let selectedLongKey = null;
+let selectedShortKey = null;
+
+function categoriesParam() {
+  return Array.from(selectedCategories).join(",");
+}
 
 function fmtSig(v) {
   if (v > 0) return "+1";
@@ -352,6 +385,41 @@ function setConn(ok, txt) {
   document.getElementById("connTxt").textContent = txt;
 }
 
+function renderCategoryButtons() {
+  const wrap = document.getElementById("catBtns");
+  wrap.innerHTML = "";
+  CATEGORY_OPTIONS.forEach(category => {
+    const btn = document.createElement("button");
+    btn.className = "tgl-btn" + (selectedCategories.has(category) ? " active" : "");
+    btn.textContent = category;
+    btn.onclick = () => {
+      if (selectedCategories.has(category)) {
+        if (selectedCategories.size === 1) return;
+        selectedCategories.delete(category);
+      } else {
+        selectedCategories.add(category);
+      }
+      renderCategoryButtons();
+      resetSelectionsForCategories();
+      loadAll();
+    };
+    wrap.appendChild(btn);
+  });
+}
+
+function resetSelectionsForCategories() {
+  selectedKeys = selectedKeys.filter(key => {
+    const meta = universeMap[key];
+    return meta && selectedCategories.has(meta.category);
+  });
+  if (selectedLongKey && (!universeMap[selectedLongKey] || !selectedCategories.has(universeMap[selectedLongKey].category))) {
+    selectedLongKey = null;
+  }
+  if (selectedShortKey && (!universeMap[selectedShortKey] || !selectedCategories.has(universeMap[selectedShortKey].category))) {
+    selectedShortKey = null;
+  }
+}
+
 function renderCandidates(elId, rows, type) {
   const el = document.getElementById(elId);
   if (!rows?.length) {
@@ -362,46 +430,61 @@ function renderCandidates(elId, rows, type) {
     const s = r.rv_score_bp != null ? Number(r.rv_score_bp).toFixed(2) : "-";
     const dy = r.dy_1d_bp != null ? Number(r.dy_1d_bp).toFixed(2) : "-";
     const remain = r.remain_year != null ? Number(r.remain_year).toFixed(1) : "-";
+    const selectedClass = type === "long"
+      ? (selectedLongKey === r.instrument_key ? "selected-long" : "")
+      : (selectedShortKey === r.instrument_key ? "selected-short" : "");
     return `
-      <div class="row">
+      <div class="candidate-row ${selectedClass}" data-type="${type}" data-key="${r.instrument_key}">
         <div style="min-width:0;">
-          <div class="nm">${r.bond_name || r.bond_code || "-"}</div>
-          <div class="meta">${r.bond_code || "-"} · 잔존 ${remain}Y · dY ${dy}bp</div>
+          <div class="nm">${r.instrument_name || r.instrument_key || "-"}</div>
+          <div class="meta">${r.category || "-"} · 잔존 ${remain}Y · dY ${dy}bp</div>
         </div>
         <div class="sc" style="color:${type === "long" ? "var(--green)" : "var(--red)"};">${s}</div>
       </div>`;
   }).join("");
+
+  el.querySelectorAll(".candidate-row").forEach(row => {
+    row.addEventListener("click", () => {
+      const key = row.dataset.key;
+      if (row.dataset.type === "long") {
+        selectedLongKey = key;
+      } else {
+        selectedShortKey = key;
+      }
+      renderCandidates("longList", window.__rvLongRows || [], "long");
+      renderCandidates("shortList", window.__rvShortRows || [], "short");
+      loadSpreadChart();
+    });
+  });
 }
 
-function renderSelectedCodes() {
+function renderSelectedKeys() {
   const el = document.getElementById("selectedCodes");
-  if (!selectedCodes.length) {
+  if (!selectedKeys.length) {
     el.innerHTML = '<span class="status">선택된 종목 없음</span>';
     return;
   }
-  el.innerHTML = selectedCodes.map(code => {
-    const meta = universeMap[code] || {};
-    const label = `${meta.bond_name || code} · ${fmtRemain(meta.remain_year)}`;
-    return `<span class="code-chip">${label}<button type="button" data-code="${code}">×</button></span>`;
+  el.innerHTML = selectedKeys.map(key => {
+    const meta = universeMap[key] || {};
+    const label = `${meta.instrument_name || key} · ${meta.category || "-"}`;
+    return `<span class="code-chip">${label}<button type="button" data-key="${key}">×</button></span>`;
   }).join("");
 
-  el.querySelectorAll("button[data-code]").forEach(btn => {
+  el.querySelectorAll("button[data-key]").forEach(btn => {
     btn.addEventListener("click", () => {
-      selectedCodes = selectedCodes.filter(code => code !== btn.dataset.code);
-      renderSelectedCodes();
+      selectedKeys = selectedKeys.filter(key => key !== btn.dataset.key);
+      renderSelectedKeys();
       loadBetaCharts();
     });
   });
 }
 
-function addSelectedCode(item) {
-  if (!item?.bond_code) return;
-  universeMap[item.bond_code] = item;
-  if (!selectedCodes.includes(item.bond_code)) {
-    selectedCodes.push(item.bond_code);
-  }
-  selectedCodes = selectedCodes.slice(0, 6);
-  renderSelectedCodes();
+function addSelectedKey(item) {
+  if (!item?.instrument_key) return;
+  universeMap[item.instrument_key] = item;
+  if (!selectedKeys.includes(item.instrument_key)) selectedKeys.push(item.instrument_key);
+  selectedKeys = selectedKeys.slice(0, 6);
+  renderSelectedKeys();
   hideDropdown();
   document.getElementById("searchInput").value = "";
   loadBetaCharts();
@@ -418,7 +501,8 @@ function onSearch(val) {
 
 async function fetchSearch(q) {
   try {
-    const data = await apiGet(`/beta/search?q=${encodeURIComponent(q)}&limit=30`);
+    const params = new URLSearchParams({ q, limit: "30", categories: categoriesParam() });
+    const data = await apiGet(`/beta/search?${params.toString()}`);
     renderDropdown(data.results || []);
   } catch {
     hideDropdown();
@@ -437,10 +521,10 @@ function renderDropdown(results) {
     div.className = "search-item";
     const ytmStr = r.ytm != null ? Number(r.ytm).toFixed(3) + "%" : "";
     div.innerHTML = `
-      <span class="si-code">${r.bond_code ?? ""}</span>
-      <span class="si-name">${r.bond_name ?? ""}</span>
-      <span class="si-meta">${fmtRemain(r.remain_year)} ${ytmStr}</span>`;
-    div.onclick = () => addSelectedCode(r);
+      <span class="si-code">${r.instrument_key ?? ""}</span>
+      <span class="si-name">${r.instrument_name ?? ""}</span>
+      <span class="si-meta">${r.category ?? ""} ${fmtRemain(r.remain_year)} ${ytmStr}</span>`;
+    div.onclick = () => addSelectedKey(r);
     dd.appendChild(div);
   });
   dd.style.display = "block";
@@ -476,14 +560,13 @@ function destroyCharts() {
   betaCharts = {};
 }
 
-function buildDatasets(metricKey, data, showBucketAvg) {
+function buildDatasets(metricKey, data, showCategoryAvg) {
   const datasets = [];
-  selectedCodes.forEach((code, idx) => {
-    const meta = data.meta?.[code] || universeMap[code] || {};
-    const label = `${meta.bond_name || code} (${fmtRemain(meta.remain_year)})`;
+  selectedKeys.forEach((key, idx) => {
+    const meta = data.meta?.[key] || universeMap[key] || {};
     datasets.push({
-      label,
-      data: data.series?.[code]?.[metricKey] || [],
+      label: `${meta.instrument_name || key} (${meta.category || "-"})`,
+      data: data.series?.[key]?.[metricKey] || [],
       borderColor: LINE_COLORS[idx % LINE_COLORS.length],
       backgroundColor: LINE_COLORS[idx % LINE_COLORS.length],
       pointRadius: 0,
@@ -494,14 +577,14 @@ function buildDatasets(metricKey, data, showBucketAvg) {
     });
   });
 
-  if (showBucketAvg) {
-    Object.entries(BUCKET_LABELS).forEach(([bucket, label]) => {
-      if (!data.bucket_series?.[bucket]?.[metricKey]) return;
+  if (showCategoryAvg) {
+    Object.entries(data.category_series || {}).forEach(([category, payload]) => {
+      if (!payload?.[metricKey]) return;
       datasets.push({
-        label,
-        data: data.bucket_series[bucket][metricKey],
-        borderColor: BUCKET_COLORS[bucket],
-        backgroundColor: BUCKET_COLORS[bucket],
+        label: `avg ${category}`,
+        data: payload[metricKey],
+        borderColor: CATEGORY_COLORS[category] || "#8b93a8",
+        backgroundColor: CATEGORY_COLORS[category] || "#8b93a8",
         borderDash: [6, 4],
         pointRadius: 0,
         pointHoverRadius: 0,
@@ -517,8 +600,8 @@ function buildDatasets(metricKey, data, showBucketAvg) {
 
 function renderMetricChart(canvasId, metricKey, labels, data, yLabel) {
   const ctx = document.getElementById(canvasId).getContext("2d");
-  const showBucketAvg = document.getElementById("showBucketAvg").checked;
-  const datasets = buildDatasets(metricKey, data, showBucketAvg);
+  const showCategoryAvg = document.getElementById("showCategoryAvg").checked;
+  const datasets = buildDatasets(metricKey, data, showCategoryAvg);
 
   if (betaCharts[canvasId]) betaCharts[canvasId].destroy();
   betaCharts[canvasId] = new Chart(ctx, {
@@ -528,58 +611,44 @@ function renderMetricChart(canvasId, metricKey, labels, data, yLabel) {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { intersect: false, mode: "index" },
-      plugins: {
-        legend: { labels: { color: "#8b93a8", boxWidth: 12 } },
-      },
+      plugins: { legend: { labels: { color: "#8b93a8", boxWidth: 12 } } },
       scales: {
-        x: {
-          ticks: { color: "#555e75", maxTicksLimit: 8, maxRotation: 0 },
-          grid: { color: "rgba(255,255,255,.03)" },
-        },
-        y: {
-          title: { display: true, text: yLabel, color: "#555e75", font: { size: 10 } },
-          ticks: { color: "#555e75" },
-          grid: { color: "rgba(255,255,255,.04)" },
-        },
+        x: { ticks: { color: "#555e75", maxTicksLimit: 8, maxRotation: 0 }, grid: { color: "rgba(255,255,255,.03)" } },
+        y: { title: { display: true, text: yLabel, color: "#555e75", font: { size: 10 } }, ticks: { color: "#555e75" }, grid: { color: "rgba(255,255,255,.04)" } },
       },
     },
   });
 }
 
 async function loadUniverse() {
-  const data = await apiGet("/beta/universe?limit=240");
+  const params = new URLSearchParams({ limit: "260", categories: categoriesParam() });
+  const data = await apiGet(`/beta/universe?${params.toString()}`);
   universeMap = {};
-  (data.items || []).forEach(item => {
-    universeMap[item.bond_code] = item;
-  });
-
-  if (!selectedCodes.length) {
-    selectedCodes = (data.defaults || []).slice(0, 3);
-  }
-  renderSelectedCodes();
+  (data.items || []).forEach(item => { universeMap[item.instrument_key] = item; });
+  selectedKeys = selectedKeys.filter(key => universeMap[key]);
+  if (!selectedKeys.length) selectedKeys = (data.defaults || []).slice(0, 4);
+  renderSelectedKeys();
 }
 
 async function loadBetaCharts() {
   const empty = document.getElementById("betaEmpty");
   const grid = document.getElementById("betaGrid");
-
-  if (!selectedCodes.length) {
+  if (!selectedKeys.length) {
     destroyCharts();
     grid.style.display = "none";
     empty.style.display = "flex";
+    empty.textContent = "종목을 선택하세요";
     return;
   }
-
   try {
-    const startDate = document.getElementById("betaStartDate").value;
     const params = new URLSearchParams({
-      codes: selectedCodes.join(","),
-      start_date: startDate,
+      keys: selectedKeys.join(","),
+      start_date: document.getElementById("betaStartDate").value,
       days: "900",
+      categories: categoriesParam(),
     });
     const data = await apiGet(`/beta/decomposition?${params.toString()}`);
     const labels = (data.dates || []).map(d => d.slice(2));
-
     if (!labels.length) {
       destroyCharts();
       grid.style.display = "none";
@@ -587,14 +656,12 @@ async function loadBetaCharts() {
       empty.textContent = "조회 결과 없음";
       return;
     }
-
     empty.style.display = "none";
     grid.style.display = "grid";
-    renderMetricChart("gammaLevelChart", "gamma_level", labels, data, "γ_level");
     renderMetricChart("gammaSlopeChart", "gamma_slope", labels, data, "γ_slope");
     renderMetricChart("epsilonChart", "epsilon_bp", labels, data, "ε (bp)");
     renderMetricChart("cumEpsilonChart", "cum_epsilon_21d", labels, data, "cum_ε_21d (bp)");
-  } catch (e) {
+  } catch {
     destroyCharts();
     grid.style.display = "none";
     empty.style.display = "flex";
@@ -602,27 +669,81 @@ async function loadBetaCharts() {
   }
 }
 
+async function loadSpreadChart() {
+  const card = document.getElementById("spreadCard");
+  if (!selectedLongKey || !selectedShortKey) {
+    card.style.display = "none";
+    if (spreadChart) {
+      spreadChart.destroy();
+      spreadChart = null;
+    }
+    return;
+  }
+  try {
+    const params = new URLSearchParams({
+      long_key: selectedLongKey,
+      short_key: selectedShortKey,
+      start_date: document.getElementById("betaStartDate").value,
+      days: "900",
+      categories: categoriesParam(),
+    });
+    const data = await apiGet(`/beta/spread?${params.toString()}`);
+    if (!(data.dates || []).length) {
+      card.style.display = "none";
+      return;
+    }
+    card.style.display = "block";
+    document.getElementById("spreadMeta").textContent = `${data.meta?.long?.instrument_name || selectedLongKey} Long  vs  ${data.meta?.short?.instrument_name || selectedShortKey} Short`;
+    const ctx = document.getElementById("spreadChart").getContext("2d");
+    if (spreadChart) spreadChart.destroy();
+    spreadChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: (data.dates || []).map(d => d.slice(2)),
+        datasets: [
+          { label: "Long YTM", data: data.long || [], borderColor: "#34d399", pointRadius: 0, borderWidth: 1.5, tension: 0.1 },
+          { label: "Short YTM", data: data.short || [], borderColor: "#f87171", pointRadius: 0, borderWidth: 1.5, tension: 0.1 },
+          { label: "Spread (bp)", data: data.spread_bp || [], borderColor: "#4a9eff", pointRadius: 0, borderWidth: 2.0, tension: 0.1, yAxisID: "y1" },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: { intersect: false, mode: "index" },
+        plugins: { legend: { labels: { color: "#8b93a8", boxWidth: 12 } } },
+        scales: {
+          x: { ticks: { color: "#555e75", maxTicksLimit: 8, maxRotation: 0 }, grid: { color: "rgba(255,255,255,.03)" } },
+          y: { position: "left", ticks: { color: "#555e75" }, grid: { color: "rgba(255,255,255,.04)" }, title: { display: true, text: "YTM (%)", color: "#555e75", font: { size: 10 } } },
+          y1: { position: "right", ticks: { color: "#555e75" }, grid: { drawOnChartArea: false }, title: { display: true, text: "Spread (bp)", color: "#555e75", font: { size: 10 } } },
+        },
+      },
+    });
+  } catch {
+    card.style.display = "none";
+  }
+}
+
 async function loadAll() {
   try {
+    const catParam = encodeURIComponent(categoriesParam());
     const [snap, rv] = await Promise.all([
       apiGet("/beta/snapshot"),
-      apiGet("/beta/rv?limit=10"),
+      apiGet(`/beta/rv?limit=10&categories=${catParam}`),
     ]);
-
     setConn(true, "연결됨 · Beta API 응답 정상");
     document.getElementById("mAsOf").textContent = snap.as_of || "-";
     document.getElementById("mMom").textContent = fmtSig(snap?.mom?.signal ?? 0);
     document.getElementById("mCurve").textContent = fmtSig(snap?.curve?.signal ?? 0);
-    document.getElementById("mSlope").textContent =
-      snap?.curve?.slope_bp != null ? Number(snap.curve.slope_bp).toFixed(1) + "bp" : "-";
+    document.getElementById("mSlope").textContent = snap?.curve?.slope_bp != null ? Number(snap.curve.slope_bp).toFixed(1) + "bp" : "-";
 
-    renderCandidates("longList", rv.long || [], "long");
-    renderCandidates("shortList", rv.short || [], "short");
+    window.__rvLongRows = rv.long || [];
+    window.__rvShortRows = rv.short || [];
+    renderCandidates("longList", window.__rvLongRows, "long");
+    renderCandidates("shortList", window.__rvShortRows, "short");
 
-    if (!Object.keys(universeMap).length) {
-      await loadUniverse();
-    }
+    await loadUniverse();
     await loadBetaCharts();
+    await loadSpreadChart();
   } catch (e) {
     setConn(false, "연결 실패 · " + (e.message || "알 수 없는 오류"));
     document.getElementById("longList").innerHTML = '<div class="status">데이터 조회 실패</div>';
@@ -632,12 +753,14 @@ async function loadAll() {
 
 document.getElementById("searchInput").addEventListener("input", e => onSearch(e.target.value));
 document.getElementById("searchInput").addEventListener("keydown", onKeyDown);
-document.getElementById("applyBetaBtn").addEventListener("click", loadBetaCharts);
+document.getElementById("applyBetaBtn").addEventListener("click", async () => { await loadBetaCharts(); await loadSpreadChart(); });
 document.getElementById("refreshBtn").addEventListener("click", loadAll);
-document.getElementById("betaStartDate").addEventListener("change", loadBetaCharts);
-document.getElementById("showBucketAvg").addEventListener("change", loadBetaCharts);
+document.getElementById("betaStartDate").addEventListener("change", async () => { await loadBetaCharts(); await loadSpreadChart(); });
+document.getElementById("showCategoryAvg").addEventListener("change", loadBetaCharts);
 document.addEventListener("click", e => { if (!e.target.closest(".search-wrap")) hideDropdown(); });
 
+renderCategoryButtons();
+renderSelectedKeys();
 loadAll();
 setInterval(loadAll, 60000);
 </script>
