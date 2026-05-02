@@ -272,6 +272,7 @@ async function loadAll() {
 
 document.getElementById("refreshBtn").addEventListener("click", loadAll);
 loadAll();
+setInterval(loadAll, 60000);
 </script>
 </body>
 </html>
