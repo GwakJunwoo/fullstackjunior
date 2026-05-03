@@ -314,6 +314,14 @@
       <input class="num-input" id="remainMax" type="number" step="0.5" min="0" placeholder="max" style="width:62px;">
       <button class="btn" id="applyRemainBtn" type="button">적용</button>
     </div>
+    <div class="ctrl-row" style="margin-bottom:10px;">
+      <span style="color:var(--t3); font-size:11px;">회귀 모드</span>
+      <div class="toggle-group" id="modeBtns">
+        <button class="tgl-btn active" type="button" data-mode="diff">변동분 ΔY</button>
+        <button class="tgl-btn" type="button" data-mode="level">수준 Y</button>
+      </div>
+      <span style="color:var(--t3); font-size:10px;" id="modeHint">ΔY_i = α + β·ΔY_3Y + γ·Δ(10Y−3Y) + ε</span>
+    </div>
     <div class="ctrl-row">
       <div class="search-wrap">
         <input class="search-input" id="searchInput" type="text" placeholder="종목 검색 (상품명 · 코드 · label · nickname)" autocomplete="off">
@@ -380,8 +388,21 @@ let selectedCategories = new Set(CATEGORY_OPTIONS);
 let selectedLongKey = null;
 let selectedShortKey = null;
 
+let regressionMode = "diff";
+
 function categoriesParam() {
   return Array.from(selectedCategories).join(",");
+}
+
+function setRegressionMode(mode) {
+  if (mode !== "diff" && mode !== "level") return;
+  regressionMode = mode;
+  document.querySelectorAll("#modeBtns .tgl-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.mode === mode);
+  });
+  document.getElementById("modeHint").textContent = mode === "level"
+    ? "Y_i = α + β·Y_3Y + γ·(10Y−3Y) + ε    ← 현재 fair value gap"
+    : "ΔY_i = α + β·ΔY_3Y + γ·Δ(10Y−3Y) + ε    ← 일별 idiosyncratic dY";
 }
 
 function remainParams() {
@@ -650,6 +671,7 @@ async function loadBetaCharts() {
       start_date: document.getElementById("betaStartDate").value,
       days: "900",
       categories: categoriesParam(),
+      mode: regressionMode,
     });
     const data = await apiGet(`/beta/decomposition?${params.toString()}`);
     const labels = (data.dates || []).map(d => d.slice(2));
@@ -730,7 +752,7 @@ async function loadSpreadChart() {
 async function loadAll() {
   try {
     const catParam = encodeURIComponent(categoriesParam());
-    const rvParams = new URLSearchParams({ limit: "10", categories: categoriesParam(), ...remainParams() });
+    const rvParams = new URLSearchParams({ limit: "10", categories: categoriesParam(), mode: regressionMode, ...remainParams() });
     const [snap, rv] = await Promise.all([
       apiGet("/beta/snapshot"),
       apiGet(`/beta/rv?${rvParams.toString()}`),
@@ -760,6 +782,12 @@ document.getElementById("searchInput").addEventListener("input", e => onSearch(e
 document.getElementById("searchInput").addEventListener("keydown", onKeyDown);
 document.getElementById("applyBetaBtn").addEventListener("click", async () => { await loadBetaCharts(); await loadSpreadChart(); });
 document.getElementById("applyRemainBtn").addEventListener("click", loadAll);
+document.querySelectorAll("#modeBtns .tgl-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    setRegressionMode(btn.dataset.mode);
+    loadAll();
+  });
+});
 document.getElementById("remainMin").addEventListener("keydown", e => { if (e.key === "Enter") loadAll(); });
 document.getElementById("remainMax").addEventListener("keydown", e => { if (e.key === "Enter") loadAll(); });
 document.getElementById("refreshBtn").addEventListener("click", loadAll);

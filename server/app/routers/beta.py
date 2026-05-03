@@ -236,13 +236,23 @@ def _values_for_dates(series: pd.Series, dates: pd.Index) -> list[float | None]:
     return [None if pd.isna(v) else float(v) for v in series.reindex(dates).tolist()]
 
 
-@lru_cache(maxsize=8)
+@lru_cache(maxsize=16)
 def _build_beta_decomposition_universe(
     days: int = 900,
     categories_key: str = ",".join(_DEFAULT_CATEGORIES),
     window: int = 63,
     min_periods: int = 20,
+    mode: str = "diff",
 ) -> dict:
+    """팩터 분해 universe builder.
+
+    mode:
+      - "diff"  : ΔY_i = α + β_lvl·ΔY_3Y + β_slope·Δ(10Y−3Y) + ε   (변동분 회귀, 기본)
+      - "level" : Y_i  = α + β_lvl·Y_3Y  + β_slope·(10Y−3Y) + ε    (수준 회귀)
+
+    수준 회귀의 ε 는 "현재 fair value gap (bp)" 으로 해석. 변동분 회귀의 ε 는
+    "당일 idiosyncratic dY (bp)". cum_ε_21d 는 두 모드 동일 형식 (21일 합).
+    """
     categories = _parse_categories(categories_key)
     lookback_days = max(days + window + 30, 240)
     s3 = _load_label_series("3년지표", days=lookback_days)
@@ -261,6 +271,7 @@ def _build_beta_decomposition_universe(
             "defaults": [],
             "pool_sigma_21_bp": None,
             "latest_dy_bp": pd.Series(dtype=float),
+            "mode": mode,
         }
 
     ytm_panel = panel.pivot_table(index="price_date", columns="instrument_key", values="ytm", aggfunc="mean").sort_index()
@@ -268,15 +279,24 @@ def _build_beta_decomposition_universe(
     ytm_panel_raw = ytm_panel.reindex(idx)          # 실제 데이터 있는 날짜만 (ffill 없음)
     ytm_panel = ytm_panel_raw.ffill()
     dy_panel = ytm_panel.diff() * 100.0
-    dy3_bp = s3.reindex(idx).ffill().diff() * 100.0
-    dy10_bp = s10.reindex(idx).ffill().diff() * 100.0
-    dy_level_bp = dy3_bp                    # level factor: Δ3Y (한국 벤치마크)
-    dy_slope_bp = dy10_bp - dy3_bp          # slope factor: Δ(10Y−3Y), near-orthogonal to level
+    s3_full = s3.reindex(idx).ffill()
+    s10_full = s10.reindex(idx).ffill()
+    dy3_bp = s3_full.diff() * 100.0
+    dy10_bp = s10_full.diff() * 100.0
+
+    if mode == "level":
+        y_panel = ytm_panel * 100.0                            # level (bp)
+        x1 = s3_full.astype(float) * 100.0                     # level: Y_3Y (bp)
+        x2 = (s10_full - s3_full).astype(float) * 100.0        # slope level: 10Y-3Y (bp)
+    else:
+        y_panel = dy_panel                                     # ΔY (bp)
+        x1 = dy3_bp                                            # ΔY_3Y (bp)
+        x2 = dy10_bp - dy3_bp                                  # Δ(10Y-3Y) (bp)
 
     beta_level, beta_slope, epsilon = _rolling_two_factor_beta(
-        dy_panel=dy_panel,
-        dy_level_bp=dy_level_bp,
-        dy_slope_bp=dy_slope_bp,
+        dy_panel=y_panel,
+        dy_level_bp=x1,
+        dy_slope_bp=x2,
         window=window,
         min_periods=min_periods,
     )
@@ -325,6 +345,7 @@ def _build_beta_decomposition_universe(
         "defaults": _pick_default_keys(latest),
         "pool_sigma_21_bp": pool_sigma_21_bp,
         "latest_dy_bp": dy_panel.iloc[-1].dropna() if not dy_panel.empty else pd.Series(dtype=float),
+        "mode": mode,
     }
 
 
@@ -382,10 +403,12 @@ def beta_snapshot():
 def beta_rv(
     limit: int = Query(default=8, ge=3, le=30),
     categories: str | None = Query(default=None, description="쉼표 구분 category 목록"),
+    mode: str = Query(default="diff", pattern="^(diff|level)$",
+                      description="회귀 모드: 'diff'(변동분 ΔY) | 'level'(수준 Y)"),
 ):
     try:
         key = _categories_key(_parse_categories(categories))
-        universe = _build_beta_decomposition_universe(days=900, categories_key=key)
+        universe = _build_beta_decomposition_universe(days=900, categories_key=key, mode=mode)
         scores: pd.Series = universe["cum_epsilon"].iloc[-1].dropna() if not universe["cum_epsilon"].empty else pd.Series(dtype=float)
         latest_dy: pd.Series = universe["latest_dy_bp"]
         meta: dict = universe["meta"]
@@ -413,6 +436,7 @@ def beta_rv(
         as_of = universe["cum_epsilon"].index[-1].date().isoformat()
         return {
             "as_of": as_of,
+            "mode": universe.get("mode", mode),
             "long": clean_rows(long_rows.to_dict(orient="records")),
             "short": clean_rows(short_rows.to_dict(orient="records")),
         }
@@ -454,11 +478,13 @@ def beta_decomposition(
     start_date: str | None = Query(default=None, description="YYYY-MM-DD"),
     days: int = Query(default=900, ge=120, le=1600),
     categories: str | None = Query(default=None, description="쉼표 구분 category 목록"),
+    mode: str = Query(default="diff", pattern="^(diff|level)$",
+                      description="회귀 모드: 'diff'(변동분 ΔY) | 'level'(수준 Y)"),
 ):
     try:
         selected_keys = [key.strip() for key in keys.split(",") if key.strip()]
         categories_key = _categories_key(_parse_categories(categories))
-        universe = _build_beta_decomposition_universe(days=days, categories_key=categories_key)
+        universe = _build_beta_decomposition_universe(days=days, categories_key=categories_key, mode=mode)
 
         gamma_slope: pd.DataFrame = universe["gamma_slope"]
         epsilon: pd.DataFrame = universe["epsilon"]
@@ -466,6 +492,7 @@ def beta_decomposition(
         if gamma_slope.empty:
             return {
                 "as_of": None,
+                "mode": mode,
                 "dates": [],
                 "series": {},
                 "meta": {},
@@ -502,6 +529,7 @@ def beta_decomposition(
 
         return {
             "as_of": dates[-1].date().isoformat() if len(dates) else None,
+            "mode": universe.get("mode", mode),
             "dates": [date.date().isoformat() for date in dates],
             "series": series,
             "meta": {key: universe["meta"].get(key, {"instrument_key": key, "instrument_name": key}) for key in available_keys},
