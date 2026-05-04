@@ -333,15 +333,15 @@
     <div class="selected-codes" id="selectedCodes"></div>
     <div class="beta-grid" id="betaGrid">
       <div class="mini-chart-card">
-        <div class="mini-chart-title">γ_slope</div>
+        <div class="mini-chart-title" id="gammaSlopeTitle">γ_slope</div>
         <div style="position:relative;height:220px;"><canvas id="gammaSlopeChart"></canvas></div>
       </div>
       <div class="mini-chart-card">
-        <div class="mini-chart-title">ε (bp)</div>
+        <div class="mini-chart-title" id="epsilonTitle">ε — 일별 idiosyncratic dY (bp)</div>
         <div style="position:relative;height:220px;"><canvas id="epsilonChart"></canvas></div>
       </div>
       <div class="mini-chart-card">
-        <div class="mini-chart-title">cum_ε_21d (bp)</div>
+        <div class="mini-chart-title" id="cumEpsilonTitle">cum_ε_21d — 21일 누적 (bp)</div>
         <div style="position:relative;height:220px;"><canvas id="cumEpsilonChart"></canvas></div>
       </div>
     </div>
@@ -403,6 +403,17 @@ function setRegressionMode(mode) {
   document.getElementById("modeHint").textContent = mode === "level"
     ? "Y_i = α + β·Y_3Y + γ·(10Y−3Y) + ε    ← 현재 fair value gap"
     : "ΔY_i = α + β·ΔY_3Y + γ·Δ(10Y−3Y) + ε    ← 일별 idiosyncratic dY";
+
+  // 차트 타이틀도 모드 따라 다르게
+  const eTitle  = document.getElementById("epsilonTitle");
+  const cTitle  = document.getElementById("cumEpsilonTitle");
+  if (mode === "level") {
+    if (eTitle) eTitle.textContent = "ε — 현재 fair value gap (bp)";
+    if (cTitle) cTitle.textContent = "21일 평균 ε — 노이즈 제거 mispricing (bp)";
+  } else {
+    if (eTitle) eTitle.textContent = "ε — 일별 idiosyncratic dY (bp)";
+    if (cTitle) cTitle.textContent = "cum_ε_21d — 21일 누적 (bp)";
+  }
 }
 
 function remainParams() {
@@ -684,9 +695,11 @@ async function loadBetaCharts() {
     }
     empty.style.display = "none";
     grid.style.display = "grid";
+    const eYLabel = regressionMode === "level" ? "ε level (bp)" : "ε dY (bp)";
+    const cYLabel = regressionMode === "level" ? "ε 21d mean (bp)" : "cum ε 21d (bp)";
     renderMetricChart("gammaSlopeChart", "gamma_slope", labels, data, "γ_slope");
-    renderMetricChart("epsilonChart", "epsilon_bp", labels, data, "ε (bp)");
-    renderMetricChart("cumEpsilonChart", "cum_epsilon_21d", labels, data, "cum_ε_21d (bp)");
+    renderMetricChart("epsilonChart", "epsilon_bp", labels, data, eYLabel);
+    renderMetricChart("cumEpsilonChart", "cum_epsilon_21d", labels, data, cYLabel);
   } catch {
     destroyCharts();
     grid.style.display = "none";

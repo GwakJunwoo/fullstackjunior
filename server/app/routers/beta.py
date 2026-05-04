@@ -301,7 +301,13 @@ def _build_beta_decomposition_universe(
         min_periods=min_periods,
     )
     gamma_slope = beta_slope
-    cum_epsilon = epsilon.rolling(21, min_periods=11).sum()
+    # cum_eps:
+    #   diff 모드 → 21일 합 (한 달간 누적 idiosyncratic dY)
+    #   level 모드 → 21일 평균 (단기 노이즈 제거된 fair value gap)
+    if mode == "level":
+        cum_epsilon = epsilon.rolling(21, min_periods=11).mean()
+    else:
+        cum_epsilon = epsilon.rolling(21, min_periods=11).sum()
 
     latest_by_key = latest.set_index("instrument_key") if not latest.empty else pd.DataFrame()
     meta: dict = {}
