@@ -430,7 +430,11 @@ def beta_rv(
     try:
         key = _categories_key(_parse_categories(categories))
         universe = _build_beta_decomposition_universe(days=900, categories_key=key, mode=mode)
-        scores: pd.Series = universe["cum_epsilon"].iloc[-1].dropna() if not universe["cum_epsilon"].empty else pd.Series(dtype=float)
+        # 점수 출처:
+        #   diff 모드  → cum_ε_21d 의 마지막 (= 한 달 누적 idiosyncratic dY)
+        #   level 모드 → ε 의 마지막 (= 현재 시점 fair value gap, 21일 평균은 평활용 차트)
+        score_src = universe["epsilon"] if mode == "level" else universe["cum_epsilon"]
+        scores: pd.Series = score_src.iloc[-1].dropna() if not score_src.empty else pd.Series(dtype=float)
         latest_dy: pd.Series = universe["latest_dy_bp"]
         meta: dict = universe["meta"]
 
