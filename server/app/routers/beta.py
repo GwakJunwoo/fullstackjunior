@@ -96,7 +96,13 @@ def _load_instrument_panel(days: int, categories: list[str]) -> pd.DataFrame:
     return df
 
 
-def _load_latest_snapshot(categories: list[str], q: str | None = None, limit: int = 300) -> pd.DataFrame:
+def _load_latest_snapshot(
+    categories: list[str],
+    q: str | None = None,
+    limit: int = 300,
+    remain_min: float | None = None,
+    remain_max: float | None = None,
+) -> pd.DataFrame:
     filters = [
         f"k.category IN ({_placeholders(categories)})",
         f"{_INSTRUMENT_KEY_SQL} IS NOT NULL",
@@ -110,6 +116,13 @@ def _load_latest_snapshot(categories: list[str], q: str | None = None, limit: in
             f"({_INSTRUMENT_NAME_SQL} LIKE %s OR {_INSTRUMENT_KEY_SQL} LIKE %s OR k.label LIKE %s OR k.nickname LIKE %s)"
         )
         params.extend([like, like, like, like])
+
+    if remain_min is not None:
+        filters.append("k.remain_year >= %s")
+        params.append(float(remain_min))
+    if remain_max is not None:
+        filters.append("k.remain_year <= %s")
+        params.append(float(remain_max))
 
     with get_conn() as conn:
         cur = conn.cursor(dictionary=True)
@@ -411,6 +424,8 @@ def beta_rv(
     categories: str | None = Query(default=None, description="쉼표 구분 category 목록"),
     mode: str = Query(default="diff", pattern="^(diff|level)$",
                       description="회귀 모드: 'diff'(변동분 ΔY) | 'level'(수준 Y)"),
+    remain_min: float | None = Query(default=None, description="잔존만기 최소(년)"),
+    remain_max: float | None = Query(default=None, description="잔존만기 최대(년)"),
 ):
     try:
         key = _categories_key(_parse_categories(categories))
@@ -425,24 +440,33 @@ def beta_rv(
         rows = []
         for instrument_key, score in scores.items():
             item = meta.get(instrument_key, {})
+            ry = item.get("remain_year")
+            # 잔존만기 필터
+            if remain_min is not None and (ry is None or ry < remain_min):
+                continue
+            if remain_max is not None and (ry is None or ry > remain_max):
+                continue
             rows.append(
                 {
                     "instrument_key": instrument_key,
                     "instrument_name": item.get("instrument_name") or instrument_key,
                     "category": item.get("category"),
-                    "remain_year": item.get("remain_year"),
+                    "remain_year": ry,
                     "ytm": item.get("ytm"),
                     "dy_1d_bp": None if instrument_key not in latest_dy.index or pd.isna(latest_dy.get(instrument_key)) else float(latest_dy.get(instrument_key)),
                     "rv_score_bp": float(score),
                 }
             )
         frame = pd.DataFrame(rows)
+        if frame.empty:
+            return {"as_of": None, "mode": universe.get("mode", mode), "long": [], "short": [], "universe_n": 0}
         long_rows = frame.sort_values("rv_score_bp", ascending=False).head(limit)
         short_rows = frame.sort_values("rv_score_bp", ascending=True).head(limit)
         as_of = universe["cum_epsilon"].index[-1].date().isoformat()
         return {
             "as_of": as_of,
             "mode": universe.get("mode", mode),
+            "universe_n": len(frame),
             "long": clean_rows(long_rows.to_dict(orient="records")),
             "short": clean_rows(short_rows.to_dict(orient="records")),
         }
@@ -455,9 +479,17 @@ def beta_search(
     q: str = Query(default=""),
     limit: int = Query(default=30, ge=5, le=200),
     categories: str | None = Query(default=None, description="쉼표 구분 category 목록"),
+    remain_min: float | None = Query(default=None, description="잔존만기 최소(년)"),
+    remain_max: float | None = Query(default=None, description="잔존만기 최대(년)"),
 ):
     try:
-        rows = _load_latest_snapshot(categories=_parse_categories(categories), q=q.strip() or None, limit=limit)
+        rows = _load_latest_snapshot(
+            categories=_parse_categories(categories),
+            q=q.strip() or None,
+            limit=limit,
+            remain_min=remain_min,
+            remain_max=remain_max,
+        )
         return {"results": clean_rows(rows.to_dict(orient="records"))}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
@@ -467,9 +499,16 @@ def beta_search(
 def beta_universe(
     limit: int = Query(default=240, ge=20, le=1000),
     categories: str | None = Query(default=None, description="쉼표 구분 category 목록"),
+    remain_min: float | None = Query(default=None, description="잔존만기 최소(년)"),
+    remain_max: float | None = Query(default=None, description="잔존만기 최대(년)"),
 ):
     try:
-        rows = _load_latest_snapshot(categories=_parse_categories(categories), limit=limit)
+        rows = _load_latest_snapshot(
+            categories=_parse_categories(categories),
+            limit=limit,
+            remain_min=remain_min,
+            remain_max=remain_max,
+        )
         return {
             "items": clean_rows(rows.to_dict(orient="records")),
             "defaults": _pick_default_keys(rows),
