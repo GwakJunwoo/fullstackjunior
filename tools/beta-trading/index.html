@@ -810,7 +810,8 @@ document.addEventListener("click", e => { if (!e.target.closest(".search-wrap"))
 renderCategoryButtons();
 renderSelectedKeys();
 loadAll();
-setInterval(loadAll, 60000);
+// 자동 새로고침 비활성화 — 사용자 필터/선택을 reset 하지 않도록.
+// 데이터 갱신 필요 시 [새로고침] 버튼 사용.
 </script>
 </body>
 </html>
