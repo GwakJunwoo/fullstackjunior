@@ -434,45 +434,78 @@ def beta_rv(
         #   diff 모드  → cum_ε_21d 의 마지막 (= 한 달 누적 idiosyncratic dY)
         #   level 모드 → ε 의 마지막 (= 현재 시점 fair value gap, 21일 평균은 평활용 차트)
         score_src = universe["epsilon"] if mode == "level" else universe["cum_epsilon"]
-        scores: pd.Series = score_src.iloc[-1].dropna() if not score_src.empty else pd.Series(dtype=float)
-        latest_dy: pd.Series = universe["latest_dy_bp"]
-        meta: dict = universe["meta"]
+        if score_src.empty:
+            return {"as_of": None, "mode": universe.get("mode", mode), "long": [], "short": [],
+                    "long_dropped": [], "short_dropped": [], "universe_n": 0}
+
+        scores: pd.Series      = score_src.iloc[-1].dropna()
+        scores_prev: pd.Series = score_src.iloc[-2].dropna() if len(score_src) >= 2 else pd.Series(dtype=float)
+        latest_dy: pd.Series   = universe["latest_dy_bp"]
+        meta: dict             = universe["meta"]
+
+        def _filter_keys(s: pd.Series) -> pd.Series:
+            if s.empty:
+                return s
+            keep = []
+            for k, _ in s.items():
+                ry = meta.get(k, {}).get("remain_year")
+                if remain_min is not None and (ry is None or ry < remain_min):
+                    continue
+                if remain_max is not None and (ry is None or ry > remain_max):
+                    continue
+                keep.append(k)
+            return s.loc[keep]
+
+        scores      = _filter_keys(scores)
+        scores_prev = _filter_keys(scores_prev)
 
         if scores.empty:
-            return {"as_of": None, "long": [], "short": []}
+            return {"as_of": None, "mode": universe.get("mode", mode), "long": [], "short": [],
+                    "long_dropped": [], "short_dropped": [], "universe_n": 0}
 
-        rows = []
-        for instrument_key, score in scores.items():
-            item = meta.get(instrument_key, {})
-            ry = item.get("remain_year")
-            # 잔존만기 필터
-            if remain_min is not None and (ry is None or ry < remain_min):
-                continue
-            if remain_max is not None and (ry is None or ry > remain_max):
-                continue
-            rows.append(
-                {
-                    "instrument_key": instrument_key,
-                    "instrument_name": item.get("instrument_name") or instrument_key,
-                    "category": item.get("category"),
-                    "remain_year": ry,
-                    "ytm": item.get("ytm"),
-                    "dy_1d_bp": None if instrument_key not in latest_dy.index or pd.isna(latest_dy.get(instrument_key)) else float(latest_dy.get(instrument_key)),
-                    "rv_score_bp": float(score),
-                }
-            )
-        frame = pd.DataFrame(rows)
-        if frame.empty:
-            return {"as_of": None, "mode": universe.get("mode", mode), "long": [], "short": [], "universe_n": 0}
-        long_rows = frame.sort_values("rv_score_bp", ascending=False).head(limit)
-        short_rows = frame.sort_values("rv_score_bp", ascending=True).head(limit)
-        as_of = universe["cum_epsilon"].index[-1].date().isoformat()
+        # 오늘 / 전영업일 LONG·SHORT keys
+        long_keys_today  = scores.sort_values(ascending=False).head(limit).index.tolist()
+        short_keys_today = scores.sort_values(ascending=True).head(limit).index.tolist()
+        long_keys_prev   = scores_prev.sort_values(ascending=False).head(limit).index.tolist() if not scores_prev.empty else []
+        short_keys_prev  = scores_prev.sort_values(ascending=True).head(limit).index.tolist() if not scores_prev.empty else []
+        long_set_prev, short_set_prev = set(long_keys_prev), set(short_keys_prev)
+        long_set_today, short_set_today = set(long_keys_today), set(short_keys_today)
+
+        def _row(k: str, score: float, *, is_new: bool, prev_score: float | None = None) -> dict:
+            item = meta.get(k, {})
+            return {
+                "instrument_key":  k,
+                "instrument_name": item.get("instrument_name") or k,
+                "category":        item.get("category"),
+                "remain_year":     item.get("remain_year"),
+                "ytm":             item.get("ytm"),
+                "dy_1d_bp":        None if k not in latest_dy.index or pd.isna(latest_dy.get(k)) else float(latest_dy.get(k)),
+                "rv_score_bp":     float(score) if score is not None and not pd.isna(score) else None,
+                "is_new":          is_new,
+                "prev_score_bp":   None if prev_score is None or pd.isna(prev_score) else float(prev_score),
+            }
+
+        long_rows  = [_row(k, scores[k], is_new=k not in long_set_prev) for k in long_keys_today]
+        short_rows = [_row(k, scores[k], is_new=k not in short_set_prev) for k in short_keys_today]
+
+        # 전영업일에 있었는데 오늘 빠진 종목
+        long_dropped  = [_row(k, scores.get(k, float("nan")), is_new=False, prev_score=scores_prev[k])
+                         for k in long_keys_prev if k not in long_set_today]
+        short_dropped = [_row(k, scores.get(k, float("nan")), is_new=False, prev_score=scores_prev[k])
+                         for k in short_keys_prev if k not in short_set_today]
+
+        as_of      = score_src.index[-1].date().isoformat()
+        prev_as_of = score_src.index[-2].date().isoformat() if len(score_src) >= 2 else None
+
         return {
-            "as_of": as_of,
-            "mode": universe.get("mode", mode),
-            "universe_n": len(frame),
-            "long": clean_rows(long_rows.to_dict(orient="records")),
-            "short": clean_rows(short_rows.to_dict(orient="records")),
+            "as_of":         as_of,
+            "prev_as_of":    prev_as_of,
+            "mode":          universe.get("mode", mode),
+            "universe_n":    int(len(scores)),
+            "long":          clean_rows(long_rows),
+            "short":         clean_rows(short_rows),
+            "long_dropped":  clean_rows(long_dropped),
+            "short_dropped": clean_rows(short_dropped),
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
