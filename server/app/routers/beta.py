@@ -43,12 +43,14 @@ def _placeholders(values: list[str]) -> str:
 def _load_label_series(label: str, days: int = 500) -> pd.Series:
     with get_conn() as conn:
         cur = conn.cursor(dictionary=True)
+        # ytm > 0 — 미체결/placeholder (0.000) row 제외
         cur.execute(
             """
             SELECT price_date, AVG(ytm) AS ytm
             FROM ktb
             WHERE label = %s
               AND price_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+              AND ytm IS NOT NULL AND ytm > 0
             GROUP BY price_date
             ORDER BY price_date ASC
             """,
@@ -83,6 +85,7 @@ def _load_instrument_panel(days: int, categories: list[str]) -> pd.DataFrame:
               AND price_date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
               AND {_INSTRUMENT_KEY_SQL} IS NOT NULL
               AND (label IS NULL OR label NOT IN ({_placeholders(list(_LABEL_EXCLUDE))}))
+              AND ytm IS NOT NULL AND ytm > 0
             GROUP BY price_date, instrument_key
             ORDER BY price_date ASC, instrument_key ASC
             """,
@@ -145,11 +148,13 @@ def _load_latest_snapshot(
                 WHERE category IN ({_placeholders(categories)})
                   AND {_INSTRUMENT_KEY_SQL} IS NOT NULL
                   AND (label IS NULL OR label NOT IN ({_placeholders(list(_LABEL_EXCLUDE))}))
+                  AND ytm IS NOT NULL AND ytm > 0
                 GROUP BY instrument_key
             ) latest
               ON {_INSTRUMENT_KEY_SQL} = latest.instrument_key
              AND k.price_date = latest.max_date
             WHERE {' AND '.join(filters)}
+              AND k.ytm IS NOT NULL AND k.ytm > 0
             GROUP BY latest.instrument_key
             ORDER BY category ASC, remain_year ASC, instrument_name ASC
             LIMIT %s
