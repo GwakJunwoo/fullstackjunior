@@ -1,53 +1,75 @@
 /**
  * api.js — 백엔드 API 호출 유틸리티
  *
- * ngrok URL 관리:
- *   - Netlify 환경변수 주입 방식: window.API_BASE (netlify.toml 또는 스니펫으로 설정)
- *   - 로컬 오버라이드: localStorage의 'api_base' 키
- *   - 우선순위: localStorage > window.API_BASE > ''
+ * API URL 우선순위:
+ *   1. localStorage['api_base']             (수동 override — F12 콘솔에서 setApiBase)
+ *   2. window.API_BASE                      (빌드 시 주입)
+ *   3. /assets/api_base.txt 동적 fetch      (Quick Tunnel URL 자동 갱신용)
+ *   4. (fallback) hard-coded 기본값
  *
- * 사용 예:
- *   const data = await apiGet('/health');
- *   const tables = await apiGet('/tables');
+ * /assets/api_base.txt:
+ *   - cloudflared Quick Tunnel 시작 시 server/start_tunnel.py 가 자동 갱신.
+ *   - git push → Netlify 자동 재배포 → 페이지 새로고침이면 새 URL 적용됨.
  */
 
-// ── API Base URL ──────────────────────────────────────────────
 const API_BASE_KEY = 'api_base';
+let _cachedBase = null;     // 페이지 라이프사이클 동안 캐시 (한 번만 fetch)
 
 /**
- * API 베이스 URL 반환
- * localStorage 우선, 없으면 window.API_BASE (빌드 시 주입)
+ * API 베이스 URL 반환 (async).
+ * localStorage > window.API_BASE > /assets/api_base.txt > fallback
  */
-function getApiBase() {
-  return (
-    localStorage.getItem(API_BASE_KEY) ||
-    (typeof window !== 'undefined' && window.API_BASE) ||
-    'https://anaconda-implosion-decipher.ngrok-free.dev'
-  );
+async function getApiBase() {
+  if (_cachedBase) return _cachedBase;
+
+  // 1) localStorage 수동 override
+  const ls = localStorage.getItem(API_BASE_KEY);
+  if (ls) { _cachedBase = ls; return ls; }
+
+  // 2) build-time injection
+  if (typeof window !== 'undefined' && window.API_BASE) {
+    _cachedBase = window.API_BASE;
+    return _cachedBase;
+  }
+
+  // 3) /assets/api_base.txt — Quick Tunnel 자동 갱신 파일
+  try {
+    const r = await fetch('/assets/api_base.txt', { cache: 'no-cache' });
+    if (r.ok) {
+      const url = (await r.text()).trim().replace(/\/$/, '');
+      if (url && url.startsWith('http')) {
+        _cachedBase = url;
+        return url;
+      }
+    }
+  } catch { /* fallback */ }
+
+  // 4) hard-coded fallback (deprecated)
+  _cachedBase = '';
+  return '';
 }
 
-/** localStorage에 API URL 저장 (ngrok URL 바뀔 때 호출) */
+/** localStorage 수동 override — F12 콘솔용 */
 function setApiBase(url) {
-  const clean = url.trim().replace(/\/$/, '');
+  const clean = (url || '').trim().replace(/\/$/, '');
   if (clean) localStorage.setItem(API_BASE_KEY, clean);
   else        localStorage.removeItem(API_BASE_KEY);
+  _cachedBase = null;   // 다음 호출 시 재해석
 }
 
 // ── Fetch Wrapper ─────────────────────────────────────────────
-/**
- * GET 요청
- * ngrok 브라우저 경고 우회 헤더 포함
- * @param {string} path  - '/health', '/tables', '/preview/my_table' 등
- * @returns {Promise<any>}
- */
 async function apiGet(path) {
-  const base = getApiBase();
-  if (!base) throw new ApiError('API URL이 설정되지 않았습니다.\n아래 입력창에 ngrok URL을 붙여넣으세요.');
+  const base = await getApiBase();
+  if (!base) {
+    throw new ApiError('API URL이 설정되지 않았습니다.',
+                        '/assets/api_base.txt 가 비었거나 서버가 켜지지 않았습니다.');
+  }
 
   const url = `${base}${path}`;
   const res = await fetch(url, {
     headers: {
-      'ngrok-skip-browser-warning': '1',   // ngrok 브라우저 경고 페이지 우회
+      // ngrok 잔존 호환 (cloudflared 에는 영향 없음)
+      'ngrok-skip-browser-warning': '1',
     },
   });
 

@@ -9,6 +9,9 @@
 
 # 서버 실행파일 및 로그
 server/ngrok.exe
+server/cloudflared.exe
+server/cloudflared_url.log
+server/warm_beta_cache.log
 server/logs/
 
 # Python

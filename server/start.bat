@@ -17,21 +17,18 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [3/4] Loading ngrok authtoken from .env...
-for /f "tokens=1,2 delims==" %%A in (.env) do (
-    if "%%A"=="ngrok_auth_token" set NGROK_TOKEN=%%B
-)
-if "%NGROK_TOKEN%"=="" (
-    echo ERROR: ngrok_auth_token not found in .env
+echo [3/4] Checking cloudflared.exe...
+if not exist cloudflared.exe (
+    echo ERROR: cloudflared.exe not found in server folder.
+    echo Download: https://github.com/cloudflare/cloudflared/releases/latest
     pause
     exit /b 1
 )
-ngrok config add-authtoken %NGROK_TOKEN%
 
 echo [4/4] Starting FastAPI server on port 8000...
 start "FastAPI :8000" cmd /k "python -m uvicorn main:app --reload --port 8000"
-timeout /t 2 >nul
+timeout /t 3 >nul
 
-echo Starting ngrok...
-ngrok http --domain=anaconda-implosion-decipher.ngrok-free.dev 8000
+echo Starting Cloudflare Quick Tunnel + auto api_base sync...
+python start_tunnel.py
 pause
