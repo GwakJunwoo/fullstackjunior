@@ -27,6 +27,14 @@
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
+# ── api_base.txt: 동적 갱신 파일 — 절대 캐시 금지 ─────────────
+# Cloudflare Quick Tunnel URL 바뀔 때마다 git push 로 갱신되므로
+# /assets/* 의 immutable 정책에서 제외해야 함 (더 specific 한 룰 우선).
+[[headers]]
+  for = "/assets/api_base.txt"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate, no-cache"
+
 # ── API 프록시 (ngrok → 로컬 FastAPI) ─────────────────────────
 # ngrok URL이 바뀔 때마다 아래 to 값만 교체 후 git push → Netlify 자동 재배포
 # 프론트엔드는 항상 /api/* 로만 호출하므로 코드 변경 불필요

@@ -33,8 +33,9 @@ async function getApiBase() {
   }
 
   // 3) /assets/api_base.txt — Quick Tunnel 자동 갱신 파일
+  //    cache-busting query 로 immutable 캐시 우회
   try {
-    const r = await fetch('/assets/api_base.txt', { cache: 'no-cache' });
+    const r = await fetch(`/assets/api_base.txt?_t=${Date.now()}`, { cache: 'no-cache' });
     if (r.ok) {
       const url = (await r.text()).trim().replace(/\/$/, '');
       if (url && url.startsWith('http')) {
