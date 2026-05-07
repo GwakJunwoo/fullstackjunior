@@ -67,6 +67,10 @@ def _load_label_series(label: str, days: int = 500) -> pd.Series:
 
 
 def _load_instrument_panel(days: int, categories: list[str]) -> pd.DataFrame:
+    """
+    universe 종목 패널 로드. 벤치마크 라벨에 매핑된 적 있는 bond_code 는 제외.
+    (그 종목이 정확히 회귀 X 변수 자체이므로 ε ≡ 0 — RV 신호로 무의미)
+    """
     with get_conn() as conn:
         cur = conn.cursor(dictionary=True)
         cur.execute(
@@ -86,10 +90,19 @@ def _load_instrument_panel(days: int, categories: list[str]) -> pd.DataFrame:
               AND {_INSTRUMENT_KEY_SQL} IS NOT NULL
               AND (label IS NULL OR label NOT IN ({_placeholders(list(_LABEL_EXCLUDE))}))
               AND ytm IS NOT NULL AND ytm > 0
+              AND (bond_code IS NULL OR bond_code = '' OR bond_code NOT IN (
+                  SELECT DISTINCT k1.bond_code FROM ktb k1
+                  INNER JOIN (
+                      SELECT label, MAX(price_date) AS max_d FROM ktb
+                      WHERE label IN ({_placeholders(list(_LABEL_EXCLUDE))})
+                      GROUP BY label
+                  ) k2 ON k1.label = k2.label AND k1.price_date = k2.max_d
+                  WHERE k1.bond_code IS NOT NULL AND k1.bond_code != ''
+              ))
             GROUP BY price_date, instrument_key
             ORDER BY price_date ASC, instrument_key ASC
             """,
-            categories + [days] + list(_LABEL_EXCLUDE),
+            categories + [days] + list(_LABEL_EXCLUDE) + list(_LABEL_EXCLUDE),
         )
         rows = cur.fetchall()
     if not rows:
@@ -110,8 +123,16 @@ def _load_latest_snapshot(
         f"k.category IN ({_placeholders(categories)})",
         f"{_INSTRUMENT_KEY_SQL} IS NOT NULL",
         f"(k.label IS NULL OR k.label NOT IN ({_placeholders(list(_LABEL_EXCLUDE))}))",
+        # 현재 시점 지표 종목 제외 (각 라벨의 최근 price_date 의 bond_code)
+        f"(k.bond_code IS NULL OR k.bond_code = '' OR k.bond_code NOT IN ("
+        f"  SELECT DISTINCT b1.bond_code FROM ktb b1 "
+        f"  INNER JOIN ("
+        f"    SELECT label, MAX(price_date) AS max_d FROM ktb "
+        f"    WHERE label IN ({_placeholders(list(_LABEL_EXCLUDE))}) GROUP BY label"
+        f"  ) b2 ON b1.label = b2.label AND b1.price_date = b2.max_d "
+        f"  WHERE b1.bond_code IS NOT NULL AND b1.bond_code != ''))",
     ]
-    params: list = list(categories) + list(_LABEL_EXCLUDE)
+    params: list = list(categories) + list(_LABEL_EXCLUDE) + list(_LABEL_EXCLUDE)
 
     if q:
         like = f"%{q}%"
@@ -149,6 +170,15 @@ def _load_latest_snapshot(
                   AND {_INSTRUMENT_KEY_SQL} IS NOT NULL
                   AND (label IS NULL OR label NOT IN ({_placeholders(list(_LABEL_EXCLUDE))}))
                   AND ytm IS NOT NULL AND ytm > 0
+                  AND (bond_code IS NULL OR bond_code = '' OR bond_code NOT IN (
+                      SELECT DISTINCT b1.bond_code FROM ktb b1
+                      INNER JOIN (
+                          SELECT label, MAX(price_date) AS max_d FROM ktb
+                          WHERE label IN ({_placeholders(list(_LABEL_EXCLUDE))})
+                          GROUP BY label
+                      ) b2 ON b1.label = b2.label AND b1.price_date = b2.max_d
+                      WHERE b1.bond_code IS NOT NULL AND b1.bond_code != ''
+                  ))
                 GROUP BY instrument_key
             ) latest
               ON {_INSTRUMENT_KEY_SQL} = latest.instrument_key
@@ -159,7 +189,7 @@ def _load_latest_snapshot(
             ORDER BY category ASC, remain_year ASC, instrument_name ASC
             LIMIT %s
             """,
-            categories + list(_LABEL_EXCLUDE) + params + [limit],
+            categories + list(_LABEL_EXCLUDE) + list(_LABEL_EXCLUDE) + params + [limit],
         )
         rows = cur.fetchall()
 
