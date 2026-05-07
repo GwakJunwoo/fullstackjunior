@@ -10,6 +10,8 @@ from ..core.db import clean_rows, get_conn
 router = APIRouter()
 
 _LABEL_EXCLUDE = ("2년지표", "3년지표", "5년지표", "10년지표", "20년지표", "30년지표")
+# 회귀의 X 변수에 해당하는 라벨 (ε ≡ 0 이 강제되므로 universe 에서 제외)
+_REGRESSOR_LABELS = ("3년지표", "10년지표")
 _DEFAULT_CATEGORIES = ("국고채", "통안채", "국채선물", "IRS")
 _INSTRUMENT_KEY_SQL = "COALESCE(NULLIF(bond_code,''), NULLIF(label,''), NULLIF(nickname,''))"
 _INSTRUMENT_NAME_SQL = "COALESCE(NULLIF(bond_name,''), NULLIF(label,''), NULLIF(nickname,''), NULLIF(bond_code,''))"
@@ -94,7 +96,7 @@ def _load_instrument_panel(days: int, categories: list[str]) -> pd.DataFrame:
                   SELECT DISTINCT k1.bond_code FROM ktb k1
                   INNER JOIN (
                       SELECT label, MAX(price_date) AS max_d FROM ktb
-                      WHERE label IN ({_placeholders(list(_LABEL_EXCLUDE))})
+                      WHERE label IN ({_placeholders(list(_REGRESSOR_LABELS))})
                       GROUP BY label
                   ) k2 ON k1.label = k2.label AND k1.price_date = k2.max_d
                   WHERE k1.bond_code IS NOT NULL AND k1.bond_code != ''
@@ -102,7 +104,7 @@ def _load_instrument_panel(days: int, categories: list[str]) -> pd.DataFrame:
             GROUP BY price_date, instrument_key
             ORDER BY price_date ASC, instrument_key ASC
             """,
-            categories + [days] + list(_LABEL_EXCLUDE) + list(_LABEL_EXCLUDE),
+            categories + [days] + list(_LABEL_EXCLUDE) + list(_REGRESSOR_LABELS),
         )
         rows = cur.fetchall()
     if not rows:
@@ -123,16 +125,16 @@ def _load_latest_snapshot(
         f"k.category IN ({_placeholders(categories)})",
         f"{_INSTRUMENT_KEY_SQL} IS NOT NULL",
         f"(k.label IS NULL OR k.label NOT IN ({_placeholders(list(_LABEL_EXCLUDE))}))",
-        # 현재 시점 지표 종목 제외 (각 라벨의 최근 price_date 의 bond_code)
+        # 회귀 X 변수 (3년/10년지표) 종목만 제외 — ε ≡ 0 강제되는 케이스
         f"(k.bond_code IS NULL OR k.bond_code = '' OR k.bond_code NOT IN ("
         f"  SELECT DISTINCT b1.bond_code FROM ktb b1 "
         f"  INNER JOIN ("
         f"    SELECT label, MAX(price_date) AS max_d FROM ktb "
-        f"    WHERE label IN ({_placeholders(list(_LABEL_EXCLUDE))}) GROUP BY label"
+        f"    WHERE label IN ({_placeholders(list(_REGRESSOR_LABELS))}) GROUP BY label"
         f"  ) b2 ON b1.label = b2.label AND b1.price_date = b2.max_d "
         f"  WHERE b1.bond_code IS NOT NULL AND b1.bond_code != ''))",
     ]
-    params: list = list(categories) + list(_LABEL_EXCLUDE) + list(_LABEL_EXCLUDE)
+    params: list = list(categories) + list(_LABEL_EXCLUDE) + list(_REGRESSOR_LABELS)
 
     if q:
         like = f"%{q}%"
@@ -174,7 +176,7 @@ def _load_latest_snapshot(
                       SELECT DISTINCT b1.bond_code FROM ktb b1
                       INNER JOIN (
                           SELECT label, MAX(price_date) AS max_d FROM ktb
-                          WHERE label IN ({_placeholders(list(_LABEL_EXCLUDE))})
+                          WHERE label IN ({_placeholders(list(_REGRESSOR_LABELS))})
                           GROUP BY label
                       ) b2 ON b1.label = b2.label AND b1.price_date = b2.max_d
                       WHERE b1.bond_code IS NOT NULL AND b1.bond_code != ''
@@ -189,7 +191,7 @@ def _load_latest_snapshot(
             ORDER BY category ASC, remain_year ASC, instrument_name ASC
             LIMIT %s
             """,
-            categories + list(_LABEL_EXCLUDE) + list(_LABEL_EXCLUDE) + params + [limit],
+            categories + list(_LABEL_EXCLUDE) + list(_REGRESSOR_LABELS) + params + [limit],
         )
         rows = cur.fetchall()
 
