@@ -24,8 +24,13 @@ ROOT = SERVER_DIR.parent
 ASSET_FILE = ROOT / "assets" / "api_base.txt"
 CF_BIN = SERVER_DIR / "cloudflared.exe"
 URL_RE = re.compile(r"https://[a-z0-9-]+\.trycloudflare\.com", re.IGNORECASE)
+ERROR_RE = re.compile(r"(error code: 1101|failed to unmarshal quick Tunnel|500 Internal Server Error)", re.IGNORECASE)
 
 DO_GIT_PUSH = os.environ.get("TUNNEL_NO_PUSH", "").lower() not in ("1", "true", "yes")
+# Cloudflare Quick Tunnel provisioning 서비스가 가끔 500 던짐 (1101 error code).
+# 캐치하면 cloudflared 죽이고 N 회까지 재시도.
+MAX_RETRIES = int(os.environ.get("TUNNEL_MAX_RETRIES", "8"))
+RETRY_WAIT_SEC = float(os.environ.get("TUNNEL_RETRY_WAIT_SEC", "3"))
 
 
 def _git(*args, check: bool = False) -> subprocess.CompletedProcess:
@@ -67,16 +72,8 @@ def _kill_existing() -> None:
                    capture_output=True, text=True)
 
 
-def main() -> int:
-    if not CF_BIN.exists():
-        print(f"[ERROR] cloudflared 바이너리 없음: {CF_BIN}")
-        return 2
-
-    _kill_existing()
-    time.sleep(1)
-
-    print("[start] cloudflared tunnel --url http://localhost:8000 ...")
-    proc = subprocess.Popen(
+def _spawn_cloudflared() -> subprocess.Popen:
+    return subprocess.Popen(
         [str(CF_BIN), "tunnel", "--url", "http://localhost:8000", "--no-autoupdate"],
         cwd=SERVER_DIR,
         stdout=subprocess.PIPE,
@@ -87,29 +84,81 @@ def main() -> int:
         bufsize=1,
     )
 
-    captured = False
-    try:
-        for line in proc.stdout:
-            sys.stdout.write(line)
-            sys.stdout.flush()
-            if not captured:
-                m = URL_RE.search(line)
-                if m:
-                    url = m.group(0)
-                    print(f"\n[capture] tunnel URL = {url}\n")
-                    _push_url(url)
-                    captured = True
-    except KeyboardInterrupt:
-        print("\n[interrupt] cloudflared 종료 ...")
-    finally:
-        if proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                proc.kill()
 
-    return proc.returncode or 0
+def _terminate(proc: subprocess.Popen) -> None:
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+
+
+def main() -> int:
+    if not CF_BIN.exists():
+        print(f"[ERROR] cloudflared 바이너리 없음: {CF_BIN}")
+        return 2
+
+    _kill_existing()
+    time.sleep(1)
+
+    proc: subprocess.Popen | None = None
+    try:
+        for attempt in range(1, MAX_RETRIES + 1):
+            print(f"[start] cloudflared tunnel --url http://localhost:8000  (attempt {attempt}/{MAX_RETRIES})")
+            proc = _spawn_cloudflared()
+            captured = False
+            saw_error = False
+
+            assert proc.stdout is not None
+            for line in proc.stdout:
+                sys.stdout.write(line)
+                sys.stdout.flush()
+
+                if not captured:
+                    m = URL_RE.search(line)
+                    if m:
+                        url = m.group(0)
+                        print(f"\n[capture] tunnel URL = {url}\n")
+                        _push_url(url)
+                        captured = True
+                        continue
+
+                if not captured and ERROR_RE.search(line):
+                    saw_error = True
+                    # cloudflared 가 500 받으면 self-exit 함. break 로 빠져나가서 retry.
+                    break
+
+            if captured:
+                # 정상 — URL 잡은 상태로 cloudflared 가 데이터 plane 유지.
+                # stdout 더 읽어서 사용자에게 보여주기 (terminate 안 함).
+                try:
+                    for line in proc.stdout:
+                        sys.stdout.write(line)
+                        sys.stdout.flush()
+                except KeyboardInterrupt:
+                    print("\n[interrupt] cloudflared 종료 ...")
+                _terminate(proc)
+                return proc.returncode or 0
+
+            # 실패 — cloudflared 죽이고 잠깐 쉬었다가 재시도
+            _terminate(proc)
+            proc = None
+            if saw_error:
+                print(f"[retry] Cloudflare provisioning 500 — {RETRY_WAIT_SEC}s 후 재시도\n")
+                time.sleep(RETRY_WAIT_SEC)
+            else:
+                print("[retry] cloudflared 가 URL 캡처 전 종료 — 재시도\n")
+                time.sleep(RETRY_WAIT_SEC)
+
+        print(f"[FAIL] {MAX_RETRIES}회 재시도 후에도 tunnel 실패. Cloudflare 서비스 outage 의심. "
+              f"몇 분 후 다시 실행하거나 named tunnel 로 전환 필요.")
+        return 3
+    except KeyboardInterrupt:
+        print("\n[interrupt] 종료 ...")
+        if proc:
+            _terminate(proc)
+        return 0
 
 
 if __name__ == "__main__":
