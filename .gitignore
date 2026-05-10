@@ -29,3 +29,13 @@ Thumbs.db
 # IDE
 .vscode/settings.json
 .idea/
+
+# RV Position 사용자 데이터 (private)
+server/app/data/rv_positions.json
+server/app/data/*.json
+
+# Claude Code internal
+.claude/
+
+# 로컬 렌더링 산출물 (MD 원본만 추적)
+*.pdf

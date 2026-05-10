@@ -157,8 +157,10 @@ def _fetch_ytm_on(bond_code: str, target_date: date) -> tuple[float | None, floa
 
 
 # ── ε / β 엔진 (별도 빌드: 모든 국고채 포함, regressor 도 포함) ──
-@lru_cache(maxsize=1)
-def _build_decomp_engine(window: int = 63, days: int = 900) -> dict:
+# mode='level' (default) — 사용자 트레이딩 기준. ε = 현재 fair value gap (level bp)
+# mode='diff'             — 변동분 회귀 (참고용). ε = 일별 idiosyncratic ΔY
+@lru_cache(maxsize=2)
+def _build_decomp_engine(window: int = 63, days: int = 900, mode: str = "level") -> dict:
     s3 = _load_label_series("3년지표", days=days + window + 30)
     s10 = _load_label_series("10년지표", days=days + window + 30)
     if s3.empty or s10.empty:
@@ -189,21 +191,35 @@ def _build_decomp_engine(window: int = 63, days: int = 900) -> dict:
 
     idx = ytm_panel.index.union(s3.index).union(s10.index).sort_values()
     ytm_panel = ytm_panel.reindex(idx).ffill()
-    dy_panel = ytm_panel.diff() * 100.0
     s3_full = s3.reindex(idx).ffill()
     s10_full = s10.reindex(idx).ffill()
-    dy3_bp = s3_full.diff() * 100.0
-    dy10_bp = s10_full.diff() * 100.0
-    dslope_bp = dy10_bp - dy3_bp
+
+    if mode == "level":
+        y_panel = ytm_panel * 100.0                    # level bp
+        x1 = s3_full.astype(float) * 100.0             # Y_3Y level (bp)
+        x2 = (s10_full - s3_full).astype(float) * 100.0  # slope level (bp)
+    else:
+        y_panel = ytm_panel.diff() * 100.0             # ΔY bp
+        x1 = s3_full.diff() * 100.0                    # ΔY_3Y bp
+        x2 = (s10_full - s3_full).diff() * 100.0       # Δslope bp
 
     beta_lvl, beta_slp, eps = _rolling_two_factor_beta(
-        dy_panel=dy_panel,
-        dy_level_bp=dy3_bp,
-        dy_slope_bp=dslope_bp,
+        dy_panel=y_panel,
+        dy_level_bp=x1,
+        dy_slope_bp=x2,
         window=window,
         min_periods=20,
     )
-    cum_eps = eps.rolling(21, min_periods=11).sum()
+    if mode == "level":
+        cum_eps = eps.rolling(21, min_periods=11).mean()  # 평활화 (현재 fair value gap)
+    else:
+        cum_eps = eps.rolling(21, min_periods=11).sum()   # 21일 누적
+
+    # bench raw moves (ΔY_3Y / Δslope) — period 별 변화량 계산용
+    dy3_bp = (s3_full * 100.0).diff()
+    dy10_bp = (s10_full * 100.0).diff()
+    dslope_bp = dy10_bp - dy3_bp
+
     return {
         "ytm_panel": ytm_panel,
         "s3": s3_full,
@@ -214,6 +230,7 @@ def _build_decomp_engine(window: int = 63, days: int = 900) -> dict:
         "beta_slp": beta_slp,
         "eps": eps,
         "cum_eps": cum_eps,
+        "mode": mode,
     }
 
 
@@ -307,10 +324,15 @@ def _decompose(
     total_mkt_won = -dv01_long * dy_long_mkt_bp + dv01_short * dy_short_mkt_bp
 
     if all(x is not None for x in [b_long_lvl, b_long_slp, b_short_lvl, b_short_slp]):
-        delta_won = (dv01_short * b_short_lvl - dv01_long * b_long_lvl) * dy3_bp_total
-        curve_won = (dv01_short * b_short_slp - dv01_long * b_long_slp) * dslope_bp_total
+        # signed DV01 exposures (만원/bp 단위, 현재 시점의 portfolio sensitivity)
+        delta_dv01_won_per_bp = dv01_short * b_short_lvl - dv01_long * b_long_lvl
+        curve_dv01_won_per_bp = dv01_short * b_short_slp - dv01_long * b_long_slp
+        # period 누적 P&L
+        delta_won = delta_dv01_won_per_bp * dy3_bp_total
+        curve_won = curve_dv01_won_per_bp * dslope_bp_total
         alpha_won = total_mkt_won - delta_won - curve_won
     else:
+        delta_dv01_won_per_bp = curve_dv01_won_per_bp = None
         delta_won = curve_won = alpha_won = None
 
     cost_pnl_long = dv01_long * cost_long_bp
@@ -351,6 +373,10 @@ def _decompose(
         "beta_short_slp": b_short_slp,
         "dv01_long_won": dv01_long,
         "dv01_short_won": dv01_short,
+        "delta_dv01_man_per_bp": delta_dv01_won_per_bp / 1e4 if delta_dv01_won_per_bp is not None else None,
+        "curve_dv01_man_per_bp": curve_dv01_won_per_bp / 1e4 if curve_dv01_won_per_bp is not None else None,
+        "curve_direction": ("steepener" if (curve_dv01_won_per_bp or 0) > 0 else
+                            "flattener" if (curve_dv01_won_per_bp or 0) < 0 else "neutral"),
         "delta_won": delta_won,
         "curve_won": curve_won,
         "alpha_won": alpha_won,

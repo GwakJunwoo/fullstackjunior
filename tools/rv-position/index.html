@@ -262,11 +262,13 @@
             <th>현재 ytm</th>
             <th>D</th>
             <th>net DV01<br>(만/bp)</th>
+            <th>Δ exp<br>(만/bp)</th>
+            <th>Curve exp<br>(만/bp_slope)</th>
             <th>Δ pnl</th>
             <th>Curve pnl</th>
             <th>Alpha pnl</th>
             <th>Total pnl</th>
-            <th>cum_ε spread<br>(bp)</th>
+            <th>ε / cum_ε<br>spread (bp)</th>
             <th>D+H</th>
             <th></th>
           </tr>
@@ -414,7 +416,15 @@ function renderTable() {
     const cumL = d.current_cum_eps_long;
     const cumS = d.current_cum_eps_short;
     const cumSpread = (cumL != null && cumS != null) ? (cumL - cumS) : null;
+    const eL = d.current_eps_long, eS = d.current_eps_short;
+    const epsSpread = (eL != null && eS != null) ? (eL - eS) : null;
     const netDV01 = (long.dv01_man_per_bp || 0) - (short.dv01_man_per_bp || 0);
+    const deltaExp = d.delta_dv01_man_per_bp;
+    const curveExp = d.curve_dv01_man_per_bp;
+    const curveDir = d.curve_direction;
+    const curveLabel = (curveExp == null) ? "—" : (
+      `${curveDir === 'steepener' ? '↗ Steep' : (curveDir === 'flattener' ? '↘ Flat' : '─')} ${curveExp >= 0 ? '+' : ''}${curveExp.toFixed(1)}`
+    );
     const nm = (s) => (s||'').replace(/^국고채?\s*/, '').replace(/^국고\s*/,'');
     const cls = (_selected === pos.id) ? "row-selected" : "";
     return `
@@ -433,11 +443,13 @@ function renderTable() {
         <td>${fmtYtm(short.current_ytm)}</td>
         <td>${(short.duration||0).toFixed(2)}</td>
         <td class="${pnlClass(netDV01)}">${fmtMan(netDV01)}</td>
+        <td class="${pnlClass(deltaExp)}">${deltaExp != null ? fmtMan(deltaExp) : "—"}</td>
+        <td class="${curveDir === 'steepener' ? 'pnl-pos' : (curveDir === 'flattener' ? 'pnl-neg' : '')}">${curveLabel}</td>
         <td class="${pnlClass(d.delta_won)}">${fmtWonAsMan(d.delta_won)}</td>
         <td class="${pnlClass(d.curve_won)}">${fmtWonAsMan(d.curve_won)}</td>
         <td class="${pnlClass(d.alpha_won)}">${fmtWonAsMan(d.alpha_won)}</td>
         <td class="${pnlClass(d.user_total_won)}"><strong>${fmtWonAsMan(d.user_total_won)}</strong></td>
-        <td>${cumSpread != null ? fmtBp(cumSpread) : "—"}</td>
+        <td>${epsSpread != null ? fmtBp(epsSpread, 2) : "—"}<div class="nm">${cumSpread != null ? '21d ' + fmtBp(cumSpread, 2) : ''}</div></td>
         <td>${d.holding_days != null ? d.holding_days + 'd' : '—'}</td>
         <td><button class="btn tiny danger" data-del="${pos.id}">삭제</button></td>
       </tr>`;

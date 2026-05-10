@@ -2,7 +2,7 @@
 Cloudflare Quick Tunnel 시작 + URL 자동 캡처 + assets/api_base.txt 갱신 + git push.
 
 워크플로우:
-  1. cloudflared.exe tunnel --url http://localhost:8000  실행
+  1. cloudflared.exe tunnel --url http://localhost:8001  실행
   2. stdout 에서 https://xxx-yyy-zzz.trycloudflare.com URL 추출
   3. assets/api_base.txt 에 한 줄로 저장 (변경됐을 때만)
   4. git add + commit + push  (실패해도 cloudflared 는 계속 실행)
@@ -74,7 +74,7 @@ def _kill_existing() -> None:
 
 def _spawn_cloudflared() -> subprocess.Popen:
     return subprocess.Popen(
-        [str(CF_BIN), "tunnel", "--url", "http://localhost:8000", "--no-autoupdate"],
+        [str(CF_BIN), "tunnel", "--url", "http://localhost:8001", "--no-autoupdate"],
         cwd=SERVER_DIR,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -105,7 +105,7 @@ def main() -> int:
     proc: subprocess.Popen | None = None
     try:
         for attempt in range(1, MAX_RETRIES + 1):
-            print(f"[start] cloudflared tunnel --url http://localhost:8000  (attempt {attempt}/{MAX_RETRIES})")
+            print(f"[start] cloudflared tunnel --url http://localhost:8001  (attempt {attempt}/{MAX_RETRIES})")
             proc = _spawn_cloudflared()
             captured = False
             saw_error = False

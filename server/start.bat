@@ -25,8 +25,8 @@ if not exist cloudflared.exe (
     exit /b 1
 )
 
-echo [4/4] Starting FastAPI server on port 8000...
-start "FastAPI :8000" cmd /k "python -m uvicorn main:app --reload --port 8000"
+echo [4/4] Starting FastAPI server on port 8001...
+start "FastAPI :8001" cmd /k "python -m uvicorn main:app --reload --port 8001"
 timeout /t 3 >nul
 
 echo Starting Cloudflare Quick Tunnel + auto api_base sync...
