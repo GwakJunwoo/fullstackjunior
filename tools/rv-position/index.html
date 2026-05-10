@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RV Position — 금리 도구 모음</title>
+  <link rel="stylesheet" href="/assets/css/main.css">
+  <style>
+    .panel-wrap {
+      background: var(--s1);
+      border: .5px solid var(--bd);
+      border-radius: var(--r);
+      padding: 1rem 1.125rem;
+      margin-bottom: 12px;
+    }
+    .ctrl-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    .conn-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--t3); display: inline-block; margin-right: 6px; }
+    .conn-dot.ok  { background: var(--green); box-shadow: 0 0 5px rgba(52,211,153,.45); }
+    .conn-dot.err { background: var(--red); }
+    .btn {
+      background: none; border: .5px solid var(--bd2); border-radius: var(--rs);
+      color: var(--t2); font-size: 12px; cursor: pointer; padding: 6px 11px;
+      transition: all .15s; text-decoration: none; display: inline-flex;
+      align-items: center; justify-content: center;
+    }
+    .btn:hover { border-color: var(--blue); color: var(--blue); }
+    .btn.primary {
+      border-color: rgba(52,211,153,.28); color: var(--green); background: rgba(52,211,153,.06);
+    }
+    .btn.primary:hover { border-color: var(--green); background: rgba(52,211,153,.12); }
+    .btn.danger { border-color: rgba(248,113,113,.28); color: var(--red); background: rgba(248,113,113,.04); }
+    .btn.danger:hover { border-color: var(--red); background: rgba(248,113,113,.12); }
+    .btn.tiny { font-size: 10px; padding: 3px 7px; }
+    .status { font-size: 11px; color: var(--t3); }
+
+    /* metrics */
+    .metrics {
+      display: grid; grid-template-columns: repeat(6, 1fr); gap: 9px; margin-bottom: 12px;
+    }
+    .metric {
+      background: var(--s1); border: .5px solid var(--bd); border-radius: var(--rs);
+      padding: 9px 11px;
+    }
+    .metric .ml { font-size: 9px; color: var(--t3); margin-bottom: 3px; letter-spacing: .3px; text-transform: uppercase; }
+    .metric .mv { font-size: 16px; font-weight: 600; letter-spacing: -.3px; }
+    .metric.pos .mv { color: var(--green); }
+    .metric.neg .mv { color: var(--red); }
+    @media (max-width: 1100px) { .metrics { grid-template-columns: repeat(3, 1fr); } }
+    @media (max-width: 640px)  { .metrics { grid-template-columns: 1fr 1fr; } }
+
+    /* position table */
+    .pos-table { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+    .pos-table th, .pos-table td {
+      padding: 7px 8px; text-align: right; border-bottom: .5px solid var(--bd);
+      white-space: nowrap;
+    }
+    .pos-table th {
+      font-size: 9.5px; color: var(--t3); font-weight: 500;
+      letter-spacing: .3px; text-transform: uppercase;
+    }
+    .pos-table th:first-child, .pos-table td:first-child,
+    .pos-table th.lt,           .pos-table td.lt          { text-align: left; }
+    .pos-table tr.hdr-grp th    { background: var(--s2); border-bottom: .5px solid var(--bd2); }
+    .pos-table tr:hover td      { background: rgba(255,255,255,.02); }
+    .pos-table tr.row-selected td { background: rgba(74,158,255,.06); }
+    .leg-long  { color: var(--green); font-weight: 500; }
+    .leg-short { color: var(--red);   font-weight: 500; }
+    .pnl-pos { color: var(--green); }
+    .pnl-neg { color: var(--red); }
+    .ticker  { font-weight: 600; color: var(--t1); }
+    .pos-table td .nm { font-size: 10px; color: var(--t3); }
+
+    /* form */
+    .num-input, .date-input, .text-input {
+      background: var(--s2); border: .5px solid var(--bd2); border-radius: var(--rs);
+      color: var(--t1); font-size: 12px; padding: 6px 9px; outline: none;
+    }
+    .num-input { width: 90px; }
+    .num-input::-webkit-outer-spin-button, .num-input::-webkit-inner-spin-button {
+      -webkit-appearance: none; margin: 0;
+    }
+    .form-grid {
+      display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 16px;
+      margin-top: 6px;
+    }
+    .form-row { display: flex; flex-direction: column; gap: 4px; }
+    .form-label { font-size: 10px; color: var(--t3); letter-spacing: .3px; text-transform: uppercase; }
+    .search-wrap { position: relative; }
+    .search-input {
+      width: 100%; background: var(--s2); border: .5px solid var(--bd2);
+      border-radius: var(--rs); color: var(--t1); font-size: 12px; padding: 7px 10px; outline: none;
+    }
+    .search-input:focus { border-color: var(--blue); }
+    .search-dropdown {
+      position: absolute; top: calc(100% + 3px); left: 0; right: 0;
+      background: var(--s2); border: .5px solid var(--bd2);
+      border-radius: var(--rs); z-index: 100; max-height: 240px; overflow-y: auto;
+      box-shadow: 0 8px 24px rgba(0,0,0,.4);
+    }
+    .search-item {
+      padding: 6px 10px; cursor: pointer; font-size: 11px;
+      display: flex; gap: 8px; align-items: baseline;
+    }
+    .search-item:hover, .search-item.focused { background: var(--s3); }
+    .si-code { font-weight: 600; color: var(--blue); font-size: 10px; flex-shrink: 0; min-width: 84px; }
+    .si-name { color: var(--t2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .si-meta { font-size: 10px; color: var(--t3); flex-shrink: 0; }
+    .picked {
+      background: rgba(74,158,255,.10); border: .5px solid rgba(74,158,255,.25);
+      border-radius: var(--rs); padding: 6px 9px; font-size: 11px; color: var(--blue);
+      display: flex; align-items: center; gap: 8px; min-height: 30px;
+    }
+    .picked.long  { background: rgba(52,211,153,.08); border-color: rgba(52,211,153,.25); color: var(--green); }
+    .picked.short { background: rgba(248,113,113,.08); border-color: rgba(248,113,113,.25); color: var(--red); }
+    .picked .nm { color: var(--t2); font-size: 10px; }
+
+    /* breakdown */
+    .pair-detail {
+      background: var(--s1); border: .5px solid var(--bd); border-radius: var(--r);
+      padding: 14px 16px; margin-bottom: 12px;
+    }
+    .breakdown {
+      display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px;
+    }
+    .bk-item {
+      background: var(--s2); border: .5px solid var(--bd); border-radius: var(--rs);
+      padding: 9px 11px;
+    }
+    .bk-item .lbl { font-size: 9.5px; color: var(--t3); letter-spacing: .3px; text-transform: uppercase; }
+    .bk-item .val { font-size: 16px; font-weight: 600; margin-top: 3px; }
+    .bk-item .pct { font-size: 10px; color: var(--t3); margin-top: 1px; }
+    .bk-item.pos .val { color: var(--green); }
+    .bk-item.neg .val { color: var(--red); }
+    @media (max-width: 740px) { .breakdown { grid-template-columns: 1fr 1fr; } }
+
+    .stl { font-size: 10px; color: var(--t3); letter-spacing: .3px; text-transform: uppercase; margin-bottom: 7px; }
+    .empty-box {
+      height: 90px; display: flex; align-items: center; justify-content: center;
+      color: var(--t3); font-size: 11px; border: .5px dashed var(--bd2); border-radius: var(--rs);
+    }
+    .small-note { font-size: 11px; color: var(--t3); line-height: 1.6; }
+
+    /* maturity chart */
+    .mat-chart {
+      position: relative; height: 240px; margin-top: 6px;
+    }
+    .pair-eps-chart { position: relative; height: 220px; margin-top: 6px; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <nav class="nav">
+    <a href="/" class="nav-brand">금리 도구 모음</a>
+    <div class="nav-links">
+      <a href="/tools/beta-trading/" class="nav-link">Beta Trading</a>
+      <a href="/tools/rv-position/" class="nav-link active">RV Position</a>
+      <a href="/tools/dashboard/" class="nav-link">금리 대시보드</a>
+      <a href="/tools/supply/" class="nav-link">시장 수급</a>
+      <a href="/tools/db/" class="nav-link">DB 탐색</a>
+    </div>
+  </nav>
+
+  <div class="hdr" style="margin-bottom:1rem;">
+    <h1>RV Position</h1>
+    <p class="small-note" style="margin-top:4px;">페어 트레이드 포지션 모니터링 · 손익 분해 · 만기별 노출 · ε spread 추이</p>
+  </div>
+
+  <div class="panel-wrap">
+    <div class="ctrl-row">
+      <div class="status"><span class="conn-dot" id="connDot"></span><span id="connTxt">연결 확인 중…</span></div>
+      <span class="status" id="asOf"></span>
+      <div style="flex:1;"></div>
+      <button class="btn" id="refreshBtn" type="button">새로고침</button>
+      <button class="btn primary" id="addBtn" type="button">＋ 포지션 추가</button>
+    </div>
+  </div>
+
+  <!-- 포트폴리오 메트릭 -->
+  <div class="metrics">
+    <div class="metric"><div class="ml">포지션 수</div><div class="mv" id="mCount">—</div></div>
+    <div class="metric"><div class="ml">전체 손익</div><div class="mv" id="mTotal">—</div></div>
+    <div class="metric"><div class="ml">Δ pnl (만)</div><div class="mv" id="mDelta">—</div></div>
+    <div class="metric"><div class="ml">Curve pnl (만)</div><div class="mv" id="mCurve">—</div></div>
+    <div class="metric"><div class="ml">Alpha pnl (만)</div><div class="mv" id="mAlpha">—</div></div>
+    <div class="metric"><div class="ml">Net DV01 (만/bp)</div><div class="mv" id="mNetDV01">—</div></div>
+  </div>
+
+  <!-- 포지션 추가 폼 (toggle) -->
+  <div class="panel-wrap" id="addPanel" style="display:none;">
+    <div class="stl">신규 포지션 추가</div>
+    <div class="form-grid">
+      <div class="form-row">
+        <div class="form-label">LONG 종목</div>
+        <div class="search-wrap">
+          <input class="search-input" id="longSearch" placeholder="종목 검색 (이름/코드/label)" autocomplete="off">
+          <div class="search-dropdown" id="longDrop" style="display:none;"></div>
+        </div>
+        <div class="picked long" id="pickedLong"><span style="color:var(--t3);">선택 안 됨</span></div>
+      </div>
+      <div class="form-row">
+        <div class="form-label">SHORT 종목</div>
+        <div class="search-wrap">
+          <input class="search-input" id="shortSearch" placeholder="종목 검색 (이름/코드/label)" autocomplete="off">
+          <div class="search-dropdown" id="shortDrop" style="display:none;"></div>
+        </div>
+        <div class="picked short" id="pickedShort"><span style="color:var(--t3);">선택 안 됨</span></div>
+      </div>
+      <div class="form-row">
+        <div class="form-label">LONG face (억원)</div>
+        <input class="num-input" id="longFace" type="number" step="10" min="1" placeholder="예: 100">
+      </div>
+      <div class="form-row">
+        <div class="form-label">SHORT face (억원)</div>
+        <input class="num-input" id="shortFace" type="number" step="10" min="1" placeholder="예: 100">
+      </div>
+      <div class="form-row">
+        <div class="form-label">LONG 진입 ytm (%)</div>
+        <input class="num-input" id="longYtm" type="number" step="0.001" min="0" placeholder="예: 3.805">
+      </div>
+      <div class="form-row">
+        <div class="form-label">SHORT 진입 ytm (%)</div>
+        <input class="num-input" id="shortYtm" type="number" step="0.001" min="0" placeholder="예: 3.727">
+      </div>
+      <div class="form-row">
+        <div class="form-label">진입일</div>
+        <input class="date-input" id="entryDate" type="date">
+      </div>
+      <div class="form-row">
+        <div class="form-label">거래비용 (bp, 출구포함)</div>
+        <input class="num-input" id="txCost" type="number" step="0.1" min="0" value="1.0">
+      </div>
+      <div class="form-row" style="grid-column:1/-1;">
+        <div class="form-label">메모 (옵션)</div>
+        <input class="text-input" id="noteInput" placeholder="자유 메모">
+      </div>
+    </div>
+    <div class="ctrl-row" style="margin-top:14px;">
+      <div style="flex:1;"></div>
+      <button class="btn" id="cancelAddBtn" type="button">취소</button>
+      <button class="btn primary" id="submitAddBtn" type="button">추가</button>
+    </div>
+  </div>
+
+  <!-- 포지션 테이블 -->
+  <div class="panel-wrap">
+    <div class="stl">포지션 리스트 <span class="status" id="posCountTag" style="margin-left:8px;"></span></div>
+    <div style="overflow-x:auto;">
+      <table class="pos-table" id="posTable">
+        <thead>
+          <tr>
+            <th class="lt">#</th>
+            <th class="lt">label</th>
+            <th class="lt">진입일</th>
+            <th class="lt">LONG</th>
+            <th>face(억)</th>
+            <th>진입 ytm</th>
+            <th>현재 ytm</th>
+            <th>D</th>
+            <th class="lt">SHORT</th>
+            <th>face(억)</th>
+            <th>진입 ytm</th>
+            <th>현재 ytm</th>
+            <th>D</th>
+            <th>net DV01<br>(만/bp)</th>
+            <th>Δ pnl</th>
+            <th>Curve pnl</th>
+            <th>Alpha pnl</th>
+            <th>Total pnl</th>
+            <th>cum_ε spread<br>(bp)</th>
+            <th>D+H</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="posBody">
+          <tr><td colspan="21" class="status" style="text-align:center;">로딩 중…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- 만기별 노출 차트 -->
+  <div class="panel-wrap">
+    <div class="stl">만기별 net DV01 노출</div>
+    <div class="mat-chart"><canvas id="matChart"></canvas></div>
+    <div class="status" id="matNote" style="margin-top:7px;">합산 LONG-SHORT DV01 (양수=Long bias). 시장 1bp 강세 시 손익 ≈ +값.</div>
+  </div>
+
+  <!-- 페어 ε 시계열 (선택된 포지션) -->
+  <div class="panel-wrap" id="pairEpsCard" style="display:none;">
+    <div class="stl">선택한 페어 ε / cum_ε spread 시계열</div>
+    <div class="status" id="pairEpsMeta" style="margin-bottom:6px;"></div>
+    <div class="pair-eps-chart"><canvas id="pairEpsChart"></canvas></div>
+  </div>
+
+  <!-- 페어 detail 분해 -->
+  <div class="pair-detail" id="pairDetailCard" style="display:none;">
+    <div class="stl">선택한 페어 P&amp;L 분해</div>
+    <div class="status" id="pairDetailHeader" style="margin-bottom:8px;"></div>
+    <div class="breakdown" id="pairBreakdown"></div>
+    <div class="small-note" id="pairDetailFooter" style="margin-top:10px;"></div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="/assets/js/api.js"></script>
+<script>
+let _positions = [];
+let _portfolio = null;
+let _selected = null;       // selected position id
+let _matChart = null;
+let _pairEpsChart = null;
+let _pickedLong  = null;
+let _pickedShort = null;
+let _searchTimerL = null;
+let _searchTimerS = null;
+let _focusIdxL = -1;
+let _focusIdxS = -1;
+
+// ── 유틸 ──
+function fmtMan(v) {  // 만원 단위 (1 = 1만원)
+  if (v == null || isNaN(v)) return "—";
+  const sign = v >= 0 ? "+" : "";
+  return sign + Math.round(v).toLocaleString("ko-KR");
+}
+function fmtWonAsMan(v) {  // 원 → 만원
+  if (v == null || isNaN(v)) return "—";
+  return fmtMan(v / 1e4);
+}
+function fmtPct(v, denom) {
+  if (v == null || denom == null || denom === 0 || isNaN(v) || isNaN(denom)) return "";
+  return (v / denom * 100).toFixed(0) + "%";
+}
+function fmtBp(v, digits=2) {
+  if (v == null || isNaN(v)) return "—";
+  const sign = v >= 0 ? "+" : "";
+  return sign + Number(v).toFixed(digits) + "bp";
+}
+function fmtYtm(v) {
+  if (v == null || isNaN(v)) return "—";
+  return Number(v).toFixed(3);
+}
+function pnlClass(v) { return v == null || v === 0 ? "" : (v > 0 ? "pnl-pos" : "pnl-neg"); }
+function setConn(ok, txt) {
+  const dot = document.getElementById("connDot");
+  dot.className = "conn-dot " + (ok ? "ok" : "err");
+  document.getElementById("connTxt").textContent = txt;
+}
+
+// ── 데이터 로드 ──
+async function loadPositions() {
+  try {
+    setConn(true, "로딩…");
+    const data = await apiGet("/rv/positions");
+    _positions = data.positions || [];
+    _portfolio = data.portfolio || null;
+    setConn(true, "연결됨");
+    document.getElementById("asOf").textContent = data.as_of ? `as of ${data.as_of}` : "";
+    renderMetrics();
+    renderTable();
+    renderMatChart();
+    if (_selected) renderPairDetail();
+    return data;
+  } catch (e) {
+    console.error(e);
+    setConn(false, "연결 오류: " + (e.message || e));
+    document.getElementById("posBody").innerHTML =
+      `<tr><td colspan="21" class="status" style="text-align:center; color:var(--red);">로드 실패: ${e.message || e}</td></tr>`;
+  }
+}
+
+// ── 메트릭 ──
+function renderMetrics() {
+  const p = _portfolio || {};
+  document.getElementById("mCount").textContent = (_positions.length || 0);
+  const total = p.total_pnl_won;
+  const m = document.getElementById("mTotal");
+  m.textContent = fmtWonAsMan(total) + "만";
+  m.parentElement.classList.toggle("pos", (total||0) > 0);
+  m.parentElement.classList.toggle("neg", (total||0) < 0);
+
+  const mDelta = document.getElementById("mDelta");
+  mDelta.textContent = fmtWonAsMan(p.delta_pnl_won) + "만";
+  mDelta.parentElement.classList.toggle("pos", (p.delta_pnl_won||0) > 0);
+  mDelta.parentElement.classList.toggle("neg", (p.delta_pnl_won||0) < 0);
+
+  const mCurve = document.getElementById("mCurve");
+  mCurve.textContent = fmtWonAsMan(p.curve_pnl_won) + "만";
+  mCurve.parentElement.classList.toggle("pos", (p.curve_pnl_won||0) > 0);
+  mCurve.parentElement.classList.toggle("neg", (p.curve_pnl_won||0) < 0);
+
+  const mAlpha = document.getElementById("mAlpha");
+  mAlpha.textContent = fmtWonAsMan(p.alpha_pnl_won) + "만";
+  mAlpha.parentElement.classList.toggle("pos", (p.alpha_pnl_won||0) > 0);
+  mAlpha.parentElement.classList.toggle("neg", (p.alpha_pnl_won||0) < 0);
+
+  const mNet = document.getElementById("mNetDV01");
+  mNet.textContent = (p.net_dv01_man_per_bp != null) ? fmtMan(p.net_dv01_man_per_bp) : "—";
+}
+
+// ── 테이블 ──
+function renderTable() {
+  const tbody = document.getElementById("posBody");
+  document.getElementById("posCountTag").textContent =
+    `(총 ${_positions.length}건)`;
+  if (!_positions.length) {
+    tbody.innerHTML = `<tr><td colspan="21" class="status" style="text-align:center; padding:20px;">포지션 없음 — 위 [+ 포지션 추가] 버튼으로 등록</td></tr>`;
+    return;
+  }
+  const rows = _positions.map((pos, i) => {
+    const d = pos.decomposition || {};
+    const long  = pos.long || {};
+    const short = pos.short || {};
+    const cumL = d.current_cum_eps_long;
+    const cumS = d.current_cum_eps_short;
+    const cumSpread = (cumL != null && cumS != null) ? (cumL - cumS) : null;
+    const netDV01 = (long.dv01_man_per_bp || 0) - (short.dv01_man_per_bp || 0);
+    const nm = (s) => (s||'').replace(/^국고채?\s*/, '').replace(/^국고\s*/,'');
+    const cls = (_selected === pos.id) ? "row-selected" : "";
+    return `
+      <tr class="${cls}" data-id="${pos.id}">
+        <td class="lt">${i+1}</td>
+        <td class="lt">${pos.label || ''}</td>
+        <td class="lt">${pos.entry_date}</td>
+        <td class="lt"><span class="leg-long ticker">${long.code}</span><div class="nm">${nm(long.name)}</div></td>
+        <td>${(long.face_eok||0).toFixed(0)}</td>
+        <td>${fmtYtm(long.entry_ytm)}</td>
+        <td>${fmtYtm(long.current_ytm)}</td>
+        <td>${(long.duration||0).toFixed(2)}</td>
+        <td class="lt"><span class="leg-short ticker">${short.code}</span><div class="nm">${nm(short.name)}</div></td>
+        <td>${(short.face_eok||0).toFixed(0)}</td>
+        <td>${fmtYtm(short.entry_ytm)}</td>
+        <td>${fmtYtm(short.current_ytm)}</td>
+        <td>${(short.duration||0).toFixed(2)}</td>
+        <td class="${pnlClass(netDV01)}">${fmtMan(netDV01)}</td>
+        <td class="${pnlClass(d.delta_won)}">${fmtWonAsMan(d.delta_won)}</td>
+        <td class="${pnlClass(d.curve_won)}">${fmtWonAsMan(d.curve_won)}</td>
+        <td class="${pnlClass(d.alpha_won)}">${fmtWonAsMan(d.alpha_won)}</td>
+        <td class="${pnlClass(d.user_total_won)}"><strong>${fmtWonAsMan(d.user_total_won)}</strong></td>
+        <td>${cumSpread != null ? fmtBp(cumSpread) : "—"}</td>
+        <td>${d.holding_days != null ? d.holding_days + 'd' : '—'}</td>
+        <td><button class="btn tiny danger" data-del="${pos.id}">삭제</button></td>
+      </tr>`;
+  }).join("");
+  tbody.innerHTML = rows;
+
+  tbody.querySelectorAll("tr[data-id]").forEach(tr => {
+    tr.addEventListener("click", (e) => {
+      if (e.target.matches("[data-del]")) return;
+      const id = tr.getAttribute("data-id");
+      _selected = (_selected === id) ? null : id;
+      renderTable();
+      renderPairDetail();
+    });
+  });
+  tbody.querySelectorAll("[data-del]").forEach(btn => {
+    btn.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const id = btn.getAttribute("data-del");
+      const pos = _positions.find(p => p.id === id);
+      const lbl = pos ? `${pos.long.code} L / ${pos.short.code} S` : id;
+      if (!confirm(`삭제할까요? ${lbl}`)) return;
+      try {
+        await apiDelete(`/rv/positions/${id}`);
+        if (_selected === id) _selected = null;
+        await loadPositions();
+      } catch (err) {
+        alert("삭제 실패: " + err.message);
+      }
+    });
+  });
+}
+
+// ── 만기별 차트 ──
+function renderMatChart() {
+  const items = (_portfolio && _portfolio.by_maturity) || [];
+  const labels = items.map(x => `${x.remain_year.toFixed(1)}Y`);
+  const longs  = items.map(x => x.long_dv01_man || 0);
+  const shorts = items.map(x => -(x.short_dv01_man || 0));   // 음수로 표시
+  const nets   = items.map(x => x.net_dv01_man || 0);
+
+  const ctx = document.getElementById("matChart").getContext("2d");
+  if (_matChart) _matChart.destroy();
+
+  if (!items.length) {
+    _matChart = null;
+    ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+    return;
+  }
+  _matChart = new Chart(ctx, {
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        { label: "LONG (만/bp)", data: longs,
+          backgroundColor: "rgba(52,211,153,.55)", borderColor: "#34d399", borderWidth: .5,
+          stack: "stack1" },
+        { label: "SHORT (만/bp)", data: shorts,
+          backgroundColor: "rgba(248,113,113,.55)", borderColor: "#f87171", borderWidth: .5,
+          stack: "stack1" },
+        { label: "Net (만/bp)", data: nets,
+          type: "line", borderColor: "#4a9eff", backgroundColor: "#4a9eff",
+          tension: .25, pointRadius: 3, fill: false },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { labels: { color: "#8b93a8", font: { size: 10 }, boxWidth: 10 } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y >=0 ? '+' : ''}${ctx.parsed.y.toFixed(1)} 만/bp`,
+          },
+        },
+      },
+      scales: {
+        x: { ticks: { color: "#8b93a8", font: { size: 10 } }, grid: { color: "rgba(255,255,255,.04)" } },
+        y: { ticks: { color: "#8b93a8", font: { size: 10 } }, grid: { color: "rgba(255,255,255,.04)" } },
+      },
+    },
+  });
+}
+
+// ── 페어 detail ──
+async function renderPairDetail() {
+  const card = document.getElementById("pairDetailCard");
+  const epsCard = document.getElementById("pairEpsCard");
+  if (!_selected) { card.style.display = "none"; epsCard.style.display = "none"; return; }
+  const pos = _positions.find(p => p.id === _selected);
+  if (!pos) { card.style.display = "none"; epsCard.style.display = "none"; return; }
+
+  card.style.display = "block";
+  const d = pos.decomposition || {};
+  document.getElementById("pairDetailHeader").innerHTML =
+    `<span class="leg-long">${pos.long.code} ${pos.long.face_eok}억 LONG</span> · ` +
+    `<span class="leg-short">${pos.short.code} ${pos.short.face_eok}억 SHORT</span> · ` +
+    `진입 ${pos.entry_date} (보유 ${d.holding_days||0}d) · as of ${d.as_of||'—'}`;
+
+  const total = d.user_total_won;
+  const items = [
+    { label: "Delta (β·ΔY_3Y)", val: d.delta_won },
+    { label: "Curve (γ·Δslope)", val: d.curve_won },
+    { label: "Alpha (Δε spread)", val: d.alpha_won },
+    { label: "Total (user)", val: d.user_total_won, strong: true },
+  ];
+  document.getElementById("pairBreakdown").innerHTML = items.map(it => {
+    const cls = it.val == null ? "" : (it.val > 0 ? "pos" : (it.val < 0 ? "neg" : ""));
+    const pct = (it.label.startsWith("Total") || total == null || total === 0) ? "" : fmtPct(it.val, total);
+    return `<div class="bk-item ${cls}">
+      <div class="lbl">${it.label}</div>
+      <div class="val">${fmtWonAsMan(it.val)} 만</div>
+      <div class="pct">${pct}</div>
+    </div>`;
+  }).join("");
+
+  const dv01L = (pos.long.dv01_man_per_bp||0).toFixed(0);
+  const dv01S = (pos.short.dv01_man_per_bp||0).toFixed(0);
+  const bdLvl = `β_lvl L=${(d.beta_long_lvl||0).toFixed(2)} S=${(d.beta_short_lvl||0).toFixed(2)}`;
+  const bdSlp = `γ_slp L=${(d.beta_long_slp||0).toFixed(2)} S=${(d.beta_short_slp||0).toFixed(2)}`;
+  document.getElementById("pairDetailFooter").innerHTML =
+    `DV01 L = <strong>${dv01L}</strong> 만/bp · S = <strong>${dv01S}</strong> 만/bp · ` +
+    `mismatch ${(dv01L - dv01S >= 0 ? '+' : '')}${(dv01L - dv01S).toFixed(0)} 만/bp ` +
+    `&nbsp;·&nbsp; ${bdLvl} · ${bdSlp} ` +
+    `&nbsp;·&nbsp; ΔY_3Y ${fmtBp(d.dy3_bp)} · Δslope ${fmtBp(d.dslope_bp)} ` +
+    `<br>cost: long ${fmtBp(d.cost_long_bp)} / short ${fmtBp(d.cost_short_bp)} · ` +
+    `txn cost ${fmtWonAsMan(d.txn_cost_won)} 만`;
+
+  // ε 시계열
+  await loadEpsSeries(pos.id);
+}
+
+async function loadEpsSeries(posId) {
+  const card = document.getElementById("pairEpsCard");
+  const meta = document.getElementById("pairEpsMeta");
+  try {
+    const data = await apiGet(`/rv/positions/${posId}/epsilon_series?days=120`);
+    const series = data.series || [];
+    card.style.display = "block";
+    meta.textContent = `${data.long_code} L / ${data.short_code} S — 진입 ${data.entry_date} · as of ${data.as_of}`;
+    const labels = series.map(d => d.date);
+    const epsSpread = series.map(d => d.eps_spread);
+    const cumSpread = series.map(d => d.cum_eps_spread);
+
+    const ctx = document.getElementById("pairEpsChart").getContext("2d");
+    if (_pairEpsChart) _pairEpsChart.destroy();
+    _pairEpsChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [
+          { label: "ε spread (1d, bp)", data: epsSpread,
+            borderColor: "rgba(74,158,255,.45)", backgroundColor: "rgba(74,158,255,.45)",
+            tension: 0, pointRadius: 1.5, borderWidth: 1, yAxisID: "y" },
+          { label: "cum_ε spread (21d, bp)", data: cumSpread,
+            borderColor: "#f87171", backgroundColor: "#f87171",
+            tension: .15, pointRadius: 0, borderWidth: 1.5, yAxisID: "y" },
+        ],
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { labels: { color: "#8b93a8", font: { size: 10 }, boxWidth: 10 } },
+          annotation: false,
+        },
+        scales: {
+          x: { ticks: { color: "#8b93a8", font: { size: 9 }, maxRotation: 0, autoSkipPadding: 12 },
+               grid: { color: "rgba(255,255,255,.04)" } },
+          y: { position: "left", ticks: { color: "#8b93a8", font: { size: 10 } },
+               grid: { color: "rgba(255,255,255,.04)" } },
+        },
+      },
+    });
+  } catch (e) {
+    card.style.display = "block";
+    meta.innerHTML = `<span style="color:var(--red);">ε 시계열 로드 실패: ${e.message || e}</span>`;
+  }
+}
+
+// ── 추가 폼 ──
+function toggleAddPanel(show) {
+  const panel = document.getElementById("addPanel");
+  const willShow = (show !== undefined) ? show : (panel.style.display === "none");
+  panel.style.display = willShow ? "block" : "none";
+  if (willShow) {
+    // default entry_date = today
+    const today = new Date();
+    const ymd = today.toISOString().slice(0, 10);
+    document.getElementById("entryDate").value = ymd;
+  }
+}
+
+async function searchInstruments(q) {
+  const data = await apiGet(`/rv/instruments?q=${encodeURIComponent(q || '')}&limit=80`);
+  return Array.isArray(data) ? data : [];
+}
+
+function renderSearchDropdown(dropEl, items, side, onPick) {
+  if (!items.length) {
+    dropEl.innerHTML = `<div class="search-item"><span class="status">검색 결과 없음</span></div>`;
+    dropEl.style.display = "block";
+    return;
+  }
+  dropEl.innerHTML = items.map((it, i) =>
+    `<div class="search-item" data-idx="${i}">
+      <span class="si-code">${it.bond_code}</span>
+      <span class="si-name">${it.bond_name||''}</span>
+      <span class="si-meta">${it.remain_year != null ? it.remain_year.toFixed(2)+'Y' : '—'} · ${it.ytm != null ? it.ytm.toFixed(3) : '—'}</span>
+    </div>`).join("");
+  dropEl.style.display = "block";
+  dropEl.querySelectorAll(".search-item").forEach(el => {
+    el.addEventListener("click", () => {
+      const idx = +el.getAttribute("data-idx");
+      onPick(items[idx]);
+      dropEl.style.display = "none";
+    });
+  });
+}
+
+function renderPicked(elemId, item, side) {
+  const el = document.getElementById(elemId);
+  if (!item) { el.innerHTML = `<span style="color:var(--t3);">선택 안 됨</span>`; return; }
+  el.innerHTML = `<strong>${item.bond_code}</strong>
+    <span class="nm">${item.bond_name||''}</span>
+    <span class="nm">remain ${item.remain_year != null ? item.remain_year.toFixed(2) : '—'}Y</span>`;
+}
+
+function bindSearch(inputId, dropId, onPick) {
+  const input = document.getElementById(inputId);
+  const drop  = document.getElementById(dropId);
+  let timer = null;
+  input.addEventListener("input", () => {
+    clearTimeout(timer);
+    timer = setTimeout(async () => {
+      const q = input.value.trim();
+      if (!q) { drop.style.display = "none"; return; }
+      try {
+        const items = await searchInstruments(q);
+        renderSearchDropdown(drop, items, null, (chosen) => {
+          onPick(chosen);
+          input.value = chosen.bond_code;
+        });
+      } catch (e) {
+        drop.innerHTML = `<div class="search-item" style="color:var(--red);">${e.message||e}</div>`;
+        drop.style.display = "block";
+      }
+    }, 200);
+  });
+  document.addEventListener("click", (e) => {
+    if (!drop.contains(e.target) && e.target !== input) drop.style.display = "none";
+  });
+}
+
+async function submitAdd() {
+  if (!_pickedLong || !_pickedShort) {
+    alert("LONG / SHORT 종목을 모두 선택하세요.");
+    return;
+  }
+  const longFace  = parseFloat(document.getElementById("longFace").value);
+  const shortFace = parseFloat(document.getElementById("shortFace").value);
+  const longYtm   = parseFloat(document.getElementById("longYtm").value);
+  const shortYtm  = parseFloat(document.getElementById("shortYtm").value);
+  const entryDate = document.getElementById("entryDate").value;
+  const txCost    = parseFloat(document.getElementById("txCost").value || "1.0");
+  const note      = document.getElementById("noteInput").value;
+
+  if (!longFace || !shortFace || !longYtm || !shortYtm || !entryDate) {
+    alert("face / 진입 ytm / 진입일은 필수입니다.");
+    return;
+  }
+  if (_pickedLong.bond_code === _pickedShort.bond_code) {
+    alert("LONG 과 SHORT 종목이 같습니다.");
+    return;
+  }
+  try {
+    await apiPost("/rv/positions", {
+      label: note || null,
+      entry_date: entryDate,
+      long_code: _pickedLong.bond_code,
+      long_face_eok: longFace,
+      long_entry_ytm: longYtm,
+      short_code: _pickedShort.bond_code,
+      short_face_eok: shortFace,
+      short_entry_ytm: shortYtm,
+      transaction_cost_bp: txCost,
+      notes: note || null,
+    });
+    // reset
+    _pickedLong = null; _pickedShort = null;
+    ["longSearch","shortSearch","longFace","shortFace","longYtm","shortYtm","noteInput"]
+      .forEach(id => { document.getElementById(id).value = ""; });
+    renderPicked("pickedLong", null);
+    renderPicked("pickedShort", null);
+    toggleAddPanel(false);
+    await loadPositions();
+  } catch (e) {
+    alert("추가 실패: " + (e.message || e));
+  }
+}
+
+// ── 초기화 ──
+document.getElementById("refreshBtn").addEventListener("click", async () => {
+  try { await apiPost("/rv/refresh"); } catch {}
+  await loadPositions();
+});
+document.getElementById("addBtn").addEventListener("click", () => toggleAddPanel());
+document.getElementById("cancelAddBtn").addEventListener("click", () => toggleAddPanel(false));
+document.getElementById("submitAddBtn").addEventListener("click", submitAdd);
+
+bindSearch("longSearch",  "longDrop",  (it) => { _pickedLong  = it; renderPicked("pickedLong",  it); });
+bindSearch("shortSearch", "shortDrop", (it) => { _pickedShort = it; renderPicked("pickedShort", it); });
+
+loadPositions();
+</script>
+</body>
+</html>

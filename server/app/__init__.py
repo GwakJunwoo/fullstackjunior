@@ -6,15 +6,16 @@ from .routers.supply import router as supply_router
 from .routers.rates import router as rates_router
 from .routers.ktb import router as ktb_router
 from .routers.beta import router as beta_router
+from .routers.rv_position import router as rv_position_router
 
 
 def create_app() -> FastAPI:
-    app = FastAPI(title="scon API", version="0.3.0")
+    app = FastAPI(title="scon API", version="0.4.0")
 
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
-        allow_methods=["GET", "POST"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
         allow_headers=["*"],
     )
 
@@ -23,5 +24,6 @@ def create_app() -> FastAPI:
     app.include_router(rates_router)
     app.include_router(ktb_router)
     app.include_router(beta_router)
+    app.include_router(rv_position_router)
 
     return app

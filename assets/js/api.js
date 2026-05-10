@@ -59,7 +59,7 @@ function setApiBase(url) {
 }
 
 // ── Fetch Wrapper ─────────────────────────────────────────────
-async function apiGet(path) {
+async function _apiFetch(method, path, body = null) {
   const base = await getApiBase();
   if (!base) {
     throw new ApiError('API URL이 설정되지 않았습니다.',
@@ -67,19 +67,32 @@ async function apiGet(path) {
   }
 
   const url = `${base}${path}`;
-  const res = await fetch(url, {
+  const opts = {
+    method,
     headers: {
       // ngrok 잔존 호환 (cloudflared 에는 영향 없음)
       'ngrok-skip-browser-warning': '1',
     },
-  });
+  };
+  if (body != null) {
+    opts.headers['Content-Type'] = 'application/json';
+    opts.body = JSON.stringify(body);
+  }
+
+  const res = await fetch(url, opts);
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
     throw new ApiError(`서버 오류 ${res.status}`, text);
   }
+  if (res.status === 204) return null;
   return res.json();
 }
+
+async function apiGet(path)         { return _apiFetch('GET',    path); }
+async function apiPost(path, body)  { return _apiFetch('POST',   path, body); }
+async function apiPatch(path, body) { return _apiFetch('PATCH',  path, body); }
+async function apiDelete(path)      { return _apiFetch('DELETE', path); }
 
 class ApiError extends Error {
   constructor(message, detail = '') {
