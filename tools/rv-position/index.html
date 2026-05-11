@@ -268,13 +268,15 @@
             <th>Curve pnl</th>
             <th>Alpha pnl</th>
             <th>Total pnl</th>
+            <th>P&L bp<br>(룰 ±3)</th>
             <th>ε / cum_ε<br>spread (bp)</th>
             <th>D+H</th>
+            <th>Action</th>
             <th></th>
           </tr>
         </thead>
         <tbody id="posBody">
-          <tr><td colspan="21" class="status" style="text-align:center;">로딩 중…</td></tr>
+          <tr><td colspan="25" class="status" style="text-align:center;">로딩 중…</td></tr>
         </tbody>
       </table>
     </div>
@@ -367,7 +369,7 @@ async function loadPositions() {
     console.error(e);
     setConn(false, "연결 오류: " + (e.message || e));
     document.getElementById("posBody").innerHTML =
-      `<tr><td colspan="21" class="status" style="text-align:center; color:var(--red);">로드 실패: ${e.message || e}</td></tr>`;
+      `<tr><td colspan="25" class="status" style="text-align:center; color:var(--red);">로드 실패: ${e.message || e}</td></tr>`;
   }
 }
 
@@ -406,7 +408,7 @@ function renderTable() {
   document.getElementById("posCountTag").textContent =
     `(총 ${_positions.length}건)`;
   if (!_positions.length) {
-    tbody.innerHTML = `<tr><td colspan="21" class="status" style="text-align:center; padding:20px;">포지션 없음 — 위 [+ 포지션 추가] 버튼으로 등록</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="25" class="status" style="text-align:center; padding:20px;">포지션 없음 — 위 [+ 포지션 추가] 버튼으로 등록</td></tr>`;
     return;
   }
   const rows = _positions.map((pos, i) => {
@@ -449,8 +451,25 @@ function renderTable() {
         <td class="${pnlClass(d.curve_won)}">${fmtWonAsMan(d.curve_won)}</td>
         <td class="${pnlClass(d.alpha_won)}">${fmtWonAsMan(d.alpha_won)}</td>
         <td class="${pnlClass(d.user_total_won)}"><strong>${fmtWonAsMan(d.user_total_won)}</strong></td>
+        ${(() => {
+          const pnlBp = d.pnl_bp_on_avg_dv01;
+          const tgt = d.rule_target_bp != null ? d.rule_target_bp : 3.0;
+          const stp = d.rule_stop_bp != null ? d.rule_stop_bp : -3.0;
+          const maxH = d.rule_max_hold_days != null ? d.rule_max_hold_days : 90;
+          let cls = '', act = 'HOLD';
+          if (pnlBp != null) {
+            if (pnlBp >= tgt)      { cls = 'pnl-pos'; act = '🎯 TARGET'; }
+            else if (pnlBp <= stp) { cls = 'pnl-neg'; act = '🛑 STOP'; }
+            else if ((d.holding_days||0) >= maxH) { cls = 'pnl-neg'; act = '⏰ TIME'; }
+            else if (pnlBp < 0)    { cls = 'pnl-neg'; }
+            else                    { cls = 'pnl-pos'; }
+          }
+          const pnlBpStr = pnlBp != null ? `${pnlBp>=0?'+':''}${pnlBp.toFixed(2)}bp` : '—';
+          return `<td class="${cls}"><strong>${pnlBpStr}</strong><div class="nm">+${tgt}/${stp}</div></td>
         <td>${epsSpread != null ? fmtBp(epsSpread, 2) : "—"}<div class="nm">${cumSpread != null ? '21d ' + fmtBp(cumSpread, 2) : ''}</div></td>
-        <td>${d.holding_days != null ? d.holding_days + 'd' : '—'}</td>
+        <td>${d.holding_days != null ? d.holding_days + 'd' : '—'}<div class="nm">≤${maxH}d</div></td>
+        <td class="${cls}"><strong>${act}</strong></td>`;
+        })()}
         <td><button class="btn tiny danger" data-del="${pos.id}">삭제</button></td>
       </tr>`;
   }).join("");

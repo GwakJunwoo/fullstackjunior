@@ -384,6 +384,13 @@ def _decompose(
         "cost_won": cost_total_won,
         "txn_cost_won": txn_cost_won,
         "user_total_won": user_total_won,
+        # ★ P&L bp (avg DV01 기준) — V2 룰 target+3/stop-3 비교용
+        "pnl_bp_on_avg_dv01": (user_total_won / ((dv01_long + dv01_short) / 2.0))
+                              if (dv01_long + dv01_short) > 0 else None,
+        # 운용 룰 임계 (V2)
+        "rule_target_bp": 3.0,
+        "rule_stop_bp": -3.0,
+        "rule_max_hold_days": 90,
         "current_eps_long": float(cur_eps_long_v) if cur_eps_long_v is not None and pd.notna(cur_eps_long_v) else None,
         "current_eps_short": float(cur_eps_short_v) if cur_eps_short_v is not None and pd.notna(cur_eps_short_v) else None,
         "current_cum_eps_long": float(cur_cum_long) if cur_cum_long is not None and pd.notna(cur_cum_long) else None,
