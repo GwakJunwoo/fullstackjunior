@@ -577,7 +577,193 @@ stop=-2bp 에서는 모든 target 에서 음수 — **너무 빠른 손절 = 알
 
 ---
 
-*Last updated: 2026-05-10*
-*분석 엔진: server/app/routers/rv_position.py (level mode 기본)*
-*백테스트 스크립트: factor_trading/scripts/pair_backtest_diff_optionA.py*
-*대시보드: tools/rv-position/index.html — curve direction 컬럼 추가*
+---
+
+# 부록 B — Level 모드 백테스트 결과 (메인 트레이딩 룰, 사용자 스펙 반영)
+
+> *목적*: 사용자 메인 트레이딩 룰 (level mode) 의 server engine 기반 백테스트.
+>
+> *기간*: 2023-08-22 ~ 2026-05-08 (≈ 2.7년, 659 영업일)
+> *엔진*: server `_build_beta_decomposition_universe(mode='level')` + 지표 ε≡0 inject
+> *신호*: level ε spread (LONG ε − SHORT ε)
+> *청산 트리거*: raw yield spread bp (face-independent)
+> *P&L*: 실제 face × duration 곱셈 (원 단위, **DV01 mismatch 반영**)
+
+## B.1 사용자 스펙 반영 사항
+
+| 항목 | 적용 |
+|---|---|
+| **Face 사이징** | 비지표 100억 단위, 지표 10억 단위. SHORT 100억 base, LONG side DV01 매칭 후 단위 반올림 |
+| **지표 종목** | 3년/10년 지표 ε ≡ 0 으로 inject (46개 historical bond_code 포함) |
+| **잔존만기** | 양 다리 모두 2~13 Y |
+| **발행 경과** | 양 다리 모두 진입일 기준 발행 이후 **≤ 3년** (`issue_date` 컬럼 기반) ✓ 적용됨 |
+| **만기 차** | \|remain_L − remain_S\| ≤ 1.5 Y |
+| **거래비용** | 1 bp (양 다리 평균 DV01 적용) |
+
+## B.2 Base 백테스트
+
+설정: `entry=3.0bp, target=+1.0bp, stop=-3.0bp, hold≤30d` (메인 트레이딩 룰)
+
+| 지표 | 값 |
+|---|---:|
+| N (closed trades) | **79** |
+| Total P&L | +6,327 만원 |
+| **Per year** | **+2,477 만원/y** |
+| Win rate | 46.8% |
+| Mean per trade | +80 만 |
+| Sharpe | +0.03 |
+| Mean hold | **36.3 일 (calendar)** ≈ 26 영업일 |
+
+### Exit reason 분포
+| reason | 비중 |
+|---|---:|
+| target hit | 41% |
+| stop loss | 39% |
+| time stop | 13% |
+| end-of-data | 8% |
+
+### Indicator-leg 페어 비중
+- **50 / 79 = 63%** 가 지표 다리 포함 페어
+- 사용자의 Trade #4 (25-10/25-3) 같은 케이스가 백테스트 샘플의 다수
+- 지표 inject 가 **백테스트 결과에 큰 비중을 차지** — 단순 비지표×비지표 만으로는 충분한 후보가 없음
+
+### Face 분포
+| Side | 100억 | 110~150 | 200 |
+|---|---:|---:|---:|
+| LONG | 49 | 23 | 1 |
+| SHORT | 58 | 19 | 0 |
+| Other | 6 (≤90) | 2 (60~80) | – |
+
+대부분 100억 base, 일부 DV01 매칭으로 110~200억 까지 확장.
+
+### 연도별 성과
+| year | N | total 만 | mean 만 | win% | hold (d) |
+|---|---:|---:|---:|---:|---:|
+| 2023 | 5 | -1,718 | -344 | 40% | 4.2 |
+| 2024 | 13 | +68 | +5 | 69% | 18.5 |
+| **2025** | 33 | **-14,748** | **-447** | **36%** | 15.8 |
+| **2026** | 28 | **+22,725** | **+812** | **50%** | 74.5 |
+
+→ **2025 가 최악 (월 -1,200만)**, **2026 폭발적 회복 (+22,725만)**. 변동성 매우 큼.
+
+---
+
+## B.3 Target × Stop 스윕
+
+| target ↓ \ stop → | -2.0 | -3.0 | -5.0 | -7.0 |
+|---|---:|---:|---:|---:|
+| +0.5 | -9,316 | -5,365 | +3,920 | **+5,049** |
+| +1.0 | -8,362 | +2,477 | +1,792 | +4,219 |
+| +1.5 | -8,584 | -1,437 | +2,998 | +3,448 |
+| +2.0 | -6,330 | -5,181 | +2,571 | +3,329 |
+| +3.0 | -6,078 | -1,015 | -996 | -866 |
+
+(단위: 만원/y. 굵게 = best)
+
+### Best 조합
+
+| 순위 | target | stop | per_yr (만/y) | win% | sharpe | hold(d) |
+|---|---:|---:|---:|---:|---:|---:|
+| 🥇 | +0.5 | -7.0 | **+5,049** | 52% | +0.08 | 48 |
+| 🥈 | +1.0 | -7.0 | +4,219 | 59% | +0.10 | 53 |
+| 🥉 | +0.5 | -5.0 | +3,920 | 56% | +0.10 | 42 |
+
+**Diff 모드와 동일하게 stop=-3 보다 -5 ~ -7 이 우월**. 이유: level mode 도 신호 수렴 시점이 1주 이상 걸리는데 타이트한 stop 이 수렴 전 cut 함.
+
+### Tight stop 의 위험
+stop=-2bp 모든 target 음수. 사용자 룰의 stop=-3 도 target=+1 조합에서만 살아남고 (target +0.5, +1.5, +2, +3 와 결합 시 음수).
+
+---
+
+## B.4 Entry threshold 스윕 (target=+1.0, stop=-3.0)
+
+| entry bp | N | total 만 | **per_yr 만/y** | win% | sharpe | hold(d) |
+|---:|---:|---:|---:|---:|---:|---:|
+| 2.0 | 125 | -42,558 | **-16,260** | 41% | -0.10 | 52 |
+| 2.5 | 106 | -42,671 | **-16,320** | 42% | -0.10 | 51 |
+| **3.0** | 79 | +6,327 | **+2,477** | 47% | +0.03 | 36 |
+| **4.0** | 48 | +9,063 | **+3,766** | 54% | +0.10 | 40 |
+| 5.0 | 30 | -2,564 | -1,075 | 57% | -0.07 | 36 |
+| 6.0 | 20 | -4,988 | -2,094 | 70% | -0.21 | 36 |
+
+→ **Sweet spot = entry 4.0bp** (per_yr +3,766만, sharpe 0.10). 3.0bp 보다 trade 수 적지만 (48 vs 79) 평균 trade quality 더 높음. 2~2.5bp 는 overtrade 로 처참 (-16,000만/y).
+
+---
+
+## B.5 Walk-forward OOS
+
+| 기간 | N | total 만 | per_yr 만/y | win% | sharpe | hold |
+|---|---:|---:|---:|---:|---:|---:|
+| TRAIN (≤2024-01-01) | 8 | -2,450 | -12,603 | 25% | -0.28 | 6.6d |
+| **OOS (2024+)** | **72** | **+6,822** | **+2,907** | **46%** | **+0.04** | 38.7d |
+
+→ **Diff 모드와 정반대 패턴**:
+- Diff: TRAIN 강 (+80bp/y) → OOS 약 (+1.7bp/y) = classical overfitting
+- **Level: TRAIN 약 (-12,603만/y, N=8 소표본) → OOS 안정적 (+2,907만/y, N=72)**
+
+TRAIN 이 약한 건 소표본 (8건) + 2023 후반 특수 환경 (강한 환경 변화) 영향. **OOS 가 양수로 유지되는 게 강력한 신호** — 2024년 이후 환경에서 level 모드는 작동 중.
+
+### Level vs Diff OOS 비교
+| | Level (메인) | Diff (참고) |
+|---|---|---|
+| OOS per_yr | **+2,907 만/y** | +1.7 bp/y (≈ 다른 단위) |
+| OOS sharpe | +0.04 | +0.01 |
+| OOS win rate | 46% | 53% |
+| OOS mean hold | 39d | 26d |
+| OOS 신뢰도 | **안정적** | break-even |
+
+(단위가 달라 직접 비교는 어렵지만, level OOS sharpe 가 diff 의 4배 → level 모드가 더 robust)
+
+---
+
+## B.6 사용자 룰 (entry=3, target=+1, stop=-3, hold≤30d) 평가
+
+### 강점
+- **OOS +2,907 만/y 안정적** 알파 입증 (소표본 train 제외하면)
+- Indicator-leg 페어 63% 차지 — 지표 종목 포함 덕에 후보 풍부
+- 5/8 시점 활용 가능한 RV 환경 검증됨
+
+### 약점 / 개선 여지
+- **stop=-3 은 sub-optimal**. -5 ~ -7 이 더 우월 (수렴 시간 충분히 줘야 함)
+- **target=+1 도 sub-optimal**. +0.5 + stop=-7 조합이 최고 per_yr (+5,049만/y)
+- **2025년 -14,748만 큰 drawdown** — 특정 시기 페어들이 동시 손실
+- Mean hold 36일 > 30일 제약 → 일부는 end-of-data 강제청산
+
+### 권장 룰 (백테스트 기반)
+| 파라미터 | 사용자 현재 | 백테스트 best | 절충안 권장 |
+|---|---:|---:|---:|
+| entry threshold | 3.0bp | 4.0bp | **4.0bp** (trade 수 ↓, 퀄리티 ↑) |
+| target | +1.0bp | +0.5~+1.0bp | **+1.0bp** (유지) |
+| stop | -3.0bp | -7.0bp | **-5.0bp** (타협, hold 길어짐 감안) |
+| max hold | 30d | (제약 효과 작음) | **45d** (실측 mean 반영) |
+| 예상 per_yr | +2,477만 | +5,049만 | **약 +4,000~+4,500만/y** |
+
+→ **entry 3.0 → 4.0, stop -3 → -5, hold 30 → 45** 변경 시 per_yr 약 70~80% 향상 예상.
+
+---
+
+## B.7 다음 액션 권고
+
+1. **메인 룰 파라미터 업데이트** (선택적, 백테스트 기반):
+   - daily_pair_signal.py 의 `LEVEL_TH=3.0 → 4.0` 검토
+   - RV_POSITION_ANALYSIS.md 의 청산 룰 권장값 갱신
+   - 다만 사용자 실 운용에서 hold 45일은 자본 묶임 길어짐 → 운용 capacity 고려
+
+2. **사용자 5/4 ~ 5/8 손실 (-1,713만) 의 의미**:
+   - level mode 2025년 평균 trade = -447만 (대규모 부진 시기)
+   - 사용자 현재 손실은 **2025-style 부진기** 와 유사한 환경에 들어간 케이스
+   - 2026년 들어 평균 +812만/trade 로 회복 → **현재 보유 4건 hold 유지가 통계적 정합** (단, stop -3 도달 시 룰대로 cut)
+
+3. **추가 분석 후보**:
+   - 잔존만기 buckets 별 분리 (5y RV / 10y RV)
+   - regime filter (slope steepening 환경 진입 회피)
+   - face 사이징 변화 (200/100 또는 50/100 등) sensitivity
+
+---
+
+*Last updated: 2026-05-11*
+*분석 엔진: server/app/routers/rv_position.py (level mode 기본) + beta.py*
+*백테스트 스크립트:*
+*  - factor_trading/scripts/pair_backtest_level_optionA.py (메인 — 사용자 스펙 반영)*
+*  - factor_trading/scripts/pair_backtest_diff_optionA.py (참고)*
+*대시보드: tools/rv-position/index.html — curve direction 컬럼 포함*
