@@ -46,7 +46,23 @@
     .find-tbl td:first-child { width:160px; color:var(--t3); }
     .lvl-PASS { color:var(--green); } .lvl-WARN { color:#fbbf24; } .lvl-VIOLATION { color:var(--red); font-weight:600; }
     .blocked-banner { background:rgba(248,113,113,.08); border:.5px solid rgba(248,113,113,.28); color:var(--red); font-size:12px; padding:8px 12px; border-radius:var(--rs); margin-bottom:12px; }
-    @media (max-width:760px){ .strat-grid{grid-template-columns:1fr;} .metrics{grid-template-columns:1fr 1fr;} }
+    .sgrid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px; }
+    .sgrid .s { background:var(--s2); border:.5px solid var(--bd); border-radius:var(--rs); padding:8px 10px; }
+    .sgrid .sl { font-size:9px; color:var(--t3); text-transform:uppercase; letter-spacing:.3px; margin-bottom:3px; }
+    .sgrid .sv { font-size:15px; font-weight:600; }
+    .sgrid .sv.pos { color:var(--green); } .sgrid .sv.neg { color:var(--red); }
+    .qchart { position:relative; height:200px; background:var(--s1); border:.5px solid var(--bd); border-radius:var(--rs); padding:8px 10px 6px; margin-bottom:12px; }
+    .qchart.sm { height:150px; }
+    .tlog-wrap { max-height:340px; overflow:auto; border:.5px solid var(--bd); border-radius:var(--rs); }
+    .tlog { width:100%; border-collapse:collapse; font-size:10.5px; white-space:nowrap; }
+    .tlog th, .tlog td { padding:5px 8px; text-align:right; border-bottom:.5px solid var(--bd); }
+    .tlog th { position:sticky; top:0; background:var(--s2); color:var(--t3); font-size:9px; text-transform:uppercase; letter-spacing:.3px; z-index:1; }
+    .tlog td.lt, .tlog th.lt { text-align:left; }
+    .tlog .lng { color:var(--green); } .tlog .sht { color:var(--red); }
+    .tlog .pp { color:var(--green); } .tlog .pn { color:var(--red); }
+    .tlog tr:hover td { background:rgba(255,255,255,.02); }
+    .noart { background:var(--s2); border:.5px dashed var(--bd2); border-radius:var(--rs); padding:14px; font-size:11.5px; color:var(--t3); line-height:1.7; }
+    @media (max-width:760px){ .strat-grid{grid-template-columns:1fr;} .metrics{grid-template-columns:1fr 1fr;} .sgrid{grid-template-columns:1fr 1fr;} }
   </style>
 </head>
 <body>
@@ -76,9 +92,17 @@
   <div id="detail" class="detail panel-wrap" style="margin-top:14px"></div>
 </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script>
 let CACHE = {};
+let _charts = [];
+function _destroyCharts(){ _charts.forEach(c=>{try{c.destroy()}catch(e){}}); _charts=[]; }
+const AXC = '#8b93a8', GRID = 'rgba(255,255,255,.05)';
+function _baseOpts(){ return { responsive:true, maintainAspectRatio:false,
+  plugins:{ legend:{display:false}, tooltip:{ callbacks:{} } },
+  scales:{ x:{ ticks:{color:AXC,font:{size:9},maxTicksLimit:8}, grid:{color:GRID} },
+           y:{ ticks:{color:AXC,font:{size:9}}, grid:{color:GRID} } } }; }
 
 async function load() {
   const dot = document.getElementById('dot'), conn = document.getElementById('conn');
@@ -132,33 +156,104 @@ async function load() {
   }
 }
 
+function _fmt(v,suf){ if(v==null||v==='') return '–'; const n=Number(v);
+  if(!isFinite(n)) return String(v);
+  return (n>0&&suf!=='%'?'+':'')+ (Math.abs(n)>=100?Math.round(n):n.toFixed(2)) + (suf||''); }
+
 async function showDetail(name) {
   const d = document.getElementById('detail');
+  _destroyCharts();
   let s; try { s = await apiGet('/quant-house/strategy/'+encodeURIComponent(name)); }
   catch (e) { s = CACHE[name]; }
-  const a = s.audit || {}; const b = s.backtest || {}; const cons = s.constraints || {};
-  let banner = a.blocked ? '<div class="blocked-banner">⛔ 헌법 워치독 BLOCK — VIOLATION '+(a.n_violation||0)+'건. S9 배포 불가. Bond Quant House compliance 해소 필요.</div>' : '';
-  let consRows = Object.entries(cons).map(([k,val])=>'<tr><td>'+k+'</td><td>'+val+'</td></tr>').join('') || '<tr><td class="status" colspan=2>12제약 선언 없음</td></tr>';
-  let btRows = Object.entries(b).map(([k,val])=>'<tr><td>'+k+'</td><td>'+val+'</td></tr>').join('') || '<tr><td class="status" colspan=2>백테스트 기록 없음</td></tr>';
+  const a = s.audit || {}; const cons = s.constraints || {};
+  const banner = a.blocked ? '<div class="blocked-banner">⛔ 헌법 워치독 BLOCK — VIOLATION '+(a.n_violation||0)+'건. S9 배포 불가.</div>' : '';
+  const consRows = Object.entries(cons).map(([k,val])=>'<tr><td>'+k+'</td><td>'+val+'</td></tr>').join('') || '<tr><td class="status" colspan=2>12제약 선언 없음</td></tr>';
+
   d.innerHTML =
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
     '<div style="font-size:14px;font-weight:600">'+s.name+' <span class="status">@'+s.version+' · '+s.category+'</span></div>'+
-    '<button class="btn" onclick="document.getElementById(\'detail\').classList.remove(\'show\')">닫기</button></div>'+
+    '<button class="btn" onclick="_destroyCharts();document.getElementById(\'detail\').classList.remove(\'show\')">닫기</button></div>'+
     banner+
     '<div class="status" style="margin-bottom:6px">알파 근거: '+(s.concept||'')+'</div>'+
     '<div class="status" style="margin-bottom:12px">통합: <span class="itag i-'+(s.integration||'ported')+'">'+(s.integration||'ported')+'</span>'+
-      (s.integration==='catalog'?(' — 알파 로직 원본: <code>'+(s.source_ref||'')+'</code> (이 엔진 미이식, 가짜 시그널 금지)'):' — 이 엔진에서 백테스트 가능')+
+      (s.integration==='catalog'?(' — 알파 로직 원본: <code>'+(s.source_ref||'')+'</code> (미이식, 가짜 금지 §3)'):' — 이 엔진서 백테스트 가능')+
       (s.notes?('<br>'+s.notes):'')+'</div>'+
+    '<div id="btSection" class="status">백테스트 로딩…</div>'+
     '<div class="cat-title">헌법 감사</div>'+
-    '<div class="status">최근 verdict: <span class="lvl-'+(a.verdict||'none')+'">'+(a.verdict||'미감사')+'</span>'+
-      ' · VIOLATION '+(a.n_violation??'–')+' · WARN '+(a.n_warn??'–')+' · '+(a.at||'')+
-      '<br>전체 항목(C1~C11) 상세는 Bond Quant House compliance 리포트 / decisions.md 참조.</div>'+
-    '<div class="cat-title">RV 12제약 선언</div><table class="find-tbl"><tbody>'+consRows+'</tbody></table>'+
-    '<div class="cat-title">백테스트 (비용 후, bp)</div><table class="find-tbl"><tbody>'+btRows+'</tbody></table>'+
+    '<div class="status">verdict <span class="lvl-'+(a.verdict||'none')+'">'+(a.verdict||'미감사')+'</span>'+
+      ' · VIOLATION '+(a.n_violation??'–')+' · WARN '+(a.n_warn??'–')+' · '+(a.at||'')+'</div>'+
+    '<div class="cat-title">12제약 선언</div><table class="find-tbl"><tbody>'+consRows+'</tbody></table>'+
     '<div class="cat-title">진화경로</div><div class="status">'+(s.lineage||[s.name]).join(' ← ')+
       (s.related_existing&&s.related_existing.length?('<br>파생 출처: '+s.related_existing.join(', ')):'')+'</div>';
   d.classList.add('show');
   d.scrollIntoView({behavior:'smooth', block:'start'});
+
+  let art; try { art = await apiGet('/quant-house/backtest/'+encodeURIComponent(name)); }
+  catch(e){ art = {has_artifact:false, note:'아티팩트 조회 실패: '+(e.detail||e.message)}; }
+  renderBacktest(art);
+}
+
+function renderBacktest(art){
+  const sec = document.getElementById('btSection');
+  if (!sec) return;
+  if (!art.has_artifact){
+    sec.className=''; sec.innerHTML =
+      '<div class="cat-title">백테스트</div><div class="noart">'+
+      (art.note||'백테스트 아티팩트 없음')+
+      (art.source_ref?('<br>원본: <code>'+art.source_ref+'</code>'):'')+'</div>';
+    return;
+  }
+  const st = art.stats||{};
+  const S = (l,k,suf,sign)=>{ const v=st[k]; const cls = sign&&v!=null?(v>=0?'pos':'neg'):'';
+    return '<div class="s"><div class="sl">'+l+'</div><div class="sv '+cls+'">'+_fmt(v,suf)+'</div></div>'; };
+  sec.className='';
+  sec.innerHTML =
+    '<div class="cat-title">기초 통계 (비용 후, bp)</div>'+
+    '<div class="sgrid">'+
+      S('거래수','n_trades','')+ S('누적 PnL','total_pnl_bp','bp',1)+
+      S('Sharpe(연)','sharpe_annualized','',1)+ S('적중률','hit_rate','')+
+      S('MaxDD','max_drawdown_bp','bp',1)+ S('평균보유(일)','mean_days_held','')+
+      S('거래/주','trades_per_week','')+ S('총비용','total_cost_bp','bp')+
+    '</div>'+
+    '<div class="cat-title">누적 PnL (bp)</div><div class="qchart"><canvas id="cEq"></canvas></div>'+
+    '<div class="cat-title">월간 PnL (bp)</div><div class="qchart sm"><canvas id="cMo"></canvas></div>'+
+    '<div class="cat-title">Drawdown (bp)</div><div class="qchart sm"><canvas id="cDd"></canvas></div>'+
+    '<div class="cat-title">진입 포지션 로그 ('+art.n_trades+'건)</div>'+
+    '<div class="tlog-wrap"><table class="tlog"><thead><tr>'+
+      '<th class="lt">종목</th><th class="lt">진입</th><th class="lt">청산</th><th>보유</th>'+
+      '<th>방향</th><th>진입bp</th><th>청산bp</th><th>PnL bp</th><th>비용</th><th class="lt">청산사유</th>'+
+    '</tr></thead><tbody>'+
+      art.trades.slice().reverse().map(t=>{
+        const lng=t.side>0; const pp=t.pnl_bp>=0;
+        return '<tr><td class="lt">'+(t.code||'')+'</td><td class="lt">'+t.entry_date+'</td>'+
+          '<td class="lt">'+t.exit_date+'</td><td>'+t.days_held+'</td>'+
+          '<td class="'+(lng?'lng':'sht')+'">'+(lng?'LONG':'SHORT')+'</td>'+
+          '<td>'+_fmt(t.entry_bp)+'</td><td>'+_fmt(t.exit_bp)+'</td>'+
+          '<td class="'+(pp?'pp':'pn')+'">'+_fmt(t.pnl_bp)+'</td>'+
+          '<td>'+_fmt(t.cost_bp)+'</td><td class="lt">'+(t.exit_reason||'')+'</td></tr>';
+      }).join('')+
+    '</tbody></table></div>';
+
+  const eq=art.equity||[], mo=art.monthly||[], dd=art.drawdown||[];
+  if (eq.length){
+    _charts.push(new Chart(document.getElementById('cEq').getContext('2d'),{
+      type:'line', data:{ labels:eq.map(p=>p.d), datasets:[{ data:eq.map(p=>p.v),
+        borderColor:'#34d399', backgroundColor:'rgba(52,211,153,.10)', borderWidth:1.3,
+        fill:true, pointRadius:0, tension:.15 }] },
+      options:{..._baseOpts()} }));
+  }
+  if (mo.length){
+    _charts.push(new Chart(document.getElementById('cMo').getContext('2d'),{
+      type:'bar', data:{ labels:mo.map(p=>p.ym), datasets:[{ data:mo.map(p=>p.v),
+        backgroundColor:mo.map(p=>p.v>=0?'rgba(52,211,153,.55)':'rgba(248,113,113,.55)'),
+        borderWidth:0 }] }, options:{..._baseOpts()} }));
+  }
+  if (dd.length){
+    _charts.push(new Chart(document.getElementById('cDd').getContext('2d'),{
+      type:'line', data:{ labels:dd.map(p=>p.d), datasets:[{ data:dd.map(p=>p.v),
+        borderColor:'#f87171', backgroundColor:'rgba(248,113,113,.14)', borderWidth:1,
+        fill:true, pointRadius:0, tension:.1 }] }, options:{..._baseOpts()} }));
+  }
 }
 
 load();

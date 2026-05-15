@@ -66,6 +66,30 @@ def strategy_detail(name: str):
     return s
 
 
+@router.get("/backtest/{name}")
+def backtest_artifact(name: str):
+    """전략 백테스트 전체 산출물 — 기초통계 + 누적PnL/월간/MDD 시계열 + 진입 로그.
+
+    catalog 전략(알파 미이식)은 아티팩트가 없다 → has_artifact=False 로
+    정직하게 반환(가짜 차트 금지, HOUSE §3).
+    """
+    safe = name.replace("/", "").replace("\\", "").replace("..", "")
+    fp = SNAP_DIR / safe / "backtest_artifact.json"
+    reg = _load_registry().get("strategies", {}).get(name)
+    if not reg:
+        raise HTTPException(404, f"미등록 전략: {name}")
+    if not fp.exists():
+        return {"name": name, "has_artifact": False,
+                "integration": reg.get("integration"),
+                "source_ref": reg.get("source_ref"),
+                "note": "백테스트 아티팩트 없음 — catalog 전략은 알파 로직이 "
+                        "원본(Beta Trading)에 있고 이 엔진 미이식. "
+                        "ported 승격 후 cli.py backtest 실행 시 생성됨."}
+    art = json.loads(fp.read_text(encoding="utf-8"))
+    art["has_artifact"] = True
+    return art
+
+
 @router.get("/daily/{name}")
 def daily_output(name: str):
     """전략 최신 시그널 스냅샷. engine/cli 가 기록한 daily_signal.json 을 서빙.
