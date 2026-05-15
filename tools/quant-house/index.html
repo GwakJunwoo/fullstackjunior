@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bond Quant House — 다전략 운용</title>
+  <link rel="stylesheet" href="/assets/css/main.css">
+  <style>
+    .panel-wrap { background:var(--s1); border:.5px solid var(--bd); border-radius:var(--r); padding:1rem 1.125rem; margin-bottom:12px; }
+    .ctrl-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+    .conn-dot { width:7px; height:7px; border-radius:50%; background:var(--t3); display:inline-block; margin-right:6px; }
+    .conn-dot.ok { background:var(--green); box-shadow:0 0 5px rgba(52,211,153,.45); }
+    .conn-dot.err { background:var(--red); }
+    .btn { background:none; border:.5px solid var(--bd2); border-radius:var(--rs); color:var(--t2); font-size:12px; cursor:pointer; padding:6px 11px; transition:all .15s; }
+    .btn:hover { border-color:var(--blue); color:var(--blue); }
+    .status { font-size:11px; color:var(--t3); }
+
+    .metrics { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; margin-bottom:12px; }
+    .metric { background:var(--s1); border:.5px solid var(--bd); border-radius:var(--rs); padding:9px 11px; }
+    .metric .ml { font-size:9px; color:var(--t3); margin-bottom:3px; letter-spacing:.3px; text-transform:uppercase; }
+    .metric .mv { font-size:18px; font-weight:600; letter-spacing:-.3px; }
+    .metric.neg .mv { color:var(--red); }
+
+    .cat-title { font-size:11px; color:var(--t3); letter-spacing:.4px; text-transform:uppercase; margin:18px 0 8px; }
+    .strat-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:10px; }
+    .strat-card { background:var(--s1); border:.5px solid var(--bd); border-radius:var(--r); padding:13px 14px; cursor:pointer; transition:border-color .15s,background .15s; position:relative; }
+    .strat-card:hover { border-color:var(--bd2); background:var(--s2); }
+    .strat-name { font-size:13px; font-weight:600; color:var(--t1); margin-bottom:3px; }
+    .strat-concept { font-size:11px; color:var(--t3); line-height:1.55; margin-bottom:9px; min-height:32px; }
+    .strat-row { display:flex; gap:14px; font-size:11px; color:var(--t2); flex-wrap:wrap; }
+    .strat-row b { color:var(--t1); font-weight:600; }
+    .strat-lineage { font-size:10px; color:var(--t3); margin-top:8px; }
+    .vbadge { position:absolute; top:11px; right:12px; font-size:9px; font-weight:600; letter-spacing:.4px; padding:2px 7px; border-radius:3px; text-transform:uppercase; }
+    .v-PASS { background:rgba(52,211,153,.12); color:var(--green); border:.5px solid rgba(52,211,153,.25); }
+    .v-WARN { background:rgba(251,191,36,.12); color:#fbbf24; border:.5px solid rgba(251,191,36,.25); }
+    .v-VIOLATION { background:rgba(248,113,113,.12); color:var(--red); border:.5px solid rgba(248,113,113,.28); }
+    .v-none { background:rgba(255,255,255,.04); color:var(--t3); border:.5px solid var(--bd); }
+    .itag { font-size:9px; font-weight:600; letter-spacing:.3px; padding:1px 6px; border-radius:3px; text-transform:uppercase; margin-left:6px; vertical-align:middle; }
+    .i-ported { background:rgba(74,158,255,.12); color:var(--blue); border:.5px solid rgba(74,158,255,.28); }
+    .i-catalog { background:rgba(255,255,255,.04); color:var(--t3); border:.5px solid var(--bd2); }
+
+    .detail { display:none; }
+    .detail.show { display:block; }
+    .find-tbl { width:100%; border-collapse:collapse; font-size:11.5px; }
+    .find-tbl td { padding:6px 8px; border-bottom:.5px solid var(--bd); vertical-align:top; }
+    .find-tbl td:first-child { width:160px; color:var(--t3); }
+    .lvl-PASS { color:var(--green); } .lvl-WARN { color:#fbbf24; } .lvl-VIOLATION { color:var(--red); font-weight:600; }
+    .blocked-banner { background:rgba(248,113,113,.08); border:.5px solid rgba(248,113,113,.28); color:var(--red); font-size:12px; padding:8px 12px; border-radius:var(--rs); margin-bottom:12px; }
+    @media (max-width:760px){ .strat-grid{grid-template-columns:1fr;} .metrics{grid-template-columns:1fr 1fr;} }
+  </style>
+</head>
+<body>
+<div class="container">
+  <nav class="nav">
+    <span class="nav-brand">Bond Quant House</span>
+    <div class="nav-links"><a href="/" class="nav-link">홈</a><a href="/tools/quant-house/" class="nav-link active">다전략 운용</a></div>
+  </nav>
+
+  <div class="panel-wrap">
+    <div class="ctrl-row">
+      <span><span id="dot" class="conn-dot"></span><span id="conn" class="status">연결 확인 중…</span></span>
+      <button class="btn" onclick="load()">새로고침</button>
+      <span id="updated" class="status" style="margin-left:auto"></span>
+    </div>
+  </div>
+
+  <div class="metrics">
+    <div class="metric"><div class="ml">등록 전략</div><div class="mv" id="m-total">–</div></div>
+    <div class="metric"><div class="ml">운영중 (deployed)</div><div class="mv" id="m-deployed">–</div></div>
+    <div class="metric neg"><div class="ml">헌법 BLOCK</div><div class="mv" id="m-blocked">–</div></div>
+    <div class="metric"><div class="ml">카테고리</div><div class="mv" id="m-cat">–</div></div>
+  </div>
+
+  <div id="list"></div>
+
+  <div id="detail" class="detail panel-wrap" style="margin-top:14px"></div>
+</div>
+
+<script src="/assets/js/api.js"></script>
+<script>
+let CACHE = {};
+
+async function load() {
+  const dot = document.getElementById('dot'), conn = document.getElementById('conn');
+  try {
+    const h = await apiGet('/health');
+    dot.className = 'conn-dot ' + (h.status === 'ok' ? 'ok' : 'err');
+    conn.textContent = h.status === 'ok' ? 'DB 연결됨' : ('오류: ' + (h.detail||''));
+  } catch (e) { dot.className='conn-dot err'; conn.textContent='서버 연결 실패'; }
+
+  let data;
+  try { data = await apiGet('/quant-house/strategies'); }
+  catch (e) { document.getElementById('list').innerHTML =
+    '<div class="panel-wrap status">등록부를 불러올 수 없습니다. registry.json 이 비어있을 수 있습니다 ('+ (e.detail||e.message) +').</div>'; return; }
+
+  const s = data.summary || {};
+  document.getElementById('m-total').textContent = s.total ?? 0;
+  document.getElementById('m-deployed').textContent = s.deployed ?? 0;
+  document.getElementById('m-blocked').textContent = s.blocked ?? 0;
+  document.getElementById('m-cat').textContent = Object.keys(data.by_category||{}).length;
+  document.getElementById('updated').textContent = s.updated ? ('등록부 갱신 ' + s.updated) : '';
+
+  const wrap = document.getElementById('list'); wrap.innerHTML = '';
+  const cats = data.by_category || {};
+  if (!Object.keys(cats).length) {
+    wrap.innerHTML = '<div class="panel-wrap status">아직 등록된 전략이 없습니다. Bond Quant House 에서 <code>python cli.py backtest &lt;name&gt;</code> 실행 시 자동 등록됩니다.</div>';
+    return;
+  }
+  for (const [cat, items] of Object.entries(cats)) {
+    const ct = document.createElement('div'); ct.className='cat-title'; ct.textContent = cat + ' · ' + items.length; wrap.appendChild(ct);
+    const grid = document.createElement('div'); grid.className='strat-grid';
+    for (const it of items) {
+      CACHE[it.name] = it;
+      const a = it.audit || {}; const b = it.backtest || {};
+      const v = a.verdict || 'none';
+      const sh = b.sharpe_annualized != null ? Number(b.sharpe_annualized).toFixed(2) : '–';
+      const pnl = b.total_pnl_bp != null ? Math.round(b.total_pnl_bp) + 'bp' : '–';
+      const tpw = b.trades_per_week != null ? Number(b.trades_per_week).toFixed(1) : '–';
+      const dd = b.max_drawdown_bp != null ? Math.round(b.max_drawdown_bp) + 'bp' : '–';
+      const c = document.createElement('div'); c.className='strat-card'; c.onclick=()=>showDetail(it.name);
+      c.innerHTML =
+        '<span class="vbadge v-'+v+'">'+(v==='none'?'미감사':v)+'</span>'+
+        '<div class="strat-name">'+it.name+' <span class="status">@'+it.version+'</span>'+
+        '<span class="itag i-'+(it.integration||'ported')+'">'+(it.integration||'ported')+'</span></div>'+
+        '<div class="strat-concept">'+(it.concept||'')+'</div>'+
+        '<div class="strat-row"><span>stage <b>'+it.stage+'</b></span><span>status <b>'+it.status+'</b></span>'+
+        '<span>Sharpe <b>'+sh+'</b></span><span>PnL <b>'+pnl+'</b></span><span>거래/주 <b>'+tpw+'</b></span><span>MaxDD <b>'+dd+'</b></span></div>'+
+        '<div class="strat-lineage">진화경로: '+(it.lineage||[it.name]).join(' ← ')+'</div>';
+      grid.appendChild(c);
+    }
+    wrap.appendChild(grid);
+  }
+}
+
+async function showDetail(name) {
+  const d = document.getElementById('detail');
+  let s; try { s = await apiGet('/quant-house/strategy/'+encodeURIComponent(name)); }
+  catch (e) { s = CACHE[name]; }
+  const a = s.audit || {}; const b = s.backtest || {}; const cons = s.constraints || {};
+  let banner = a.blocked ? '<div class="blocked-banner">⛔ 헌법 워치독 BLOCK — VIOLATION '+(a.n_violation||0)+'건. S9 배포 불가. Bond Quant House compliance 해소 필요.</div>' : '';
+  let consRows = Object.entries(cons).map(([k,val])=>'<tr><td>'+k+'</td><td>'+val+'</td></tr>').join('') || '<tr><td class="status" colspan=2>12제약 선언 없음</td></tr>';
+  let btRows = Object.entries(b).map(([k,val])=>'<tr><td>'+k+'</td><td>'+val+'</td></tr>').join('') || '<tr><td class="status" colspan=2>백테스트 기록 없음</td></tr>';
+  d.innerHTML =
+    '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
+    '<div style="font-size:14px;font-weight:600">'+s.name+' <span class="status">@'+s.version+' · '+s.category+'</span></div>'+
+    '<button class="btn" onclick="document.getElementById(\'detail\').classList.remove(\'show\')">닫기</button></div>'+
+    banner+
+    '<div class="status" style="margin-bottom:6px">알파 근거: '+(s.concept||'')+'</div>'+
+    '<div class="status" style="margin-bottom:12px">통합: <span class="itag i-'+(s.integration||'ported')+'">'+(s.integration||'ported')+'</span>'+
+      (s.integration==='catalog'?(' — 알파 로직 원본: <code>'+(s.source_ref||'')+'</code> (이 엔진 미이식, 가짜 시그널 금지)'):' — 이 엔진에서 백테스트 가능')+
+      (s.notes?('<br>'+s.notes):'')+'</div>'+
+    '<div class="cat-title">헌법 감사</div>'+
+    '<div class="status">최근 verdict: <span class="lvl-'+(a.verdict||'none')+'">'+(a.verdict||'미감사')+'</span>'+
+      ' · VIOLATION '+(a.n_violation??'–')+' · WARN '+(a.n_warn??'–')+' · '+(a.at||'')+
+      '<br>전체 항목(C1~C11) 상세는 Bond Quant House compliance 리포트 / decisions.md 참조.</div>'+
+    '<div class="cat-title">RV 12제약 선언</div><table class="find-tbl"><tbody>'+consRows+'</tbody></table>'+
+    '<div class="cat-title">백테스트 (비용 후, bp)</div><table class="find-tbl"><tbody>'+btRows+'</tbody></table>'+
+    '<div class="cat-title">진화경로</div><div class="status">'+(s.lineage||[s.name]).join(' ← ')+
+      (s.related_existing&&s.related_existing.length?('<br>파생 출처: '+s.related_existing.join(', ')):'')+'</div>';
+  d.classList.add('show');
+  d.scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+load();
+</script>
+</body>
+</html>
