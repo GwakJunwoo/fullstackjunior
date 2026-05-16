@@ -207,35 +207,70 @@ function renderBacktest(art){
     return;
   }
   const st = art.stats||{};
-  const S = (l,k,suf,sign)=>{ const v=st[k]; const cls = sign&&v!=null?(v>=0?'pos':'neg'):'';
+  const S = (l,k,suf,sign)=>{ const v=st[k]; if(v==null) return '';
+    const cls = sign?(v>=0?'pos':'neg'):'';
     return '<div class="s"><div class="sl">'+l+'</div><div class="sv '+cls+'">'+_fmt(v,suf)+'</div></div>'; };
+  const T = art.trades||[];
+  const has = k => T.some(r=>r[k]!=null && r[k]!=='');
+  const isPair = has('long')&&has('short');     // OF/OFn/Combine/CV2
+  const isStruct = has('struct');                // CV1T 멀티레그(버터플라이/슬로프/베이시스)
+  const hasMan = has('pnl_man');                 // Combine 만원 실손익
+  const hasSpread = has('spread_in');
+
   sec.className='';
+  let head, body;
+  if (isStruct){
+    head = '<th class="lt">서브</th><th class="lt">구조(레그)</th><th class="lt">진입</th><th class="lt">청산</th><th>보유</th><th>방향</th><th>size</th><th>PnL bp</th><th>비용</th><th class="lt">청산사유</th>';
+    body = T.slice().reverse().map(t=>{ const pp=t.pnl_bp>=0; const lng=t.side>0;
+      return '<tr><td class="lt">'+(t.strategy||'')+'</td><td class="lt">'+(t.struct||'')+'</td>'+
+       '<td class="lt">'+t.entry_date+'</td><td class="lt">'+t.exit_date+'</td><td>'+(t.days_held??'')+'</td>'+
+       '<td class="'+(lng?'lng':'sht')+'">'+(lng?'+1':'-1')+'</td><td>'+_fmt(t.size)+'</td>'+
+       '<td class="'+(pp?'pp':'pn')+'">'+_fmt(t.pnl_bp)+'</td><td>'+_fmt(t.cost_bp)+'</td>'+
+       '<td class="lt">'+(t.exit_reason||'')+'</td></tr>'; }).join('');
+  } else if (isPair){
+    head = '<th class="lt">LONG</th><th class="lt">SHORT</th><th class="lt">방향</th><th class="lt">진입</th><th class="lt">청산</th><th>보유</th>'+
+      (hasSpread?'<th>스프레드in</th><th>out</th>':'<th>YTM_n</th><th>YTM_b</th>')+
+      '<th>PnL bp</th>'+(hasMan?'<th>PnL 만원</th>':'')+'<th>비용</th><th class="lt">청산사유</th>';
+    body = T.slice().reverse().map(t=>{ const pp=t.pnl_bp>=0;
+      const c1 = hasSpread?_fmt(t.spread_in):_fmt(t.ytm_n);
+      const c2 = hasSpread?_fmt(t.spread_out):_fmt(t.ytm_b);
+      return '<tr><td class="lt lng">'+(t.long||'')+'</td><td class="lt sht">'+(t.short||'')+'</td>'+
+       '<td class="lt">'+(t.dir||'')+'</td><td class="lt">'+t.entry_date+'</td><td class="lt">'+t.exit_date+'</td>'+
+       '<td>'+(t.days_held??'')+'</td><td>'+c1+'</td><td>'+c2+'</td>'+
+       '<td class="'+(pp?'pp':'pn')+'">'+_fmt(t.pnl_bp)+'</td>'+
+       (hasMan?('<td class="'+((t.pnl_man>=0)?'pp':'pn')+'">'+_fmt(t.pnl_man)+'</td>'):'')+
+       '<td>'+_fmt(t.cost_bp)+'</td><td class="lt">'+(t.exit_reason||'')+'</td></tr>'; }).join('');
+  } else {
+    head = '<th class="lt">종목</th><th class="lt">진입</th><th class="lt">청산</th><th>보유</th><th>방향</th><th>진입bp</th><th>청산bp</th><th>PnL bp</th><th>비용</th><th class="lt">청산사유</th>';
+    body = T.slice().reverse().map(t=>{ const lng=t.side>0; const pp=t.pnl_bp>=0;
+      return '<tr><td class="lt">'+(t.code||'')+'</td><td class="lt">'+t.entry_date+'</td>'+
+       '<td class="lt">'+t.exit_date+'</td><td>'+(t.days_held??'')+'</td>'+
+       '<td class="'+(lng?'lng':'sht')+'">'+(lng?'LONG':'SHORT')+'</td>'+
+       '<td>'+_fmt(t.entry_bp)+'</td><td>'+_fmt(t.exit_bp)+'</td>'+
+       '<td class="'+(pp?'pp':'pn')+'">'+_fmt(t.pnl_bp)+'</td><td>'+_fmt(t.cost_bp)+'</td>'+
+       '<td class="lt">'+(t.exit_reason||'')+'</td></tr>'; }).join('');
+  }
+
+  const structNote = isStruct
+    ? '<div class="status" style="margin:4px 0 8px">⚠ CV1T 는 비지표 페어가 아니라 <b>멀티레그 구조</b>(butterfly·slope·basis). struct 컬럼이 실제 레그 — 예: <code>bf_3_10_30</code>=3-10-30 버터플라이, <code>basis_10y_KTB10F</code>=10년 현물 vs KTB10F 선물 베이시스. PnL bp 는 구조 BPV 기준.</div>' : '';
+
   sec.innerHTML =
-    '<div class="cat-title">기초 통계 (비용 후, bp)</div>'+
+    '<div class="cat-title">기초 통계 (비용 후)</div>'+
     '<div class="sgrid">'+
       S('거래수','n_trades','')+ S('누적 PnL','total_pnl_bp','bp',1)+
-      S('Sharpe(연)','sharpe_annualized','',1)+ S('적중률','hit_rate','')+
-      S('MaxDD','max_drawdown_bp','bp',1)+ S('평균보유(일)','mean_days_held','')+
-      S('거래/주','trades_per_week','')+ S('총비용','total_cost_bp','bp')+
+      S('연 bp','bp_per_year','bp',1)+ S('적중률','hit_rate','')+
+      S('Sharpe(거래·연율)','sharpe_annualized','',1)+ S('MaxDD','max_drawdown_bp','bp',1)+
+      S('평균보유(일)','mean_days_held','')+ S('거래/주','trades_per_week','')+
+      S('평균/거래','mean_bp_per_trade','bp',1)+ S('총비용','total_cost_bp','bp')+
+      (st.pnl_eok_per_year!=null?S('연 손익(억)','pnl_eok_per_year','',1):'')+
+      (st.total_pnl_man!=null?S('누적 손익(만원)','total_pnl_man','',1):'')+
     '</div>'+
     '<div class="cat-title">누적 PnL (bp)</div><div class="qchart"><canvas id="cEq"></canvas></div>'+
     '<div class="cat-title">월간 PnL (bp)</div><div class="qchart sm"><canvas id="cMo"></canvas></div>'+
     '<div class="cat-title">Drawdown (bp)</div><div class="qchart sm"><canvas id="cDd"></canvas></div>'+
-    '<div class="cat-title">진입 포지션 로그 ('+art.n_trades+'건)</div>'+
-    '<div class="tlog-wrap"><table class="tlog"><thead><tr>'+
-      '<th class="lt">종목</th><th class="lt">진입</th><th class="lt">청산</th><th>보유</th>'+
-      '<th>방향</th><th>진입bp</th><th>청산bp</th><th>PnL bp</th><th>비용</th><th class="lt">청산사유</th>'+
-    '</tr></thead><tbody>'+
-      art.trades.slice().reverse().map(t=>{
-        const lng=t.side>0; const pp=t.pnl_bp>=0;
-        return '<tr><td class="lt">'+(t.code||'')+'</td><td class="lt">'+t.entry_date+'</td>'+
-          '<td class="lt">'+t.exit_date+'</td><td>'+t.days_held+'</td>'+
-          '<td class="'+(lng?'lng':'sht')+'">'+(lng?'LONG':'SHORT')+'</td>'+
-          '<td>'+_fmt(t.entry_bp)+'</td><td>'+_fmt(t.exit_bp)+'</td>'+
-          '<td class="'+(pp?'pp':'pn')+'">'+_fmt(t.pnl_bp)+'</td>'+
-          '<td>'+_fmt(t.cost_bp)+'</td><td class="lt">'+(t.exit_reason||'')+'</td></tr>';
-      }).join('')+
-    '</tbody></table></div>';
+    '<div class="cat-title">진입 포지션 로그 ('+art.n_trades+'건)</div>'+ structNote +
+    '<div class="tlog-wrap"><table class="tlog"><thead><tr>'+head+
+    '</tr></thead><tbody>'+body+'</tbody></table></div>';
 
   const eq=art.equity||[], mo=art.monthly||[], dd=art.drawdown||[];
   if (eq.length){
