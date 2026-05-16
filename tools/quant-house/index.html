@@ -37,6 +37,7 @@
     .v-none { background:rgba(255,255,255,.04); color:var(--t3); border:.5px solid var(--bd); }
     .itag { font-size:9px; font-weight:600; letter-spacing:.3px; padding:1px 6px; border-radius:3px; text-transform:uppercase; margin-left:6px; vertical-align:middle; }
     .i-ported { background:rgba(74,158,255,.12); color:var(--blue); border:.5px solid rgba(74,158,255,.28); }
+    .i-linked { background:rgba(52,211,153,.12); color:var(--green); border:.5px solid rgba(52,211,153,.28); }
     .i-catalog { background:rgba(255,255,255,.04); color:var(--t3); border:.5px solid var(--bd2); }
 
     .detail { display:none; }
@@ -176,7 +177,9 @@ async function showDetail(name) {
     banner+
     '<div class="status" style="margin-bottom:6px">알파 근거: '+(s.concept||'')+'</div>'+
     '<div class="status" style="margin-bottom:12px">통합: <span class="itag i-'+(s.integration||'ported')+'">'+(s.integration||'ported')+'</span>'+
-      (s.integration==='catalog'?(' — 알파 로직 원본: <code>'+(s.source_ref||'')+'</code> (미이식, 가짜 금지 §3)'):' — 이 엔진서 백테스트 가능')+
+      (s.integration==='catalog'?(' — 알파 로직 원본: <code>'+(s.source_ref||'')+'</code> (미이식, 가짜 금지 §3)')
+        : s.integration==='linked'?(' — 원본 권위 백테스트 산출물 연결: <code>'+(s.linked_source||s.source_ref||'')+'</code>. 알파/백테스트는 원본(Beta Trading)이며 하우스는 통일관리·헌법점검·시각화만 (재구현 아님 → 발산 0). 통계의 Sharpe 는 거래당 연율화 기준이라 원본 일일-PnL Sharpe 와 다를 수 있음(거래로그는 동일)')
+        : ' — 이 엔진서 백테스트 가능')+
       (s.notes?('<br>'+s.notes):'')+'</div>'+
     '<div id="btSection" class="status">백테스트 로딩…</div>'+
     '<div class="cat-title">헌법 감사</div>'+
