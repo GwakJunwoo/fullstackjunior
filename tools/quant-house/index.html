@@ -339,6 +339,7 @@ async function showDetail(name) {
     '<div class="status" style="margin-bottom:6px">알파 근거: '+(s.concept||'')+'</div>'+
     '<div class="status" style="margin-bottom:12px">통합: <span class="itag i-'+(s.integration||'ported')+'">'+(s.integration||'ported')+'</span>'+
       (s.integration==='catalog'?(' — 알파 로직 원본: <code>'+(s.source_ref||'')+'</code> (미이식, 가짜 금지 §3)')
+        : s.integration==='ported'?(' — ✅ <b>통합 랩에서 원안 코드를 라이브 DB로 재실행</b>'+(s.port_mode?(' ['+s.port_mode+']'):'')+(s.last_port?(' · 최종 '+s.last_port):'')+'. 재구현이 아니라 원본 검증 코드 그대로 실행 → 발산 0 + 정적 CSV 독립(매 실행 DB 재계산). <code>'+(s.source_ref||'')+'</code>')
         : s.integration==='linked'?(' — 원본 권위 백테스트 산출물 연결: <code>'+(s.linked_source||s.source_ref||'')+'</code>. 알파/백테스트는 원본(Beta Trading)이며 하우스는 통일관리·헌법점검·시각화만 (재구현 아님 → 발산 0). 통계의 Sharpe 는 거래당 연율화 기준이라 원본 일일-PnL Sharpe 와 다를 수 있음(거래로그는 동일)')
         : ' — 이 엔진서 백테스트 가능')+
       (s.notes?('<br>'+s.notes):'')+'</div>'+
