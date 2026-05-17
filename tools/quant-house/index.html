@@ -47,6 +47,14 @@
     .find-tbl td:first-child { width:160px; color:var(--t3); }
     .lvl-PASS { color:var(--green); } .lvl-WARN { color:#fbbf24; } .lvl-VIOLATION { color:var(--red); font-weight:600; }
     .blocked-banner { background:rgba(248,113,113,.08); border:.5px solid rgba(248,113,113,.28); color:var(--red); font-size:12px; padding:8px 12px; border-radius:var(--rs); margin-bottom:12px; }
+    .vbanner { font-size:11.5px; padding:8px 12px; border-radius:var(--rs); margin-bottom:12px; line-height:1.6; }
+    .vbanner.v-ok   { background:rgba(52,211,153,.08); border:.5px solid rgba(52,211,153,.28); color:var(--green); }
+    .vbanner.v-warn { background:rgba(251,191,36,.08); border:.5px solid rgba(251,191,36,.28); color:#fbbf24; }
+    .vbanner.v-fail { background:rgba(248,113,113,.10); border:.5px solid rgba(248,113,113,.32); color:var(--red); font-weight:600; }
+    .vchip { font-size:9px; font-weight:700; letter-spacing:.3px; padding:1px 6px; border-radius:3px; margin-left:6px; }
+    .vc-ok { background:rgba(52,211,153,.14); color:var(--green); }
+    .vc-warn { background:rgba(251,191,36,.14); color:#fbbf24; }
+    .vc-fail { background:rgba(248,113,113,.14); color:var(--red); }
     .sgrid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px; }
     .sgrid .s { background:var(--s2); border:.5px solid var(--bd); border-radius:var(--rs); padding:8px 10px; }
     .sgrid .sl { font-size:9px; color:var(--t3); text-transform:uppercase; letter-spacing:.3px; margin-bottom:3px; }
@@ -275,14 +283,22 @@ async function load() {
       const sr = document.createElement('div'); sr.className='srow';
       sr.dataset.name = it.name;
       sr.onclick = (ev)=>{ ev.stopPropagation(); openStrat(it.name); };
+      const vv = it.validation && it.validation.verdict;
+      const vc = vv ? ('<span class="vchip vc-'+({PASS:"ok","PASS*":"warn",FAIL:"fail"}[vv]||"warn")+'">'+vv+'</span>') : '';
+      // RV 는 won 기반이 권위(명세 §1.4). 그 외는 bp/y.
+      const useWon = b.per_yr_man_orig!=null;
+      const c1lbl = useWon?'연 만원':'연 bp';
+      const c1val = useWon?b.per_yr_man_orig:b.bp_per_year;
+      const c2val = useWon?b.sharpe_won_orig:b.sharpe_annualized;
+      const c3val = useWon?(b.win_pct_orig!=null?b.win_pct_orig+'%':'–'):wr;
       sr.innerHTML =
-        '<span class="abadge ab-'+ab+'">'+ab.toUpperCase()+'</span>'+
+        '<span class="abadge ab-'+ab+'">'+ab.toUpperCase()+'</span>'+ vc +
         '<span class="srow-nm">'+it.name+'</span>'+
         '<span class="srow-cc">'+(it.concept||'')+'</span>'+
         '<span class="srow-r">'+
-          '<span class="col"><span class="k">연 bp</span><br><span class="val '+((b.bp_per_year||0)>=0?'pos':'neg')+'">'+_fmt(b.bp_per_year)+'</span></span>'+
-          '<span class="col"><span class="k">Sharpe</span><br><span class="val">'+_fmt(b.sharpe_annualized)+'</span></span>'+
-          '<span class="col"><span class="k">승률</span><br><span class="val">'+wr+'</span></span>'+
+          '<span class="col"><span class="k">'+c1lbl+'</span><br><span class="val '+((c1val||0)>=0?'pos':'neg')+'">'+_fmt(c1val)+'</span></span>'+
+          '<span class="col"><span class="k">Sharpe</span><br><span class="val">'+_fmt(c2val)+'</span></span>'+
+          '<span class="col"><span class="k">승률</span><br><span class="val">'+c3val+'</span></span>'+
           '<span class="itag i-'+(it.integration||'ported')+'">'+(it.integration||'ported')+'</span>'+
         '</span>';
       cb.appendChild(sr);
@@ -343,6 +359,8 @@ async function showDetail(name) {
         : s.integration==='linked'?(' — 원본 권위 백테스트 산출물 연결: <code>'+(s.linked_source||s.source_ref||'')+'</code>. 알파/백테스트는 원본(Beta Trading)이며 하우스는 통일관리·헌법점검·시각화만 (재구현 아님 → 발산 0). 통계의 Sharpe 는 거래당 연율화 기준이라 원본 일일-PnL Sharpe 와 다를 수 있음(거래로그는 동일)')
         : ' — 이 엔진서 백테스트 가능')+
       (s.notes?('<br>'+s.notes):'')+'</div>'+
+    (s.validation?('<div class="vbanner v-'+( {PASS:"ok","PASS*":"warn",FAIL:"fail"}[s.validation.verdict]||"none")+'">'+
+      '검증 '+s.validation.verdict+' (vs 명세, '+(s.validation.at||'')+'): '+(s.validation.note||'')+'</div>'):'')+
     '<div id="btSection" class="status">백테스트 로딩…</div>'+
     '<div class="cat-title">헌법 감사</div>'+
     '<div class="status">verdict <span class="lvl-'+(a.verdict||'none')+'">'+(a.verdict||'미감사')+'</span>'+
@@ -442,7 +460,10 @@ function renderBacktest(art){
       S('평균/거래','mean_bp_per_trade','bp',1)+ S('총비용','total_cost_bp','bp')+
       (st.pnl_eok_per_year!=null?S('연 손익(억)','pnl_eok_per_year','',1):'')+
       (st.total_pnl_man!=null?S('누적 손익(만원)','total_pnl_man','',1):'')+
+      (st.per_yr_man_orig!=null?S('연 만원(원안·권위)','per_yr_man_orig','',1):'')+
+      (st.sharpe_won_orig!=null?S('Sharpe(원안 won·권위)','sharpe_won_orig','',1):'')+
     '</div>'+
+    (st.per_yr_man_orig!=null?'<div class="status" style="margin:-4px 0 10px">RV 는 won 기반 지표가 명세 §1.4 권위값 (Sharpe 거래·연율 ≠ 원안 won Sharpe)</div>':'')+
     '<div class="cat-title">누적 PnL (bp)</div><div class="qchart"><canvas id="cEq"></canvas></div>'+
     '<div class="cat-title">월간 PnL (bp)</div><div class="qchart sm"><canvas id="cMo"></canvas></div>'+
     '<div class="cat-title">Drawdown (bp)</div><div class="qchart sm"><canvas id="cDd"></canvas></div>'+
