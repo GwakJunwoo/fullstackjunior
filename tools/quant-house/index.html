@@ -387,11 +387,14 @@ function renderBacktest(art){
       '" onclick="toggleTrade(\''+SN+'\','+idx+',this)">'+cells+'</tr>';
   if (isStruct){
     ncol=10;
-    head = '<th class="lt">서브</th><th class="lt">구조(레그)</th><th class="lt">진입</th><th class="lt">청산</th><th>보유</th><th>방향</th><th>size</th><th>PnL bp</th><th>비용</th><th class="lt">청산사유</th>';
+    const _iv = st.intraday;
+    head = '<th class="lt">서브</th><th class="lt">구조(레그)</th><th class="lt">진입</th><th class="lt">청산</th><th>'+(_iv?'bar':'보유')+'</th><th>방향</th><th>'+(_iv?'val_in→out':'size')+'</th><th>PnL bp</th><th>비용</th><th class="lt">청산사유</th>';
     body = T.map((t,i)=>({t,i})).reverse().map(({t,i})=>{ const pp=t.pnl_bp>=0; const lng=t.side>0;
-      return RT(i,'<td class="lt">'+(t.strategy||'')+'</td><td class="lt">'+(t.struct||'')+'</td>'+
-       '<td class="lt">'+t.entry_date+'</td><td class="lt">'+t.exit_date+'</td><td>'+(t.days_held??'')+'</td>'+
-       '<td class="'+(lng?'lng':'sht')+'">'+(lng?'▲+1':'▼-1')+'</td><td>'+_fmt(t.size)+'</td>'+
+      const hold = t.days_held ?? t.hold_bars ?? '';
+      const c7 = _iv ? (_fmt(t.val_in)+'→'+_fmt(t.val_out)) : _fmt(t.size);
+      return RT(i,'<td class="lt">'+(t.strategy||(_iv?'CV2-G1':''))+'</td><td class="lt">'+(t.struct||'')+'</td>'+
+       '<td class="lt">'+t.entry_date+'</td><td class="lt">'+t.exit_date+'</td><td>'+hold+'</td>'+
+       '<td class="'+(lng?'lng':'sht')+'">'+(lng?'▲+1':'▼-1')+'</td><td>'+c7+'</td>'+
        '<td class="'+(pp?'pp':'pn')+'">'+_fmt(t.pnl_bp)+'</td><td>'+_fmt(t.cost_bp)+'</td>'+
        '<td class="lt">'+(t.exit_reason||'')+'</td>'); }).join('');
   } else if (isPair){
@@ -424,13 +427,17 @@ function renderBacktest(art){
   const structNote = isStruct
     ? '<div class="status" style="margin:4px 0 8px">⚠ CV1T 는 비지표 페어가 아니라 <b>멀티레그 구조</b>(butterfly·slope·basis). struct 컬럼이 실제 레그 — 예: <code>bf_3_10_30</code>=3-10-30 버터플라이, <code>basis_10y_KTB10F</code>=10년 현물 vs KTB10F 선물 베이시스. PnL bp 는 구조 BPV 기준.</div>' : '';
 
+  const hu = st.hold_unit||'일';
+  const ivTag = st.intraday ? '<span class="abadge ab-active" style="margin-left:8px">INTRADAY (5분봉)</span>' : '';
   sec.innerHTML =
-    '<div class="cat-title">기초 통계 (비용 후)</div>'+
+    '<div class="cat-title">기초 통계 (비용 후)'+ivTag+'</div>'+
     '<div class="sgrid">'+
       S('거래수','n_trades','')+ S('누적 PnL','total_pnl_bp','bp',1)+
-      S('연 bp','bp_per_year','bp',1)+ S('적중률','hit_rate','')+
+      S('연 bp(전체)','bp_per_year','bp',1)+
+      (st.bp_per_year_clean!=null?S('연 bp(clean·강제청산제외)','bp_per_year_clean','bp',1):'')+
+      S('적중률','hit_rate','')+
       S('Sharpe(거래·연율)','sharpe_annualized','',1)+ S('MaxDD','max_drawdown_bp','bp',1)+
-      S('평균보유(일)','mean_days_held','')+ S('거래/주','trades_per_week','')+
+      S('평균보유('+hu+')','mean_hold','')+ S('거래/주','trades_per_week','')+
       S('평균/거래','mean_bp_per_trade','bp',1)+ S('총비용','total_cost_bp','bp')+
       (st.pnl_eok_per_year!=null?S('연 손익(억)','pnl_eok_per_year','',1):'')+
       (st.total_pnl_man!=null?S('누적 손익(만원)','total_pnl_man','',1):'')+
