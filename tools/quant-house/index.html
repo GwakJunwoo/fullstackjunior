@@ -133,6 +133,7 @@
   <div id="list"></div>
 
   <div id="detail" class="detail panel-wrap" style="margin-top:14px"></div>
+  <div id="tradeDetail" class="panel-wrap" style="display:none;margin-top:12px"></div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
@@ -149,22 +150,21 @@ function _baseOpts(){ return { responsive:true, maintainAspectRatio:false,
 let _TPATH = {};   // 거래 상세 캐시 (전략별)
 
 async function toggleTrade(strategy, ti, rowEl){
-  const next = rowEl.nextElementSibling;
-  if (next && next.classList.contains('tdetail')){   // 이미 열림 → 닫기
-    next.remove(); rowEl.classList.remove('open'); return;
+  const panel = document.getElementById('tradeDetail');
+  // 같은 행 다시 클릭 → 패널 닫기 (토글)
+  if (rowEl.classList.contains('open')){
+    rowEl.classList.remove('open');
+    panel.style.display='none'; panel.innerHTML=''; return;
   }
-  // 같은 표의 다른 열린 상세 닫기 (한 번에 하나)
-  rowEl.closest('tbody').querySelectorAll('tr.tdetail').forEach(e=>e.remove());
-  rowEl.closest('tbody').querySelectorAll('tr.trow.open').forEach(e=>e.classList.remove('open'));
+  document.querySelectorAll('tr.trow.open').forEach(e=>e.classList.remove('open'));
   rowEl.classList.add('open');
-  const ncol = window._TCOL||10;
-  const det = document.createElement('tr'); det.className='tdetail';
-  det.innerHTML = '<td colspan="'+ncol+'"><div class="tdwrap" id="td_'+ti+'">불러오는 중…</div></td>';
-  rowEl.after(det);
+  panel.style.display='block';
+  panel.innerHTML = '<div class="tdwrap" id="td_box">불러오는 중…</div>';
+  panel.scrollIntoView({behavior:'smooth', block:'nearest'});
   let r;
   try { r = await apiGet('/quant-house/trade-path?strategy='+encodeURIComponent(strategy)+'&i='+ti); }
-  catch(e){ document.getElementById('td_'+ti).innerHTML='<div class="status">상세 조회 실패: '+(e.detail||e.message)+'</div>'; return; }
-  renderTradeDetail(document.getElementById('td_'+ti), r, ti);
+  catch(e){ document.getElementById('td_box').innerHTML='<div class="status">상세 조회 실패: '+(e.detail||e.message)+'</div>'; return; }
+  renderTradeDetail(document.getElementById('td_box'), r, ti);
 }
 
 function renderTradeDetail(box, r, ti){
@@ -322,6 +322,9 @@ function openStrat(name){
 async function showDetail(name) {
   const d = document.getElementById('detail');
   _destroyCharts(); _TPATH={};
+  // 전략 전환 시 이전 거래 상세 패널 정리
+  const tp=document.getElementById('tradeDetail');
+  if(tp){ tp.style.display='none'; tp.innerHTML=''; }
   let s; try { s = await apiGet('/quant-house/strategy/'+encodeURIComponent(name)); }
   catch (e) { s = CACHE[name]; }
   const a = s.audit || {}; const cons = s.constraints || {};
