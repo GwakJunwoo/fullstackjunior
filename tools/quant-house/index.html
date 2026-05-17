@@ -378,6 +378,16 @@ async function showDetail(name) {
       '<table class="find-tbl"><tbody>'+
       Object.entries(s.diagnostics.by||{}).map(([k,vd])=>'<tr><td class="lvl-'+(vd==="PASS"?"PASS":(vd==="FAIL"?"VIOLATION":(vd==="WARN"?"WARN":"none")))+'">'+k+'</td><td>'+vd+' — '+((s.diagnostics.detail||{})[k]||'')+'</td></tr>').join('')+
       '</tbody></table>'):'')+
+    ((s.diagnostics&&s.diagnostics.walkforward)?(function(w){
+      var vc=(w.verdict||'').indexOf('PASS')===0?'ok':((w.verdict||'').indexOf('WARN')===0?'warn':'fail');
+      var f=function(o){return 'N='+o.N+' · ann <b>'+(o.ann>=0?'+':'')+o.ann.toFixed(1)+'</b> bp/y · Sharpe '+(o.sharpe>=0?'+':'')+o.sharpe.toFixed(2)+' · win '+o.win.toFixed(0)+'%';};
+      return '<div class="cat-title">Walk-forward OOS (D4 결판 — TRAIN '+w.train_end+' 이전만으로 파라미터 선정, TEST 미접촉)</div>'+
+      '<div class="vbanner v-'+vc+'">'+w.verdict+' · OOS_PSR=<b>'+(w.oos_psr!=null?Number(w.oos_psr).toFixed(3):'–')+'</b> (≥0.95 유의)</div>'+
+      '<table class="find-tbl"><tbody>'+
+      '<tr><td>TRAIN (≤'+w.train_end+', 선정구간)</td><td>'+f(w.train)+'</td></tr>'+
+      '<tr><td>TEST / OOS (>'+w.train_end+', LOCKED·미접촉)</td><td>'+f(w.test_oos)+'</td></tr>'+
+      '<tr><td>해석</td><td>'+(w.note||'')+'</td></tr>'+
+      '</tbody></table>';})(s.diagnostics.walkforward):'')+
     '<div class="cat-title">12제약 선언</div><table class="find-tbl"><tbody>'+consRows+'</tbody></table>'+
     '<div class="cat-title">진화경로</div><div class="status">'+(s.lineage||[s.name]).join(' ← ')+
       (s.related_existing&&s.related_existing.length?('<br>파생 출처: '+s.related_existing.join(', ')):'')+'</div>';
