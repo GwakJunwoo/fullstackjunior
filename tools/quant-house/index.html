@@ -55,6 +55,13 @@
     .vc-ok { background:rgba(52,211,153,.14); color:var(--green); }
     .vc-warn { background:rgba(251,191,36,.14); color:#fbbf24; }
     .vc-fail { background:rgba(248,113,113,.14); color:var(--red); }
+    .tlog tr.leaked td { background:rgba(248,113,113,.10) !important; }
+    .tlog tr.leaked td:first-child { box-shadow:inset 3px 0 0 var(--red); }
+    .tlog tr.forced td { background:rgba(251,191,36,.06) !important; }
+    .leakwarn { color:var(--red); font-weight:700; }
+    .flagtag { font-size:8.5px; font-weight:700; padding:1px 5px; border-radius:3px; background:rgba(248,113,113,.16); color:var(--red); }
+    .tlog tr.forced .flagtag { background:rgba(251,191,36,.16); color:#fbbf24; }
+    .leak-banner { background:rgba(248,113,113,.08); border:.5px solid rgba(248,113,113,.30); color:var(--red); font-size:11px; padding:8px 12px; border-radius:var(--rs); margin:4px 0 10px; line-height:1.6; }
     .sgrid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin-bottom:14px; }
     .sgrid .s { background:var(--s2); border:.5px solid var(--bd); border-radius:var(--rs); padding:8px 10px; }
     .sgrid .sl { font-size:9px; color:var(--t3); text-transform:uppercase; letter-spacing:.3px; margin-bottom:3px; }
@@ -402,8 +409,13 @@ function renderBacktest(art){
   const N = T.length;
   let head, body, ncol;
   // 자연순 idx (테이블은 최신순). data-ti = 원본 인덱스 → trade-path 조회
-  const RT = (idx, cells) => '<tr class="trow" data-ti="'+idx+
-      '" onclick="toggleTrade(\''+SN+'\','+idx+',this)">'+cells+'</tr>';
+  const RT = (idx, cells, t) => '<tr class="trow'+((t&&t.leaked)?' leaked':((t&&t.forced)?' forced':''))+
+      '" data-ti="'+idx+'" onclick="toggleTrade(\''+SN+'\','+idx+',this)">'+cells+'</tr>';
+  // 보유 표시: 누수(원안 hold stale)면 실제 span_cal(일)을 ⚠ 와 함께
+  const HOLD = (t, base) => (t&&t.leaked)
+      ? '<span class="leakwarn">⚠'+(t.span_cal!=null?t.span_cal+'일':'초과')+'</span>'
+      : (base??'');
+  const RSN = (t) => (t&&t.exit_reason||'')+((t&&t.flag)?(' <span class="flagtag">'+t.flag+'</span>'):'');
   if (isStruct){
     ncol=10;
     const _iv = st.intraday;
@@ -412,10 +424,10 @@ function renderBacktest(art){
       const hold = t.days_held ?? t.hold_bars ?? '';
       const c7 = _iv ? (_fmt(t.val_in)+'→'+_fmt(t.val_out)) : _fmt(t.size);
       return RT(i,'<td class="lt">'+(t.strategy||(_iv?'CV2-G1':''))+'</td><td class="lt">'+(t.struct||'')+'</td>'+
-       '<td class="lt">'+t.entry_date+'</td><td class="lt">'+t.exit_date+'</td><td>'+hold+'</td>'+
+       '<td class="lt">'+t.entry_date+'</td><td class="lt">'+t.exit_date+'</td><td>'+HOLD(t,hold)+'</td>'+
        '<td class="'+(lng?'lng':'sht')+'">'+(lng?'▲+1':'▼-1')+'</td><td>'+c7+'</td>'+
        '<td class="'+(pp?'pp':'pn')+'">'+_fmt(t.pnl_bp)+'</td><td>'+_fmt(t.cost_bp)+'</td>'+
-       '<td class="lt">'+(t.exit_reason||'')+'</td>'); }).join('');
+       '<td class="lt">'+RSN(t)+'</td>', t); }).join('');
   } else if (isPair){
     ncol = 10 + (hasMan?1:0);
     head = '<th class="lt">LONG ▲</th><th class="lt">SHORT ▼</th><th class="lt">방향</th><th class="lt">진입</th><th class="lt">청산</th><th>보유</th>'+
@@ -426,20 +438,20 @@ function renderBacktest(art){
       const c2 = hasSpread?_fmt(t.spread_out):_fmt(t.ytm_b);
       return RT(i,'<td class="lt lng">'+(t.long||'')+'</td><td class="lt sht">'+(t.short||'')+'</td>'+
        '<td class="lt">'+(t.dir||'')+'</td><td class="lt">'+t.entry_date+'</td><td class="lt">'+t.exit_date+'</td>'+
-       '<td>'+(t.days_held??'')+'</td><td>'+c1+'</td><td>'+c2+'</td>'+
+       '<td>'+HOLD(t,t.days_held)+'</td><td>'+c1+'</td><td>'+c2+'</td>'+
        '<td class="'+(pp?'pp':'pn')+'">'+_fmt(t.pnl_bp)+'</td>'+
        (hasMan?('<td class="'+((t.pnl_man>=0)?'pp':'pn')+'">'+_fmt(t.pnl_man)+'</td>'):'')+
-       '<td>'+_fmt(t.cost_bp)+'</td><td class="lt">'+(t.exit_reason||'')+'</td>'); }).join('');
+       '<td>'+_fmt(t.cost_bp)+'</td><td class="lt">'+RSN(t)+'</td>', t); }).join('');
   } else {
     ncol=10;
     head = '<th class="lt">종목</th><th class="lt">진입</th><th class="lt">청산</th><th>보유</th><th>방향</th><th>진입bp</th><th>청산bp</th><th>PnL bp</th><th>비용</th><th class="lt">청산사유</th>';
     body = T.map((t,i)=>({t,i})).reverse().map(({t,i})=>{ const lng=t.side>0; const pp=t.pnl_bp>=0;
       return RT(i,'<td class="lt">'+(t.code||'')+'</td><td class="lt">'+t.entry_date+'</td>'+
-       '<td class="lt">'+t.exit_date+'</td><td>'+(t.days_held??'')+'</td>'+
+       '<td class="lt">'+t.exit_date+'</td><td>'+HOLD(t,t.days_held)+'</td>'+
        '<td class="'+(lng?'lng':'sht')+'">'+(lng?'▲LONG':'▼SHORT')+'</td>'+
        '<td>'+_fmt(t.entry_bp)+'</td><td>'+_fmt(t.exit_bp)+'</td>'+
        '<td class="'+(pp?'pp':'pn')+'">'+_fmt(t.pnl_bp)+'</td><td>'+_fmt(t.cost_bp)+'</td>'+
-       '<td class="lt">'+(t.exit_reason||'')+'</td>'); }).join('');
+       '<td class="lt">'+RSN(t)+'</td>', t); }).join('');
   }
   window._TCOL = ncol;
 
@@ -452,8 +464,8 @@ function renderBacktest(art){
     '<div class="cat-title">기초 통계 (비용 후)'+ivTag+'</div>'+
     '<div class="sgrid">'+
       S('거래수','n_trades','')+ S('누적 PnL','total_pnl_bp','bp',1)+
-      S('연 bp(전체)','bp_per_year','bp',1)+
-      (st.bp_per_year_clean!=null?S('연 bp(clean·강제청산제외)','bp_per_year_clean','bp',1):'')+
+      (st.bp_per_year_clean!=null?S('연 bp ★clean(권위)','bp_per_year_clean','bp',1):S('연 bp','bp_per_year','bp',1))+
+      (st.bp_per_year_clean!=null?S('연 bp(전체·강제청산포함)','bp_per_year','bp',1):'')+
       S('적중률','hit_rate','')+
       S('Sharpe(거래·연율)','sharpe_annualized','',1)+ S('MaxDD','max_drawdown_bp','bp',1)+
       S('평균보유('+hu+')','mean_hold','')+ S('거래/주','trades_per_week','')+
@@ -464,6 +476,7 @@ function renderBacktest(art){
       (st.sharpe_won_orig!=null?S('Sharpe(원안 won·권위)','sharpe_won_orig','',1):'')+
     '</div>'+
     (st.per_yr_man_orig!=null?'<div class="status" style="margin:-4px 0 10px">RV 는 won 기반 지표가 명세 §1.4 권위값 (Sharpe 거래·연율 ≠ 원안 won Sharpe)</div>':'')+
+    ((st.leaked_n||0)>0?('<div class="leak-banner">⚠ <b>누수(보유초과) 거래 '+st.leaked_n+'건</b> 탐지 — 원안 백테스트가 정상청산(target/stop/time) 못 한 포지션이 컷오프까지 누수(실제 수개월~수년 보유, 원안 hold 컬럼은 stale). 전체(full) 수치를 <b>'+_fmt(st.full_inflation_pct,"%")+'</b> 왜곡 → <b>clean 수치가 권위</b>(명세도 clean 사용). 아래 로그에서 빨간 행 = 누수.</div>'):'')+
     '<div class="cat-title">누적 PnL (bp)</div><div class="qchart"><canvas id="cEq"></canvas></div>'+
     '<div class="cat-title">월간 PnL (bp)</div><div class="qchart sm"><canvas id="cMo"></canvas></div>'+
     '<div class="cat-title">Drawdown (bp)</div><div class="qchart sm"><canvas id="cDd"></canvas></div>'+
