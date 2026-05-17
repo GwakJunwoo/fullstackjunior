@@ -477,6 +477,7 @@ function renderBacktest(art){
     '</div>'+
     (st.per_yr_man_orig!=null?'<div class="status" style="margin:-4px 0 10px">RV 는 won 기반 지표가 명세 §1.4 권위값 (Sharpe 거래·연율 ≠ 원안 won Sharpe)</div>':'')+
     ((st.leaked_n||0)>0?('<div class="leak-banner">⚠ <b>누수(보유초과) 거래 '+st.leaked_n+'건</b> 탐지 — 원안 백테스트가 정상청산(target/stop/time) 못 한 포지션이 컷오프까지 누수(실제 수개월~수년 보유, 원안 hold 컬럼은 stale). 전체(full) 수치를 <b>'+_fmt(st.full_inflation_pct,"%")+'</b> 왜곡 → <b>clean 수치가 권위</b>(명세도 clean 사용). 아래 로그에서 빨간 행 = 누수.</div>'):'')+
+    (st.extra_cost_bp?('<div class="leak-banner" style="background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.30);color:#fbbf24">💸 <b>거래비용 +'+st.extra_cost_bp+'bp 추가 적용</b> ('+(st.extra_cost_mode||'')+') — 원안 비용 <i>위에</i> 가산한 보수/스트레스 수치입니다. 추가비용 합 '+_fmt(st.extra_cost_total_bp)+'bp. <b>위 표의 연 bp/PnL 은 가산 후 값</b>(원안 헤드라인이 아님). CV1T 는 ~210거래/년 고회전 → 비용 민감.</div>'):'')+
     '<div class="cat-title">누적 PnL (bp)</div><div class="qchart"><canvas id="cEq"></canvas></div>'+
     '<div class="cat-title">월간 PnL (bp)</div><div class="qchart sm"><canvas id="cMo"></canvas></div>'+
     '<div class="cat-title">Drawdown (bp)</div><div class="qchart sm"><canvas id="cDd"></canvas></div>'+
