@@ -372,6 +372,12 @@ async function showDetail(name) {
     '<div class="cat-title">헌법 감사</div>'+
     '<div class="status">verdict <span class="lvl-'+(a.verdict||'none')+'">'+(a.verdict||'미감사')+'</span>'+
       ' · VIOLATION '+(a.n_violation??'–')+' · WARN '+(a.n_warn??'–')+' · '+(a.at||'')+'</div>'+
+    (s.diagnostics?('<div class="cat-title">통계 안전장치 D1~D6 (HOUSE §1.3)</div>'+
+      '<div class="vbanner v-'+({PASS:"ok",WARN:"warn",FAIL:"fail","N/A":"none"}[s.diagnostics.overall]||"none")+'">overall <b>'+s.diagnostics.overall+'</b>'+
+      (s.diagnostics.dsr!=null?(' · Deflated Sharpe(D4)=<b>'+s.diagnostics.dsr+'</b> (≥0.95 통과)'):'')+'</div>'+
+      '<table class="find-tbl"><tbody>'+
+      Object.entries(s.diagnostics.by||{}).map(([k,vd])=>'<tr><td class="lvl-'+(vd==="PASS"?"PASS":(vd==="FAIL"?"VIOLATION":(vd==="WARN"?"WARN":"none")))+'">'+k+'</td><td>'+vd+' — '+((s.diagnostics.detail||{})[k]||'')+'</td></tr>').join('')+
+      '</tbody></table>'):'')+
     '<div class="cat-title">12제약 선언</div><table class="find-tbl"><tbody>'+consRows+'</tbody></table>'+
     '<div class="cat-title">진화경로</div><div class="status">'+(s.lineage||[s.name]).join(' ← ')+
       (s.related_existing&&s.related_existing.length?('<br>파생 출처: '+s.related_existing.join(', ')):'')+'</div>';
