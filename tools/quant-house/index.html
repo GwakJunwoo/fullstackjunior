@@ -359,13 +359,18 @@ async function showDetail(name) {
     '<div style="font-size:14px;font-weight:600">'+s.name+' <span class="status">@'+s.version+' · '+s.category+'</span></div>'+
     '<button class="btn" onclick="_destroyCharts();document.getElementById(\'detail\').classList.remove(\'show\')">닫기</button></div>'+
     banner+
-    '<div class="status" style="margin-bottom:6px">알파 근거: '+(s.concept||'')+'</div>'+
+    (s.tagline?('<div style="font-size:13px;color:var(--t2);margin:-2px 0 10px">'+s.tagline+'</div>'):'')+
+    '<table class="find-tbl" style="margin-bottom:10px"><tbody>'+
+      '<tr><td style="width:90px">컨셉</td><td>'+(s.concept||'—')+'</td></tr>'+
+      (s.edge?('<tr><td>엣지</td><td>'+s.edge+'</td></tr>'):'')+
+      (s.mechanics?('<tr><td>메커니즘</td><td>'+s.mechanics+'</td></tr>'):'')+
+      (s.notes?('<tr><td>상태</td><td>'+s.notes+'</td></tr>'):'')+
+    '</tbody></table>'+
     '<div class="status" style="margin-bottom:12px">통합: <span class="itag i-'+(s.integration||'ported')+'">'+(s.integration||'ported')+'</span>'+
       (s.integration==='catalog'?(' — 알파 로직 원본: <code>'+(s.source_ref||'')+'</code> (미이식, 가짜 금지 §3)')
-        : s.integration==='ported'?(' — ✅ <b>통합 랩에서 원안 코드를 라이브 DB로 재실행</b>'+(s.port_mode?(' ['+s.port_mode+']'):'')+(s.last_port?(' · 최종 '+s.last_port):'')+'. 재구현이 아니라 원본 검증 코드 그대로 실행 → 발산 0 + 정적 CSV 독립(매 실행 DB 재계산). <code>'+(s.source_ref||'')+'</code>')
-        : s.integration==='linked'?(' — 원본 권위 백테스트 산출물 연결: <code>'+(s.linked_source||s.source_ref||'')+'</code>. 알파/백테스트는 원본(Beta Trading)이며 하우스는 통일관리·헌법점검·시각화만 (재구현 아님 → 발산 0). 통계의 Sharpe 는 거래당 연율화 기준이라 원본 일일-PnL Sharpe 와 다를 수 있음(거래로그는 동일)')
-        : ' — 이 엔진서 백테스트 가능')+
-      (s.notes?('<br>'+s.notes):'')+'</div>'+
+        : s.integration==='ported'?(' — ✅ 원안 코드를 라이브 DB로 재실행(재구현 아님 → 발산 0). <code>'+(s.source_ref||'')+'</code>')
+        : s.integration==='linked'?(' — 원본 권위 산출물 연결: <code>'+(s.linked_source||s.source_ref||'')+'</code>')
+        : ' — 이 엔진서 백테스트 가능')+'</div>'+
     (s.validation?('<div class="vbanner v-'+( {PASS:"ok","PASS*":"warn",FAIL:"fail"}[s.validation.verdict]||"none")+'">'+
       '검증 '+s.validation.verdict+' (vs 명세, '+(s.validation.at||'')+'): '+(s.validation.note||'')+'</div>'):'')+
     '<div id="btSection" class="status">백테스트 로딩…</div>'+
@@ -388,6 +393,19 @@ async function showDetail(name) {
       '<tr><td>TEST / OOS (>'+w.train_end+', LOCKED·미접촉)</td><td>'+f(w.test_oos)+'</td></tr>'+
       '<tr><td>해석</td><td>'+(w.note||'')+'</td></tr>'+
       '</tbody></table>';})(s.diagnostics.walkforward):'')+
+    ((s.diagnostics&&s.diagnostics.robustness_tier)?(function(t){
+      var rt=s.diagnostics, tc=t.tier&&t.tier[0]==='A'?'ok':(t.tier&&t.tier[0]==='C'?'fail':'warn');
+      var rs=rt.regime_split, sh=rt.selection_haircut, fc=rt.friction_capacity;
+      var lo=rs&&rs.by_regime&&rs.by_regime.low, hi=rs&&rs.by_regime&&rs.by_regime.high;
+      return '<div class="cat-title">견고성 정밀진단 R1~R3 (총평 4항목)</div>'+
+      '<div class="vbanner v-'+tc+'">종합 tier <b>'+(t.tier||'?')+'</b> · strikes '+(t.strikes!=null?t.strikes:'?')+'</div>'+
+      '<table class="find-tbl"><tbody>'+
+      (rs?('<tr><td style="width:140px">R1 레짐분리</td><td><b>'+(rs.verdict||'')+'</b> — 평시 '+(lo?('N'+lo.N+' '+(lo.ann>=0?'+':'')+lo.ann+'/Sh'+lo.sharpe):'?')+' vs 고변동 '+(hi?((hi.ann>=0?'+':'')+hi.ann+'/Sh'+hi.sharpe):'?')+' <span class="status">['+(rs.kind||'')+']</span></td></tr>'):'')+
+      (sh?('<tr><td>R2 선택헤어컷</td><td><b>'+(sh.verdict||'')+'</b> — DSR@N={20,50,100}='+(sh.dsr_by_Nprogram?JSON.stringify(sh.dsr_by_Nprogram):'?')+' <span class="status">['+(sh.kind||'')+']</span></td></tr>'):'')+
+      (fc?('<tr><td>R3 마찰/capacity</td><td><b>'+(fc.verdict||'')+'</b> — base '+fc.base_ann_bp+'bp, breakeven 추가비용 '+fc.breakeven_extra_bp+'bp <span class="status">['+(fc.kind||'')+']</span></td></tr>'):'')+
+      '</tbody></table>';})(s.diagnostics.robustness_tier):'')+
+    '<div class="cat-title">오늘의 진입신호 (Forward)</div>'+
+    '<div id="fwdSection" class="status">forward 로딩…</div>'+
     '<div class="cat-title">12제약 선언</div><table class="find-tbl"><tbody>'+consRows+'</tbody></table>'+
     '<div class="cat-title">진화경로</div><div class="status">'+(s.lineage||[s.name]).join(' ← ')+
       (s.related_existing&&s.related_existing.length?('<br>파생 출처: '+s.related_existing.join(', ')):'')+'</div>';
@@ -397,6 +415,32 @@ async function showDetail(name) {
   let art; try { art = await apiGet('/quant-house/backtest/'+encodeURIComponent(name)); }
   catch(e){ art = {has_artifact:false, note:'아티팩트 조회 실패: '+(e.detail||e.message)}; }
   renderBacktest(art);
+
+  const fs = document.getElementById('fwdSection');
+  if (fs){
+    try{
+      const fwd = await apiGet('/quant-house/forward');
+      const j = (fwd.strategies||{})[name];
+      if (!j){ fs.innerHTML = '<span class="noart">forward 미생성 — cli.py forward 실행</span>'; }
+      else if (j.status){
+        fs.innerHTML = '<div class="vbanner v-warn">'+j.status+
+          (j.note?(' — '+j.note):'')+'</div>';
+      } else {
+        const ne = j.new_entries||[];
+        let h = '<div class="status" style="margin-bottom:6px">기준일 <b>'+(j.panel_max||fwd.as_of||'')+'</b>'+
+          (j.active_count!=null?(' · 보유중 '+j.active_count):'')+
+          ' · 신규 진입 <b>'+ne.length+'</b>건</div>';
+        if (ne.length){
+          h += '<table class="find-tbl"><tbody>'+ne.map(function(e){
+            const tag=e.signal||e.bond_code||'?';
+            const extra=(e.score!=null?(' score='+e.score):'')+(e.z!=null?(' z='+e.z):'')+(e.mode?(' ['+e.mode+']'):'');
+            return '<tr><td>'+tag+'</td><td>'+(e.side||'')+(e.note?(' · '+e.note):'')+extra+'</td></tr>';
+          }).join('')+'</tbody></table>';
+        } else { h += '<div class="noart">오늘 신규 진입 신호 없음</div>'; }
+        fs.className=''; fs.innerHTML = h;
+      }
+    }catch(e){ fs.innerHTML = '<span class="noart">forward 조회 실패: '+(e.detail||e.message)+'</span>'; }
+  }
 }
 
 function renderBacktest(art){

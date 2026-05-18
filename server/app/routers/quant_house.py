@@ -230,6 +230,24 @@ def trade_path(strategy: str, i: int = Query(..., ge=0)):
     return base
 
 
+_FWD_JSON = Path(os.getenv(
+    "QH_FORWARD_JSON",
+    r"C:\Users\infomax\Beta Trading\data\factor_trading\_forward"
+    r"\forward_signals.json"))
+
+
+@router.get("/forward")
+def forward_signals():
+    """전 전략 forward 진입신호(오늘 무엇을 진입). cli.py forward 산출.
+
+    백테스트(완료거래)와 별개 — 각 전략 자체 entry 규칙을 최신 패널에
+    적용한 '오늘의 신호'. 미생성 시 안내."""
+    if not _FWD_JSON.exists():
+        return {"as_of": None, "strategies": {},
+                "note": "forward_signals.json 미생성 — cli.py forward 실행 필요"}
+    return json.loads(_FWD_JSON.read_text(encoding="utf-8"))
+
+
 @router.get("/daily/{name}")
 def daily_output(name: str):
     """전략 최신 시그널 스냅샷. engine/cli 가 기록한 daily_signal.json 을 서빙.
