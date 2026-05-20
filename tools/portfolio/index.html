@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bond Quant House — 포트폴리오 백테스트</title>
+  <link rel="stylesheet" href="/assets/css/main.css">
+  <style>
+    .panel-wrap { background:var(--s1); border:.5px solid var(--bd); border-radius:var(--r); padding:1rem 1.125rem; margin-bottom:12px; }
+    .btn { background:none; border:.5px solid var(--bd2); border-radius:var(--rs); color:var(--t2); font-size:12px; cursor:pointer; padding:6px 11px; transition:all .15s; }
+    .btn:hover { border-color:var(--blue); color:var(--blue); }
+    .btn.primary { background:var(--blue); border-color:var(--blue); color:#fff; }
+    .btn.primary:hover { background:#3a8aff; }
+    .btn:disabled { opacity:.45; cursor:not-allowed; }
+    .status { font-size:11px; color:var(--t3); }
+    .cat-title { font-size:11px; color:var(--t3); letter-spacing:.4px; text-transform:uppercase; margin:18px 0 8px; }
+    .metrics { display:grid; grid-template-columns:repeat(5,1fr); gap:9px; margin:8px 0 4px; }
+    .metric { background:var(--s1); border:.5px solid var(--bd); border-radius:var(--rs); padding:9px 11px; }
+    .metric .ml { font-size:9px; color:var(--t3); margin-bottom:3px; letter-spacing:.3px; text-transform:uppercase; }
+    .metric .mv { font-size:17px; font-weight:600; letter-spacing:-.3px; }
+    .metric.neg .mv { color:var(--red); }
+    .metric.warn .mv { color:#fbbf24; }
+    .pick { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
+    .pick label { display:flex; gap:8px; align-items:center; background:var(--s1); border:.5px solid var(--bd); border-radius:var(--rs); padding:8px 10px; font-size:12px; cursor:pointer; }
+    .pick label.on { border-color:var(--blue); background:rgba(74,158,255,.07); }
+    .pick label .nm { font-weight:600; color:var(--t1); }
+    .pick label .meta { color:var(--t3); font-size:10px; margin-left:6px; }
+    .find-tbl { width:100%; border-collapse:collapse; font-size:11.5px; }
+    .find-tbl td, .find-tbl th { padding:6px 8px; border-bottom:.5px solid var(--bd); text-align:left; }
+    .find-tbl th { color:var(--t3); font-weight:600; font-size:10px; letter-spacing:.3px; text-transform:uppercase; }
+    .pos { color:var(--green); } .neg { color:var(--red); }
+    .corr-tbl { width:100%; border-collapse:collapse; font-size:11px; }
+    .corr-tbl td, .corr-tbl th { padding:5px 8px; border:.5px solid var(--bd); text-align:center; }
+    .corr-tbl th { background:var(--s2); color:var(--t3); }
+    .corr-tbl td.lo { background:rgba(52,211,153,.10); color:var(--green); }
+    .corr-tbl td.mid { background:rgba(251,191,36,.10); color:#fbbf24; }
+    .corr-tbl td.hi { background:rgba(248,113,113,.10); color:var(--red); }
+    .noart { color:var(--t3); font-style:italic; font-size:11.5px; }
+    canvas { max-height:280px; }
+    .loading { color:#fbbf24; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="nav-links"><a href="/" class="nav-link">홈</a><a href="/tools/quant-house/" class="nav-link">다전략 운용</a><a href="/tools/portfolio/" class="nav-link active">포트폴리오</a></div>
+  </header>
+  <main class="container" style="max-width:1200px;margin:0 auto;padding:20px 16px 80px;">
+    <h1 style="font-size:18px;margin:0 0 14px;color:var(--t1)">포트폴리오 백테스트 <span class="status">— 일별 시가평가(MtM), 원안 native 사이즈 합산, bp 기준</span></h1>
+
+    <div class="panel-wrap">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="font-size:13px;font-weight:600">① 전략 선택 (복수)</div>
+        <div>
+          <button class="btn" id="btnAll">전체 선택</button>
+          <button class="btn" id="btnNone">선택 해제</button>
+          <button class="btn primary" id="btnRun">② 백테스트 실행</button>
+        </div>
+      </div>
+      <div id="pickBox" class="pick"></div>
+      <div class="status" id="runStatus" style="margin-top:10px"></div>
+    </div>
+
+    <div id="result" style="display:none">
+      <div class="cat-title">포트폴리오 요약</div>
+      <div class="metrics" id="metrics"></div>
+      <div class="status" id="spanInfo" style="margin-bottom:14px"></div>
+
+      <div class="cat-title">누적 PnL & 드로다운 (bp)</div>
+      <div class="panel-wrap"><canvas id="chartCum"></canvas></div>
+      <div class="panel-wrap"><canvas id="chartDD"></canvas></div>
+
+      <div class="cat-title">한쪽 합산 DV01 (만원/bp) — 캡 5,000 초과 시 사이징 위험</div>
+      <div class="panel-wrap"><canvas id="chartDV01"></canvas></div>
+
+      <div class="cat-title">전략별 기여</div>
+      <div class="panel-wrap"><table class="find-tbl"><thead><tr><th>전략</th><th>거래수</th><th>연 bp</th><th>Sharpe(일별·연환산)</th></tr></thead><tbody id="byStrat"></tbody></table></div>
+
+      <div class="cat-title">전략 간 일별 PnL 상관</div>
+      <div class="panel-wrap" id="corrBox"></div>
+
+      <div class="cat-title">진입 신호 겹침 (같은 날 진입수)</div>
+      <div class="panel-wrap"><table class="find-tbl"><thead><tr><th>전략쌍</th><th>같은 날 동시 진입</th><th>같은 부호</th><th>반대 부호</th></tr></thead><tbody id="overlapBox"></tbody></table></div>
+    </div>
+  </main>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script>
+  let _charts = {};
+  function destroyCharts(){ for(const k in _charts){ try{_charts[k].destroy();}catch(e){} } _charts={}; }
+  function _fmt(v, suf=''){ if(v==null||v===undefined||(typeof v==='number'&&!isFinite(v))) return '–'; const n=Number(v); return (n>=0?'+':'')+n.toFixed(Math.abs(n)>=10?1:2)+suf; }
+
+  async function loadAvailable(){
+    let d; try { d = await apiGet('/quant-house/portfolio-available'); }
+    catch(e){ document.getElementById('pickBox').innerHTML = '<span class="noart">전략 목록 로드 실패: '+(e.detail||e.message)+'</span>'; return; }
+    const box = document.getElementById('pickBox'); box.innerHTML='';
+    const av = (d.available||[]).slice().sort((a,b)=>(a.category||'')+(a.name||'')<(b.category||'')+(b.name||'')?-1:1);
+    for(const x of av){
+      const id='ck_'+x.name;
+      const el = document.createElement('label');
+      el.htmlFor = id;
+      el.innerHTML = '<input type="checkbox" id="'+id+'" value="'+x.name+'">'+
+        '<span class="nm">'+x.name+'</span>'+
+        '<span class="meta">'+(x.category||'')+' · '+(x.version||'')+' · '+(x.integration||'')+'</span>';
+      el.addEventListener('click',(ev)=>{ if(ev.target.tagName!=='INPUT') return;
+        el.classList.toggle('on', ev.target.checked); });
+      box.appendChild(el);
+    }
+  }
+  function selected(){ return Array.from(document.querySelectorAll('#pickBox input:checked')).map(x=>x.value); }
+
+  document.getElementById('btnAll').onclick = ()=>{ document.querySelectorAll('#pickBox input').forEach(x=>{x.checked=true; x.closest('label').classList.add('on');}); };
+  document.getElementById('btnNone').onclick = ()=>{ document.querySelectorAll('#pickBox input').forEach(x=>{x.checked=false; x.closest('label').classList.remove('on');}); };
+
+  document.getElementById('btnRun').onclick = async ()=>{
+    const sel = selected();
+    if(!sel.length){ alert('전략을 1개 이상 선택하세요.'); return; }
+    document.getElementById('btnRun').disabled = true;
+    document.getElementById('result').style.display = 'none';
+    const ss = document.getElementById('runStatus');
+    ss.className = 'status loading';
+    const t0 = Date.now();
+    ss.innerHTML = '실행 중… 선택 '+sel.length+'개 전략, 거래 수에 따라 1~3분 소요. (DB·코드추적 path 재구성)';
+    const tk = setInterval(()=>{ ss.innerHTML = '실행 중… '+sel.length+'개 전략, 경과 '+((Date.now()-t0)/1000|0)+'초'; }, 1000);
+    let r;
+    try { r = await apiPost('/quant-house/portfolio',{strategies:sel}); }
+    catch(e){ clearInterval(tk); ss.className='status'; ss.innerHTML='실패: '+(e.detail||e.message); document.getElementById('btnRun').disabled=false; return; }
+    clearInterval(tk);
+    ss.className = 'status'; ss.innerHTML = '완료 — '+sel.length+'개 전략, '+r.n_trades_total+' 거래, '+((Date.now()-t0)/1000|0)+'초.';
+    document.getElementById('btnRun').disabled = false;
+    render(r);
+  };
+
+  function render(r){
+    if(r.error){ document.getElementById('runStatus').innerHTML='실패: '+r.error; return; }
+    document.getElementById('result').style.display='block';
+    destroyCharts();
+
+    const st = r.stats||{};
+    const m = document.getElementById('metrics');
+    const cells = [
+      ['연 bp', _fmt(st.ann_bp), st.ann_bp<0?'neg':''],
+      ['Sharpe (일별·연환산)', _fmt(st.sharpe_daily), ''],
+      ['MaxDD (bp)', _fmt(st.mdd_bp), 'neg'],
+      ['최대 한쪽 DV01', (st.max_dv01_oneside!=null?Math.round(st.max_dv01_oneside).toLocaleString()+'만/bp':'–'), (st.max_dv01_oneside>5000?'warn':'')],
+      ['총 거래수', (r.n_trades_total!=null?r.n_trades_total.toLocaleString():'–'), ''],
+    ];
+    m.innerHTML = cells.map(([l,v,c])=>'<div class="metric '+(c||'')+'"><div class="ml">'+l+'</div><div class="mv">'+v+'</div></div>').join('');
+    document.getElementById('spanInfo').textContent = '기간 '+r.start+' ~ '+r.end+' · 활성일수 '+st.n_active_days;
+
+    // Charts
+    const daily = r.daily||[];
+    const labels = daily.map(x=>x.d);
+    const cum = daily.map(x=>x.cum_bp);
+    const dd  = daily.map(x=>x.dd_bp);
+    const dv  = daily.map(x=>x.dv01_oneside);
+
+    const baseOpts = { animation:false, responsive:true, plugins:{legend:{labels:{font:{size:10}}}}, scales:{x:{ticks:{maxTicksLimit:10,font:{size:9}}},y:{ticks:{font:{size:9}}}}, elements:{point:{radius:0}} };
+    _charts.cum = new Chart(document.getElementById('chartCum'), {
+      type:'line', data:{labels, datasets:[{label:'누적 PnL (bp)',data:cum,borderColor:'#4a9eff',borderWidth:1.5,fill:false}]}, options: baseOpts
+    });
+    _charts.dd = new Chart(document.getElementById('chartDD'), {
+      type:'line', data:{labels, datasets:[{label:'드로다운 (bp)',data:dd,borderColor:'#f87171',backgroundColor:'rgba(248,113,113,.18)',borderWidth:1,fill:true}]}, options: baseOpts
+    });
+    const cap = labels.map(()=>5000);
+    _charts.dv = new Chart(document.getElementById('chartDV01'), {
+      type:'line', data:{labels, datasets:[
+        {label:'한쪽 DV01 (만원/bp)',data:dv,borderColor:'#fbbf24',borderWidth:1.2,fill:false},
+        {label:'캡 5,000', data:cap, borderColor:'#888', borderDash:[4,4], borderWidth:1, fill:false}
+      ]}, options: baseOpts
+    });
+
+    // By strategy
+    const bs = r.by_strategy||{};
+    document.getElementById('byStrat').innerHTML = Object.entries(bs).map(([nm,s])=>(
+      '<tr><td><b>'+nm+'</b></td><td>'+s.n_trades+'</td><td class="'+(s.ann_bp>=0?'pos':'neg')+'">'+_fmt(s.ann_bp)+'</td><td>'+_fmt(s.sharpe_daily)+'</td></tr>'
+    )).join('') || '<tr><td colspan=4 class="noart">없음</td></tr>';
+
+    // PnL Corr matrix
+    const cm = r.pnl_corr||{};
+    const names = Object.keys(cm);
+    const cls = v => Math.abs(v)<.2?'lo':Math.abs(v)<.5?'mid':'hi';
+    if(names.length>1){
+      let h = '<table class="corr-tbl"><thead><tr><th></th>'+names.map(n=>'<th>'+n+'</th>').join('')+'</tr></thead><tbody>';
+      for(const n of names){
+        h += '<tr><th>'+n+'</th>'+names.map(m=>{ const v=cm[n][m]; if(n===m) return '<td>—</td>'; return '<td class="'+cls(v)+'">'+v.toFixed(2)+'</td>'; }).join('')+'</tr>';
+      }
+      h += '</tbody></table>';
+      document.getElementById('corrBox').innerHTML = h;
+    } else {
+      document.getElementById('corrBox').innerHTML = '<span class="noart">전략이 1개라 상관 미산출</span>';
+    }
+
+    // Overlap
+    const ov = r.signal_overlap||{};
+    document.getElementById('overlapBox').innerHTML = Object.entries(ov).map(([k,v])=>{
+      const [a,b] = k.split('|');
+      return '<tr><td><b>'+a+'</b> ↔ <b>'+b+'</b></td><td>'+v.co_entry_days+'</td><td class="pos">'+v.same_sign+'</td><td class="neg">'+v.opp_sign+'</td></tr>';
+    }).join('') || '<tr><td colspan=4 class="noart">없음</td></tr>';
+  }
+
+  loadAvailable();
+  </script>
+</body>
+</html>

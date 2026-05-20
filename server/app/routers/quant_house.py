@@ -248,6 +248,51 @@ def forward_signals():
     return json.loads(_FWD_JSON.read_text(encoding="utf-8"))
 
 
+from fastapi import Body
+
+
+@router.post("/portfolio")
+def portfolio_run(body: dict = Body(...)):
+    """N개 전략 선택 → 일별 시가평가 포트폴리오 백테스트.
+
+    body: {"strategies":[name,...], "start":"YYYY-MM-DD"?, "end":"YYYY-MM-DD"?}
+    반환: 일별 PnL/누적/DD/한쪽DV01 시계열 + 전략별 통계 + PnL 상관 + 진입 겹침.
+    """
+    try:
+        from engine import portfolio
+    except Exception as e:
+        raise HTTPException(500, f"engine.portfolio import 실패: {e}")
+    names = body.get("strategies") or []
+    if not isinstance(names, list) or not names:
+        raise HTTPException(400, "strategies 리스트 필요")
+    bad = [n for n in names if n not in portfolio._LOG]
+    if bad:
+        raise HTTPException(400, f"미지원 전략: {bad}. 가능: {portfolio.AVAILABLE}")
+    try:
+        return portfolio.run(names, body.get("start"), body.get("end"))
+    except Exception as e:
+        raise HTTPException(500, f"portfolio.run 실패: {type(e).__name__}: {e}")
+
+
+@router.get("/portfolio-available")
+def portfolio_available():
+    """포트폴리오 화면에 노출 가능한 전략 이름 + 카탈로그."""
+    from engine import portfolio
+    reg = _load_registry().get("strategies", {})
+    items = []
+    for nm in portfolio.AVAILABLE:
+        e = reg.get(nm, {})
+        items.append({
+            "name": nm,
+            "category": e.get("category"),
+            "version": e.get("version"),
+            "integration": e.get("integration"),
+            "tagline": e.get("tagline"),
+            "status": e.get("status"),
+        })
+    return {"available": items}
+
+
 @router.get("/daily/{name}")
 def daily_output(name: str):
     """전략 최신 시그널 스냅샷. engine/cli 가 기록한 daily_signal.json 을 서빙.
