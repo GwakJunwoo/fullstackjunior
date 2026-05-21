@@ -293,6 +293,70 @@ def portfolio_available():
     return {"available": items}
 
 
+@router.post("/daily-refresh")
+def daily_refresh(body: dict = Body(default=None)):
+    """일일 풀-사이클 오케스트레이션 트리거 — BQH cli.py daily-refresh 호출.
+
+    body: {"dry_run": bool, "skip_deep": bool}  (둘 다 optional, 기본 False)
+      - dry_run=True  → stale 진단만 (빠름, panel rebuild 없음)
+      - skip_deep=True → cli 의 --skip-deep 플래그 전달
+    반환: {"exit_code": int, "stdout": str, "stderr": str, "summary": dict|None}
+      summary 는 cli 가 출력한 '=== SUMMARY ===' 이후 JSON 블록 파싱본
+      (실패 시 None, raw stdout 은 그대로 반환).
+    타임아웃: 600초 (panel rebuild 포함 풀-사이클).
+    """
+    import subprocess
+    body = body or {}
+    dry_run = bool(body.get("dry_run", False))
+    skip_deep = bool(body.get("skip_deep", False))
+
+    cli_fp = QH_ROOT / "cli.py"
+    if not cli_fp.exists():
+        raise HTTPException(500, f"BQH cli.py 없음: {cli_fp}")
+
+    cmd = [sys.executable, str(cli_fp), "daily-refresh"]
+    if dry_run:
+        cmd.append("--dry-run")
+    if skip_deep:
+        cmd.append("--skip-deep")
+
+    try:
+        proc = subprocess.run(
+            cmd, cwd=str(QH_ROOT),
+            capture_output=True, text=True,
+            encoding="utf-8", errors="replace",
+            timeout=600,
+        )
+    except subprocess.TimeoutExpired as e:
+        raise HTTPException(504, f"daily-refresh 타임아웃 (600s): {e}")
+    except Exception as e:
+        raise HTTPException(500, f"subprocess 실행 실패: {type(e).__name__}: {e}")
+
+    stdout = proc.stdout or ""
+    stderr = proc.stderr or ""
+
+    # cli 가 출력한 '=== SUMMARY ===' 이후 JSON 블록 파싱 시도
+    summary = None
+    marker = "=== SUMMARY ==="
+    idx = stdout.rfind(marker)
+    if idx >= 0:
+        tail = stdout[idx + len(marker):].strip()
+        try:
+            summary = json.loads(tail)
+        except Exception:
+            # JSON 파싱 실패 — raw 만 반환
+            summary = None
+
+    return {
+        "exit_code": proc.returncode,
+        "dry_run": dry_run,
+        "skip_deep": skip_deep,
+        "summary": summary,
+        "stdout": stdout,
+        "stderr": stderr,
+    }
+
+
 @router.get("/daily/{name}")
 def daily_output(name: str):
     """전략 최신 시그널 스냅샷. engine/cli 가 기록한 daily_signal.json 을 서빙.
