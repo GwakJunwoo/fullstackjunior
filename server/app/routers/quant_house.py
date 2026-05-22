@@ -392,6 +392,53 @@ def regime_current():
         raise HTTPException(500, f"regime.current 실패: {type(e).__name__}: {e}")
 
 
+@router.get("/regime/inspect")
+def regime_inspect(date: str | None = Query(default=None)):
+    """유사 국면 인스펙터 — engine.regime.inspect(date) 그대로 반환.
+
+    {target, similar:{target,neighbors:[...],caveat}, curve:{...}, rate_path:{...}}
+    date=None → 최신일. date='YYYY-MM-DD'.
+
+    ★ similar.caveat 는 *구조 유사도일 뿐 금리 방향(인상/인하) 보장 안 함* 경고를
+    담고 있다 — 프론트가 그대로 눈에 띄게 노출한다(HOUSE §1·§3). 백엔드는 가공
+    없이 정직하게 전달만 한다(가짜 데이터·행동지시 금지).
+    """
+    try:
+        from engine import regime
+    except Exception as e:
+        raise HTTPException(500, f"engine.regime import 실패: {type(e).__name__}: {e}")
+    try:
+        return regime.inspect(date)
+    except Exception as e:
+        raise HTTPException(500, f"regime.inspect 실패: {type(e).__name__}: {e}")
+
+
+@router.get("/regime/curve")
+def regime_curve(date: str = Query(...)):
+    """국고 일드커브 스냅샷 — engine.regime.curve_snapshot(date). {date, points:[{tenor,ytm}]}."""
+    try:
+        from engine import regime
+    except Exception as e:
+        raise HTTPException(500, f"engine.regime import 실패: {type(e).__name__}: {e}")
+    try:
+        return regime.curve_snapshot(date)
+    except Exception as e:
+        raise HTTPException(500, f"regime.curve_snapshot 실패: {type(e).__name__}: {e}")
+
+
+@router.get("/regime/path")
+def regime_path(date: str = Query(...)):
+    """금리 경로(선택일 ±90일 3Y·10Y) — engine.regime.rate_path(date). {center, series:[{d,y3,y10}]}."""
+    try:
+        from engine import regime
+    except Exception as e:
+        raise HTTPException(500, f"engine.regime import 실패: {type(e).__name__}: {e}")
+    try:
+        return regime.rate_path(date)
+    except Exception as e:
+        raise HTTPException(500, f"regime.rate_path 실패: {type(e).__name__}: {e}")
+
+
 @router.get("/daily/{name}")
 def daily_output(name: str):
     """전략 최신 시그널 스냅샷. engine/cli 가 기록한 daily_signal.json 을 서빙.

@@ -47,6 +47,26 @@
     .def-name { font-weight:600; color:var(--t1); }
     .def-blind { color:#fbbf24; font-size:10.5px; }
     .noart { color:var(--t3); font-style:italic; font-size:11.5px; }
+
+    /* ── 유사 국면 인스펙터 ── */
+    .insp-controls { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
+    .insp-controls input[type=date] { background:var(--s2,#1a1d24); border:.5px solid var(--bd2); color:var(--t1); border-radius:var(--rs); padding:6px 9px; font-size:12px; }
+    .insp-btn { background:var(--accent,#3b82f6); color:#fff; border:none; border-radius:var(--rs); padding:7px 16px; font-size:12px; font-weight:600; cursor:pointer; }
+    .insp-btn:hover { opacity:.9; }
+    .insp-btn:disabled { opacity:.5; cursor:default; }
+    /* 방향 경고 — 노랑/빨강 강조, 절대 숨기지 않음 */
+    .dir-warn { background:rgba(251,191,36,.10); border:1px solid rgba(251,191,36,.5); border-left:4px solid #fbbf24; border-radius:var(--r); padding:12px 15px; margin:12px 0; }
+    .dir-warn .dw-head { font-size:12.5px; font-weight:700; color:#fbbf24; margin-bottom:6px; display:flex; align-items:center; gap:7px; }
+    .dir-warn .dw-body { font-size:12px; line-height:1.65; color:var(--t1); }
+    .sim-list { list-style:none; margin:0; padding:0; }
+    .sim-item { display:flex; align-items:center; gap:10px; padding:9px 11px; border:.5px solid var(--bd); border-radius:var(--rs); margin-bottom:6px; cursor:pointer; transition:border-color .12s,background .12s; }
+    .sim-item:hover { border-color:var(--bd2); background:rgba(255,255,255,.02); }
+    .sim-item.active { border-color:var(--accent,#3b82f6); background:rgba(59,130,246,.08); }
+    .sim-item .si-date { font-weight:700; color:var(--t1); font-size:13px; min-width:96px; }
+    .sim-item .si-chip { font-size:10.5px; padding:2px 9px; border-radius:10px; color:#fff; font-weight:600; }
+    .sim-item .si-meta { font-size:11px; color:var(--t2); }
+    .sim-item .si-dist { font-size:10.5px; color:var(--t3); margin-left:auto; }
+    .insp-hint { font-size:10.5px; color:var(--t3); margin-top:6px; }
   </style>
 </head>
 <body>
@@ -80,9 +100,39 @@
     <div class="cat-title">구조 국면(클러스터) 정의</div>
     <div class="panel-wrap"><table class="tbl"><thead><tr><th style="width:170px">국면</th><th>설명</th></tr></thead><tbody id="defBody"></tbody></table></div>
 
+    <!-- ════════ 유사 국면 인스펙터 ════════ -->
+    <div class="cat-title" style="margin-top:34px">유사 국면 인스펙터 — 특정 시점과 *구조* 닮은 과거일 (참고용)</div>
+    <div class="panel-wrap">
+      <div class="insp-controls">
+        <label class="status" for="inspDate">기준일</label>
+        <input type="date" id="inspDate">
+        <button class="insp-btn" id="inspBtn">유사 국면 분석</button>
+        <span class="status" id="inspStatus"></span>
+      </div>
+      <div class="insp-hint">위 3Y 차트의 점을 클릭하면 그 날짜로 자동 입력됩니다. 비우면 최신일 기준.</div>
+    </div>
+
+    <div id="inspResult" style="display:none">
+      <!-- 방향 경고 (similar.caveat) — 항상 최상단, 노랑 강조, 숨기지 않음 -->
+      <div class="dir-warn" id="dirWarn">
+        <div class="dw-head">⚠ 방향 경고 — 구조 유사 ≠ 방향 동일</div>
+        <div class="dw-body" id="dirWarnBody"></div>
+      </div>
+
+      <div class="cat-title">유사 과거 top5 (구조 거리 가까운 순) — 클릭하면 그날 커브를 겹쳐 비교</div>
+      <div class="panel-wrap"><ul class="sim-list" id="simList"><li class="noart">—</li></ul></div>
+
+      <div class="cat-title">일드커브 비교 (국고 tenor × YTM) — <span id="curveLegendLbl" class="status"></span></div>
+      <div class="panel-wrap"><canvas id="chartCurve"></canvas></div>
+
+      <div class="cat-title">금리 경로 (선택일 ±90일 · 3Y·10Y) — 점선=선택일</div>
+      <div class="panel-wrap"><canvas id="chartPath"></canvas></div>
+    </div>
+
     <div class="status" style="margin-top:18px;line-height:1.7">
       ※ 이 화면은 "지금 커브가 어떤 구조 국면인가"를 묘사할 뿐이며,
       매수/매도·전략 on/off·비중 같은 어떤 행동 지시도 제공하지 않습니다.
+      유사 국면 또한 *구조 유사도*일 뿐 금리 방향(인상/인하)을 보장하지 않습니다.
     </div>
   </main>
 
@@ -90,6 +140,7 @@
   <script src="/assets/js/api.js"></script>
   <script>
   let _chart = null;
+  let _regimeSeries = [];   // 3Y 차트 시계열 (점 클릭 → 날짜 채우기용)
   const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 
   function renderCaveats(caveats, disclaimer){
@@ -132,6 +183,7 @@
 
   function renderChart(history, clusters){
     const series = (history && history.series) || [];
+    _regimeSeries = series;
     const labels = series.map(p=>p.d);
     const y3 = series.map(p=>p.y3);
     const colors = series.map(p=>(clusters[p.cluster]&&clusters[p.cluster].color)||'#888');
@@ -148,11 +200,18 @@
       }]},
       options:{
         animation:false, responsive:true,
+        onClick:(evt,els)=>{
+          // 점 클릭 → 그 날짜를 인스펙터 입력에 채우기
+          if(!els||!els.length) return;
+          const p = _regimeSeries[els[0].index]; if(!p||!p.d) return;
+          document.getElementById('inspDate').value = p.d;
+          runInspect(p.d);
+        },
         plugins:{ legend:{display:false},
           tooltip:{ callbacks:{ afterLabel: it => {
             const p = series[it.dataIndex]; if(!p) return '';
             const nm = (clusters[p.cluster]&&clusters[p.cluster].name)||('c'+p.cluster);
-            return '국면: '+nm+' (신뢰 '+(p.q||'?')+')';
+            return '국면: '+nm+' (신뢰 '+(p.q||'?')+') — 클릭: 유사 국면 분석';
           }}}},
         scales:{ x:{ticks:{maxTicksLimit:12,font:{size:9}}}, y:{ticks:{font:{size:9},callback:v=>v+'%'}} },
         elements:{point:{radius:0}}
@@ -188,6 +247,144 @@
       '</tr>').join('');
   }
 
+  // ════════ 유사 국면 인스펙터 ════════
+  let _curveChart=null, _pathChart=null;
+  let _targetDate=null, _targetCurve=null;   // 선택일 + 그 커브(겹쳐그리기 베이스)
+  const _clusterColor = c => '#888';          // 채워질 수 있음(클러스터 색맵), 없으면 회색
+
+  function renderDirWarn(caveat){
+    // similar.caveat 를 그대로, 눈에 띄게 노출 — 절대 숨기지 않음
+    document.getElementById('dirWarnBody').textContent =
+      caveat || '구조 유사도(β-텐서) 기준일 뿐 금리 방향(인상/인하)을 보장하지 않습니다.';
+  }
+
+  function clusterChip(name){
+    // 정의표 클러스터 색을 재사용(있으면), 없으면 회색
+    let col='#888';
+    if(window._CLUSTERS){ for(const k in window._CLUSTERS){ if(window._CLUSTERS[k].name===name){ col=window._CLUSTERS[k].color; } } }
+    return '<span class="si-chip" style="background:'+esc(col)+'">'+esc(name||'?')+'</span>';
+  }
+
+  function renderSimList(neighbors){
+    const ul = document.getElementById('simList');
+    if(!neighbors||!neighbors.length){ ul.innerHTML='<li class="noart">유사 과거일 없음</li>'; return; }
+    ul.innerHTML = neighbors.map((n,i)=>
+      '<li class="sim-item" data-date="'+esc(n.date)+'">'+
+        '<span class="si-date">'+esc(n.date)+'</span>'+
+        clusterChip(n.cluster_name)+
+        '<span class="si-meta">3Y '+(n.y3_pct!=null?esc(n.y3_pct)+'%':'–')+'</span>'+
+        '<span class="si-dist">거리 '+esc(n.distance)+'</span>'+
+      '</li>').join('');
+    ul.querySelectorAll('.sim-item').forEach(li=>{
+      li.addEventListener('click', ()=>{
+        ul.querySelectorAll('.sim-item').forEach(x=>x.classList.remove('active'));
+        li.classList.add('active');
+        overlaySimilarCurve(li.getAttribute('data-date'));
+      });
+    });
+  }
+
+  function drawCurve(target, targetPts, simDate, simPts){
+    const tenors = Array.from(new Set([...(targetPts||[]),...(simPts||[])].map(p=>p.tenor))).sort((a,b)=>a-b);
+    const mapOf = pts => { const m={}; (pts||[]).forEach(p=>m[p.tenor]=p.ytm); return m; };
+    const mt = mapOf(targetPts), ms = mapOf(simPts);
+    const ds = [{
+      label:'선택일 '+target, data:tenors.map(t=>mt[t]!=null?mt[t]:null),
+      borderColor:'#3b82f6', backgroundColor:'#3b82f6', borderWidth:2, pointRadius:3, fill:false, spanGaps:true
+    }];
+    if(simPts){
+      ds.push({
+        label:'유사일 '+simDate, data:tenors.map(t=>ms[t]!=null?ms[t]:null),
+        borderColor:'#fbbf24', backgroundColor:'#fbbf24', borderWidth:2, borderDash:[5,4], pointRadius:3, fill:false, spanGaps:true
+      });
+    }
+    if(_curveChart){ try{_curveChart.destroy();}catch(e){} }
+    _curveChart = new Chart(document.getElementById('chartCurve'), {
+      type:'line',
+      data:{ labels:tenors.map(t=>t+'Y'), datasets:ds },
+      options:{ animation:false, responsive:true,
+        plugins:{ legend:{display:true,labels:{font:{size:10},color:'#aaa'}} },
+        scales:{ x:{title:{display:true,text:'만기(년)',font:{size:9}},ticks:{font:{size:9}}},
+                 y:{ticks:{font:{size:9},callback:v=>v+'%'}} } }
+    });
+    document.getElementById('curveLegendLbl').textContent =
+      simPts ? ('선택일 '+target+' vs 유사일 '+simDate) : ('선택일 '+target);
+  }
+
+  function drawPath(rp){
+    const sr = (rp&&rp.series)||[];
+    const labels = sr.map(p=>p.d);
+    const center = rp&&rp.center;
+    if(_pathChart){ try{_pathChart.destroy();}catch(e){} }
+    _pathChart = new Chart(document.getElementById('chartPath'), {
+      type:'line',
+      data:{ labels, datasets:[
+        {label:'3Y', data:sr.map(p=>p.y3), borderColor:'#3b82f6', borderWidth:1.6, pointRadius:0, fill:false, spanGaps:true},
+        {label:'10Y', data:sr.map(p=>p.y10), borderColor:'#34d399', borderWidth:1.6, pointRadius:0, fill:false, spanGaps:true}
+      ]},
+      options:{ animation:false, responsive:true,
+        plugins:{ legend:{display:true,labels:{font:{size:10},color:'#aaa'}},
+          tooltip:{},
+          // 선택일 수직 점선
+          annotationLine:false },
+        scales:{ x:{ticks:{maxTicksLimit:10,font:{size:9}}}, y:{ticks:{font:{size:9},callback:v=>v+'%'}} } },
+      plugins:[{
+        id:'centerLine',
+        afterDraw(chart){
+          const idx = labels.indexOf(center);
+          if(idx<0) return;
+          const x = chart.scales.x.getPixelForValue(idx);
+          const {top,bottom} = chart.chartArea;
+          const ctx = chart.ctx; ctx.save();
+          ctx.beginPath(); ctx.setLineDash([4,4]); ctx.lineWidth=1.2; ctx.strokeStyle='#fbbf24';
+          ctx.moveTo(x,top); ctx.lineTo(x,bottom); ctx.stroke();
+          ctx.setLineDash([]); ctx.fillStyle='#fbbf24'; ctx.font='9px sans-serif';
+          ctx.fillText('선택일', x+3, top+10); ctx.restore();
+        }
+      }]
+    });
+  }
+
+  async function overlaySimilarCurve(simDate){
+    if(!_targetDate) return;
+    try{
+      const c = await apiGet('/quant-house/regime/curve?date='+encodeURIComponent(simDate));
+      drawCurve(_targetDate, _targetCurve, c.date||simDate, c.points||[]);
+    }catch(e){
+      document.getElementById('inspStatus').textContent = '유사일 커브 로드 실패: '+esc(e.detail||e.message);
+    }
+  }
+
+  async function runInspect(date){
+    const btn = document.getElementById('inspBtn');
+    const st = document.getElementById('inspStatus');
+    btn.disabled = true; st.textContent = '분석 중…'; st.className='status loading';
+    try{
+      const q = date ? ('?date='+encodeURIComponent(date)) : '';
+      const d = await apiGet('/quant-house/regime/inspect'+q);
+      _targetDate = d.target;
+      _targetCurve = (d.curve&&d.curve.points)||[];
+      document.getElementById('inspDate').value = d.target;
+      document.getElementById('inspResult').style.display='';
+      renderDirWarn(d.similar&&d.similar.caveat);     // 방향 경고 — 최우선
+      renderSimList((d.similar&&d.similar.neighbors)||[]);
+      drawCurve(d.target, _targetCurve, null, null);  // 선택일 커브만(유사일 클릭 시 겹침)
+      drawPath(d.rate_path);
+      st.textContent = '기준일 '+d.target; st.className='status';
+    }catch(e){
+      document.getElementById('inspResult').style.display='';
+      document.getElementById('dirWarnBody').textContent =
+        '구조 유사도 기준일 뿐 금리 방향(인상/인하)을 보장하지 않습니다.';
+      document.getElementById('simList').innerHTML =
+        '<li class="q-LOW">유사 국면 로드 실패: '+esc(e.detail||e.message)+'</li>';
+      st.textContent = '실패'; st.className='status q-LOW';
+    }finally{ btn.disabled = false; }
+  }
+
+  document.getElementById('inspBtn').addEventListener('click', ()=>{
+    runInspect(document.getElementById('inspDate').value || null);
+  });
+
   async function load(){
     let s;
     try { s = await apiGet('/quant-house/regime'); }
@@ -199,6 +396,7 @@
       return;
     }
     const clusters = s.clusters || {};
+    window._CLUSTERS = clusters;   // 인스펙터 유사리스트 칩 색 재사용
     // ★ 경고를 가장 먼저
     renderCaveats(s.caveats, s.disclaimer);
     renderCurrent(s.current, clusters);
