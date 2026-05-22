@@ -357,6 +357,41 @@ def daily_refresh(body: dict = Body(default=None)):
     }
 
 
+@router.get("/regime")
+def regime_summary():
+    """β-텐서 구조 레짐 모니터 — engine.regime.summary() 그대로 반환.
+
+    ★ exploratory·모니터링 전용 도구. 실전 cross-tab 4게이트 중 1/4 통과,
+    방향맹(인상/인하 구분 못함), 2022+ covariate shift 로 최근 신뢰 낮음.
+    자동 매매/비중 룰 트리거 절대 금지 (HOUSE §1·§3). 화면은 caveats 4개를
+    최상단 배너로 노출한다 — 백엔드는 그 데이터를 정직하게 그대로 전달만 한다.
+    """
+    try:
+        from engine import regime
+    except Exception as e:
+        raise HTTPException(500, f"engine.regime import 실패: {type(e).__name__}: {e}")
+    try:
+        return regime.summary()
+    except Exception as e:
+        raise HTTPException(500, f"regime.summary 실패: {type(e).__name__}: {e}")
+
+
+@router.get("/regime/current")
+def regime_current():
+    """현재 레짐만(가벼운 폴링용). engine.regime.current() 반환.
+
+    summary() 와 동일하게 exploratory 도구 — 행동 신호 아님. caveats 포함.
+    """
+    try:
+        from engine import regime
+    except Exception as e:
+        raise HTTPException(500, f"engine.regime import 실패: {type(e).__name__}: {e}")
+    try:
+        return regime.current()
+    except Exception as e:
+        raise HTTPException(500, f"regime.current 실패: {type(e).__name__}: {e}")
+
+
 @router.get("/daily/{name}")
 def daily_output(name: str):
     """전략 최신 시그널 스냅샷. engine/cli 가 기록한 daily_signal.json 을 서빙.

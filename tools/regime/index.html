@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bond Quant House — 레짐 모니터 (exploratory)</title>
+  <link rel="stylesheet" href="/assets/css/main.css">
+  <style>
+    .panel-wrap { background:var(--s1); border:.5px solid var(--bd); border-radius:var(--r); padding:1rem 1.125rem; margin-bottom:12px; }
+    .cat-title { font-size:11px; color:var(--t3); letter-spacing:.4px; text-transform:uppercase; margin:18px 0 8px; }
+    .status { font-size:11px; color:var(--t3); }
+    .loading { color:#fbbf24; }
+    canvas { max-height:320px; }
+
+    /* ── 경고 배너 (최상단·최우선·눈에 띄게) ── */
+    .warn-banner { background:rgba(248,113,113,.10); border:1px solid rgba(248,113,113,.45); border-left:4px solid var(--red); border-radius:var(--r); padding:14px 16px; margin-bottom:14px; }
+    .warn-banner .wb-head { display:flex; align-items:center; gap:8px; font-size:13px; font-weight:700; color:var(--red); letter-spacing:.2px; margin-bottom:9px; }
+    .warn-banner .wb-head .badge { font-size:9px; font-weight:700; letter-spacing:.5px; padding:2px 8px; border-radius:3px; background:rgba(251,191,36,.18); color:#fbbf24; border:.5px solid rgba(251,191,36,.4); text-transform:uppercase; }
+    .warn-banner ul { margin:0; padding-left:18px; }
+    .warn-banner li { font-size:12px; line-height:1.7; color:var(--t1); margin-bottom:3px; }
+    .warn-banner .disclaimer { margin-top:10px; padding-top:9px; border-top:.5px solid rgba(248,113,113,.3); font-size:11.5px; color:#fbbf24; font-style:italic; }
+
+    /* ── 현재 레짐 카드 ── */
+    .now-card { display:grid; grid-template-columns:auto 1fr; gap:18px; align-items:center; }
+    .now-swatch { width:88px; height:88px; border-radius:var(--r); display:flex; flex-direction:column; align-items:center; justify-content:center; color:#fff; font-weight:700; }
+    .now-swatch .c-num { font-size:11px; opacity:.8; letter-spacing:.5px; }
+    .now-swatch .c-y3 { font-size:21px; font-weight:700; margin-top:2px; }
+    .now-name { font-size:20px; font-weight:700; color:var(--t1); margin-bottom:4px; }
+    .now-desc { font-size:12.5px; color:var(--t2); line-height:1.6; margin-bottom:10px; max-width:760px; }
+    .conf-row { display:flex; gap:10px; flex-wrap:wrap; align-items:center; }
+    .conf-pill { font-size:11px; padding:4px 10px; border-radius:var(--rs); border:.5px solid var(--bd2); color:var(--t2); }
+    .conf-flag { font-size:11px; font-weight:700; padding:4px 11px; border-radius:var(--rs); letter-spacing:.3px; }
+    .flag-HIGH { background:rgba(52,211,153,.14); color:var(--green); border:.5px solid rgba(52,211,153,.4); }
+    .flag-MED  { background:rgba(251,191,36,.16); color:#fbbf24; border:.5px solid rgba(251,191,36,.45); }
+    .flag-LOW  { background:rgba(248,113,113,.14); color:var(--red); border:.5px solid rgba(248,113,113,.45); }
+    .conf-note { font-size:10.5px; color:var(--t3); margin-top:9px; line-height:1.6; }
+    .now-card.weak { opacity:.96; }
+    .weak-tag { font-size:10px; color:#fbbf24; margin-left:8px; font-weight:600; }
+
+    /* ── 흐름 / 정의 표 ── */
+    .tbl { width:100%; border-collapse:collapse; font-size:11.5px; }
+    .tbl td, .tbl th { padding:7px 9px; border-bottom:.5px solid var(--bd); text-align:left; vertical-align:top; }
+    .tbl th { color:var(--t3); font-weight:600; font-size:10px; letter-spacing:.3px; text-transform:uppercase; }
+    .reg-chip { display:inline-block; font-size:11px; padding:1px 8px; border-radius:10px; color:#fff; font-weight:600; margin:1px 4px 1px 0; }
+    .q-LOW { color:var(--red); } .q-MED { color:#fbbf24; } .q-HIGH { color:var(--green); }
+    .def-dot { display:inline-block; width:11px; height:11px; border-radius:3px; margin-right:7px; vertical-align:middle; }
+    .def-name { font-weight:600; color:var(--t1); }
+    .def-blind { color:#fbbf24; font-size:10.5px; }
+    .noart { color:var(--t3); font-style:italic; font-size:11.5px; }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="nav-links"><a href="/" class="nav-link">홈</a><a href="/tools/quant-house/" class="nav-link">다전략 운용</a><a href="/tools/portfolio/" class="nav-link">포트폴리오</a><a href="/tools/regime/" class="nav-link active">레짐 모니터</a></div>
+  </header>
+  <main class="container" style="max-width:1100px;margin:0 auto;padding:20px 16px 80px;">
+    <h1 style="font-size:18px;margin:0 0 6px;color:var(--t1)">레짐 모니터 <span class="status">— β-텐서 구조 국면 분류 (exploratory)</span></h1>
+    <div class="status" id="asOf" style="margin-bottom:14px"></div>
+
+    <!-- (a) 최상단 경고 배너 — caveats + disclaimer -->
+    <div class="warn-banner" id="warnBanner">
+      <div class="wb-head">⚠ 먼저 읽으세요 — 이 도구의 한계 <span class="badge">exploratory · 모니터링 전용</span></div>
+      <ul id="caveatList"><li class="noart">로딩 중…</li></ul>
+      <div class="disclaimer" id="disclaimer"></div>
+    </div>
+
+    <!-- (b) 현재 레짐 카드 -->
+    <div class="cat-title">현재 구조 국면</div>
+    <div class="panel-wrap"><div id="nowBox"><span class="status loading">로딩 중…</span></div></div>
+
+    <!-- (c) 3Y 금리 + 레짐 색 차트 -->
+    <div class="cat-title">3년 금리 추이 + 구조 국면 색 (라인 색 = 그날의 클러스터)</div>
+    <div class="panel-wrap"><canvas id="chartRegime"></canvas><div class="status" id="chartLegend" style="margin-top:8px"></div></div>
+
+    <!-- (d) 최근 흐름 -->
+    <div class="cat-title">최근 월별 국면 점유 (분류 빈도 · 신뢰 분포)</div>
+    <div class="panel-wrap"><table class="tbl"><thead><tr><th>월</th><th>국면 분포(일수)</th><th>신뢰 분포</th></tr></thead><tbody id="flowBody"></tbody></table></div>
+
+    <!-- (e) 클러스터 정의 -->
+    <div class="cat-title">구조 국면(클러스터) 정의</div>
+    <div class="panel-wrap"><table class="tbl"><thead><tr><th style="width:170px">국면</th><th>설명</th></tr></thead><tbody id="defBody"></tbody></table></div>
+
+    <div class="status" style="margin-top:18px;line-height:1.7">
+      ※ 이 화면은 "지금 커브가 어떤 구조 국면인가"를 묘사할 뿐이며,
+      매수/매도·전략 on/off·비중 같은 어떤 행동 지시도 제공하지 않습니다.
+    </div>
+  </main>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+  <script src="/assets/js/api.js"></script>
+  <script>
+  let _chart = null;
+  const esc = s => String(s==null?'':s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+  function renderCaveats(caveats, disclaimer){
+    const ul = document.getElementById('caveatList');
+    ul.innerHTML = (caveats||[]).map(c=>'<li>'+esc(c)+'</li>').join('') || '<li class="noart">경고 정보 없음</li>';
+    document.getElementById('disclaimer').textContent = disclaimer ? ('면책: '+disclaimer) : '';
+  }
+
+  function renderCurrent(cur, clusters){
+    const box = document.getElementById('nowBox');
+    if(!cur){ box.innerHTML='<span class="noart">현재 레짐 정보 없음</span>'; return; }
+    const cf = cur.confidence || {};
+    const flag = cf.quality_flag || '?';
+    const weak = (flag==='LOW' || flag==='MED');
+    const color = cur.color || '#888';
+    const y3 = (cur.y3_pct!=null) ? cur.y3_pct.toFixed(2)+'%' : '–';
+    box.innerHTML =
+      '<div class="now-card '+(weak?'weak':'')+'">'+
+        '<div class="now-swatch" style="background:'+esc(color)+'">'+
+          '<div class="c-num">c'+esc(cur.cluster)+'</div>'+
+          '<div class="c-y3">'+y3+'</div>'+
+          '<div class="c-num">3Y</div>'+
+        '</div>'+
+        '<div>'+
+          '<div class="now-name">'+esc(cur.cluster_name)+
+            (weak?'<span class="weak-tag">신뢰 '+esc(flag)+' — 약하게 해석</span>':'')+'</div>'+
+          '<div class="now-desc">'+esc(cur.cluster_desc)+'</div>'+
+          '<div class="conf-row">'+
+            '<span class="conf-flag flag-'+esc(flag)+'">신뢰 '+esc(flag)+'</span>'+
+            '<span class="conf-pill">margin '+fmtNum(cf.margin)+'</span>'+
+            '<span class="conf-pill">softmax '+fmtNum(cf.softmax)+'</span>'+
+            '<span class="conf-pill">stability '+(cf.stability_pct!=null?(cf.stability_pct*100).toFixed(0)+'%':'–')+'</span>'+
+            '<span class="conf-pill">기준일 '+esc(cur.date)+'</span>'+
+          '</div>'+
+          (cf.note?'<div class="conf-note">'+esc(cf.note)+'</div>':'')+
+        '</div>'+
+      '</div>';
+  }
+  function fmtNum(v){ return (v==null||!isFinite(v))?'–':Number(v).toFixed(3); }
+
+  function renderChart(history, clusters){
+    const series = (history && history.series) || [];
+    const labels = series.map(p=>p.d);
+    const y3 = series.map(p=>p.y3);
+    const colors = series.map(p=>(clusters[p.cluster]&&clusters[p.cluster].color)||'#888');
+
+    if(_chart){ try{_chart.destroy();}catch(e){} }
+    const ctx = document.getElementById('chartRegime');
+    _chart = new Chart(ctx, {
+      type:'line',
+      data:{ labels, datasets:[{
+        label:'3Y 금리(%)', data:y3, borderWidth:1.6, fill:false, pointRadius:0,
+        // 라인 세그먼트를 그날의 클러스터 색으로 칠한다
+        segment:{ borderColor: c => colors[c.p1DataIndex] || '#888' },
+        borderColor:'#888'
+      }]},
+      options:{
+        animation:false, responsive:true,
+        plugins:{ legend:{display:false},
+          tooltip:{ callbacks:{ afterLabel: it => {
+            const p = series[it.dataIndex]; if(!p) return '';
+            const nm = (clusters[p.cluster]&&clusters[p.cluster].name)||('c'+p.cluster);
+            return '국면: '+nm+' (신뢰 '+(p.q||'?')+')';
+          }}}},
+        scales:{ x:{ticks:{maxTicksLimit:12,font:{size:9}}}, y:{ticks:{font:{size:9},callback:v=>v+'%'}} },
+        elements:{point:{radius:0}}
+      }
+    });
+    // 색 범례 = 클러스터 이름
+    document.getElementById('chartLegend').innerHTML =
+      Object.entries(clusters).map(([k,c])=>
+        '<span class="reg-chip" style="background:'+esc(c.color)+'">'+esc(c.name)+'</span>').join('');
+  }
+
+  function renderFlow(flow, clusters){
+    const body = document.getElementById('flowBody');
+    const months = (flow && flow.monthly) || [];
+    if(!months.length){ body.innerHTML='<tr><td colspan=3 class="noart">흐름 데이터 없음</td></tr>'; return; }
+    const colorOf = nm => { for(const k in clusters){ if(clusters[k].name===nm) return clusters[k].color; } return '#888'; };
+    body.innerHTML = months.map(mo=>{
+      const dist = Object.entries(mo.dist||{}).sort((a,b)=>b[1]-a[1])
+        .map(([nm,n])=>'<span class="reg-chip" style="background:'+esc(colorOf(nm))+'">'+esc(nm)+' '+n+'</span>').join(' ');
+      const q = Object.entries(mo.quality||{})
+        .map(([k,n])=>'<span class="q-'+esc(k)+'">'+esc(k)+' '+n+'</span>').join(' · ');
+      return '<tr><td><b>'+esc(mo.ym)+'</b></td><td>'+(dist||'–')+'</td><td>'+(q||'–')+'</td></tr>';
+    }).join('');
+  }
+
+  function renderDefs(clusters){
+    const body = document.getElementById('defBody');
+    body.innerHTML = Object.entries(clusters).map(([k,c])=>
+      '<tr>'+
+        '<td><span class="def-dot" style="background:'+esc(c.color)+'"></span>'+
+          '<span class="def-name">c'+esc(k)+' '+esc(c.name)+'</span></td>'+
+        '<td>'+esc(c.desc)+'</td>'+
+      '</tr>').join('');
+  }
+
+  async function load(){
+    let s;
+    try { s = await apiGet('/quant-house/regime'); }
+    catch(e){
+      document.getElementById('caveatList').innerHTML =
+        '<li class="q-LOW">레짐 데이터 로드 실패: '+esc(e.detail||e.message)+'</li>';
+      document.getElementById('nowBox').innerHTML =
+        '<span class="noart">백엔드/터널 또는 engine.regime import 실패 — 가짜 데이터를 표시하지 않습니다.</span>';
+      return;
+    }
+    const clusters = s.clusters || {};
+    // ★ 경고를 가장 먼저
+    renderCaveats(s.caveats, s.disclaimer);
+    renderCurrent(s.current, clusters);
+    renderChart(s.history, clusters);
+    renderFlow(s.flow_recent, clusters);
+    renderDefs(clusters);
+    if(s.current && s.current.date)
+      document.getElementById('asOf').textContent = '기준일 '+s.current.date+' · 데이터 출처: Bond Quant House engine.regime';
+  }
+  load();
+  </script>
+</body>
+</html>
