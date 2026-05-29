@@ -109,6 +109,55 @@
     .btn.upd { border-color:rgba(52,211,153,.3); color:var(--green); }
     .btn.upd:hover { background:rgba(52,211,153,.1); }
     .btn.upd[disabled] { opacity:.5; pointer-events:none; }
+    /* ── 계층(tier) 배지 — 검증 등급의 1차 시각언어 ── */
+    .tier { display:inline-flex; align-items:center; justify-content:center;
+      font-size:13px; font-weight:800; letter-spacing:.5px; min-width:34px;
+      padding:4px 8px; border-radius:6px; line-height:1; }
+    .tier.sm { font-size:11px; min-width:28px; padding:3px 6px; border-radius:5px; }
+    .tier-T1 { background:rgba(52,211,153,.16); color:#34d399; border:1px solid rgba(52,211,153,.45); }
+    .tier-T2 { background:rgba(74,158,255,.15); color:#4a9eff; border:1px solid rgba(74,158,255,.45); }
+    .tier-T3 { background:rgba(251,191,36,.14); color:#fbbf24; border:1px solid rgba(251,191,36,.42); }
+    .tier-T4 { background:rgba(255,255,255,.05); color:var(--t2); border:1px solid var(--bd2); }
+    .tier-REJECT { background:rgba(248,113,113,.13); color:#f87171; border:1px solid rgba(248,113,113,.45); }
+    .tier-none { background:rgba(255,255,255,.03); color:var(--t3); border:1px dashed var(--bd2); }
+    /* tier 분포 범례 바 */
+    .tierbar { display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:14px; }
+    .tierbar .tl { display:flex; align-items:center; gap:7px; background:var(--s1);
+      border:.5px solid var(--bd); border-radius:8px; padding:7px 11px; cursor:pointer;
+      transition:border-color .15s, background .15s; }
+    .tierbar .tl:hover { border-color:var(--bd2); }
+    .tierbar .tl.dim { opacity:.4; }
+    .tierbar .tl .nm { font-size:11px; font-weight:700; color:var(--t2); }
+    .tierbar .tl .cnt { font-size:13px; font-weight:700; color:var(--t1); }
+    .tierbar .tl .dsc { font-size:10px; color:var(--t3); }
+    /* tier 섹션 헤더 */
+    .tsec { margin:16px 0 9px; display:flex; align-items:center; gap:10px; }
+    .tsec .lbl { font-size:12px; font-weight:700; color:var(--t2); letter-spacing:.3px; }
+    .tsec .sz { font-size:10px; color:var(--t3); }
+    .tsec .ln { flex:1; height:1px; background:var(--bd); }
+    /* 컴팩트 전략 행 (텍스트 최소화) */
+    .crow { display:flex; align-items:center; gap:12px; padding:11px 13px;
+      background:var(--s1); border:.5px solid var(--bd); border-radius:var(--r);
+      margin-bottom:7px; cursor:pointer; transition:border-color .15s, background .15s; }
+    .crow:hover { border-color:var(--bd2); background:var(--s2); }
+    .crow.sel { border-color:var(--blue); background:rgba(74,158,255,.05); }
+    .crow .nm { font-size:13px; font-weight:600; color:var(--t1); }
+    .crow .cat { font-size:9px; color:var(--t3); text-transform:uppercase; letter-spacing:.3px;
+      background:var(--s2); border:.5px solid var(--bd); border-radius:4px; padding:1px 6px; }
+    .crow .stat { font-size:10px; }
+    .crow .spacer { margin-left:auto; }
+    .crow .num { text-align:right; min-width:56px; }
+    .crow .num .k { font-size:8.5px; color:var(--t3); text-transform:uppercase; letter-spacing:.3px; }
+    .crow .num .v { font-size:13px; font-weight:700; }
+    .crow .num .v.pos { color:var(--green); } .crow .num .v.neg { color:var(--red); }
+    .crow .szlbl { font-size:10px; color:var(--t3); min-width:74px; text-align:right; }
+    .sdot { width:7px; height:7px; border-radius:50%; display:inline-block; }
+    .sdot.deployed { background:var(--green); box-shadow:0 0 5px rgba(52,211,153,.5); }
+    .sdot.active { background:var(--blue); }
+    .sdot.parked { background:var(--t3); }
+    .sdot.killed, .sdot.proposed { background:var(--red); opacity:.6; }
+    .tier-detail-head { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+    @media (max-width:760px){ .crow .cat, .crow .num.sharpe { display:none; } }
     .tlog tr.trow { cursor:pointer; }
     .tlog tr.trow:hover td { background:rgba(74,158,255,.05); }
     .tlog tr.trow.open td { background:rgba(74,158,255,.08); }
@@ -140,11 +189,12 @@
 
   <div class="metrics">
     <div class="metric"><div class="ml">등록 전략</div><div class="mv" id="m-total">–</div></div>
-    <div class="metric"><div class="ml">운영중 (deployed)</div><div class="mv" id="m-deployed">–</div></div>
+    <div class="metric"><div class="ml">운영중 (active+deployed)</div><div class="mv" id="m-live">–</div></div>
+    <div class="metric"><div class="ml">최고 등급</div><div class="mv" id="m-toptier">–</div></div>
     <div class="metric neg"><div class="ml">헌법 BLOCK</div><div class="mv" id="m-blocked">–</div></div>
-    <div class="metric"><div class="ml">카테고리</div><div class="mv" id="m-cat">–</div></div>
   </div>
 
+  <div id="tierbar" class="tierbar"></div>
   <div id="list"></div>
 
   <div id="detail" class="detail panel-wrap" style="margin-top:14px"></div>
@@ -238,6 +288,19 @@ function renderTradeDetail(box, r, ti){
   _charts.push(ch);
 }
 
+const TIER_META = {
+  T1:{nm:'T1 · Super', dsc:'전 검증 통과 · 풀사이즈'},
+  T2:{nm:'T2 · Strong', dsc:'DSR경계+OOS/code-track · 축소'},
+  T3:{nm:'T3 · Diversifier', dsc:'델타/조건부 · 소형'},
+  T4:{nm:'T4 · Experimental', dsc:'통계 얇음·함의기반 · 페이퍼'},
+  none:{nm:'미평가', dsc:'tier 미부여'},
+  REJECT:{nm:'REJECT', dsc:'무결성 위반 · 0'},
+};
+const TIER_ORDER = ['T1','T2','T3','T4','none','REJECT'];
+const _FILTER = new Set();   // 비어있으면 전체, 아니면 선택 tier 만
+
+function _tierOf(it){ return it.tier || (it.tier_eval||{}).tier || 'none'; }
+
 async function load() {
   const dot = document.getElementById('dot'), conn = document.getElementById('conn');
   try {
@@ -251,73 +314,80 @@ async function load() {
   catch (e) { document.getElementById('list').innerHTML =
     '<div class="panel-wrap status">등록부를 불러올 수 없습니다. registry.json 이 비어있을 수 있습니다 ('+ (e.detail||e.message) +').</div>'; return; }
 
+  // 전 전략 평탄화 + tier 그룹화
+  const all = [];
+  for (const items of Object.values(data.by_category||{})) {
+    items.forEach(it => { CACHE[it.name]=it; all.push(it); });
+  }
   const s = data.summary || {};
-  document.getElementById('m-total').textContent = s.total ?? 0;
-  document.getElementById('m-deployed').textContent = s.deployed ?? 0;
+  const dist = s.tier_dist || {};
+  const topTier = TIER_ORDER.find(t => t!=='none' && t!=='REJECT' && dist[t]) || '–';
+  document.getElementById('m-total').textContent = s.total ?? all.length;
+  document.getElementById('m-live').textContent = s.live ?? 0;
+  document.getElementById('m-toptier').textContent = topTier;
   document.getElementById('m-blocked').textContent = s.blocked ?? 0;
-  document.getElementById('m-cat').textContent = Object.keys(data.by_category||{}).length;
   document.getElementById('updated').textContent = s.updated ? ('등록부 갱신 ' + s.updated) : '';
 
-  const wrap = document.getElementById('list'); wrap.innerHTML = '';
-  const cats = data.by_category || {};
-  if (!Object.keys(cats).length) {
-    wrap.innerHTML = '<div class="panel-wrap status">아직 등록된 전략이 없습니다.</div>';
-    return;
-  }
-  const acc = document.createElement('div'); acc.className='acc';
-  for (const [cat, items] of Object.entries(cats)) {
-    items.forEach(it => CACHE[it.name] = it);
-    // 카테고리 집계 (linked/ported 백테스트 보유분 평균)
-    const wb = items.filter(x=>x.backtest);
-    const avg = k => wb.length ? wb.reduce((s,x)=>s+(Number(x.backtest[k])||0),0)/wb.length : null;
-    const nLive = items.filter(x=>x.status==='deployed'||x.status==='active').length;
-    const open = _OPEN.has(cat);
-    const cr = document.createElement('div');
-    cr.className = 'cat-row'+(open?' open':'');
-    cr.innerHTML =
-      '<span class="chev">▶</span><span class="cat-nm">'+cat+'</span>'+
-      '<span class="cat-cnt">'+items.length+'개 · 운용 '+nLive+'</span>'+
-      '<span class="cat-sum">'+
-        '<span>연 bp <b>'+_fmt(avg('bp_per_year'))+'</b></span>'+
-        '<span>Sharpe <b>'+_fmt(avg('sharpe_annualized'))+'</b></span>'+
-        '<span>승률 <b>'+(avg('hit_rate')!=null?Math.round(avg('hit_rate')*100)+'%':'–')+'</b></span>'+
-      '</span>';
-    const cb = document.createElement('div'); cb.className='cat-body'+(open?' open':'');
-    for (const it of items) {
+  // ── tier 분포 범례 (클릭 = 필터) ──
+  const tb = document.getElementById('tierbar'); tb.innerHTML='';
+  TIER_ORDER.forEach(t=>{
+    const cnt = all.filter(x=>_tierOf(x)===t).length;
+    if (!cnt) return;
+    const m = TIER_META[t];
+    const shortNm = m.nm.includes(' · ') ? m.nm.split(' · ')[1] : m.nm;
+    const el = document.createElement('div');
+    el.className = 'tl'+(_FILTER.size && !_FILTER.has(t)?' dim':'');
+    el.innerHTML = '<span class="tier sm tier-'+t+'">'+(t==='none'?'–':t)+'</span>'+
+      '<span class="nm">'+shortNm+'</span>'+
+      '<span class="cnt">'+cnt+'</span><span class="dsc">'+m.dsc+'</span>';
+    el.onclick = ()=>{ if(_FILTER.has(t))_FILTER.delete(t); else _FILTER.add(t); renderList(all); };
+    tb.appendChild(el);
+  });
+
+  renderList(all);
+}
+
+function renderList(all){
+  const wrap = document.getElementById('list'); wrap.innerHTML='';
+  if (!all.length){ wrap.innerHTML='<div class="panel-wrap status">아직 등록된 전략이 없습니다.</div>'; return; }
+  // tier 섹션 순서대로
+  TIER_ORDER.forEach(t=>{
+    if (_FILTER.size && !_FILTER.has(t)) return;
+    let items = all.filter(x=>_tierOf(x)===t);
+    if (!items.length) return;
+    // 운영중 우선, 그 안에서 bp/yr 내림차순
+    const liveRank = x => (x.status==='deployed'?0:x.status==='active'?1:2);
+    items.sort((a,b)=> liveRank(a)-liveRank(b) ||
+      ((b.backtest||{}).bp_per_year||0)-((a.backtest||{}).bp_per_year||0));
+    const m = TIER_META[t];
+    const hdr = document.createElement('div'); hdr.className='tsec';
+    hdr.innerHTML = '<span class="tier tier-'+t+'">'+(t==='none'?'–':t)+'</span>'+
+      '<span class="lbl">'+m.nm+'</span><span class="sz">'+m.dsc+' · '+items.length+'개</span>'+
+      '<span class="ln"></span>';
+    wrap.appendChild(hdr);
+    items.forEach(it=>{
       const b = it.backtest || {};
-      const wr = b.hit_rate!=null ? Math.round(b.hit_rate*100)+'%' : '–';
       const ab = it.status||'parked';
-      const sr = document.createElement('div'); sr.className='srow';
-      sr.dataset.name = it.name;
-      sr.onclick = (ev)=>{ ev.stopPropagation(); openStrat(it.name); };
-      const vv = it.validation && it.validation.verdict;
-      const vc = vv ? ('<span class="vchip vc-'+({PASS:"ok","PASS*":"warn",FAIL:"fail"}[vv]||"warn")+'">'+vv+'</span>') : '';
-      // RV 는 won 기반이 권위(명세 §1.4). 그 외는 bp/y.
       const useWon = b.per_yr_man_orig!=null;
       const c1lbl = useWon?'연 만원':'연 bp';
       const c1val = useWon?b.per_yr_man_orig:b.bp_per_year;
       const c2val = useWon?b.sharpe_won_orig:b.sharpe_annualized;
-      const c3val = useWon?(b.win_pct_orig!=null?b.win_pct_orig+'%':'–'):wr;
-      sr.innerHTML =
-        '<span class="abadge ab-'+ab+'">'+ab.toUpperCase()+'</span>'+ vc +
-        '<span class="srow-nm">'+it.name+'</span>'+
-        '<span class="srow-cc">'+(it.concept||'')+'</span>'+
-        '<span class="srow-r">'+
-          '<span class="col"><span class="k">'+c1lbl+'</span><br><span class="val '+((c1val||0)>=0?'pos':'neg')+'">'+_fmt(c1val)+'</span></span>'+
-          '<span class="col"><span class="k">Sharpe</span><br><span class="val">'+_fmt(c2val)+'</span></span>'+
-          '<span class="col"><span class="k">승률</span><br><span class="val">'+c3val+'</span></span>'+
-          '<span class="itag i-'+(it.integration||'ported')+'">'+(it.integration||'ported')+'</span>'+
-        '</span>';
-      cb.appendChild(sr);
-    }
-    cr.onclick = ()=>{ if(_OPEN.has(cat))_OPEN.delete(cat); else _OPEN.add(cat);
-      cr.classList.toggle('open'); cb.classList.toggle('open'); };
-    acc.appendChild(cr); acc.appendChild(cb);
-  }
-  wrap.appendChild(acc);
+      const sizing = (it.tier_eval||{}).sizing || '';
+      const row = document.createElement('div'); row.className='crow'; row.dataset.name=it.name;
+      row.onclick = ()=>openStrat(it.name);
+      row.innerHTML =
+        '<span class="tier sm tier-'+_tierOf(it)+'">'+(_tierOf(it)==='none'?'–':_tierOf(it))+'</span>'+
+        '<span class="nm">'+it.name+'</span>'+
+        '<span class="cat">'+(it.category||'')+'</span>'+
+        '<span class="sdot '+ab+'" title="'+ab+'"></span><span class="stat status">'+ab+'</span>'+
+        '<span class="spacer"></span>'+
+        (sizing?('<span class="szlbl">'+sizing+'</span>'):'')+
+        '<span class="num"><span class="k">'+c1lbl+'</span><br><span class="v '+((c1val||0)>=0?'pos':'neg')+'">'+_fmt(c1val)+'</span></span>'+
+        '<span class="num sharpe"><span class="k">Sharpe</span><br><span class="v">'+_fmt(c2val)+'</span></span>';
+      wrap.appendChild(row);
+    });
+  });
 }
-
-let _OPEN = new Set();   // 펼친 카테고리 (숨기기/보이기 상태 유지)
 
 async function bulkUpdate() {
   const btn=document.getElementById('updBtn'), msg=document.getElementById('updMsg');
@@ -337,8 +407,8 @@ function _fmt(v,suf){ if(v==null||v==='') return '–'; const n=Number(v);
   return (n>0&&suf!=='%'?'+':'')+ (Math.abs(n)>=100?Math.round(n):n.toFixed(2)) + (suf||''); }
 
 function openStrat(name){
-  document.querySelectorAll('.srow.sel').forEach(e=>e.classList.remove('sel'));
-  const r=document.querySelector('.srow[data-name="'+name+'"]'); if(r) r.classList.add('sel');
+  document.querySelectorAll('.crow.sel').forEach(e=>e.classList.remove('sel'));
+  const r=document.querySelector('.crow[data-name="'+name+'"]'); if(r) r.classList.add('sel');
   showDetail(name);
 }
 
@@ -354,11 +424,25 @@ async function showDetail(name) {
   const banner = a.blocked ? '<div class="blocked-banner">⛔ 헌법 워치독 BLOCK — VIOLATION '+(a.n_violation||0)+'건. S9 배포 불가.</div>' : '';
   const consRows = Object.entries(cons).map(([k,val])=>'<tr><td>'+k+'</td><td>'+val+'</td></tr>').join('') || '<tr><td class="status" colspan=2>12제약 선언 없음</td></tr>';
 
+  const tg = s.tier || (s.tier_eval||{}).tier;
+  const te = s.tier_eval || {};
+  const tierHead = tg ? ('<span class="tier tier-'+tg+'">'+tg+'</span>') : '';
+  // tier 근거 패널 (검증 등급의 투명한 설명 — 고무도장 방지)
+  const tierPanel = (tg && (te.basis||te.reason||te.sizing)) ? (
+    '<div class="vbanner v-'+({T1:"ok",T2:"ok",T3:"warn",T4:"none",REJECT:"fail"}[tg]||"none")+'" style="margin-bottom:10px">'+
+      '<b>'+(TIER_META[tg]?TIER_META[tg].nm:tg)+'</b> · 사이징 <b>'+(te.sizing||'–')+'</b><br>'+
+      (te.basis||te.reason||'')+
+      (te.dsr_honest!=null?('<br><span class="status">정직N DSR '+te.dsr_honest+' @ N='+(te.n_honest||te.n_program||'?')+(te.sr_per_trade!=null?(' · SR/거래 '+te.sr_per_trade):'')+'</span>'):'')+
+      (te.override?('<br><span class="status">독립검증: '+te.override+'</span>'):'')+
+      (te.status_grade_gap?('<br>⚠ '+te.status_grade_gap):'')+
+      (te.caveat?('<br><span class="status">유의: '+te.caveat+'</span>'):'')+
+    '</div>') : '';
   d.innerHTML =
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
-    '<div style="font-size:14px;font-weight:600">'+s.name+' <span class="status">@'+s.version+' · '+s.category+'</span></div>'+
+    '<div class="tier-detail-head">'+tierHead+
+      '<div style="font-size:14px;font-weight:600">'+s.name+' <span class="status">@'+s.version+' · '+s.category+'</span></div></div>'+
     '<button class="btn" onclick="_destroyCharts();document.getElementById(\'detail\').classList.remove(\'show\')">닫기</button></div>'+
-    banner+
+    banner+ tierPanel+
     (s.tagline?('<div style="font-size:13px;color:var(--t2);margin:-2px 0 10px">'+s.tagline+'</div>'):'')+
     '<table class="find-tbl" style="margin-bottom:10px"><tbody>'+
       '<tr><td style="width:90px">컨셉</td><td>'+(s.concept||'—')+'</td></tr>'+

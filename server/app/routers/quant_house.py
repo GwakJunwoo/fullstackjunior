@@ -49,12 +49,20 @@ def list_strategies():
         item = dict(s)
         item["lineage"] = _lineage(strategies, s["name"])
         by_cat.setdefault(s.get("category", "uncategorized"), []).append(item)
-    # 헌법 요약 카운트
+    # 헌법 요약 카운트 + 계층(tier) 분포
     audits = [s.get("audit") or {} for s in strategies.values()]
+    tier_dist: dict[str, int] = {}
+    for s in strategies.values():
+        tg = s.get("tier") or (s.get("tier_eval") or {}).get("tier")
+        if tg:
+            tier_dist[tg] = tier_dist.get(tg, 0) + 1
     summary = {
         "total": len(strategies),
+        "live": sum(1 for s in strategies.values()
+                    if s.get("status") in ("deployed", "active")),
         "deployed": sum(1 for s in strategies.values() if s.get("status") == "deployed"),
         "blocked": sum(1 for a in audits if a.get("blocked")),
+        "tier_dist": tier_dist,
         "updated": reg.get("updated"),
     }
     return {"summary": summary, "by_category": by_cat}
