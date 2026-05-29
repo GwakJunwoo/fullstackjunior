@@ -315,17 +315,23 @@ async function load() {
     '<div class="panel-wrap status">등록부를 불러올 수 없습니다. registry.json 이 비어있을 수 있습니다 ('+ (e.detail||e.message) +').</div>'; return; }
 
   // 전 전략 평탄화 + tier 그룹화
-  const all = [];
+  // web_visible=false 는 표시 제외(운용자 큐레이션). 백엔드도 거르지만, 구버전
+  // 백엔드(미재기동) 대비 프론트에서도 한 번 더 거른다.
+  let all = [];
   for (const items of Object.values(data.by_category||{})) {
     items.forEach(it => { CACHE[it.name]=it; all.push(it); });
   }
+  all = all.filter(it => it.web_visible !== false);
   const s = data.summary || {};
-  const dist = s.tier_dist || {};
+  // 지표는 *노출 전략* 기준으로 계산(숨김 포함 백엔드 summary 와 어긋나지 않게).
+  const dist = {}; all.forEach(x => { const t=_tierOf(x); if(t!=='none') dist[t]=(dist[t]||0)+1; });
   const topTier = TIER_ORDER.find(t => t!=='none' && t!=='REJECT' && dist[t]) || '–';
-  document.getElementById('m-total').textContent = s.total ?? all.length;
-  document.getElementById('m-live').textContent = s.live ?? 0;
+  document.getElementById('m-total').textContent = all.length;
+  document.getElementById('m-live').textContent =
+    all.filter(x => x.status==='deployed' || x.status==='active').length;
   document.getElementById('m-toptier').textContent = topTier;
-  document.getElementById('m-blocked').textContent = s.blocked ?? 0;
+  document.getElementById('m-blocked').textContent =
+    all.filter(x => (x.audit||{}).blocked).length;
   document.getElementById('updated').textContent = s.updated ? ('등록부 갱신 ' + s.updated) : '';
 
   // ── tier 분포 범례 (클릭 = 필터) ──

@@ -41,28 +41,33 @@ def _lineage(strategies: dict, name: str) -> list[str]:
 
 @router.get("/strategies")
 def list_strategies():
-    """카테고리별 전략 + 진화경로 + 최근 감사/백테스트."""
+    """카테고리별 전략 + 진화경로 + 최근 감사/백테스트.
+
+    web_visible=false 전략은 *웹 표시에서 제외*(운용자 큐레이션 — 레지스트리엔 존재).
+    """
     reg = _load_registry()
     strategies = reg.get("strategies", {})
+    # 웹 노출 대상만 (web_visible 가 명시적 false 면 숨김; 없으면 기본 노출)
+    visible = {n: s for n, s in strategies.items() if s.get("web_visible") is not False}
     by_cat: dict[str, list] = {}
-    for s in strategies.values():
+    for s in visible.values():
         item = dict(s)
         item["lineage"] = _lineage(strategies, s["name"])
         by_cat.setdefault(s.get("category", "uncategorized"), []).append(item)
-    # 헌법 요약 카운트 + 계층(tier) 분포
-    audits = [s.get("audit") or {} for s in strategies.values()]
+    # 헌법 요약 카운트 + 계층(tier) 분포 (노출 전략 기준)
     tier_dist: dict[str, int] = {}
-    for s in strategies.values():
+    for s in visible.values():
         tg = s.get("tier") or (s.get("tier_eval") or {}).get("tier")
         if tg:
             tier_dist[tg] = tier_dist.get(tg, 0) + 1
     summary = {
-        "total": len(strategies),
-        "live": sum(1 for s in strategies.values()
+        "total": len(visible),
+        "live": sum(1 for s in visible.values()
                     if s.get("status") in ("deployed", "active")),
-        "deployed": sum(1 for s in strategies.values() if s.get("status") == "deployed"),
-        "blocked": sum(1 for a in audits if a.get("blocked")),
+        "deployed": sum(1 for s in visible.values() if s.get("status") == "deployed"),
+        "blocked": sum(1 for s in visible.values() if (s.get("audit") or {}).get("blocked")),
         "tier_dist": tier_dist,
+        "hidden": len(strategies) - len(visible),
         "updated": reg.get("updated"),
     }
     return {"summary": summary, "by_category": by_cat}
