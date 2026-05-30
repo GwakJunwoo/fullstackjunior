@@ -379,6 +379,9 @@ function renderList(all){
       const c1val = useWon?b.per_yr_man_orig:b.bp_per_year;
       const c2val = useWon?b.sharpe_won_orig:b.sharpe_annualized;
       const sizing = (it.tier_eval||{}).sizing || '';
+      const exraw = (it.execution||{}).exit || '';
+      const exm = exraw.match(/^\[([^\]]+)\]/);
+      const extag = exm ? exm[1] : (exraw ? '이벤트고정' : '');
       const row = document.createElement('div'); row.className='crow'; row.dataset.name=it.name;
       row.onclick = ()=>openStrat(it.name);
       row.innerHTML =
@@ -387,6 +390,7 @@ function renderList(all){
         '<span class="cat">'+(it.category||'')+'</span>'+
         '<span class="sdot '+ab+'" title="'+ab+'"></span><span class="stat status">'+ab+'</span>'+
         '<span class="spacer"></span>'+
+        (extag?('<span class="szlbl" title="청산: '+exraw.replace(/"/g,'')+'">⎋ '+extag+'</span>'):'')+
         (sizing?('<span class="szlbl">'+sizing+'</span>'):'')+
         '<span class="num"><span class="k">'+c1lbl+'</span><br><span class="v '+((c1val||0)>=0?'pos':'neg')+'">'+_fmt(c1val)+'</span></span>'+
         '<span class="num sharpe"><span class="k">Sharpe</span><br><span class="v">'+_fmt(c2val)+'</span></span>';
@@ -456,6 +460,14 @@ async function showDetail(name) {
       (s.mechanics?('<tr><td>메커니즘</td><td>'+s.mechanics+'</td></tr>'):'')+
       (s.notes?('<tr><td>상태</td><td>'+s.notes+'</td></tr>'):'')+
     '</tbody></table>'+
+    (s.execution?('<div class="cat-title">실행계층 — 진입·청산·예산 (단일공장)</div>'+
+      '<table class="find-tbl" style="margin-bottom:10px"><tbody>'+
+      '<tr><td style="width:90px">진입</td><td>'+(s.execution.entry||'—')+'</td></tr>'+
+      '<tr><td>청산</td><td><b style="color:var(--t1,#7cf)">'+(s.execution.exit||'—')+'</b></td></tr>'+
+      (s.execution.discipline?('<tr><td>규율</td><td>'+s.execution.discipline+'</td></tr>'):'')+
+      (s.execution.operation_won_eok_per_yr!=null?('<tr><td>예산당 수익</td><td><b>'+s.execution.operation_won_eok_per_yr+'</b> 억/yr <span class="status">(한쪽델타 2500만·노출통제)</span></td></tr>'):'')+
+      (s.execution.method?('<tr><td>산출</td><td><span class="status">'+s.execution.method+(s.execution.at?(' · '+s.execution.at):'')+'</span></td></tr>'):'')+
+      '</tbody></table>'):'')+
     '<div class="status" style="margin-bottom:12px">통합: <span class="itag i-'+(s.integration||'ported')+'">'+(s.integration||'ported')+'</span>'+
       (s.integration==='catalog'?(' — 알파 로직 원본: <code>'+(s.source_ref||'')+'</code> (미이식, 가짜 금지 §3)')
         : s.integration==='ported'?(' — ✅ 원안 코드를 라이브 DB로 재실행(재구현 아님 → 발산 0). <code>'+(s.source_ref||'')+'</code>')
@@ -527,6 +539,22 @@ async function showDetail(name) {
             return '<tr><td>'+tag+'</td><td>'+(e.side||'')+(e.note?(' · '+e.note):'')+extra+'</td></tr>';
           }).join('')+'</tbody></table>';
         } else { h += '<div class="noart">오늘 신규 진입 신호 없음</div>'; }
+        // 보유 포지션 최신일 청산신호 (확정정책 재적용 — 어디서/뭐/왜)
+        const xsig = j.exit_signals || {};
+        const xe = xsig.exits || [];
+        h += '<div class="cat-title" style="margin-top:10px">오늘의 청산신호'+
+          (xsig.held!=null?(' <span class="status">(보유중 '+xsig.held+'건)</span>'):'')+'</div>';
+        if (xe.length){
+          h += '<table class="find-tbl"><tbody>'+xe.map(function(e){
+            const pv=(e.pnl_bp!=null?e.pnl_bp:0);
+            return '<tr><td>'+(e.struct||'?')+'</td><td><b>'+(e.reason||'')+'</b>'+
+              ' <span class="status">진입 '+(e.entry_date||'')+' → 청산 '+(e.exit_date||'')+'</span>'+
+              ' <span class="'+(pv>=0?'pos':'neg')+'">'+(pv>=0?'+':'')+pv+'bp</span></td></tr>';
+          }).join('')+'</tbody></table>'+
+          '<div class="status">청산 기준: '+(xsig.basis||'')+' · 기준일 '+(xsig.as_of||'')+'</div>';
+        } else {
+          h += '<div class="noart">오늘 청산 신호 없음'+(xsig.basis?(' ('+xsig.basis+')'):'')+'</div>';
+        }
         fs.className=''; fs.innerHTML = h;
       }
     }catch(e){ fs.innerHTML = '<span class="noart">forward 조회 실패: '+(e.detail||e.message)+'</span>'; }
