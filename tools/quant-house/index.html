@@ -465,6 +465,8 @@ async function showDetail(name) {
       '<tr><td style="width:90px">진입</td><td>'+(s.execution.entry||'—')+'</td></tr>'+
       '<tr><td>청산</td><td><b style="color:var(--t1,#7cf)">'+(s.execution.exit||'—')+'</b></td></tr>'+
       (s.execution.discipline?('<tr><td>규율</td><td>'+s.execution.discipline+'</td></tr>'):'')+
+      (s.execution.directional_dv01?(function(dv){
+        return '<tr><td>방향성(DV01)</td><td><b class="neg">DIRECTIONAL — net DV01 '+(dv.net_pct_of_T_leg>=0?'+':'')+dv.net_pct_of_T_leg+'% '+(dv.net_pct_of_T_leg>=0?'long':'short')+' duration</b> <span class="status">('+(dv.long_n!=null&&dv.n!=null?dv.long_n+'/'+dv.n+' 부호일관 · ':'')+'DV01중립 아님)</span>'+(dv.note?('<br><span class="status">'+dv.note+'</span>'):'')+'</td></tr>';})(s.execution.directional_dv01):'')+
       (s.execution.operation_won_eok_per_yr!=null?('<tr><td>예산당 수익</td><td><b>'+s.execution.operation_won_eok_per_yr+'</b> 억/yr <span class="status">(한쪽델타 2500만·노출통제)</span></td></tr>'):'')+
       (s.execution.method?('<tr><td>산출</td><td><span class="status">'+s.execution.method+(s.execution.at?(' · '+s.execution.at):'')+'</span></td></tr>'):'')+
       '</tbody></table>'):'')+
@@ -479,12 +481,28 @@ async function showDetail(name) {
     '<div class="cat-title">헌법 감사</div>'+
     '<div class="status">verdict <span class="lvl-'+(a.verdict||'none')+'">'+(a.verdict||'미감사')+'</span>'+
       ' · VIOLATION '+(a.n_violation??'–')+' · WARN '+(a.n_warn??'–')+' · '+(a.at||'')+'</div>'+
-    (s.diagnostics?('<div class="cat-title">통계 안전장치 D1~D6 (HOUSE §1.3)</div>'+
-      '<div class="vbanner v-'+({PASS:"ok",WARN:"warn",FAIL:"fail","N/A":"none"}[s.diagnostics.overall]||"none")+'">overall <b>'+s.diagnostics.overall+'</b>'+
-      (s.diagnostics.dsr!=null?(' · Deflated Sharpe(D4)=<b>'+s.diagnostics.dsr+'</b> (≥0.95 통과)'):'')+'</div>'+
+    (s.diagnostics?(function(dg){
+      // 델타트랙(directional)은 RV D1~D6/DSR 바 미적용 — delta_gate(C1/C2/placebo/C3)로 진단.
+      // RV 통계검증 통과로 오해되지 않게 제목·캐비엇을 트랙에 맞춘다(H2 정직).
+      var ov = String(dg.overall||'');
+      var isDelta = !!dg.track || /DELTA|ADOPT_DIV/.test(ov);
+      var title = isDelta
+        ? '델타게이트 진단 C1~C3 (§8.5 — directional·RV D1~D6/DSR 바 미적용)'
+        : '통계 안전장치 D1~D6 (HOUSE §1.3)';
+      // overall 배너 색: RV verdict 매핑 + 델타 ADOPT_DIV 는 채택(warn=관찰)로
+      var bcls = isDelta ? (/ADOPT/.test(ov)?'warn':(/REJECT|FAIL/.test(ov)?'fail':'none'))
+                         : ({PASS:"ok",WARN:"warn",FAIL:"fail","N/A":"none"}[ov]||"none");
+      var lvl = function(vd){ var v=String(vd); return v.indexOf('PASS')===0?'PASS':(v.indexOf('FAIL')===0?'VIOLATION':(v.indexOf('WARN')===0?'WARN':'none')); };
+      return '<div class="cat-title">'+title+'</div>'+
+      (isDelta&&dg.track?('<div class="status" style="margin:-2px 0 6px">'+dg.track+'</div>'):'')+
+      '<div class="vbanner v-'+bcls+'">overall <b>'+ov+'</b>'+
+      (dg.dsr!=null?(' · Deflated Sharpe(D4)=<b>'+dg.dsr+'</b> (≥0.95 통과)'):'')+
+      (isDelta&&dg.rv_gate_ref?('<br><span class="status">참고(무관·directional): '+dg.rv_gate_ref+'</span>'):'')+'</div>'+
       '<table class="find-tbl"><tbody>'+
-      Object.entries(s.diagnostics.by||{}).map(([k,vd])=>'<tr><td class="lvl-'+(vd==="PASS"?"PASS":(vd==="FAIL"?"VIOLATION":(vd==="WARN"?"WARN":"none")))+'">'+k+'</td><td>'+vd+' — '+((s.diagnostics.detail||{})[k]||'')+'</td></tr>').join('')+
-      '</tbody></table>'):'')+
+      Object.entries(dg.by||{}).map(([k,vd])=>'<tr><td class="lvl-'+lvl(vd)+'">'+k+'</td><td>'+vd+((dg.detail||{})[k]?(' — '+(dg.detail||{})[k]):'')+'</td></tr>').join('')+
+      (isDelta&&dg.oos?('<tr><td class="lvl-PASS">OOS(TEST 2022+)</td><td>+'+dg.oos.test_bp+'bp · t='+dg.oos.test_t+' · p='+dg.oos.test_p+' · n='+dg.oos.n_test+' <span class="status">(thin)</span></td></tr>'):'')+
+      (isDelta&&dg.regime?('<tr><td>레짐</td><td>'+dg.regime+'</td></tr>'):'')+
+      '</tbody></table>';})(s.diagnostics):'')+
     ((s.diagnostics&&s.diagnostics.walkforward)?(function(w){
       var vc=(w.verdict||'').indexOf('PASS')===0?'ok':((w.verdict||'').indexOf('WARN')===0?'warn':'fail');
       var f=function(o){return 'N='+o.N+' · ann <b>'+(o.ann>=0?'+':'')+o.ann.toFixed(1)+'</b> bp/y · Sharpe '+(o.sharpe>=0?'+':'')+o.sharpe.toFixed(2)+' · win '+o.win.toFixed(0)+'%';};
@@ -516,7 +534,7 @@ async function showDetail(name) {
 
   let art; try { art = await apiGet('/quant-house/backtest/'+encodeURIComponent(name)); }
   catch(e){ art = {has_artifact:false, note:'아티팩트 조회 실패: '+(e.detail||e.message)}; }
-  renderBacktest(art);
+  renderBacktest(art, s.backtest);   // registry backtest 메타(TRAIN/TEST 분리·OOS) 폴백용
 
   const fs = document.getElementById('fwdSection');
   if (fs){
@@ -561,14 +579,41 @@ async function showDetail(name) {
   }
 }
 
-function renderBacktest(art){
+function renderBacktest(art, regBt){
   const sec = document.getElementById('btSection');
   if (!sec) return;
   if (!art.has_artifact){
+    // 아티팩트 차트는 없지만 등록부 backtest 메타가 있으면 핵심 통계를 정직 표시
+    // (TRAIN/TEST 분리·OOS 유의성·비용 — 델타트랙 채택 전략은 등록부 메타가 권위).
+    let metaTbl = '';
+    if (regBt && (regBt.mean_bp_per_trade!=null || regBt.mean_bp_test_oos!=null)){
+      const b = regBt;
+      const cell=(l,v,suf,sign)=> v==null?'' :
+        '<div class="s"><div class="sl">'+l+'</div><div class="sv '+(sign?(Number(v)>=0?'pos':'neg'):'')+'">'+_fmt(v,suf)+'</div></div>';
+      metaTbl =
+        '<div class="status" style="margin:-4px 0 8px">아티팩트 차트 미생성 — 등록부 backtest 메타(권위·비용후·캐노니컬)를 표시. '+
+        (b.metric?('지표: '+b.metric):'')+'</div>'+
+        '<div class="sgrid">'+
+          cell('거래수', b.n_trades)+
+          cell('평균/거래(ALL)', b.mean_bp_per_trade,'bp',1)+
+          cell('TRAIN', b.mean_bp_train,'bp',1)+
+          cell('TEST/OOS ★', b.mean_bp_test_oos,'bp',1)+
+          cell('연 bp', b.bp_per_year,'bp',1)+
+          cell('적중률', b.hit_rate)+
+          cell('평균보유('+(b.hold_unit||'일')+')', b.mean_hold)+
+          cell('비용/거래', b.cost_bp_per_trade,'bp')+
+        '</div>'+
+        (b.test_t!=null?('<div class="vbanner v-warn" style="margin-top:4px">OOS(TEST 2022+) 유의성: '+
+          '<b>'+(b.mean_bp_test_oos>=0?'+':'')+b.mean_bp_test_oos+'bp</b> · t=<b>'+b.test_t+'</b> · p=<b>'+b.test_p+'</b>'+
+          (b.train_t!=null?(' &nbsp;|&nbsp; TRAIN +'+b.mean_bp_train+'bp t='+b.train_t+' p='+b.train_p+' <span class="status">(유의X=반전 아님)</span>'):'')+'</div>'):'')+
+        (b.variant_note?('<div class="status" style="margin-top:6px">'+b.variant_note+'</div>'):'');
+    }
     sec.className=''; sec.innerHTML =
-      '<div class="cat-title">백테스트</div><div class="noart">'+
+      '<div class="cat-title">백테스트'+(metaTbl?' (등록부 메타 — 차트 미생성)':'')+'</div>'+
+      metaTbl+
+      (metaTbl?'':('<div class="noart">'+
       (art.note||'백테스트 아티팩트 없음')+
-      (art.source_ref?('<br>원본: <code>'+art.source_ref+'</code>'):'')+'</div>';
+      (art.source_ref?('<br>원본: <code>'+art.source_ref+'</code>'):'')+'</div>'));
     return;
   }
   const st = art.stats||{};
