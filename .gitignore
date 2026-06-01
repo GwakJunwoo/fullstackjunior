@@ -39,3 +39,7 @@ server/app/data/*.json
 
 # 로컬 렌더링 산출물 (MD 원본만 추적)
 *.pdf
+
+# 루트 스크래치 (ripgrep 등 임시 산출 — publish="." 공개서빙 방지)
+/_rg.json
+/_*.json
