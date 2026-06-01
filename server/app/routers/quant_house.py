@@ -97,12 +97,29 @@ def backtest_artifact(name: str):
     if not reg:
         raise HTTPException(404, f"미등록 전략: {name}")
     if not fp.exists():
+        # ★integration 인지 정직 note (2026-06-01) — research 전략을 'catalog/미이식'으로
+        #   오인하던 하드코딩 제거(§3). 등록부 backtest 메타가 있으면 동봉(권위 수치).
+        integ = reg.get("integration")
+        bt = reg.get("backtest")
+        if integ == "catalog":
+            note = ("백테스트 아티팩트 없음 — catalog 전략(알파 로직 원본 Beta Trading·이 엔진 "
+                    "미이식). ported 승격 후 cli.py backtest 실행 시 생성됨.")
+        elif bt:
+            m = bt.get("mean_bp_per_trade")
+            oos = bt.get("mean_bp_test_oos")
+            nt = bt.get("n_trades")
+            stat = (" — net/거래 ALL %+.2fbp · TEST(OOS) %+.2fbp · n=%s"
+                    % (m, oos, nt)) if (m is not None and oos is not None) else ""
+            note = ("트레이드로그 아티팩트(차트) 미생성 — 등록부 backtest 메타가 권위(비용후·캐노니컬)"
+                    + stat + ". directional·델타트랙 전략은 등록부 메타로 평가(아티팩트는 "
+                    "harness/backtest 실행 시 생성).")
+        else:
+            note = "백테스트 아티팩트·등록부 메타 모두 없음."
         return {"name": name, "has_artifact": False,
-                "integration": reg.get("integration"),
+                "integration": integ,
                 "source_ref": reg.get("source_ref"),
-                "note": "백테스트 아티팩트 없음 — catalog 전략은 알파 로직이 "
-                        "원본(Beta Trading)에 있고 이 엔진 미이식. "
-                        "ported 승격 후 cli.py backtest 실행 시 생성됨."}
+                "backtest": bt,          # ★등록부 backtest 메타 동봉(권위)
+                "note": note}
     art = json.loads(fp.read_text(encoding="utf-8"))
     art["has_artifact"] = True
     return art
