@@ -447,12 +447,32 @@ async function showDetail(name) {
       (te.status_grade_gap?('<br>⚠ '+te.status_grade_gap):'')+
       (te.caveat?('<br><span class="status">유의: '+te.caveat+'</span>'):'')+
     '</div>') : '';
+  // ── 손익비역전(R:R<1) 캐비엇 배너 (rr_caveat 보유 전략을 검증된 알파처럼 보이지 않게: H2) ──
+  // 발동조건 = backtest.rr_caveat 존재 시에만(R:R 역전은 해당 전략 고유 한계). 게이트/DSR 상태는
+  //   기존 tierPanel·diagnostics 배너에 이미 노출되므로 다른 라이브 전략엔 이 배너 안 뜸(영향 0).
+  //   전부 API 필드 렌더 — 하드코딩 없음.
+  const ab2 = s.adoption_basis || {};
+  const bt2 = s.backtest || {};
+  const _gateFail = (ab2.gate_verdict || '').toUpperCase() === 'FAIL';
+  const _tStat = (te.t_stat!=null?te.t_stat:bt2.t_stat_bp);
+  const _rrm = bt2.rr_caveat ? bt2.rr_caveat.match(/reward:risk\s*([0-9.]+)/i) : null;
+  const adoptBanner = (bt2.rr_caveat) ? (
+    '<div class="vbanner v-fail" style="margin-bottom:10px">'+
+      '⚠ <b>R:R '+(_rrm?_rrm[1]:'')+' &lt;1 — 손익비 역전(승률 의존, 검증된 알파 아님)</b>'+
+      (_gateFail?(' · 정식 게이트 <b>FAIL</b>'):'')+
+      '<span style="display:inline-flex;gap:14px;flex-wrap:wrap;margin-top:4px">'+
+        (te.dsr!=null?('<span>DSR <b>'+te.dsr+'</b><span class="status"> (&lt;0.95 미달)</span></span>'):'')+
+        (_tStat!=null?('<span>t-stat <b>'+_tStat+'</b><span class="status"> (&lt;2 비유의)</span></span>'):'')+
+        ((bt2.n_trades||bt2.n_orig)!=null?('<span>N <b>'+(bt2.n_trades||bt2.n_orig)+'</b><span class="status"> (thin)</span></span>'):'')+
+      '</span>'+
+      '<br><span class="status">'+bt2.rr_caveat+'</span>'+
+    '</div>') : '';
   d.innerHTML =
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
     '<div class="tier-detail-head">'+tierHead+
       '<div style="font-size:14px;font-weight:600">'+s.name+' <span class="status">@'+s.version+' · '+s.category+'</span></div></div>'+
     '<button class="btn" onclick="_destroyCharts();document.getElementById(\'detail\').classList.remove(\'show\')">닫기</button></div>'+
-    banner+ tierPanel+
+    banner+ tierPanel+ adoptBanner+
     (s.tagline?('<div style="font-size:13px;color:var(--t2);margin:-2px 0 10px">'+s.tagline+'</div>'):'')+
     '<table class="find-tbl" style="margin-bottom:10px"><tbody>'+
       '<tr><td style="width:90px">컨셉</td><td>'+(s.concept||'—')+'</td></tr>'+
@@ -699,13 +719,20 @@ function renderBacktest(art, regBt){
       (st.sharpe_won_orig!=null?S('Sharpe(원안 won·권위)','sharpe_won_orig','',1):'')+
     '</div>'+
     (st.per_yr_man_orig!=null?'<div class="status" style="margin:-4px 0 10px">RV 는 won 기반 지표가 명세 §1.4 권위값 (Sharpe 거래·연율 ≠ 원안 won Sharpe)</div>':'')+
+    // R:R(손익비) 캐비엇 — TP<SL(reward:risk<1) 손익비 역전을 통계 섹션에도 명시(H2). regBt.rr_caveat 만 있을 때.
+    ((regBt&&regBt.rr_caveat)?('<div class="vbanner v-warn" style="margin:2px 0 10px">⚖ <b>R:R '+(regBt.rr_caveat.match(/reward:risk\s*([0-9.]+)/i)?regBt.rr_caveat.match(/reward:risk\s*([0-9.]+)/i)[1]:'<1')+' &lt;1 (손익비 역전·승률 의존)</b> — '+regBt.rr_caveat+'</div>'):'')+
+    ((regBt&&regBt.t_stat_bp!=null)?('<div class="status" style="margin:-4px 0 10px">거래수익 유의성: t-stat <b>'+regBt.t_stat_bp+'</b>'+(regBt.p_value_bp!=null?(' · p='+regBt.p_value_bp):'')+' <b>(&lt;2 비유의 — 단독 통계검증 불가)</b></div>'):'')+
     ((st.leaked_n||0)>0?('<div class="leak-banner">⚠ <b>누수(보유초과) 거래 '+st.leaked_n+'건</b> 탐지 — 원안 백테스트가 정상청산(target/stop/time) 못 한 포지션이 컷오프까지 누수(실제 수개월~수년 보유, 원안 hold 컬럼은 stale). 전체(full) 수치를 <b>'+_fmt(st.full_inflation_pct,"%")+'</b> 왜곡 → <b>clean 수치가 권위</b>(명세도 clean 사용). 아래 로그에서 빨간 행 = 누수.</div>'):'')+
     (st.cost_model?('<div class="leak-banner" style="background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.30);color:#fbbf24">💸 <b>비용/구성: '+st.cost_model+'</b>'+(st.grid_reopt?(' · <b>그리드 재최적: '+st.grid_reopt+'</b>'):'')+'. 위 표의 연 bp/PnL/Sharpe 는 이 설정 적용 후 값입니다.'+(st.variant_note?(' '+st.variant_note):'')+(st.orig_spec_ref_bp!=null?(' 참고: 원안(bf포함·변동비용·override 명세값) 기준 <b>+'+_fmt(st.orig_spec_ref_bp)+' bp/y</b>.'):'')+'</div>'):'')+
     (st.extra_cost_bp?('<div class="leak-banner" style="background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.30);color:#fbbf24">💸 거래비용 +'+st.extra_cost_bp+'bp 추가('+(st.extra_cost_mode||'')+'), 추가합 '+_fmt(st.extra_cost_total_bp)+'bp — 가산 후 값.</div>'):'')+
     (art.delta_caveat?('<div class="vbanner v-warn" style="margin:2px 0 10px">🧭 <b>델타트랙'+(art.delta_track?(' '+art.delta_track):'')+' — DIRECTIONAL</b>: '+art.delta_caveat+(art.oos&&art.oos.test_t!=null?(' &nbsp;|&nbsp; <b>OOS t='+art.oos.test_t+' p='+art.oos.test_p+'</b>'):'')+'</div>'):'')+
-    '<div class="cat-title">누적 PnL (bp)</div><div class="qchart"><canvas id="cEq"></canvas></div>'+
-    '<div class="cat-title">월간 PnL (bp)</div><div class="qchart sm"><canvas id="cMo"></canvas></div>'+
-    '<div class="cat-title">Drawdown (bp)</div><div class="qchart sm"><canvas id="cDd"></canvas></div>'+
+    // 시계열(equity/monthly/drawdown) 있을 때만 차트 — sparse 아티팩트(예: rv 38건)는
+    //   시계열 미생성 → 빈 캔버스 대신 정직 안내(가짜 빈 차트 금지, H2).
+    (((art.equity||[]).length||(art.monthly||[]).length||(art.drawdown||[]).length)?(
+      '<div class="cat-title">누적 PnL (bp)</div><div class="qchart"><canvas id="cEq"></canvas></div>'+
+      '<div class="cat-title">월간 PnL (bp)</div><div class="qchart sm"><canvas id="cMo"></canvas></div>'+
+      '<div class="cat-title">Drawdown (bp)</div><div class="qchart sm"><canvas id="cDd"></canvas></div>')
+     :('<div class="noart" style="margin:6px 0 12px">누적/월간/Drawdown 시계열 미생성 — sparse 트레이드로그('+art.n_trades+'건) 아티팩트. 아래 진입 포지션 로그로 거래별 확인.</div>'))+
     '<div class="cat-title">진입 포지션 로그 ('+art.n_trades+'건)</div>'+ structNote +
     '<div class="tlog-wrap"><table class="tlog"><thead><tr>'+head+
     '</tr></thead><tbody>'+body+'</tbody></table></div>';
