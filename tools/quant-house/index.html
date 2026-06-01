@@ -562,7 +562,8 @@ async function showDetail(name) {
       const fwd = await apiGet('/quant-house/forward');
       const j = (fwd.strategies||{})[name];
       if (!j){ fs.innerHTML = '<span class="noart">forward 미생성 — cli.py forward 실행</span>'; }
-      else if (j.status){
+      else if (j.status && !/^(active|deployed)$/i.test(String(j.status))){
+        // BLOCKED/parked/FAIL/stale 등 비라이브 상태만 배너. active/deployed 는 실신호 렌더.
         fs.innerHTML = '<div class="vbanner v-warn">'+j.status+
           (j.note?(' — '+j.note):'')+'</div>';
       } else {
