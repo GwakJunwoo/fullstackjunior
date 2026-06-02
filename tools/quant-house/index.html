@@ -374,10 +374,10 @@ function renderList(all){
     items.forEach(it=>{
       const b = it.backtest || {};
       const ab = it.status||'parked';
-      const useWon = b.per_yr_man_orig!=null;
-      const c1lbl = useWon?'연 만원':'연 bp';
-      const c1val = useWon?b.per_yr_man_orig:b.bp_per_year;
-      const c2val = useWon?b.sharpe_won_orig:b.sharpe_annualized;
+      // 헤드라인은 항상 bp(파이프라인·사이징무관·정직). won(원안 100억 노치)은 상세에만 참고표기.
+      const c1lbl = '연 bp';
+      const c1val = b.bp_per_year;
+      const c2val = (b.sharpe_annualized!=null) ? b.sharpe_annualized : b.sharpe_per_trade;
       const sizing = (it.tier_eval||{}).sizing || '';
       const exraw = (it.execution||{}).exit || '';
       const exm = exraw.match(/^\[([^\]]+)\]/);
@@ -716,10 +716,10 @@ function renderBacktest(art, regBt){
       S('평균/거래','mean_bp_per_trade','bp',1)+ S('총비용','total_cost_bp','bp')+
       (st.pnl_eok_per_year!=null?S('연 손익(억)','pnl_eok_per_year','',1):'')+
       (st.total_pnl_man!=null?S('누적 손익(만원)','total_pnl_man','',1):'')+
-      (st.per_yr_man_orig!=null?S('연 만원(원안·권위)','per_yr_man_orig','',1):'')+
-      (st.sharpe_won_orig!=null?S('Sharpe(원안 won·권위)','sharpe_won_orig','',1):'')+
+      (st.per_yr_man_orig!=null?S('연 만원(원안 100억 노치·참고)','per_yr_man_orig','',1):'')+
+      (st.sharpe_won_orig!=null?S('Sharpe(원안 won·참고)','sharpe_won_orig','',1):'')+
     '</div>'+
-    (st.per_yr_man_orig!=null?'<div class="status" style="margin:-4px 0 10px">RV 는 won 기반 지표가 명세 §1.4 권위값 (Sharpe 거래·연율 ≠ 원안 won Sharpe)</div>':'')+
+    (st.per_yr_man_orig!=null?'<div class="status" style="margin:-4px 0 10px">권위 지표 = <b>연 bp</b>(사이징 무관·파이프라인 산출). 만원/won 은 <b>원안 100억 노치 기준 참고값</b>이며 <b>배포 sizing(paper/극소)과 무관</b> — 실제 기대손익 아님.</div>':'')+
     // R:R(손익비) 캐비엇 — TP<SL(reward:risk<1) 손익비 역전을 통계 섹션에도 명시(H2). regBt.rr_caveat 만 있을 때.
     ((regBt&&regBt.rr_caveat)?('<div class="vbanner v-warn" style="margin:2px 0 10px">⚖ <b>R:R '+(regBt.rr_caveat.match(/reward:risk\s*([0-9.]+)/i)?regBt.rr_caveat.match(/reward:risk\s*([0-9.]+)/i)[1]:'<1')+' &lt;1 (손익비 역전·승률 의존)</b> — '+regBt.rr_caveat+'</div>'):'')+
     ((regBt&&regBt.t_stat_bp!=null)?('<div class="status" style="margin:-4px 0 10px">거래수익 유의성: t-stat <b>'+regBt.t_stat_bp+'</b>'+(regBt.p_value_bp!=null?(' · p='+regBt.p_value_bp):'')+' <b>(&lt;2 비유의 — 단독 통계검증 불가)</b></div>'):'')+
@@ -727,8 +727,8 @@ function renderBacktest(art, regBt){
     (st.cost_model?('<div class="leak-banner" style="background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.30);color:#fbbf24">💸 <b>비용/구성: '+st.cost_model+'</b>'+(st.grid_reopt?(' · <b>그리드 재최적: '+st.grid_reopt+'</b>'):'')+'. 위 표의 연 bp/PnL/Sharpe 는 이 설정 적용 후 값입니다.'+(st.variant_note?(' '+st.variant_note):'')+(st.orig_spec_ref_bp!=null?(' 참고: 원안(bf포함·변동비용·override 명세값) 기준 <b>+'+_fmt(st.orig_spec_ref_bp)+' bp/y</b>.'):'')+'</div>'):'')+
     (st.extra_cost_bp?('<div class="leak-banner" style="background:rgba(251,191,36,.08);border-color:rgba(251,191,36,.30);color:#fbbf24">💸 거래비용 +'+st.extra_cost_bp+'bp 추가('+(st.extra_cost_mode||'')+'), 추가합 '+_fmt(st.extra_cost_total_bp)+'bp — 가산 후 값.</div>'):'')+
     (art.delta_caveat?('<div class="vbanner v-warn" style="margin:2px 0 10px">🧭 <b>델타트랙'+(art.delta_track?(' '+art.delta_track):'')+' — DIRECTIONAL</b>: '+art.delta_caveat+(art.oos&&art.oos.test_t!=null?(' &nbsp;|&nbsp; <b>OOS t='+art.oos.test_t+' p='+art.oos.test_p+'</b>'):'')+'</div>'):'')+
-    // 시계열(equity/monthly/drawdown) 있을 때만 차트 — sparse 아티팩트(예: rv 38건)는
-    //   시계열 미생성 → 빈 캔버스 대신 정직 안내(가짜 빈 차트 금지, H2).
+    // 시계열(equity/monthly/drawdown) 있을 때만 차트. 없으면 빈 캔버스 대신 정직 안내
+    //   (가짜 빈 차트 금지, H2). sparse(rv 38건)도 trades 누적이면 차트 표시.
     (((art.equity||[]).length||(art.monthly||[]).length||(art.drawdown||[]).length)?(
       '<div class="cat-title">누적 PnL (bp)</div><div class="qchart"><canvas id="cEq"></canvas></div>'+
       '<div class="cat-title">월간 PnL (bp)</div><div class="qchart sm"><canvas id="cMo"></canvas></div>'+
