@@ -27,9 +27,11 @@ from .db import get_conn
 TENORS: list[int] = [2, 3, 5, 10, 20, 30]
 TENOR_LABEL = {t: f"{t}년지표" for t in TENORS}
 
-WINDOW = 126          # 6개월 ≈ 126 거래일
-FETCH_DAYS = 420      # 캘린더일 fetch (126거래일 + 롤/공휴일 버퍼)
-MIN_OBS = 60          # z 산출 최소 관측(윈도 미달 시 가용분)
+WINDOWS = [63, 126]            # 3개월·6개월 (거래일). 매일 둘 다 계산 → 프론트 즉시 전환.
+WINDOW_LABEL = {63: "3개월", 126: "6개월"}
+DEFAULT_WINDOW = 126          # 기본 표시 윈도
+FETCH_DAYS = 420              # 캘린더일 fetch (126거래일 + 롤/공휴일 버퍼)
+MIN_OBS = 40                  # z 산출 최소 관측(3M 윈도도 충족)
 
 
 def _fetch_label(cur, label: str, days: int) -> pd.DataFrame:
@@ -106,12 +108,12 @@ def _roll_adjusted(cur, label: str, days: int):
     return out, events
 
 
-def _zstats(series: pd.Series):
-    """마지막 점의 6M 롤링 z + 분포통계. series = 날짜정렬 값(bp)."""
+def _zstats(series: pd.Series, window: int):
+    """마지막 점의 롤링 z + 분포통계(주어진 윈도). series = 날짜정렬 값(bp)."""
     s = series.dropna()
-    if len(s) < MIN_OBS:
+    win = s.iloc[-window:] if len(s) >= window else s
+    if len(win) < MIN_OBS:
         return None
-    win = s.iloc[-WINDOW:] if len(s) >= WINDOW else s
     cur = float(s.iloc[-1])
     mean = float(win.mean())
     std = float(win.std(ddof=1))
@@ -131,9 +133,9 @@ def _zstats(series: pd.Series):
     }
 
 
-def _series_payload(vals: pd.Series, stat: dict) -> dict:
-    """프론트 차팅용 6M 시계열(±2σ 밴드 레벨 포함). vals=날짜인덱스 Series."""
-    s = vals.dropna().iloc[-WINDOW:]
+def _series_payload(vals: pd.Series, stat: dict, window: int) -> dict:
+    """프론트 차팅용 윈도 시계열(±2σ 밴드 레벨 포함). vals=날짜인덱스 Series."""
+    s = vals.dropna().iloc[-window:]
     d = s.index
     return {
         "dates": [x.strftime("%Y-%m-%d") for x in d],
@@ -146,8 +148,61 @@ def _series_payload(vals: pd.Series, stat: dict) -> dict:
     }
 
 
+def _build_board(wide: pd.DataFrame, roll_by_tenor: dict, avail: list, window: int) -> dict:
+    """주어진 윈도에 대한 슬로프(15)·플라이(20) z랭킹 산출."""
+    cutoff = wide.index.max() - pd.Timedelta(days=int(window * 1.6))
+
+    def roll_in(tenors):
+        out = []
+        for t in tenors:
+            for ev in roll_by_tenor.get(t, []):
+                if pd.to_datetime(ev["date"]) >= cutoff and abs(ev["jump_bp"]) >= 1.0:
+                    out.append({"tenor": t, **ev})
+        return out
+
+    slopes, flies = [], []
+    for i in range(len(avail)):
+        for j in range(i + 1, len(avail)):
+            a, b = avail[i], avail[j]              # a<b
+            sp = (wide[b] - wide[a]) * 100.0       # bp, 장기−단기
+            stat = _zstats(sp, window)
+            if stat is None:
+                continue
+            slopes.append({
+                "id": f"slope_{a}_{b}", "kind": "slope",
+                "label": f"{a}·{b}", "name": f"{a}년·{b}년 슬로프",
+                "legs": [a, b], **stat,
+                "series": _series_payload(sp, stat, window),
+                "rolls": roll_in([a, b]),
+            })
+    for i in range(len(avail)):
+        for j in range(i + 1, len(avail)):
+            for k in range(j + 1, len(avail)):
+                a, b, c = avail[i], avail[j], avail[k]   # a<b<c, b=몸통
+                fl = (2 * wide[b] - wide[a] - wide[c]) * 100.0   # bp, 몸통 cheap=+
+                stat = _zstats(fl, window)
+                if stat is None:
+                    continue
+                flies.append({
+                    "id": f"fly_{a}_{b}_{c}", "kind": "fly",
+                    "label": f"{a}·{b}·{c}", "name": f"{a}·{b}·{c} 플라이",
+                    "legs": [a, b, c], **stat,
+                    "series": _series_payload(fl, stat, window),
+                    "rolls": roll_in([a, b, c]),
+                })
+
+    slopes.sort(key=lambda x: -abs(x["z"]))
+    flies.sort(key=lambda x: -abs(x["z"]))
+    allrk = sorted(slopes + flies, key=lambda x: -abs(x["z"]))
+    return {
+        "window_days": window, "window_label": WINDOW_LABEL.get(window, f"{window}d"),
+        "n_slopes": len(slopes), "n_flies": len(flies),
+        "ranked": allrk, "slopes": slopes, "flies": flies,
+    }
+
+
 def compute_board() -> dict:
-    """커브/플라이 랭킹 보드 산출. {as_of, slopes[], flies[], rolls{}, meta}."""
+    """커브/플라이 랭킹 보드 산출 — 3·6개월 윈도 모두. {as_of, windows{}, ...}."""
     with get_conn() as conn:
         cur = conn.cursor(dictionary=True)
         adj_by_tenor: dict[int, pd.DataFrame] = {}
@@ -158,71 +213,29 @@ def compute_board() -> dict:
                 adj_by_tenor[t] = a.set_index("price_date")
                 roll_by_tenor[t] = ev
 
-    # 공통일자 정렬 wide (adjusted)
-    wide = pd.DataFrame({t: adj_by_tenor[t]["adj"] for t in adj_by_tenor})
-    wide = wide.sort_index()
-    raw_wide = pd.DataFrame({t: adj_by_tenor[t]["raw"] for t in adj_by_tenor}).sort_index()
+    # 공통일자 정렬 wide (롤 back-adjust 된 series — 윈도 무관, 1회 계산)
+    wide = pd.DataFrame({t: adj_by_tenor[t]["adj"] for t in adj_by_tenor}).sort_index()
     as_of = wide.dropna(how="all").index.max()
-
     avail = [t for t in TENORS if t in wide.columns]
 
-    def _roll_in_window(tenors) -> list:
-        """해당 구성의 윈도 내 롤이벤트(정직 주석용)."""
-        cutoff = wide.index.max() - pd.Timedelta(days=int(WINDOW * 1.6))
-        out = []
-        for t in tenors:
-            for ev in roll_by_tenor.get(t, []):
-                if pd.to_datetime(ev["date"]) >= cutoff and abs(ev["jump_bp"]) >= 1.0:
-                    out.append({"tenor": t, **ev})
-        return out
-
-    slopes = []
-    for i in range(len(avail)):
-        for j in range(i + 1, len(avail)):
-            a, b = avail[i], avail[j]              # a<b
-            sp = (wide[b] - wide[a]) * 100.0       # bp, 장기−단기
-            stat = _zstats(sp)
-            if stat is None:
-                continue
-            slopes.append({
-                "id": f"slope_{a}_{b}", "kind": "slope",
-                "label": f"{a}·{b}", "name": f"{a}년·{b}년 슬로프",
-                "legs": [a, b], **stat,
-                "series": _series_payload(sp, stat),
-                "rolls": _roll_in_window([a, b]),
-            })
-
-    flies = []
-    for i in range(len(avail)):
-        for j in range(i + 1, len(avail)):
-            for k in range(j + 1, len(avail)):
-                a, b, c = avail[i], avail[j], avail[k]   # a<b<c, b=몸통
-                fl = (2 * wide[b] - wide[a] - wide[c]) * 100.0   # bp, 몸통 cheap=+
-                stat = _zstats(fl)
-                if stat is None:
-                    continue
-                flies.append({
-                    "id": f"fly_{a}_{b}_{c}", "kind": "fly",
-                    "label": f"{a}·{b}·{c}", "name": f"{a}·{b}·{c} 플라이",
-                    "legs": [a, b, c], **stat,
-                    "series": _series_payload(fl, stat),
-                    "rolls": _roll_in_window([a, b, c]),
-                })
-
-    slopes.sort(key=lambda x: -abs(x["z"]))
-    flies.sort(key=lambda x: -abs(x["z"]))
-    allrk = sorted(slopes + flies, key=lambda x: -abs(x["z"]))
+    # 윈도별 보드 (매일 둘 다 계산 → 프론트 즉시 전환)
+    windows = {str(w): _build_board(wide, roll_by_tenor, avail, w) for w in WINDOWS}
+    default = windows[str(DEFAULT_WINDOW)]
 
     return {
         "as_of": as_of.strftime("%Y-%m-%d") if as_of is not None else None,
-        "window_days": WINDOW,
         "tenors": avail,
-        "n_slopes": len(slopes), "n_flies": len(flies),
-        "ranked": allrk,                 # 커브+플라이 통합 |z|순
-        "slopes": slopes, "flies": flies,
+        "windows_avail": WINDOWS,
+        "default_window": DEFAULT_WINDOW,
+        "windows": windows,
+        # 하위호환(구 프론트 무중단): 기본 윈도(6M) 평면 필드 — 동일 객체 참조
+        "window_days": DEFAULT_WINDOW,
+        "n_slopes": default["n_slopes"], "n_flies": default["n_flies"],
+        "ranked": default["ranked"], "slopes": default["slopes"], "flies": default["flies"],
         "roll_events": {str(t): roll_by_tenor.get(t, []) for t in avail},
         "note": ("롤(지표교체) back-adjust 적용 — 라벨 커브의 교체점프를 동일일자 신·구 "
-                 "YTM차로 중화. 현재 커브가 6M 분포 대비 몇 σ인지 모니터(백테스트 알파 아님)."),
+                 "YTM차로 중화. 현재 커브가 선택 윈도(3·6개월) 분포 대비 몇 σ인지 "
+                 "모니터(백테스트 알파 아님)."),
     }
 
 

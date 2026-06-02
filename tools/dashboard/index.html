@@ -205,11 +205,16 @@
     <div class="cb-hdr">
       <div>
         <span class="cb-title">지표 커브·플라이 이격 보드</span>
-        <span class="cb-sub">6개월 롤링 z-score · |σ| 큰 순 · 롤보정</span>
+        <span class="cb-sub" id="cbSub">6개월 롤링 z-score · |σ| 큰 순 · 롤보정</span>
       </div>
       <span class="cb-asof" id="cbAsof">—</span>
     </div>
     <div class="cb-toolbar">
+      <div class="toggle-group" id="cbWinTabs" title="z-score 산출 윈도 — 딸깍 즉시 전환(재계산 없음)">
+        <button class="tgl-btn"        data-win="63"  onclick="cb_setWindow(this)">3개월</button>
+        <button class="tgl-btn active"  data-win="126" onclick="cb_setWindow(this)">6개월</button>
+      </div>
+      <div style="width:10px;"></div>
       <div class="toggle-group" id="cbTabs">
         <button class="tgl-btn active" data-view="ranked" onclick="cb_setView(this)">전체</button>
         <button class="tgl-btn"        data-view="slopes" onclick="cb_setView(this)">슬로프</button>
@@ -241,7 +246,7 @@
       <div class="cb-legend" style="margin-bottom:5px;">
         <span><b style="color:var(--red);">+σ</b> 슬로프 가팔라짐 / 플라이 몸통 cheap</span>
         <span><b style="color:var(--blue);">−σ</b> 슬로프 평평해짐 / 플라이 몸통 rich</span>
-        <span><b>|σ|≥2</b> 6M 분포 대비 극단</span>
+        <span><b>|σ|≥2</b> 선택 윈도 분포 대비 극단</span>
       </div>
       <span id="cbNote"></span>
     </div>
@@ -877,11 +882,18 @@ function drawMiniChart(cfg, pts) {
 //  지표 커브·플라이 이격 보드 (6M z-score)
 //  /ktb/curve-board — 받은 z/series 를 그대로 표시(재계산 금지)
 // ══════════════════════════════════════════════════════════════
-let cbData      = null;      // 마지막 응답 전체
+let cbData      = null;      // 마지막 응답 전체 (windows{63,126} 포함)
 let cbView      = 'ranked';  // ranked | slopes | flies
+let cbWin       = '126';     // '63'(3개월) | '126'(6개월) — 산출 윈도
 let cbSparks    = {};        // id → Chart (스파크라인)
 let cbDetailInst = null;     // 상세 차트
 let cbSelId     = null;      // 선택된 행 id
+
+// 현재 선택 윈도의 보드({ranked,slopes,flies,...}). 하위호환: windows 없으면 평면 응답 사용.
+function cb_curWin() {
+  if (cbData && cbData.windows && cbData.windows[cbWin]) return cbData.windows[cbWin];
+  return cbData || {};   // 구 구조 폴백
+}
 
 // z 부호별 색상 — 기존 chg 컨벤션(+빨강 / −파랑)과 일관.
 // 주: Chart.js 캔버스는 CSS 변수(var(--red))를 해석 못 함 → 실제 hex 로 해석(메모이즈).
@@ -907,12 +919,27 @@ function cb_setView(btn) {
   cb_renderTable();
 }
 
+// 윈도 전환(3·6개월) — 이미 받은 데이터로 즉시 재렌더(재호출 없음)
+function cb_setWindow(btn) {
+  document.querySelectorAll('#cbWinTabs .tgl-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  cbWin = btn.dataset.win;
+  const sub = document.getElementById('cbSub');
+  if (sub) sub.textContent = `${cbWin === '63' ? '3개월' : '6개월'} 롤링 z-score · |σ| 큰 순 · 롤보정`;
+  cb_renderTable();
+  if (cbSelId) cb_select(cbSelId);   // 선택행 있으면 새 윈도로 상세 갱신
+}
+
 async function cb_load(force) {
   const body = document.getElementById('cbBody');
   try {
     const d = await apiGet('/ktb/curve-board' + (force ? '?force=true' : ''));
-    if (!d || !Array.isArray(d.ranked)) throw new Error('형식 오류');
+    // 신구조(windows) 우선, 구조 검증
+    const ok = d && ((d.windows && d.windows[cbWin]) || Array.isArray(d.ranked));
+    if (!ok) throw new Error('형식 오류');
     cbData = d;
+    // 응답이 지원하는 윈도가 현재 선택과 불일치하면 기본값으로 맞춤
+    if (d.windows && !d.windows[cbWin]) cbWin = String(d.default_window || '126');
     document.getElementById('cbAsof').textContent  = d.as_of ? `기준 ${d.as_of}` : '—';
     document.getElementById('cbNote').textContent  = d.note || '';
     cb_renderTable();
@@ -924,9 +951,10 @@ async function cb_load(force) {
 
 function cb_list() {
   if (!cbData) return [];
-  if (cbView === 'slopes') return cbData.slopes || [];
-  if (cbView === 'flies')  return cbData.flies  || [];
-  return cbData.ranked || [];   // 백엔드가 |z| 내림차순 정렬해 보냄 — 그대로
+  const w = cb_curWin();
+  if (cbView === 'slopes') return w.slopes || [];
+  if (cbView === 'flies')  return w.flies  || [];
+  return w.ranked || [];   // 백엔드가 |z| 내림차순 정렬해 보냄 — 그대로
 }
 
 function cb_renderTable() {
@@ -941,13 +969,14 @@ function cb_renderTable() {
     return;
   }
 
+  const wl = cbWin === '63' ? '3M' : '6M';
   let html = `<table class="cb-table"><thead><tr>
     <th>구성</th>
     <th class="num">현재(bp)</th>
     <th class="num">z (σ)</th>
-    <th class="num">6M 평균</th>
+    <th class="num">${wl} 평균</th>
     <th class="num">백분위</th>
-    <th>6M 추이</th>
+    <th>${wl} 추이</th>
   </tr></thead><tbody>`;
 
   rows.forEach(r => {
@@ -1026,10 +1055,10 @@ function cb_select(id) {
     el.classList.toggle('sel', el.dataset.id === id));
   cb_drawDetail(r);
 }
-// id 로 어느 뷰에서든 찾기(현재 뷰에 없을 경우 대비)
+// id 로 어느 뷰에서든 찾기(현재 윈도의 통합 랭킹에서)
 function cb_listAll(id) {
   if (!cbData) return null;
-  return (cbData.ranked || []).find(x => x.id === id) || null;
+  return (cb_curWin().ranked || []).find(x => x.id === id) || null;
 }
 
 function cb_drawDetail(r) {
@@ -1046,8 +1075,9 @@ function cb_drawDetail(r) {
   const kindTxt = r.kind === 'fly' ? '플라이' : '슬로프';
 
   document.getElementById('cbDetailTitle').textContent = r.name ?? r.label ?? r.id;
+  const wl = cbWin === '63' ? '3M' : '6M';
   document.getElementById('cbDetailMeta').textContent =
-    `${kindTxt}  |  6M 평균 ${r.mean_bp == null ? '—' : (+r.mean_bp).toFixed(1)}bp  ·  σ ${r.std_bp == null ? '—' : (+r.std_bp).toFixed(1)}bp  ·  범위 ${r.min_bp ?? '—'}~${r.max_bp ?? '—'}bp`;
+    `${kindTxt}  |  ${wl} 평균 ${r.mean_bp == null ? '—' : (+r.mean_bp).toFixed(1)}bp  ·  σ ${r.std_bp == null ? '—' : (+r.std_bp).toFixed(1)}bp  ·  범위 ${r.min_bp ?? '—'}~${r.max_bp ?? '—'}bp`;
   document.getElementById('cbDetailVal').innerHTML =
     `<span style="color:var(--t1);">${r.current_bp == null ? '—' : (+r.current_bp).toFixed(1)}bp</span>`
     + `<span style="font-size:12px;margin-left:8px;color:${zCol};">${z == null ? '' : (z > 0 ? '+' : '') + z.toFixed(2)}σ</span>`
