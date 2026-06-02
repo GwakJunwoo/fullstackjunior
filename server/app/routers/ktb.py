@@ -6,6 +6,21 @@ from ..core.db import clean_rows, get_conn, serialize
 router = APIRouter()
 
 
+@router.get("/ktb/curve-board")
+def ktb_curve_board(force: bool = Query(False, description="캐시 무시 강제 재계산")):
+    """지표 커브/플라이 z-score 랭킹 보드(가장 어웨이순) — 금리 대시보드 최상단용.
+
+    2·3·5·10·20·30년 온더런 지표의 모든 1:1 슬로프(15)·플라이(20)를 6개월(126거래일)
+    롤링 z 로 측정, |z| 큰 순 정렬. 롤(지표교체) 점프는 동일일자 신·구 YTM차로 back-adjust
+    (가짜 z 제거). 일일 자동 갱신(최신 지표일 키 캐시). 모니터링 지표(백테스트 알파 아님).
+    """
+    from ..core import curve_board
+    try:
+        return curve_board.get_board(force=force)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"curve-board 산출 실패: {e}")
+
+
 @router.get("/ktb/categories")
 def ktb_categories():
     try:

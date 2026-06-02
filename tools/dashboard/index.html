@@ -112,6 +112,66 @@
     .conn-dot.err { background: var(--red); }
     .conn-status  { font-size: 10px; color: var(--t3); }
 
+    /* ── 커브·플라이 이격 보드 ── */
+    .cb-card {
+      background: var(--s1); border: .5px solid var(--bd); border-radius: var(--r);
+      padding: 1rem 1.125rem; margin-bottom: 16px;
+    }
+    .cb-hdr {
+      display: flex; align-items: baseline; justify-content: space-between;
+      flex-wrap: wrap; gap: 8px; margin-bottom: 4px;
+    }
+    .cb-title { font-size: 13px; font-weight: 600; color: var(--t1); }
+    .cb-sub   { font-size: 10px; color: var(--t3); margin-left: 6px; }
+    .cb-asof  {
+      font-size: 10px; color: var(--t2); border: .5px solid var(--bd2);
+      border-radius: var(--rs); padding: 2px 8px; white-space: nowrap;
+    }
+    .cb-toolbar {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      margin: 10px 0 8px;
+    }
+    .cb-note {
+      font-size: 10px; color: var(--t3); line-height: 1.5;
+      margin-top: 10px; padding-top: 8px; border-top: .5px solid var(--bd);
+    }
+    .cb-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 10px; color: var(--t3); }
+    .cb-legend b { font-weight: 600; }
+    .cb-table-wrap { overflow-x: auto; }
+    .cb-table { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .cb-table th {
+      text-align: left; font-weight: 600; color: var(--t3); font-size: 10px;
+      letter-spacing: .3px; padding: 5px 8px; border-bottom: .5px solid var(--bd);
+      white-space: nowrap;
+    }
+    .cb-table th.num, .cb-table td.num { text-align: right; }
+    .cb-table td {
+      padding: 6px 8px; border-bottom: .5px solid rgba(255,255,255,.04);
+      vertical-align: middle; white-space: nowrap;
+    }
+    .cb-row { cursor: pointer; transition: background .1s; }
+    .cb-row:hover { background: var(--s3); }
+    .cb-row.sel { background: rgba(74,158,255,.08); }
+    .cb-name { color: var(--t1); font-weight: 600; }
+    .cb-kind {
+      display: inline-block; font-size: 9px; font-weight: 600; letter-spacing: .3px;
+      padding: 1px 6px; border-radius: 6px; margin-right: 7px; vertical-align: middle;
+    }
+    .cb-kind.slope { color: #38bdf8; background: rgba(56,189,248,.12); }
+    .cb-kind.fly   { color: #fbbf24; background: rgba(251,191,36,.12); }
+    .cb-z { font-size: 14px; font-weight: 700; letter-spacing: -.3px; }
+    .cb-z.strong { text-shadow: 0 0 8px currentColor; }
+    .cb-roll {
+      display: inline-block; font-size: 9px; color: var(--t3);
+      border: .5px solid var(--bd2); border-radius: 5px; padding: 0 5px;
+      margin-left: 6px; cursor: help;
+    }
+    .cb-spark { width: 84px; height: 30px; }
+    .cb-empty {
+      display: flex; align-items: center; justify-content: center;
+      height: 80px; font-size: 11px; color: var(--t3);
+    }
+
     @media (max-width: 640px) { .mini-grid { grid-template-columns: 1fr 1fr; } }
     @media (max-width: 400px) { .mini-grid { grid-template-columns: 1fr; } }
   </style>
@@ -138,6 +198,53 @@
   <div class="conn-bar">
     <div class="conn-dot" id="connDot"></div>
     <span class="conn-status" id="connStatus">연결 중...</span>
+  </div>
+
+  <!-- 지표 커브·플라이 이격 보드 (6M z-score) -->
+  <div class="cb-card" id="cbCard">
+    <div class="cb-hdr">
+      <div>
+        <span class="cb-title">지표 커브·플라이 이격 보드</span>
+        <span class="cb-sub">6개월 롤링 z-score · |σ| 큰 순 · 롤보정</span>
+      </div>
+      <span class="cb-asof" id="cbAsof">—</span>
+    </div>
+    <div class="cb-toolbar">
+      <div class="toggle-group" id="cbTabs">
+        <button class="tgl-btn active" data-view="ranked" onclick="cb_setView(this)">전체</button>
+        <button class="tgl-btn"        data-view="slopes" onclick="cb_setView(this)">슬로프</button>
+        <button class="tgl-btn"        data-view="flies"  onclick="cb_setView(this)">플라이</button>
+      </div>
+      <div style="flex:1;"></div>
+      <button class="period-btn" id="cbRefresh" onclick="cb_load(true)" title="최신 지표일로 강제 새로고침">↻ 새로고침</button>
+    </div>
+
+    <!-- 상세 차트 (행 선택 시 표시) -->
+    <div class="big-chart-card" id="cbDetailCard" style="display:none;margin-bottom:14px;">
+      <div class="big-chart-hdr">
+        <div>
+          <span class="big-chart-title" id="cbDetailTitle">—</span>
+          <span class="big-chart-meta"  id="cbDetailMeta"></span>
+        </div>
+        <div id="cbDetailVal" style="font-size:16px;font-weight:700;letter-spacing:-.4px;"></div>
+      </div>
+      <div style="position:relative;height:240px;">
+        <canvas id="cbDetailChart"></canvas>
+      </div>
+    </div>
+
+    <div id="cbBody">
+      <div class="cb-empty">불러오는 중…</div>
+    </div>
+
+    <div class="cb-note">
+      <div class="cb-legend" style="margin-bottom:5px;">
+        <span><b style="color:var(--red);">+σ</b> 슬로프 가팔라짐 / 플라이 몸통 cheap</span>
+        <span><b style="color:var(--blue);">−σ</b> 슬로프 평평해짐 / 플라이 몸통 rich</span>
+        <span><b>|σ|≥2</b> 6M 분포 대비 극단</span>
+      </div>
+      <span id="cbNote"></span>
+    </div>
   </div>
 
   <!-- 검색 + 기간 -->
@@ -767,10 +874,235 @@ function drawMiniChart(cfg, pts) {
 }
 
 // ══════════════════════════════════════════════════════════════
+//  지표 커브·플라이 이격 보드 (6M z-score)
+//  /ktb/curve-board — 받은 z/series 를 그대로 표시(재계산 금지)
+// ══════════════════════════════════════════════════════════════
+let cbData      = null;      // 마지막 응답 전체
+let cbView      = 'ranked';  // ranked | slopes | flies
+let cbSparks    = {};        // id → Chart (스파크라인)
+let cbDetailInst = null;     // 상세 차트
+let cbSelId     = null;      // 선택된 행 id
+
+// z 부호별 색상 — 기존 chg 컨벤션(+빨강 / −파랑)과 일관
+function cb_zColor(z) {
+  if (z == null) return 'var(--t3)';
+  return z > 0 ? 'var(--red)' : z < 0 ? 'var(--blue)' : 'var(--t3)';
+}
+function cb_setView(btn) {
+  document.querySelectorAll('#cbTabs .tgl-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  cbView = btn.dataset.view;
+  cb_renderTable();
+}
+
+async function cb_load(force) {
+  const body = document.getElementById('cbBody');
+  try {
+    const d = await apiGet('/ktb/curve-board' + (force ? '?force=true' : ''));
+    if (!d || !Array.isArray(d.ranked)) throw new Error('형식 오류');
+    cbData = d;
+    document.getElementById('cbAsof').textContent  = d.as_of ? `기준 ${d.as_of}` : '—';
+    document.getElementById('cbNote').textContent  = d.note || '';
+    cb_renderTable();
+  } catch (e) {
+    cbData = null;
+    body.innerHTML = `<div class="cb-empty" style="color:var(--red);">이격 보드를 불러올 수 없습니다 — ${e.message}</div>`;
+  }
+}
+
+function cb_list() {
+  if (!cbData) return [];
+  if (cbView === 'slopes') return cbData.slopes || [];
+  if (cbView === 'flies')  return cbData.flies  || [];
+  return cbData.ranked || [];   // 백엔드가 |z| 내림차순 정렬해 보냄 — 그대로
+}
+
+function cb_renderTable() {
+  const body = document.getElementById('cbBody');
+  // 기존 스파크라인 정리
+  Object.values(cbSparks).forEach(c => c.destroy());
+  cbSparks = {};
+
+  const rows = cb_list();
+  if (!rows.length) {
+    body.innerHTML = '<div class="cb-empty">표시할 구성이 없습니다.</div>';
+    return;
+  }
+
+  let html = `<table class="cb-table"><thead><tr>
+    <th>구성</th>
+    <th class="num">현재(bp)</th>
+    <th class="num">z (σ)</th>
+    <th class="num">6M 평균</th>
+    <th class="num">백분위</th>
+    <th>6M 추이</th>
+  </tr></thead><tbody>`;
+
+  rows.forEach(r => {
+    const z      = r.z;
+    const strong = z != null && Math.abs(z) >= 2 ? ' strong' : '';
+    const zCol   = cb_zColor(z);
+    const kindCls = r.kind === 'fly' ? 'fly' : 'slope';
+    const kindTxt = r.kind === 'fly' ? '플라이' : '슬로프';
+
+    let rollBadge = '';
+    if (Array.isArray(r.rolls) && r.rolls.length) {
+      const tenors = [...new Set(r.rolls.map(x => x.tenor))].join('·');
+      const tip = r.rolls
+        .map(x => `${x.tenor}년 지표교체 ${x.date} ΔYTM ${x.jump_bp > 0 ? '+' : ''}${x.jump_bp}bp 보정`)
+        .join(' / ');
+      rollBadge = `<span class="cb-roll" title="${tip.replace(/"/g, '&quot;')}">롤보정 ${tenors}Y</span>`;
+    }
+
+    const sel = r.id === cbSelId ? ' sel' : '';
+    html += `<tr class="cb-row${sel}" data-id="${r.id}" onclick="cb_select('${r.id}')">
+      <td>
+        <span class="cb-kind ${kindCls}">${kindTxt}</span>
+        <span class="cb-name">${r.name ?? r.label ?? r.id}</span>${rollBadge}
+      </td>
+      <td class="num" style="color:var(--t1);">${r.current_bp == null ? '—' : (+r.current_bp).toFixed(1)}</td>
+      <td class="num"><span class="cb-z${strong}" style="color:${zCol};">${z == null ? '—' : (z > 0 ? '+' : '') + z.toFixed(2)}</span></td>
+      <td class="num" style="color:var(--t2);">${r.mean_bp == null ? '—' : (+r.mean_bp).toFixed(1)}</td>
+      <td class="num" style="color:var(--t2);">${r.pctile == null ? '—' : Math.round(r.pctile) + '%'}</td>
+      <td><canvas class="cb-spark" id="cbspark_${r.id}"></canvas></td>
+    </tr>`;
+  });
+
+  html += '</tbody></table>';
+  body.innerHTML = `<div class="cb-table-wrap">${html}</div>`;
+
+  // 스파크라인 렌더 (다음 틱)
+  setTimeout(() => rows.forEach(cb_drawSpark), 0);
+}
+
+function cb_drawSpark(r) {
+  const canvas = document.getElementById(`cbspark_${r.id}`);
+  if (!canvas) return;
+  const vals = (r.series && r.series.values) || [];
+  if (!vals.length) return;
+  const col = cb_zColor(r.z);
+  // 현재점(마지막) 마커만 표시
+  const ptR = vals.map((_, i) => (i === vals.length - 1 ? 2.5 : 0));
+
+  cbSparks[r.id] = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: vals.map((_, i) => i),
+      datasets: [{
+        data: vals,
+        borderColor: col, borderWidth: 1.1,
+        pointRadius: ptR, pointBackgroundColor: col, pointBorderWidth: 0,
+        tension: 0.15, spanGaps: true, fill: false,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      events: [],                          // 스파크라인 인터랙션 끔(성능)
+      plugins: { legend: { display: false }, tooltip: { enabled: false } },
+      scales: { x: { display: false }, y: { display: false } },
+      elements: { line: { borderJoinStyle: 'round' } },
+    },
+  });
+}
+
+function cb_select(id) {
+  const r = cb_list().find(x => x.id === id) || cb_listAll(id);
+  if (!r) return;
+  cbSelId = id;
+  // 행 하이라이트 갱신
+  document.querySelectorAll('.cb-row').forEach(el =>
+    el.classList.toggle('sel', el.dataset.id === id));
+  cb_drawDetail(r);
+}
+// id 로 어느 뷰에서든 찾기(현재 뷰에 없을 경우 대비)
+function cb_listAll(id) {
+  if (!cbData) return null;
+  return (cbData.ranked || []).find(x => x.id === id) || null;
+}
+
+function cb_drawDetail(r) {
+  const s = r.series || {};
+  const dates = s.dates || [];
+  const vals  = s.values || [];
+  if (!dates.length || !vals.length) return;
+
+  const card = document.getElementById('cbDetailCard');
+  card.style.display = 'block';
+
+  const z    = r.z;
+  const zCol = cb_zColor(z);
+  const kindTxt = r.kind === 'fly' ? '플라이' : '슬로프';
+
+  document.getElementById('cbDetailTitle').textContent = r.name ?? r.label ?? r.id;
+  document.getElementById('cbDetailMeta').textContent =
+    `${kindTxt}  |  6M 평균 ${r.mean_bp == null ? '—' : (+r.mean_bp).toFixed(1)}bp  ·  σ ${r.std_bp == null ? '—' : (+r.std_bp).toFixed(1)}bp  ·  범위 ${r.min_bp ?? '—'}~${r.max_bp ?? '—'}bp`;
+  document.getElementById('cbDetailVal').innerHTML =
+    `<span style="color:var(--t1);">${r.current_bp == null ? '—' : (+r.current_bp).toFixed(1)}bp</span>`
+    + `<span style="font-size:12px;margin-left:8px;color:${zCol};">${z == null ? '' : (z > 0 ? '+' : '') + z.toFixed(2)}σ</span>`
+    + (r.pctile == null ? '' : `<span style="font-size:11px;margin-left:6px;color:var(--t3);">${Math.round(r.pctile)}%ile</span>`);
+
+  const n = dates.length;
+  // band1/band2 = [하단, 상단] 단일 밴드 → 수평선으로 전 구간 채움
+  const flat = v => new Array(n).fill(v);
+  const mean = s.mean;
+  const b1 = s.band1 || [null, null];   // [평균−1σ, 평균+1σ]
+  const b2 = s.band2 || [null, null];   // [평균−2σ, 평균+2σ]
+
+  const datasets = [
+    // ±2σ 밴드 (바깥, 옅게)
+    { label: '+2σ', data: flat(b2[1]), borderColor: 'rgba(139,147,168,.25)', borderWidth: 0,
+      pointRadius: 0, fill: '+1', backgroundColor: 'rgba(139,147,168,.05)', tension: 0, spanGaps: true },
+    { label: '+1σ', data: flat(b1[1]), borderColor: 'rgba(139,147,168,.35)', borderWidth: 0,
+      pointRadius: 0, fill: '+1', backgroundColor: 'rgba(139,147,168,.10)', tension: 0, spanGaps: true },
+    { label: '평균', data: flat(mean), borderColor: 'rgba(139,147,168,.55)', borderWidth: 1,
+      borderDash: [4, 4], pointRadius: 0, fill: false, tension: 0, spanGaps: true },
+    { label: '−1σ', data: flat(b1[0]), borderColor: 'rgba(139,147,168,.35)', borderWidth: 0,
+      pointRadius: 0, fill: '-1', backgroundColor: 'rgba(139,147,168,.10)', tension: 0, spanGaps: true },
+    { label: '−2σ', data: flat(b2[0]), borderColor: 'rgba(139,147,168,.25)', borderWidth: 0,
+      pointRadius: 0, fill: '-1', backgroundColor: 'rgba(139,147,168,.05)', tension: 0, spanGaps: true },
+    // 실제 시계열 (맨 위, 현재점 강조)
+    { label: r.name ?? r.id, data: vals,
+      borderColor: zCol, borderWidth: 1.8,
+      pointRadius: vals.map((_, i) => (i === n - 1 ? 4 : 0)),
+      pointBackgroundColor: zCol, pointBorderColor: '#fff', pointBorderWidth: 1,
+      pointHoverRadius: 4, tension: 0.12, spanGaps: true, fill: false, order: 0 },
+  ];
+
+  if (cbDetailInst) { cbDetailInst.destroy(); }
+  cbDetailInst = new Chart(document.getElementById('cbDetailChart').getContext('2d'), {
+    type: 'line',
+    data: { labels: dates, datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#181c27', borderColor: 'rgba(255,255,255,.1)', borderWidth: 1,
+          titleColor: '#8b93a8', bodyColor: '#e8eaf0', padding: 8,
+          filter: item => item.datasetIndex === datasets.length - 1,  // 시계열만 툴팁
+          callbacks: {
+            title: items => items[0]?.label ?? '',
+            label: c => `  ${c.parsed.y != null ? c.parsed.y.toFixed(1) : '—'}bp`,
+          },
+        },
+      },
+      scales: {
+        x: { grid: { color: 'rgba(255,255,255,.04)' },
+             ticks: { font: { size: 10 }, color: '#555e75', maxTicksLimit: 8, maxRotation: 0 } },
+        y: { grid: { color: 'rgba(255,255,255,.04)' },
+             ticks: { font: { size: 10 }, color: '#555e75', callback: v => v.toFixed(0) + 'bp' } },
+      },
+    },
+  });
+}
+
+// ══════════════════════════════════════════════════════════════
 //  Init
 // ══════════════════════════════════════════════════════════════
 async function init() {
   checkConn();
+  cb_load();
   loadCategories();
   loadCurve();
   loadAllMini();

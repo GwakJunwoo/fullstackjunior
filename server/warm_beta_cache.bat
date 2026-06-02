@@ -59,6 +59,12 @@ echo [%date% %time%] GET /rv/positions (as_of check) ... >> "%LOGFILE%"
 curl -fsS --max-time 30 http://localhost:!PORT!/rv/positions 2>> "%LOGFILE%" | findstr /C:"as_of" 1>> "%LOGFILE%" 2>&1
 echo. >> "%LOGFILE%"
 
+REM 5) Warm /ktb/curve-board (지표 커브/플라이 z랭킹 — 금리 대시보드 최상단)
+echo [%date% %time%] warming /ktb/curve-board ... >> "%LOGFILE%"
+curl -fsS --max-time 60 "http://localhost:!PORT!/ktb/curve-board" 2>> "%LOGFILE%" | findstr /C:"as_of" 1>> "%LOGFILE%" 2>&1
+echo [%date% %time%]   curve-board warmed >> "%LOGFILE%"
+echo. >> "%LOGFILE%"
+
 echo [%date% %time%] warm_beta_cache done (refresh=!RC_REFRESH!, beta=!RC_BETA!) >> "%LOGFILE%"
 endlocal
 exit /b 0
