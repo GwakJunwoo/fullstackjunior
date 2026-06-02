@@ -883,10 +883,22 @@ let cbSparks    = {};        // id → Chart (스파크라인)
 let cbDetailInst = null;     // 상세 차트
 let cbSelId     = null;      // 선택된 행 id
 
-// z 부호별 색상 — 기존 chg 컨벤션(+빨강 / −파랑)과 일관
+// z 부호별 색상 — 기존 chg 컨벤션(+빨강 / −파랑)과 일관.
+// 주: Chart.js 캔버스는 CSS 변수(var(--red))를 해석 못 함 → 실제 hex 로 해석(메모이즈).
+//     안 그러면 차트 선/점이 전부 검정 폴백됨.
+let _cbCol = null;
+function cb_cols() {
+  if (!_cbCol) {
+    const g = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+    _cbCol = { pos: g('--red') || '#f87171', neg: g('--blue') || '#4a9eff',
+               zero: g('--t3') || '#8b93a8' };
+  }
+  return _cbCol;
+}
 function cb_zColor(z) {
-  if (z == null) return 'var(--t3)';
-  return z > 0 ? 'var(--red)' : z < 0 ? 'var(--blue)' : 'var(--t3)';
+  const c = cb_cols();
+  if (z == null) return c.zero;
+  return z > 0 ? c.pos : z < 0 ? c.neg : c.zero;
 }
 function cb_setView(btn) {
   document.querySelectorAll('#cbTabs .tgl-btn').forEach(b => b.classList.remove('active'));
