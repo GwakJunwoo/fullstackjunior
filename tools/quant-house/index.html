@@ -53,6 +53,13 @@
     .vbanner.v-fail { background:rgba(248,113,113,.10); border:.5px solid rgba(248,113,113,.32); color:var(--red); font-weight:600; }
     .vbanner.v-fail b { color:#fca5a5; }
     .stale-badge { display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:.4px; padding:2px 7px; border-radius:3px; background:rgba(248,113,113,.18); color:#f87171; border:1px solid rgba(248,113,113,.5); text-transform:uppercase; vertical-align:middle; margin-left:6px; }
+    /* 전역 staleness 배너(목록 최상단·클릭 없이 즉시) — 침묵 stale 방지 */
+    .gstale { font-size:12.5px; padding:11px 14px; border-radius:var(--rs); margin-bottom:12px; line-height:1.6;
+      position:sticky; top:8px; z-index:20; box-shadow:0 4px 18px rgba(0,0,0,.35); }
+    .gstale.gs-fail { background:rgba(248,113,113,.14); border:1px solid rgba(248,113,113,.55); color:#fca5a5; font-weight:600; }
+    .gstale.gs-fail b { color:#f87171; }
+    .gstale.gs-warn { background:rgba(251,191,36,.10); border:.5px solid rgba(251,191,36,.34); color:#fbbf24; box-shadow:none; }
+    .gstale.gs-ok { background:rgba(52,211,153,.08); border:.5px solid rgba(52,211,153,.28); color:var(--green); font-size:11px; padding:6px 12px; box-shadow:none; position:static; }
     .vchip { font-size:9px; font-weight:700; letter-spacing:.3px; padding:1px 6px; border-radius:3px; margin-left:6px; }
     .vc-ok { background:rgba(52,211,153,.14); color:var(--green); }
     .vc-warn { background:rgba(251,191,36,.14); color:#fbbf24; }
@@ -196,6 +203,7 @@
     <div class="metric neg"><div class="ml">헌법 BLOCK</div><div class="mv" id="m-blocked">–</div></div>
   </div>
 
+  <div id="gStaleBanner"></div>
   <div id="tierbar" class="tierbar"></div>
   <div id="list"></div>
 
@@ -353,6 +361,46 @@ async function load() {
   });
 
   renderList(all);
+
+  // 목록 최상단 전역 staleness 배너 — forward 1회 호출(목록은 평소 forward 안 부름).
+  // 클릭(상세) 없이 즉시 묵음 경고. 실패해도 목록은 정상.
+  gLoadStaleBanner();
+}
+
+// 전역 staleness 배너 — /quant-house/forward 의 data_consistency 를 그대로 표시(재계산 금지).
+// 상세 페이지 배너(showDetail 내 지역변수 _dc/_staleList)와 변수·함수명 무충돌(g 접두사).
+async function gLoadStaleBanner(){
+  const el = document.getElementById('gStaleBanner');
+  if (!el) return;
+  let fwd;
+  try { fwd = await apiGet('/quant-house/forward'); }
+  catch(e){ el.innerHTML=''; return; }          // 조회 실패 → 배너 생략(목록 정상)
+  gRenderStaleBanner(el, fwd && fwd.data_consistency);
+}
+
+function gRenderStaleBanner(el, dc){
+  if (!dc){ el.innerHTML=''; return; }           // data_consistency 없음 → graceful 생략
+  const stale = Array.isArray(dc.stale_strategies) ? dc.stale_strategies : [];
+  if (stale.length){
+    // 1순위: 묵은 전략 존재 → 빨강 sticky 경고(클릭 없이 상단 고정)
+    const names = stale.map(function(x){
+      return '<b>'+(x.strategy||'?')+'</b>'+(x.lag_days!=null?(' '+x.lag_days+'일'):'');
+    }).join(' · ');
+    const asof = dc.as_of || dc.db_max || dc.forward_as_of || '?';
+    el.innerHTML = '<div class="gstale gs-fail">'+
+      '⚠ <b>'+stale.length+'개 전략 신호 묵음</b> — '+names+
+      ' (최신 '+asof+' 대비 뒤처짐). <b>이 신호로 거래 금지</b> · cli.py forward 재실행 필요'+
+      '</div>';
+  } else if (dc.uniform === false){
+    // 묵은 전략은 없으나 단계 간 비일관 → 주의(노랑)
+    el.innerHTML = '<div class="gstale gs-warn">신호 단계 비일관 — DB 최신 <b>'+
+      (dc.db_max||'?')+'</b> vs forward 기준 <b>'+(dc.forward_as_of||'?')+'</b>'+
+      (dc.lag_days!=null?(' · lag '+dc.lag_days+'일(참고)'):'')+'</div>';
+  } else {
+    // 전 전략 최신 → 작은 초록 확인
+    el.innerHTML = '<div class="gstale gs-ok">✓ 전 전략 신호 최신 ('+
+      (dc.forward_as_of||dc.as_of||'')+')</div>';
+  }
 }
 
 function renderList(all){
