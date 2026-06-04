@@ -51,6 +51,8 @@
     .vbanner.v-ok   { background:rgba(52,211,153,.08); border:.5px solid rgba(52,211,153,.28); color:var(--green); }
     .vbanner.v-warn { background:rgba(251,191,36,.08); border:.5px solid rgba(251,191,36,.28); color:#fbbf24; }
     .vbanner.v-fail { background:rgba(248,113,113,.10); border:.5px solid rgba(248,113,113,.32); color:var(--red); font-weight:600; }
+    .vbanner.v-fail b { color:#fca5a5; }
+    .stale-badge { display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:.4px; padding:2px 7px; border-radius:3px; background:rgba(248,113,113,.18); color:#f87171; border:1px solid rgba(248,113,113,.5); text-transform:uppercase; vertical-align:middle; margin-left:6px; }
     .vchip { font-size:9px; font-weight:700; letter-spacing:.3px; padding:1px 6px; border-radius:3px; margin-left:6px; }
     .vc-ok { background:rgba(52,211,153,.14); color:var(--green); }
     .vc-warn { background:rgba(251,191,36,.14); color:#fbbf24; }
@@ -560,15 +562,53 @@ async function showDetail(name) {
   if (fs){
     try{
       const fwd = await apiGet('/quant-house/forward');
+      // === 전역 staleness 가드 (data_consistency) — 침묵 stale 영구 차단 ===
+      // 백엔드가 계산한 data_consistency 를 그대로 표시(재계산 금지). 없으면 graceful 생략.
+      const _dc = fwd.data_consistency || null;
+      const _staleList = (_dc && Array.isArray(_dc.stale_strategies)) ? _dc.stale_strategies : [];
+      // 현재 상세 전략이 묵음 목록에 있는지(전략별 STALE 뱃지 트리거)
+      const _myStale = _staleList.find(function(x){ return x && x.strategy === name; }) || null;
+      let _dcBanner = '';
+      if (_dc){
+        if (_staleList.length){
+          // 1순위 트리거: 실제 묵은 전략 존재 → 빨강 경고(상단·크게)
+          const _items = _staleList.map(function(x){
+            return '<b>'+(x.strategy||'?')+'</b> '+(x.as_of||'?')+' (묵음 '+(x.lag_days!=null?x.lag_days:'?')+'일)';
+          }).join(' · ');
+          _dcBanner = '<div class="vbanner v-fail" style="margin-bottom:10px">'+
+            '⚠ 신호 묵음 — <b>'+_staleList.length+'</b>개 전략이 최신 데이터보다 뒤처짐. '+
+            '이 신호로 거래 금지 · <b>cli.py forward 재실행 필요</b><br>'+
+            '<span style="font-weight:400">묵은 전략: '+_items+'</span>'+
+            '<br><span class="status" style="font-weight:400">DB 최신 '+(_dc.db_max||'?')+
+            ' · forward 기준 '+(_dc.forward_as_of||'?')+'</span></div>';
+        } else if (_dc.uniform === false){
+          // 묵은 전략은 없으나 단계 간 비일관 → 주의(노랑)
+          _dcBanner = '<div class="vbanner v-warn" style="margin-bottom:10px">'+
+            '신호 단계 비일관(uniform=false) — DB 최신 <b>'+(_dc.db_max||'?')+
+            '</b> vs forward 기준 <b>'+(_dc.forward_as_of||'?')+'</b>'+
+            (_dc.lag_days!=null?(' · lag '+_dc.lag_days+'일(참고)'):'')+'</div>';
+        } else {
+          // 전 전략 최신 → 작은 초록 확인
+          _dcBanner = '<div class="vbanner v-ok" style="margin-bottom:10px">✓ 전 전략 최신 ('+
+            (_dc.forward_as_of||fwd.as_of||'')+')</div>';
+        }
+      }
       const j = (fwd.strategies||{})[name];
-      if (!j){ fs.innerHTML = '<span class="noart">forward 미생성 — cli.py forward 실행</span>'; }
+      if (!j){ fs.innerHTML = _dcBanner+'<span class="noart">forward 미생성 — cli.py forward 실행</span>'; }
       else if (j.status && !/^(active|deployed)$/i.test(String(j.status))){
         // BLOCKED/parked/FAIL/stale 등 비라이브 상태만 배너. active/deployed 는 실신호 렌더.
-        fs.innerHTML = '<div class="vbanner v-warn">'+j.status+
+        fs.innerHTML = _dcBanner+'<div class="vbanner v-warn">'+j.status+
           (j.note?(' — '+j.note):'')+'</div>';
       } else {
         const ne = j.new_entries||[];
-        let h = '<div class="status" style="margin-bottom:6px">기준일 <b>'+(j.panel_max||fwd.as_of||'')+'</b>'+
+        const _staleBadge = _myStale
+          ? ' <span class="stale-badge">STALE '+(_myStale.lag_days!=null?_myStale.lag_days+'d':'')+'</span>'
+          : '';
+        let h = _dcBanner+
+          (_myStale ? ('<div class="vbanner v-fail" style="margin-bottom:8px">이 신호는 <b>'+
+            (_myStale.as_of||j.panel_max||'')+'</b> 기준(묵음 '+(_myStale.lag_days!=null?_myStale.lag_days+'일':'')+
+            ') — 신뢰 금지, cli.py forward 재실행 필요</div>') : '')+
+          '<div class="status" style="margin-bottom:6px">기준일 <b>'+(j.panel_max||fwd.as_of||'')+'</b>'+_staleBadge+
           (j.active_count!=null?(' · 보유중 '+j.active_count):'')+
           ' · 신규 진입 <b>'+ne.length+'</b>건</div>';
         if (ne.length){
