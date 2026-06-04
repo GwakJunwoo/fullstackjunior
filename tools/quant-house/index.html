@@ -488,6 +488,16 @@ async function showDetail(name) {
   const te = s.tier_eval || {};
   const tierHead = tg ? ('<span class="tier tier-'+tg+'">'+tg+'</span>') : '';
   // tier 근거 패널 (검증 등급의 투명한 설명 — 고무도장 방지)
+  // caveat 보유 전략 = 조건부 채택(검증된 강전략 아님). DSR<0.95·vol-conditional 핵심
+  //   지표를 작은 글씨에 묻지 않고 별도 경고 칩으로 승격(H2 정직 — 낙관 표기 금지).
+  //   전부 tier_eval API 필드 렌더(하드코딩 0). caveat 없는 전략엔 칩 미발동(영향 0).
+  const _teDsr = (te.dsr!=null ? te.dsr : null);
+  const _dsrWarn = (_teDsr!=null && Number(_teDsr) < 0.95);
+  const _condChips = te.caveat ? (
+    '<div style="display:inline-flex;gap:8px;flex-wrap:wrap;margin-top:5px">'+
+      (_teDsr!=null?('<span class="v-WARN" style="padding:1px 7px;border-radius:5px;font-size:11px">DSR <b>'+_teDsr+'</b>'+(_dsrWarn?' &lt;0.95 미달':'')+'</span>'):'')+
+      (te.vol_bet===true?('<span class="v-WARN" style="padding:1px 7px;border-radius:5px;font-size:11px">vol-conditional <span style="opacity:.85">(고변동기 의존·평시 신설알파 아님)</span></span>'):'')+
+    '</div>') : '';
   const tierPanel = (tg && (te.basis||te.reason||te.sizing)) ? (
     '<div class="vbanner v-'+({T1:"ok",T2:"ok",T3:"warn",T4:"none",REJECT:"fail"}[tg]||"none")+'" style="margin-bottom:10px">'+
       '<b>'+(TIER_META[tg]?TIER_META[tg].nm:tg)+'</b> · 사이징 <b>'+(te.sizing||'–')+'</b><br>'+
@@ -495,7 +505,8 @@ async function showDetail(name) {
       (te.dsr_honest!=null?('<br><span class="status">정직N DSR '+te.dsr_honest+' @ N='+(te.n_honest||te.n_program||'?')+(te.sr_per_trade!=null?(' · SR/거래 '+te.sr_per_trade):'')+'</span>'):'')+
       (te.override?('<br><span class="status">독립검증: '+te.override+'</span>'):'')+
       (te.status_grade_gap?('<br>⚠ '+te.status_grade_gap):'')+
-      (te.caveat?('<br><span class="status">유의: '+te.caveat+'</span>'):'')+
+      _condChips+
+      (te.caveat?('<br><span class="status">⚠ 유의: '+te.caveat+'</span>'):'')+
     '</div>') : '';
   // ── 손익비역전(R:R<1) 캐비엇 배너 (rr_caveat 보유 전략을 검증된 알파처럼 보이지 않게: H2) ──
   // 발동조건 = backtest.rr_caveat 존재 시에만(R:R 역전은 해당 전략 고유 한계). 게이트/DSR 상태는
@@ -652,7 +663,15 @@ async function showDetail(name) {
         const _staleBadge = _myStale
           ? ' <span class="stale-badge">STALE '+(_myStale.lag_days!=null?_myStale.lag_days+'d':'')+'</span>'
           : '';
-        let h = _dcBanner+
+        // 조건부 채택 전략(tier_eval.caveat 보유)의 진입신호는 '검증된 강신호'로 오인되지
+        //   않게 신호 위에 caveat 배너를 띄운다(H2 — vol-conditional/thin-N 경고를 신호와
+        //   분리하지 않음). te 는 상위 showDetail 스코프 변수. caveat 없는 전략엔 미발동.
+        const _condFwd = te.caveat ? (
+          '<div class="vbanner v-warn" style="margin-bottom:8px">조건부 신호 — '+
+            (te.dsr!=null?('DSR <b>'+te.dsr+'</b>'+(Number(te.dsr)<0.95?'(&lt;0.95 미달)':'')+' · '):'')+
+            (te.vol_bet===true?'<b>vol-conditional</b>(고변동기 의존·평시 신설알파 아님) · ':'')+
+            '검증된 강전략 아님. 사이징 '+(te.sizing||'소액')+' 한도 준수</div>') : '';
+        let h = _dcBanner+ _condFwd+
           (_myStale ? ('<div class="vbanner v-fail" style="margin-bottom:8px">이 신호는 <b>'+
             (_myStale.as_of||j.panel_max||'')+'</b> 기준(묵음 '+(_myStale.lag_days!=null?_myStale.lag_days+'일':'')+
             ') — 신뢰 금지, cli.py forward 재실행 필요</div>') : '')+
