@@ -701,6 +701,38 @@ async function showDetail(name) {
         } else {
           h += '<div class="noart">오늘 청산 신호 없음'+(xsig.basis?(' ('+xsig.basis+')'):'')+'</div>';
         }
+        // 보유 포지션 내역 (엔진 forward.active_positions 그대로 — 재계산 금지).
+        //   "보유중 N" 숫자만으로는 어떤 sleeve/signal/side 가 살아있는지 안 보여
+        //   B/C/D 신호 누락 오해가 생긴다(H1 — 엔진↔웹 분기 0). 필드가 있으면 내역
+        //   테이블, 없으면(구버전 forward) 위 '보유중 N' 숫자 fallback 유지.
+        const ap = Array.isArray(j.active_positions) ? j.active_positions : null;
+        if (ap && ap.length){
+          const _newCnt = ap.filter(function(p){ return p && p.is_new===true; }).length;
+          h += '<div class="cat-title" style="margin-top:10px">보유 포지션 내역 '+
+            '<span class="status">(총 '+ap.length+'건'+(_newCnt?(' · 오늘 신규 '+_newCnt):'')+')</span></div>'+
+            '<table class="find-tbl"><tbody>'+
+            '<tr style="font-weight:600"><td>슬리브 / 신호</td><td>방향</td>'+
+            '<td>진입일 · 보유일</td><td>청산예정</td></tr>'+
+            ap.map(function(p){
+              const isNew = p.is_new===true;
+              const sl = p.strategy!=null ? String(p.strategy) : '?';
+              const sig = p.signal!=null ? String(p.signal) : '';
+              const sd = p.side!=null ? String(p.side) : '';
+              const sdCls = /short/i.test(sd) ? 'neg' : (/long/i.test(sd) ? 'pos' : '');
+              const ed = p.entry_date!=null ? String(p.entry_date) : '';
+              const dh = p.days_held!=null ? p.days_held : '?';
+              const hold = p.hold!=null ? p.hold : null;
+              const eta = p.exit_eta!=null ? String(p.exit_eta) : '';
+              const sc = p.score!=null ? (' <span class="status">score='+p.score+'</span>') : '';
+              const newBadge = isNew ? ' <span class="stale-badge" style="background:rgba(26,127,55,.18);color:#3fb950;border-color:rgba(63,185,80,.5)">NEW</span>' : '';
+              return '<tr'+(isNew?' style="font-weight:600"':'')+'>'+
+                '<td><b>'+sl+'</b> · '+sig+newBadge+'</td>'+
+                '<td><span class="'+sdCls+'">'+sd+'</span>'+sc+'</td>'+
+                '<td>'+ed+' <span class="status">· '+dh+'일'+(hold!=null?('/'+hold):'')+'</span></td>'+
+                '<td>'+eta+'</td></tr>';
+            }).join('')+'</tbody></table>'+
+            '<div class="status">보유 내역은 엔진 forward 산출(active_positions) 그대로 — 청산예정은 hold 만기 기준(확정청산 시 앞당겨질 수 있음)</div>';
+        }
         fs.className=''; fs.innerHTML = h;
       }
     }catch(e){ fs.innerHTML = '<span class="noart">forward 조회 실패: '+(e.detail||e.message)+'</span>'; }
