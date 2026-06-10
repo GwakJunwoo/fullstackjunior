@@ -111,20 +111,27 @@ def ops_mark(body: dict = Body(default=None)):
 
 @router.post("/manual", dependencies=[Depends(_require_key)])
 def ops_manual(body: dict = Body(...)):
-    """④수기 편입. body: {strategy_or_tag, legs:[{key,kind?,side,weight?,entry_yield?}],
-    entry_date, size_dv01_krw, note?, policy?}"""
-    for k in ("strategy_or_tag", "legs", "entry_date", "size_dv01_krw"):
+    """④수기 편입. body: {strategy_or_tag, legs:[{key,kind?,side,weight?,entry_yield?,
+    entry_price?(fut '3선'|'10선'|'30선' — 가격 호가)}], entry_date,
+    size_dv01_krw 또는 size_contracts(fut 계약수 — 동시 지정은 엔진이 거부), note?, policy?}"""
+    for k in ("strategy_or_tag", "legs", "entry_date"):
         if body.get(k) in (None, "", []):
             raise HTTPException(400, f"{k} 필요")
+    sdk = body.get("size_dv01_krw")
+    sct = body.get("size_contracts")
+    # 사이징 검증(하나만·둘 다 없음 등)은 엔진 add_manual 이 정본 — 전달만(H3).
     return _call(_eng().add_manual, body["strategy_or_tag"], body["legs"],
-                 body["entry_date"], float(body["size_dv01_krw"]),
-                 body.get("note", ""), policy=body.get("policy"))
+                 body["entry_date"],
+                 float(sdk) if sdk not in (None, "") else None,
+                 body.get("note", ""), policy=body.get("policy"),
+                 size_contracts=float(sct) if sct not in (None, "") else None)
 
 
 @router.post("/override", dependencies=[Depends(_require_key)])
 def ops_override(body: dict = Body(...)):
-    """⑤금리(마크) 수정 — yield=None 이면 해제. 원값(entry_yield) 보존·감사로그.
-    body: {pos_id, leg_key, yield}"""
+    """⑤마크 수정 — yield=None 이면 해제. 원값 보존·감사로그.
+    body: {pos_id, leg_key, yield}. 단위는 엔진이 leg kind 로 판정(전달자 무변형):
+    fut leg → *가격*(override_price), 그 외 → 금리 %(override_yield)."""
     if not body.get("pos_id") or not body.get("leg_key"):
         raise HTTPException(400, "pos_id, leg_key 필요")
     return _call(_eng().set_override, body["pos_id"], body["leg_key"],

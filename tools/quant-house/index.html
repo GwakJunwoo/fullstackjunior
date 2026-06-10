@@ -1182,15 +1182,21 @@ function renderOpsBoard(){
       '<td class="'+(pk==null?'':(pk>=0?'pp':'pn'))+'">'+(pk!=null?_krw(pk):'–')+'</td>'+
       '<td class="lt">'+_esc(r.last_mark||'–')+'</td>'+
       '<td class="lt"><span class="xstate '+_xcls(r.exit_state)+'">'+_esc(r.exit_state)+'</span></td>'+
-      '<td class="lt">'+_esc(r.exit_eta||'–')+'</td><td>'+_krw(r.size_dv01_krw)+'</td>'+
+      '<td class="lt">'+_esc(r.exit_eta||'–')+'</td><td>'+_krw(r.size_dv01_krw)+
+        (r.size_contracts!=null?('<br><span class="status">'+r.size_contracts+'계약</span>'):'')+'</td>'+
       '<td>'+(r.n_overrides?('<span class="ovrtag">OVR '+r.n_overrides+'</span>'):'0')+'</td>'+
       '<td class="lt"><button class="btn" style="padding:2px 8px;font-size:10px" onclick="opsToggleDetail(\''+_esc(r.id)+'\')">상세/금리</button></td></tr>'+
       '<tr id="opsd_'+_esc(r.id)+'" style="display:none"><td colspan="13" class="lt" style="background:var(--s1)">'+
       '<div id="opsdc_'+_esc(r.id)+'" style="padding:10px 12px;white-space:normal"></div></td></tr>';
   });
+  const anyFut=(b.positions||[]).some(function(r){return r.fut_legs&&r.fut_legs.length;});
   h+='</tbody></table></div>'+
     '<div class="status" style="margin-top:6px">exit_state 는 확정정책(factory.apply_exit)의 <b>표시</b>다 — '+
-    'TP도달 표시손익=TP 한도(백테스트 표준가정). 자동 청산 없음 · 청산 확정·실체결값은 사용자([청산 확정]).</div>';
+    'TP도달 표시손익=TP 한도(백테스트 표준가정). 자동 청산 없음 · 청산 확정·실체결값은 사용자([청산 확정]).</div>'+
+    (anyFut?('<div class="status" style="margin-top:4px">선물 leg 포지션: P&amp;L bp 는 <b>proxy-bp</b>'+
+      '(가격÷듀레이션 환산 — 진짜 implied bp 아님) · 운용 판단은 가격(pt)·KRW 권장 '+
+      '(1pt=계약당 100만원, 1틱 0.01=1만원 — KRW 는 Δ가격×100만×계약수 정산 정합). '+
+      '⚠ 선물 만기 롤 시 자동 합성 없음 — 청산 후 재진입.</div>'):'');
   w.innerHTML=h;
 }
 
@@ -1207,21 +1213,42 @@ function opsToggleDetail(id){
   if (p.exit_eval) h+='<div class="status" style="margin-bottom:6px">청산평가(표시): '+
     _esc(p.exit_eval.basis||'')+' → '+_esc(p.exit_eval.eval_exit_date||'')+
     ' · 보유 '+p.exit_eval.days_held+'일 · '+_fmt(p.exit_eval.pnl_bp_at_exit)+'bp</div>';
+  const hasFut=p.legs.some(function(l){return l.kind==='fut';});
   h+='<table class="find-tbl" style="margin-bottom:8px"><tbody>'+
-    '<tr style="font-weight:600"><td>leg</td><td>side×w</td><td>진입 yield (원값·불변)</td><td>override (사용자 마크 수정)</td></tr>'+
+    '<tr style="font-weight:600"><td>leg</td><td>side×w</td><td>진입 마크 (원값·불변)</td><td>현재 마크</td><td>override (사용자 마크 수정)</td></tr>'+
     p.legs.map(function(l,li){
+      const fut=(l.kind==='fut');
+      const ovrVal=fut?l.override_price:l.override_yield;
+      const entryCell=fut
+        ? ('<b>'+l.entry_price+'</b> <span class="status">가격(pt) · '+_esc(l.entry_price_date||'')+
+            (l.entry_price_source?(' · '+_esc(l.entry_price_source)):'')+'</span>'+
+           (l.contracts!=null?('<br><span class="status">'+l.contracts+'계약 · 듀레이션 '+l.fut_dur+'</span>'):''))
+        : (l.entry_yield+' <span class="status">금리(%) · '+_esc(l.entry_yield_date||'')+
+            (l.entry_yield_source?(' · '+_esc(l.entry_yield_source)):'')+'</span>');
+      const curCell=fut
+        ? (l.cur_price!=null
+            ? ('<b>'+l.cur_price+'</b> <span class="status">pt ('+_esc(l.cur_price_date||'')+')</span>'+
+               (l.px_chg!=null?(' · <span class="'+(l.px_chg>=0?'pp':'pn')+'">'+
+                 (l.px_chg>=0?'+':'')+l.px_chg+'pt</span>'):''))
+            : '<span class="status">마크 없음</span>')
+        : '<span class="status">–</span>';
       return '<tr><td>'+_esc(l.key)+' <span class="status">('+_esc(l.kind)+')</span></td>'+
         '<td><span class="'+(l.side>0?'pos':'neg')+'">'+(l.side>0?'+1':'-1')+'</span>×'+l.weight+'</td>'+
-        '<td>'+l.entry_yield+' <span class="status">('+_esc(l.entry_yield_date||'')+
-          (l.entry_yield_source?(' · '+_esc(l.entry_yield_source)):'')+')</span></td>'+
-        '<td><input class="ops-in sm" id="ovr_'+_esc(id)+'_'+li+'" type="number" step="any" value="'+
-          (l.override_yield!=null?l.override_yield:'')+'" placeholder="DB 종가 사용">'+
+        '<td>'+entryCell+'</td>'+
+        '<td>'+curCell+'</td>'+
+        '<td><input class="ops-in sm" id="ovr_'+_esc(id)+'_'+li+'" type="number" step="'+(fut?'0.01':'any')+'" value="'+
+          (ovrVal!=null?ovrVal:'')+'" placeholder="'+(fut?'DB 선물가 사용':'DB 종가 사용')+'">'+
+        ' <span class="status">'+(fut?'가격(pt)':'금리(%)')+'</span>'+
         ' <button class="btn" style="padding:2px 8px;font-size:10px" onclick="opsOverride(\''+_esc(id)+'\','+li+',false)">적용</button>'+
         ' <button class="btn" style="padding:2px 8px;font-size:10px" onclick="opsOverride(\''+_esc(id)+'\','+li+',true)">해제</button>'+
-        (l.override_yield!=null?(' <span class="ovrtag">OVERRIDE 중 '+l.override_yield+'</span>'):'')+
+        (ovrVal!=null?(' <span class="ovrtag">OVERRIDE 중 '+ovrVal+'</span>'):'')+
         '</td></tr>';
     }).join('')+'</tbody></table>'+
-    '<div class="status" style="margin-bottom:8px">override 적용 시 진입 yield 원값 불변·감사로그 기록 · 마크 반영은 다음 [마크 갱신]부터.</div>'+
+    '<div class="status" style="margin-bottom:8px">override 적용 시 진입 마크 원값 불변·감사로그 기록 · 마크 반영은 다음 [마크 갱신]부터'+
+    ' (fut leg 는 <b>가격</b>으로 수정 — 금리 아님).</div>'+
+    (hasFut?('<div class="status" style="margin-bottom:8px">fut bp 는 <b>proxy-bp</b>(가격÷듀레이션 환산) — '+
+      '진짜 implied bp 아님 · 운용 판단은 가격(pt)·KRW 권장. '+
+      '⚠ 선물 만기 롤 시 자동 합성 없음 — 청산 후 재진입.</div>'):'')+
     '<div class="ctrl-row">청산 확정: '+
     '<select class="ops-in" id="cls_r_'+_esc(id)+'"><option>TP</option><option>SL</option><option>TIME</option><option selected>MANUAL</option></select>'+
     ' <input class="ops-in" id="cls_p_'+_esc(id)+'" type="number" step="any" placeholder="실체결 pnl_bp (비우면 마지막 마크)" style="width:220px">'+
@@ -1243,7 +1270,8 @@ async function opsOverride(id, li, clear){
   _setMsg('override 저장 중…');
   try{
     const r=await opsPost('/quant-house/ops/override', {pos_id:id, leg_key:leg.key, 'yield':val});
-    _setMsg(id+' '+leg.key+' override '+(r.override_yield!=null?('= '+r.override_yield):'해제')+
+    const f=r.field||'override_yield', unit=(f==='override_price')?' (가격 pt)':' (금리 %)';
+    _setMsg(id+' '+leg.key+' override '+(r[f]!=null?('= '+r[f]+unit):'해제')+
       (r.db_value_at_set!=null?(' (당시 DB '+r.db_value_at_set+')'):''));
     await _opsRefreshBoard(id);
   }catch(e){ _setMsg('override 실패: '+e.message, true); }
@@ -1288,14 +1316,20 @@ function opsRenderManual(){
     '<div class="ctrl-row" style="margin-bottom:8px">'+
       '<input class="ops-in" id="mn_tag" placeholder="전략명/태그 (registry 전략명이면 확정정책 자동 매치)" style="width:300px">'+
       '<input class="ops-in sm" id="mn_date" type="date">'+
-      '<input class="ops-in" id="mn_size" type="number" step="any" placeholder="size DV01 원/bp" style="width:150px">'+
+      '<select class="ops-in" id="mn_szmode" onchange="opsSizeMode()">'+
+        '<option value="dv01">사이징: DV01 원/bp</option>'+
+        '<option value="contracts">사이징: 계약수 (선물 전용)</option></select>'+
+      '<input class="ops-in" id="mn_size" type="number" step="any" placeholder="size DV01 원/bp" style="width:160px">'+
     '</div>'+
     '<div id="mn_legs"></div>'+
     '<div class="ctrl-row" style="margin:6px 0 10px">'+
       '<button class="btn" onclick="opsAddLeg()">+ 레그 추가</button>'+
       '<input class="ops-in" id="mn_note" placeholder="노트" style="flex:1">'+
       '<button class="btn upd" onclick="opsManualSubmit()">수기 편입</button></div>'+
-    '<div class="status">entry_yield 비우면 진입일 asof DB 종가 자동 해소(미해소 시 정직 에러). '+
+    '<div class="status">현물: entry_yield(%) 비우면 진입일 asof DB 종가 자동 해소(미해소 시 정직 에러). '+
+    '선물(3선/10선/30선): <b>가격(pt)</b> 입력(예 104.20) — 비우면 ktbf_basis 선물가 asof · '+
+    '사이징은 DV01 원/bp 또는 <b>계약수</b>(1계약=액면 1억) 중 하나만(동시 지정은 엔진이 거부). '+
+    '⚠ 선물 만기 롤 시 자동 합성 없음 — 청산 후 재진입. '+
     '정책: registry 확정정책 매치 → 없으면 헌법 외곽 기본(TP15/SL5/63d) 적용·표기. '+
     '대전제(SL≤5·TP≤15·보유≤63·손익비≥1) 위반 정책은 엔진이 즉시 거부.</div>';
   const dt=document.getElementById('mn_date');
@@ -1303,40 +1337,69 @@ function opsRenderManual(){
   opsAddLeg(); opsAddLeg();
 }
 
+function opsSizeMode(){
+  const m=document.getElementById('mn_szmode'), s=document.getElementById('mn_size');
+  if (m && s) s.placeholder = m.value==='contracts' ? '계약수 (예 10)' : 'size DV01 원/bp';
+}
+
 function opsAddLeg(){
   const wrap=document.getElementById('mn_legs'); if(!wrap) return;
   const d=document.createElement('div'); d.className='mleg';
-  d.innerHTML='<input class="ops-in" placeholder="key (KR코드 / n년지표 / struct명 / rate alias)" data-f="key">'+
-    '<select class="ops-in" data-f="kind"><option value="">kind 자동</option><option>bond</option><option>label</option><option>rate</option><option>struct</option></select>'+
+  d.innerHTML='<select class="ops-in" data-f="kind" onchange="opsLegKind(this)">'+
+      '<option value="">현물 — kind 자동</option><option>bond</option><option>label</option><option>rate</option><option>struct</option>'+
+      '<option value="fut">선물 (가격)</option></select>'+
+    '<input class="ops-in" placeholder="key (KR코드 / n년지표 / struct명 / rate alias)" data-f="key">'+
+    '<select class="ops-in" data-f="futkey" style="display:none"><option>3선</option><option>10선</option><option>30선</option></select>'+
     '<select class="ops-in" data-f="side"><option value="1">+1 매수</option><option value="-1">-1 매도</option></select>'+
     '<input class="ops-in" data-f="weight" type="number" step="any" placeholder="w=1">'+
-    '<input class="ops-in" data-f="entry_yield" type="number" step="any" placeholder="entry_yield (선택)">'+
+    '<input class="ops-in" data-f="entry_yield" type="number" step="any" placeholder="entry_yield % (선택)">'+
+    '<input class="ops-in" data-f="entry_price" type="number" step="0.01" placeholder="진입 가격(pt, 예 104.20 — 비우면 DB 선물가)" style="display:none;width:250px">'+
     '<button class="btn danger" onclick="this.parentNode.remove()">삭제</button>';
   wrap.appendChild(d);
+}
+
+function opsLegKind(sel){
+  const d=sel.parentNode, fut=(sel.value==='fut');
+  const q=function(f){ return d.querySelector('[data-f="'+f+'"]'); };
+  q('key').style.display=fut?'none':'';
+  q('futkey').style.display=fut?'':'none';
+  q('entry_yield').style.display=fut?'none':'';
+  q('entry_price').style.display=fut?'':'none';
 }
 
 async function opsManualSubmit(){
   const tag=(document.getElementById('mn_tag').value||'').trim();
   const date=document.getElementById('mn_date').value;
   const size=Number(document.getElementById('mn_size').value);
-  const legs=[];
+  const szmodeEl=document.getElementById('mn_szmode');
+  const mode=szmodeEl?szmodeEl.value:'dv01';
+  const legs=[]; let hasFut=false;
   document.querySelectorAll('#mn_legs .mleg').forEach(function(d){
     const g=function(f){ const el=d.querySelector('[data-f="'+f+'"]'); return el?el.value:''; };
-    if (!g('key').trim()) return;
-    const l={ key:g('key').trim(), side:Number(g('side')) };
+    const fut=(g('kind')==='fut');
+    const key=fut?g('futkey'):g('key').trim();
+    if (!key) return;
+    const l={ key:key, side:Number(g('side')) };
     if (g('kind')) l.kind=g('kind');
     if (g('weight')!=='') l.weight=Number(g('weight'));
-    if (g('entry_yield')!=='') l.entry_yield=Number(g('entry_yield'));
+    if (fut){
+      hasFut=true;
+      if (g('entry_price')!=='') l.entry_price=Number(g('entry_price'));
+    } else if (g('entry_yield')!=='') l.entry_yield=Number(g('entry_yield'));
     legs.push(l);
   });
   if (!tag || !date || !isFinite(size) || size<=0 || !legs.length){
     _setMsg('전략/태그 · 진입일 · size(>0) · 레그 1개 이상 필요', true); return; }
+  if (mode==='contracts' && !hasFut){
+    _setMsg('계약수 사이징은 선물 leg 포지션 전용 — 현물은 DV01 원/bp 선택', true); return; }
+  const body={strategy_or_tag:tag, legs:legs, entry_date:date,
+              note:document.getElementById('mn_note').value||''};
+  if (mode==='contracts') body.size_contracts=size; else body.size_dv01_krw=size;
   _setMsg('수기 편입 중…');
   try{
-    const p=await opsPost('/quant-house/ops/manual',
-      {strategy_or_tag:tag, legs:legs, entry_date:date, size_dv01_krw:size,
-       note:document.getElementById('mn_note').value||''});
+    const p=await opsPost('/quant-house/ops/manual', body);
     _setMsg('편입 완료 — '+p.id+' ('+p.strategy+', '+p.entry_date+') · 정책 '+(p.policy?p.policy.key:'없음')+
+      (p.size_contracts!=null?(' · '+p.size_contracts+'계약 → DV01 '+_krw(p.size_dv01_krw)+'원/bp'):'')+
       (p.policy_note?(' · '+p.policy_note):''));
     await _opsRefreshBoard();
   }catch(e){ _setMsg('수기 편입 실패: '+e.message, true); }
