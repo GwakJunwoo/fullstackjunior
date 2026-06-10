@@ -8,6 +8,7 @@ from .routers.ktb import router as ktb_router
 from .routers.beta import router as beta_router
 from .routers.rv_position import router as rv_position_router
 from .routers.quant_house import router as quant_house_router
+from .routers.qh_ops import router as qh_ops_router
 
 
 def create_app() -> FastAPI:
@@ -27,5 +28,6 @@ def create_app() -> FastAPI:
     app.include_router(beta_router)
     app.include_router(rv_position_router)
     app.include_router(quant_house_router)
+    app.include_router(qh_ops_router)
 
     return app

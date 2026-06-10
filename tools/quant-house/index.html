@@ -177,6 +177,39 @@
     .tdgrid .sl { font-size:9px; color:var(--t3); text-transform:uppercase; margin-bottom:2px; }
     .tdgrid .sv { font-size:12px; font-weight:600; }
     @media (max-width:760px){ .strat-grid{grid-template-columns:1fr;} .metrics{grid-template-columns:1fr 1fr;} .sgrid{grid-template-columns:1fr 1fr;} .srow-cc{display:none;} .srow-r{gap:8px;} .tdgrid{grid-template-columns:1fr 1fr;} }
+    /* ── OPERATION 운용 콘솔 ── */
+    .tabbar { display:flex; gap:8px; margin-bottom:12px; }
+    .tabbtn { background:var(--s1); border:.5px solid var(--bd2); border-radius:var(--rs); color:var(--t2); font-size:12.5px; font-weight:600; cursor:pointer; padding:8px 16px; transition:all .15s; }
+    .tabbtn:hover { border-color:var(--blue); color:var(--blue); }
+    .tabbtn.active { background:rgba(74,158,255,.10); border-color:var(--blue); color:var(--blue); }
+    .ops-card { background:var(--s1); border:.5px solid var(--bd); border-radius:var(--r); padding:12px 14px; margin-bottom:9px; position:relative; }
+    .ops-card.vetoed { opacity:.45; border-color:rgba(248,113,113,.45); }
+    .ops-card.vetoed::after { content:'부결'; position:absolute; top:10px; right:88px; font-size:10px; font-weight:700; color:var(--red); }
+    .ops-card .hd { display:flex; align-items:center; gap:10px; margin-bottom:8px; flex-wrap:wrap; }
+    .ops-card .hd .nm { font-size:13px; font-weight:700; color:var(--t1); }
+    .btn.veto { border-color:rgba(248,113,113,.4); color:var(--red); position:absolute; top:9px; right:12px; }
+    .btn.veto.on { background:rgba(248,113,113,.14); font-weight:700; }
+    .btn.danger { border-color:rgba(248,113,113,.4); color:var(--red); }
+    .btn.danger:hover { background:rgba(248,113,113,.10); border-color:var(--red); }
+    .szrow { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:8px 0 4px; }
+    .szbox { background:var(--s2); border:.5px solid var(--bd); border-radius:var(--rs); padding:8px 10px; }
+    .szbox .l { font-size:9px; color:var(--t3); text-transform:uppercase; letter-spacing:.3px; margin-bottom:3px; }
+    .szbox .v { font-size:14px; font-weight:700; }
+    .szbox .n { font-size:10px; color:var(--t3); margin-top:3px; line-height:1.5; }
+    .xstate { display:inline-block; font-size:9.5px; font-weight:700; letter-spacing:.3px; padding:2px 8px; border-radius:3px; }
+    .xs-HOLD { background:rgba(74,158,255,.12); color:var(--blue); border:.5px solid rgba(74,158,255,.3); }
+    .xs-TP { background:rgba(52,211,153,.16); color:var(--green); border:.5px solid rgba(52,211,153,.45); }
+    .xs-SL { background:rgba(248,113,113,.16); color:var(--red); border:.5px solid rgba(248,113,113,.45); }
+    .xs-TIME { background:rgba(251,191,36,.14); color:#fbbf24; border:.5px solid rgba(251,191,36,.42); }
+    .xs-none { background:rgba(255,255,255,.04); color:var(--t3); border:.5px solid var(--bd2); }
+    .ovrtag { font-size:8.5px; font-weight:700; padding:1px 5px; border-radius:3px; background:rgba(251,191,36,.16); color:#fbbf24; border:.5px solid rgba(251,191,36,.4); margin-left:5px; }
+    .ops-in { background:var(--s2); border:.5px solid var(--bd2); border-radius:var(--rs); color:var(--t1); font-size:11.5px; padding:5px 8px; }
+    .ops-in:focus { outline:none; border-color:var(--blue); }
+    .ops-in.sm { width:110px; }
+    .utilchip { display:inline-flex; gap:6px; align-items:center; background:var(--s2); border:.5px solid var(--bd); border-radius:5px; padding:4px 9px; font-size:11px; margin:0 6px 6px 0; }
+    .utilchip.full { border-color:rgba(248,113,113,.5); color:var(--red); }
+    .mleg { display:grid; grid-template-columns:1.4fr .8fr .6fr .6fr .9fr auto; gap:6px; margin-bottom:6px; align-items:center; }
+    @media (max-width:760px){ .szrow{grid-template-columns:1fr;} .mleg{grid-template-columns:1fr 1fr;} }
   </style>
 </head>
 <body>
@@ -186,6 +219,12 @@
     <div class="nav-links"><a href="/" class="nav-link">홈</a><a href="/tools/quant-house/" class="nav-link active">다전략 운용</a><a href="/tools/portfolio/" class="nav-link">포트폴리오</a><a href="/tools/regime/" class="nav-link">레짐 모니터</a></div>
   </nav>
 
+  <div class="tabbar">
+    <button class="tabbtn active" id="tab-strat" onclick="switchTab('strat')">전략</button>
+    <button class="tabbtn" id="tab-ops" onclick="switchTab('ops')">운용 콘솔</button>
+  </div>
+
+  <div id="view-strat">
   <div class="panel-wrap">
     <div class="ctrl-row">
       <span><span id="dot" class="conn-dot"></span><span id="conn" class="status">연결 확인 중…</span></span>
@@ -209,6 +248,26 @@
 
   <div id="detail" class="detail panel-wrap" style="margin-top:14px"></div>
   <div id="tradeDetail" class="panel-wrap" style="display:none;margin-top:12px"></div>
+  </div><!-- /view-strat -->
+
+  <!-- ════════ OPERATION 운용 콘솔 (engine.positions 그대로 — 표시·기록만, 자동청산 없음) ════════ -->
+  <div id="view-ops" style="display:none">
+    <div class="panel-wrap">
+      <div class="ctrl-row">
+        <button class="btn" onclick="opsLoad()">새로고침</button>
+        <button class="btn upd" onclick="opsMark()">마크 갱신 (일일 평가)</button>
+        <span id="opsMsg" class="status"></span>
+        <span class="status" style="margin-left:auto">쓰기엔 X-QH-KEY 필요 ·
+          <a href="#" onclick="opsResetKey();return false" style="color:var(--blue)">키 재설정</a></span>
+      </div>
+    </div>
+    <div class="cat-title">① 신호 인박스 — 기본=전부 진입, 부결(✕)만 선택 (default-enter)</div>
+    <div id="opsInbox"><div class="panel-wrap status">불러오는 중…</div></div>
+    <div class="cat-title" style="margin-top:18px">② 보유 인벤토리 — 일일 추적·손익·청산정책 자동 <u>표시</u> (청산 확정은 사용자)</div>
+    <div id="opsBoard"><div class="panel-wrap status">불러오는 중…</div></div>
+    <div class="cat-title" style="margin-top:18px">④ 수기 편입</div>
+    <div class="panel-wrap" id="opsManual"></div>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
@@ -910,6 +969,377 @@ function renderBacktest(art, regBt){
         borderColor:'#f87171', backgroundColor:'rgba(248,113,113,.14)', borderWidth:1,
         fill:true, pointRadius:0, tension:.1 }] }, options:{..._baseOpts()} }));
   }
+}
+
+// ═══════════════════ OPERATION 운용 콘솔 (engine.positions 전달자 — 표시·기록만) ═══════════════════
+// H1: 모든 수치·정책·자문은 /quant-house/ops/* API 응답 그대로 — 프론트 하드코딩 0.
+// H2: stale·legs_note·policy_note·Kelly caveat·advisory_note 전부 원문 노출(자문≠명령).
+const OPS_KEY_LS = 'qh_ops_key';
+let _opsInit=false, _OPS_IB=null, _OPS_BOARD=null, _OPS_LEDGER=null;
+const _OPS_VETO = new Set();
+const _OPS_SIZES = {};   // candidate_key → 사용자가 입력한 size (재렌더 보존)
+
+function switchTab(t){
+  document.getElementById('view-strat').style.display = (t==='strat')?'':'none';
+  document.getElementById('view-ops').style.display = (t==='ops')?'':'none';
+  document.getElementById('tab-strat').classList.toggle('active', t==='strat');
+  document.getElementById('tab-ops').classList.toggle('active', t==='ops');
+  if (t==='ops' && !_opsInit){ _opsInit=true; opsRenderManual(); opsLoad(); }
+}
+
+function _esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function _krw(v){ return (v==null||!isFinite(Number(v)))?'–':Number(v).toLocaleString('ko-KR'); }
+function _setMsg(m,err){ const el=document.getElementById('opsMsg'); if(!el)return; el.textContent=m||''; el.style.color=err?'var(--red)':''; }
+
+// ── 쓰기 키 UX: 최초 쓰기 시 프롬프트 → localStorage → X-QH-KEY 헤더 ──
+function _opsAskKey(){
+  let k = localStorage.getItem(OPS_KEY_LS);
+  if (!k){
+    k = prompt('운용 쓰기 키(X-QH-KEY) 입력 — server/.env 의 QH_OPS_KEY 와 동일 값');
+    if (k){ k=k.trim(); localStorage.setItem(OPS_KEY_LS, k); }
+  }
+  return k;
+}
+function opsResetKey(){ localStorage.removeItem(OPS_KEY_LS); _setMsg('저장된 키 삭제 — 다음 쓰기 시 다시 묻습니다'); }
+
+async function opsPost(path, body){
+  const base = await getApiBase();
+  if (!base) throw new Error('API URL 미설정 — 서버/터널 확인');
+  const key = _opsAskKey();
+  if (!key) throw new Error('키 미입력 — 쓰기 취소');
+  const res = await fetch(base+path, { method:'POST',
+    headers:{ 'Content-Type':'application/json', 'X-QH-KEY':key, 'ngrok-skip-browser-warning':'1' },
+    body: JSON.stringify(body||{}) });
+  let j=null; try{ j=await res.json(); }catch(e){}
+  if (res.status===403){
+    const d=(j&&j.detail)||'쓰기 거부';
+    if (/불일치/.test(d)) localStorage.removeItem(OPS_KEY_LS);   // 틀린 키 폐기 → 재입력 유도
+    throw new Error('403 — '+d);
+  }
+  if (!res.ok) throw new Error('서버 오류 '+res.status+((j&&j.detail)?(' — '+j.detail):''));
+  return j;
+}
+
+async function opsLoad(){
+  _setMsg('불러오는 중…');
+  try{
+    const [ib, bd, lg] = await Promise.all([
+      apiGet('/quant-house/ops/inbox'),
+      apiGet('/quant-house/ops/board'),
+      apiGet('/quant-house/ops/ledger')]);
+    _OPS_IB=ib; _OPS_BOARD=bd; _OPS_LEDGER=lg;
+    renderOpsInbox(); renderOpsBoard(); _setMsg('');
+  }catch(e){
+    const m=_esc(e.detail||e.message);
+    _setMsg('조회 실패', true);
+    document.getElementById('opsInbox').innerHTML='<div class="panel-wrap status">인박스 조회 실패 — '+m+'</div>';
+    document.getElementById('opsBoard').innerHTML='<div class="panel-wrap status">보드 조회 실패 — '+m+'</div>';
+  }
+}
+
+async function _opsRefreshBoard(openId){
+  const [bd, lg] = await Promise.all([
+    apiGet('/quant-house/ops/board'), apiGet('/quant-house/ops/ledger')]);
+  _OPS_BOARD=bd; _OPS_LEDGER=lg; renderOpsBoard();
+  if (openId) opsToggleDetail(openId);
+}
+
+// ── ① 신호 인박스 — default-enter, 부결만 선택 ──
+function _captureSizes(){
+  if (!_OPS_IB) return;
+  (_OPS_IB.candidates||[]).forEach(function(c,i){
+    const el=document.getElementById('ops_sz_'+i);
+    if (el && el.value!=='') _OPS_SIZES[c.key]=el.value; else delete _OPS_SIZES[c.key];
+  });
+}
+
+function renderOpsInbox(){
+  const w=document.getElementById('opsInbox'); const ib=_OPS_IB;
+  if (!w || !ib) return;
+  let h='';
+  if (ib.forward_note) h+='<div class="vbanner v-warn">'+_esc(ib.forward_note)+'</div>';
+  if (ib.stale_vs_request) h+='<div class="vbanner v-fail">⚠ <b>stale</b> — 요청일 '+_esc(ib.date)+
+    ' ≠ forward as_of '+_esc(ib.as_of)+'. 신호가 요청일보다 묵음 — cli.py forward 재실행 전 확정 비권장.</div>';
+  h+='<div class="status" style="margin-bottom:8px">forward as_of <b>'+_esc(ib.as_of||'–')+'</b> · 후보 <b>'+
+    (ib.n_candidates!=null?ib.n_candidates:0)+'</b>건 · '+_esc(ib.note||'')+'</div>';
+  if (!(ib.candidates||[]).length){
+    h+='<div class="noart">오늘 진입 후보 없음 (deployed/active 전략의 forward new_entries 기준)</div>';
+    w.innerHTML=h; return;
+  }
+  ib.candidates.forEach(function(c,i){
+    const veto=_OPS_VETO.has(c.key);
+    const sz=c.sizing||{}, bud=sz.basis_budget||{}, kel=sz.basis_kelly||{}, rec=sz.basis_recency||{}, hc=sz.hard_caps||{};
+    const pol=c.policy;
+    const rawTxt=Object.entries(c.raw||{}).map(function(kv){return kv[0]+'='+kv[1];}).join(' · ');
+    const szSaved=_OPS_SIZES[c.key]!=null?_OPS_SIZES[c.key]:'';
+    h+='<div class="ops-card'+(veto?' vetoed':'')+'">'+
+      '<button class="btn veto'+(veto?' on':'')+'" onclick="opsToggleVeto('+i+')">'+(veto?'부결 해제':'✕ 부결')+'</button>'+
+      '<div class="hd"><span class="tier sm tier-'+_esc(c.tier||'none')+'">'+_esc(c.tier||'–')+'</span>'+
+        '<span class="nm">'+_esc(c.strategy)+'</span>'+
+        '<span class="abadge ab-'+_esc(c.status||'parked')+'">'+_esc(c.status||'')+'</span>'+
+        '<span class="status">'+_esc(c.key)+'</span></div>'+
+      '<div class="status" style="margin-bottom:6px">신호(raw): '+_esc(rawTxt)+'</div>'+
+      (c.legs ? ('<table class="find-tbl" style="margin-bottom:4px"><tbody>'+
+          c.legs.map(function(l){ return '<tr><td style="width:170px">'+_esc(l.key)+
+            ' <span class="status">('+_esc(l.kind)+')</span></td><td><span class="'+(l.side>0?'pos':'neg')+'">'+
+            (l.side>0?'▲ +1':'▼ -1')+'</span> × w '+l.weight+'</td></tr>'; }).join('')+
+          '</tbody></table><div class="status" style="margin-bottom:6px">'+_esc(c.legs_note||'')+'</div>')
+        : ('<div class="vbanner v-fail">legs 구성 불가 — '+_esc(c.legs_note||'')+' (확정 시 failed 처리됨)</div>'))+
+      (pol ? ('<div class="status" style="margin-bottom:4px">확정 청산정책 <b>'+_esc(pol.key)+'</b> — TP '+
+          (pol.tp!=null?('+'+pol.tp+'bp'):'없음')+' / SL '+(pol.sl!=null?('-'+pol.sl+'bp'):'없음')+
+          ' / 보유 ≤'+pol.hold+'일'+(c.policy_note?(' · '+_esc(c.policy_note)):'')+'</div>')
+        : ('<div class="vbanner v-warn">확정정책 없음 — '+_esc(c.policy_note||'수동 관리')+'</div>'))+
+      (sz.error ? ('<div class="vbanner v-warn">사이징 자문 실패: '+_esc(sz.error)+'</div>') : (
+        '<div class="szrow">'+
+        '<div class="szbox"><div class="l">① budget (캡 산술)</div><div class="v">'+_krw(bud.suggest_krw)+'</div>'+
+          '<div class="n">잔여예산 '+_krw(bud.remaining_strategy_budget_krw)+' · '+_esc(bud.note||'')+'</div></div>'+
+        '<div class="szbox"><div class="l">② fractional Kelly</div><div class="v">'+_krw(kel.suggest_krw)+'</div>'+
+          '<div class="n">'+(kel.win!=null?('win '+kel.win+' · b '+kel.b+' · f* '+kel.kelly_full+' → 적용 '+kel.fraction_applied+' (캡 '+kel.fraction_cap+')<br>'):'')+
+          _esc(kel.note||'')+(kel.caveat?((kel.note?'<br>':'')+'⚠ '+_esc(kel.caveat)):'')+'</div></div>'+
+        '<div class="szbox"><div class="l">③ 최근성과 보정</div><div class="v">'+_krw(rec.suggest_krw)+'</div>'+
+          '<div class="n">'+(rec.verdict?('판정 '+_esc(rec.verdict)+(rec.factor!=null?(' × '+rec.factor):'')+'<br>'):'')+_esc(rec.note||'')+'</div></div>'+
+        '</div>'+
+        '<div class="status">상한: per-trade '+_krw(hc.per_trade_krw)+' · 전략 한쪽 합 '+_krw(hc.strategy_oneside_krw)+
+          ' — '+_esc(hc.note||'')+'<br>⚠ '+_esc(sz.advisory_note||'')+'</div>'))+
+      '<div class="ctrl-row" style="margin-top:8px">'+
+        '<span class="status">진입 size (DV01 원/bp, 비우면 기본=budget 잔여):</span>'+
+        '<input class="ops-in sm" id="ops_sz_'+i+'" type="number" step="any" value="'+_esc(szSaved)+'" placeholder="'+(bud.suggest_krw!=null?bud.suggest_krw:'')+'">'+
+        '<span class="status">'+_esc(c.default_action||'')+'</span>'+
+      '</div></div>';
+  });
+  const nv=_OPS_VETO.size, ne=(ib.candidates||[]).length-nv;
+  h+='<div class="ctrl-row" style="margin:10px 0 4px">'+
+    '<button class="btn upd" onclick="opsConfirm()">진입 확정 — '+ne+'건 진입 · '+nv+'건 부결</button>'+
+    '<span class="status">확정/부결 모두 decisions.jsonl 감사기록(append-only)</span></div>'+
+    '<div id="opsConfirmResult"></div>';
+  w.innerHTML=h;
+}
+
+function opsToggleVeto(i){
+  const c=(_OPS_IB&&_OPS_IB.candidates||[])[i]; if(!c) return;
+  _captureSizes();
+  if (_OPS_VETO.has(c.key)) _OPS_VETO.delete(c.key); else _OPS_VETO.add(c.key);
+  renderOpsInbox();
+}
+
+async function opsConfirm(){
+  const ib=_OPS_IB; if(!ib) return;
+  _captureSizes();
+  if (ib.stale_vs_request && !confirm('⚠ 신호가 stale(요청일 ≠ forward as_of)입니다. 그래도 확정합니까?')) return;
+  const sizes={};
+  Object.keys(_OPS_SIZES).forEach(function(k){ const n=Number(_OPS_SIZES[k]); if(isFinite(n)&&n>0) sizes[k]=n; });
+  const body={ date: ib.date||ib.as_of, vetoed_keys: Array.from(_OPS_VETO) };
+  if (Object.keys(sizes).length) body.sizes=sizes;
+  _setMsg('확정 중…');
+  try{
+    const r=await opsPost('/quant-house/ops/confirm', body);
+    const el=document.getElementById('opsConfirmResult');
+    if (el) el.innerHTML='<div class="vbanner '+((r.failed||[]).length?'v-warn':'v-ok')+'">'+
+      '진입 <b>'+(r.opened||[]).length+'</b>건'+((r.opened||[]).length?(' ['+r.opened.join(', ')+']'):'')+
+      ' · 부결 '+(r.vetoed||[]).length+'건'+
+      ((r.skipped||[]).length?('<br>중복 스킵: '+r.skipped.map(function(s){return _esc(s.key)+' — '+_esc(s.reason);}).join(' · ')):'')+
+      ((r.failed||[]).length?('<br><b>실패</b>: '+r.failed.map(function(s){return _esc(s.key)+' — '+_esc(s.reason);}).join(' · ')):'')+
+      '<br><span class="status">'+_esc(r.note||'')+'</span></div>';
+    _setMsg('');
+    await _opsRefreshBoard();
+  }catch(e){ _setMsg('확정 실패: '+e.message, true); }
+}
+
+// ── ② 보유 인벤토리 보드 ──
+function _xcls(st){ return st==='HOLD'?'xs-HOLD':st==='TP도달'?'xs-TP':st==='SL도달'?'xs-SL':st==='TIME만료'?'xs-TIME':'xs-none'; }
+function _ledgerPos(id){ return (((_OPS_LEDGER||{}).positions)||[]).find(function(p){return p.id===id;}); }
+
+function renderOpsBoard(){
+  const w=document.getElementById('opsBoard'); const b=_OPS_BOARD;
+  if (!w || !b) return;
+  let h='<div class="status" style="margin-bottom:8px">as_of <b>'+_esc(b.as_of)+'</b> · open <b>'+b.n_open+'</b>건'+
+    (b.total_pnl_krw!=null?(' · 북 합계 <b class="'+(b.total_pnl_krw>=0?'pos':'neg')+'">'+_krw(b.total_pnl_krw)+' KRW</b> (마크 기준)'):'')+
+    ' · '+_esc((b.caps||{}).unit||'')+'</div>';
+  const ut=b.utilization||{};
+  if (Object.keys(ut).length){
+    h+='<div style="margin-bottom:6px">'+Object.entries(ut).map(function(su){
+      const s=su[0], u=su[1];
+      return '<span class="utilchip'+(u.utilization>=1?' full':'')+'"><b>'+_esc(s)+'</b> '+
+        _krw(u.oneside_dv01_krw)+' / '+_krw(u.cap_krw)+' ('+Math.round(u.utilization*100)+'%)</span>';
+    }).join('')+'</div>';
+  }
+  (b.warnings||[]).forEach(function(x){ h+='<div class="vbanner v-fail">⚠ '+_esc(x)+'</div>'; });
+  if (!(b.positions||[]).length){
+    h+='<div class="noart">open 포지션 없음 — 인박스에서 진입 확정하거나 수기 편입.</div>';
+    w.innerHTML=h; return;
+  }
+  h+='<div class="tlog-wrap"><table class="tlog"><thead><tr>'+
+    '<th class="lt">id</th><th class="lt">전략</th><th class="lt">src</th><th class="lt">진입일</th>'+
+    '<th>보유/한도</th><th>P&amp;L bp</th><th>P&amp;L KRW</th><th class="lt">마크일</th>'+
+    '<th class="lt">상태</th><th class="lt">청산예정</th><th>size(DV01)</th><th>ovr</th><th class="lt">액션</th>'+
+    '</tr></thead><tbody>';
+  b.positions.forEach(function(r){
+    const pb=r.pnl_bp, pk=r.pnl_krw;
+    h+='<tr><td class="lt"><b>'+_esc(r.id)+'</b></td><td class="lt">'+_esc(r.strategy)+'</td>'+
+      '<td class="lt">'+_esc(r.source)+'</td><td class="lt">'+_esc(r.entry_date)+'</td>'+
+      '<td>'+r.days_held+'/'+(r.hold!=null?r.hold:'–')+'</td>'+
+      '<td class="'+(pb==null?'':(pb>=0?'pp':'pn'))+'">'+(pb!=null?_fmt(pb):'마크없음')+'</td>'+
+      '<td class="'+(pk==null?'':(pk>=0?'pp':'pn'))+'">'+(pk!=null?_krw(pk):'–')+'</td>'+
+      '<td class="lt">'+_esc(r.last_mark||'–')+'</td>'+
+      '<td class="lt"><span class="xstate '+_xcls(r.exit_state)+'">'+_esc(r.exit_state)+'</span></td>'+
+      '<td class="lt">'+_esc(r.exit_eta||'–')+'</td><td>'+_krw(r.size_dv01_krw)+'</td>'+
+      '<td>'+(r.n_overrides?('<span class="ovrtag">OVR '+r.n_overrides+'</span>'):'0')+'</td>'+
+      '<td class="lt"><button class="btn" style="padding:2px 8px;font-size:10px" onclick="opsToggleDetail(\''+_esc(r.id)+'\')">상세/금리</button></td></tr>'+
+      '<tr id="opsd_'+_esc(r.id)+'" style="display:none"><td colspan="13" class="lt" style="background:var(--s1)">'+
+      '<div id="opsdc_'+_esc(r.id)+'" style="padding:10px 12px;white-space:normal"></div></td></tr>';
+  });
+  h+='</tbody></table></div>'+
+    '<div class="status" style="margin-top:6px">exit_state 는 확정정책(factory.apply_exit)의 <b>표시</b>다 — '+
+    'TP도달 표시손익=TP 한도(백테스트 표준가정). 자동 청산 없음 · 청산 확정·실체결값은 사용자([청산 확정]).</div>';
+  w.innerHTML=h;
+}
+
+function opsToggleDetail(id){
+  const tr=document.getElementById('opsd_'+id); if(!tr) return;
+  if (tr.style.display!=='none'){ tr.style.display='none'; return; }
+  tr.style.display='';
+  const box=document.getElementById('opsdc_'+id);
+  const p=_ledgerPos(id);
+  if (!p){ box.innerHTML='<span class="status">원장에서 포지션 미발견 — 새로고침 필요</span>'; return; }
+  let h='<div class="status" style="margin-bottom:6px">정책: '+
+    (p.policy?(_esc(p.policy.key)+' (TP '+p.policy.tp+' / SL '+p.policy.sl+' / hold '+p.policy.hold+')'):'없음(수동관리)')+
+    (p.policy_note?(' · '+_esc(p.policy_note)):'')+(p.note?(' · note: '+_esc(p.note)):'')+'</div>';
+  if (p.exit_eval) h+='<div class="status" style="margin-bottom:6px">청산평가(표시): '+
+    _esc(p.exit_eval.basis||'')+' → '+_esc(p.exit_eval.eval_exit_date||'')+
+    ' · 보유 '+p.exit_eval.days_held+'일 · '+_fmt(p.exit_eval.pnl_bp_at_exit)+'bp</div>';
+  h+='<table class="find-tbl" style="margin-bottom:8px"><tbody>'+
+    '<tr style="font-weight:600"><td>leg</td><td>side×w</td><td>진입 yield (원값·불변)</td><td>override (사용자 마크 수정)</td></tr>'+
+    p.legs.map(function(l,li){
+      return '<tr><td>'+_esc(l.key)+' <span class="status">('+_esc(l.kind)+')</span></td>'+
+        '<td><span class="'+(l.side>0?'pos':'neg')+'">'+(l.side>0?'+1':'-1')+'</span>×'+l.weight+'</td>'+
+        '<td>'+l.entry_yield+' <span class="status">('+_esc(l.entry_yield_date||'')+
+          (l.entry_yield_source?(' · '+_esc(l.entry_yield_source)):'')+')</span></td>'+
+        '<td><input class="ops-in sm" id="ovr_'+_esc(id)+'_'+li+'" type="number" step="any" value="'+
+          (l.override_yield!=null?l.override_yield:'')+'" placeholder="DB 종가 사용">'+
+        ' <button class="btn" style="padding:2px 8px;font-size:10px" onclick="opsOverride(\''+_esc(id)+'\','+li+',false)">적용</button>'+
+        ' <button class="btn" style="padding:2px 8px;font-size:10px" onclick="opsOverride(\''+_esc(id)+'\','+li+',true)">해제</button>'+
+        (l.override_yield!=null?(' <span class="ovrtag">OVERRIDE 중 '+l.override_yield+'</span>'):'')+
+        '</td></tr>';
+    }).join('')+'</tbody></table>'+
+    '<div class="status" style="margin-bottom:8px">override 적용 시 진입 yield 원값 불변·감사로그 기록 · 마크 반영은 다음 [마크 갱신]부터.</div>'+
+    '<div class="ctrl-row">청산 확정: '+
+    '<select class="ops-in" id="cls_r_'+_esc(id)+'"><option>TP</option><option>SL</option><option>TIME</option><option selected>MANUAL</option></select>'+
+    ' <input class="ops-in" id="cls_p_'+_esc(id)+'" type="number" step="any" placeholder="실체결 pnl_bp (비우면 마지막 마크)" style="width:220px">'+
+    ' <button class="btn danger" onclick="opsClose(\''+_esc(id)+'\')">청산 확정</button>'+
+    ' <span class="status">자동 청산 없음 — 확정은 사용자</span></div>';
+  box.innerHTML=h;
+}
+
+async function opsOverride(id, li, clear){
+  const p=_ledgerPos(id); if(!p||!p.legs[li]) return;
+  const leg=p.legs[li];
+  let val=null;
+  if (!clear){
+    const el=document.getElementById('ovr_'+id+'_'+li);
+    if (!el || el.value===''){ _setMsg('override 값 입력 필요 (해제는 [해제] 버튼)', true); return; }
+    val=Number(el.value);
+    if (!isFinite(val)){ _setMsg('override 값이 숫자가 아님', true); return; }
+  }
+  _setMsg('override 저장 중…');
+  try{
+    const r=await opsPost('/quant-house/ops/override', {pos_id:id, leg_key:leg.key, 'yield':val});
+    _setMsg(id+' '+leg.key+' override '+(r.override_yield!=null?('= '+r.override_yield):'해제')+
+      (r.db_value_at_set!=null?(' (당시 DB '+r.db_value_at_set+')'):''));
+    await _opsRefreshBoard(id);
+  }catch(e){ _setMsg('override 실패: '+e.message, true); }
+}
+
+async function opsClose(id){
+  const rs=document.getElementById('cls_r_'+id), pe=document.getElementById('cls_p_'+id);
+  const reason=rs?rs.value:'MANUAL';
+  const pv=pe?pe.value:'';
+  if (!confirm(id+' 청산 확정 — 사유 '+reason+(pv!==''?(', pnl '+pv+'bp(실체결 보고)'):' (pnl=마지막 마크)')+'?')) return;
+  const body={pos_id:id, reason:reason};
+  if (pv!=='') body.pnl_bp=Number(pv);
+  _setMsg('청산 기록 중…');
+  try{
+    const r=await opsPost('/quant-house/ops/close', body);
+    const c=r.closed||{};
+    _setMsg(id+' closed — '+c.reason+' '+c.pnl_bp+'bp / '+_krw(c.pnl_krw)+' KRW (출처 '+c.pnl_source+')');
+    await _opsRefreshBoard();
+  }catch(e){ _setMsg('청산 실패: '+e.message, true); }
+}
+
+async function opsMark(){
+  _setMsg('마크 중… (전 open 포지션 일일 평가 — canonical_pnl 단일경로)');
+  try{
+    const r=await opsPost('/quant-house/ops/mark', {});
+    let m='마크 '+r.n_marked+'건 ('+r.date+')';
+    if ((r.errors||[]).length) m+=' · 실패 '+r.errors.length+'건: '+
+      r.errors.map(function(e){return e.id+' '+e.reason;}).join(' / ');
+    const sl=(r.marked||[]).filter(function(x){return (x.stale_legs||[]).length;});
+    if (sl.length) m+=' · ⚠ stale leg(직전 종가 사용): '+sl.map(function(x){return x.id;}).join(',');
+    const ov=(r.marked||[]).filter(function(x){return (x.override_legs||[]).length;});
+    if (ov.length) m+=' · OVR 적용: '+ov.map(function(x){return x.id;}).join(',');
+    _setMsg(m, (r.errors||[]).length>0);
+    await _opsRefreshBoard();
+  }catch(e){ _setMsg('마크 실패: '+e.message, true); }
+}
+
+// ── ④ 수기 편입 ──
+function opsRenderManual(){
+  const w=document.getElementById('opsManual'); if(!w) return;
+  w.innerHTML=
+    '<div class="ctrl-row" style="margin-bottom:8px">'+
+      '<input class="ops-in" id="mn_tag" placeholder="전략명/태그 (registry 전략명이면 확정정책 자동 매치)" style="width:300px">'+
+      '<input class="ops-in sm" id="mn_date" type="date">'+
+      '<input class="ops-in" id="mn_size" type="number" step="any" placeholder="size DV01 원/bp" style="width:150px">'+
+    '</div>'+
+    '<div id="mn_legs"></div>'+
+    '<div class="ctrl-row" style="margin:6px 0 10px">'+
+      '<button class="btn" onclick="opsAddLeg()">+ 레그 추가</button>'+
+      '<input class="ops-in" id="mn_note" placeholder="노트" style="flex:1">'+
+      '<button class="btn upd" onclick="opsManualSubmit()">수기 편입</button></div>'+
+    '<div class="status">entry_yield 비우면 진입일 asof DB 종가 자동 해소(미해소 시 정직 에러). '+
+    '정책: registry 확정정책 매치 → 없으면 헌법 외곽 기본(TP15/SL5/63d) 적용·표기. '+
+    '대전제(SL≤5·TP≤15·보유≤63·손익비≥1) 위반 정책은 엔진이 즉시 거부.</div>';
+  const dt=document.getElementById('mn_date');
+  if (dt) dt.value=new Date().toISOString().slice(0,10);
+  opsAddLeg(); opsAddLeg();
+}
+
+function opsAddLeg(){
+  const wrap=document.getElementById('mn_legs'); if(!wrap) return;
+  const d=document.createElement('div'); d.className='mleg';
+  d.innerHTML='<input class="ops-in" placeholder="key (KR코드 / n년지표 / struct명 / rate alias)" data-f="key">'+
+    '<select class="ops-in" data-f="kind"><option value="">kind 자동</option><option>bond</option><option>label</option><option>rate</option><option>struct</option></select>'+
+    '<select class="ops-in" data-f="side"><option value="1">+1 매수</option><option value="-1">-1 매도</option></select>'+
+    '<input class="ops-in" data-f="weight" type="number" step="any" placeholder="w=1">'+
+    '<input class="ops-in" data-f="entry_yield" type="number" step="any" placeholder="entry_yield (선택)">'+
+    '<button class="btn danger" onclick="this.parentNode.remove()">삭제</button>';
+  wrap.appendChild(d);
+}
+
+async function opsManualSubmit(){
+  const tag=(document.getElementById('mn_tag').value||'').trim();
+  const date=document.getElementById('mn_date').value;
+  const size=Number(document.getElementById('mn_size').value);
+  const legs=[];
+  document.querySelectorAll('#mn_legs .mleg').forEach(function(d){
+    const g=function(f){ const el=d.querySelector('[data-f="'+f+'"]'); return el?el.value:''; };
+    if (!g('key').trim()) return;
+    const l={ key:g('key').trim(), side:Number(g('side')) };
+    if (g('kind')) l.kind=g('kind');
+    if (g('weight')!=='') l.weight=Number(g('weight'));
+    if (g('entry_yield')!=='') l.entry_yield=Number(g('entry_yield'));
+    legs.push(l);
+  });
+  if (!tag || !date || !isFinite(size) || size<=0 || !legs.length){
+    _setMsg('전략/태그 · 진입일 · size(>0) · 레그 1개 이상 필요', true); return; }
+  _setMsg('수기 편입 중…');
+  try{
+    const p=await opsPost('/quant-house/ops/manual',
+      {strategy_or_tag:tag, legs:legs, entry_date:date, size_dv01_krw:size,
+       note:document.getElementById('mn_note').value||''});
+    _setMsg('편입 완료 — '+p.id+' ('+p.strategy+', '+p.entry_date+') · 정책 '+(p.policy?p.policy.key:'없음')+
+      (p.policy_note?(' · '+p.policy_note):''));
+    await _opsRefreshBoard();
+  }catch(e){ _setMsg('수기 편입 실패: '+e.message, true); }
 }
 
 load();
