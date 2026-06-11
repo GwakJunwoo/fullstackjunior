@@ -209,6 +209,16 @@
     .utilchip { display:inline-flex; gap:6px; align-items:center; background:var(--s2); border:.5px solid var(--bd); border-radius:5px; padding:4px 9px; font-size:11px; margin:0 6px 6px 0; }
     .utilchip.full { border-color:rgba(248,113,113,.5); color:var(--red); }
     .mleg { display:grid; grid-template-columns:1.4fr .8fr .6fr .6fr .9fr auto; gap:6px; margin-bottom:6px; align-items:center; }
+    /* ── ⓪ 통합 집행표 (engine.book.queue) ── */
+    .nside { display:inline-block; font-size:10px; font-weight:700; letter-spacing:.4px; padding:2px 9px; border-radius:3px; }
+    .ns-BUY { background:rgba(52,211,153,.16); color:var(--green); border:.5px solid rgba(52,211,153,.45); }
+    .ns-SELL { background:rgba(248,113,113,.16); color:var(--red); border:.5px solid rgba(248,113,113,.45); }
+    .ns-FLAT { background:rgba(251,191,36,.14); color:#fbbf24; border:.5px solid rgba(251,191,36,.42); }
+    tr.bkrow.flat td { opacity:.75; }
+    .bk-flatnote { font-size:10px; font-weight:700; color:#fbbf24; }
+    .bk-saved { color:var(--green); font-weight:700; }
+    .bk-contrib { background:var(--s2); border:.5px solid var(--bd); border-radius:var(--rs); padding:8px 10px; margin:4px 0; font-size:11px; }
+    .bk-paper { font-size:9px; font-weight:700; padding:1px 6px; border-radius:3px; background:rgba(251,191,36,.16); color:#fbbf24; border:.5px solid rgba(251,191,36,.4); margin-left:5px; }
     @media (max-width:760px){ .szrow{grid-template-columns:1fr;} .mleg{grid-template-columns:1fr 1fr;} }
   </style>
 </head>
@@ -261,7 +271,9 @@
           <a href="#" onclick="opsResetKey();return false" style="color:var(--blue)">키 재설정</a></span>
       </div>
     </div>
-    <div class="cat-title">① 신호 인박스 — 기본=전부 진입, 부결(✕)만 선택 (default-enter)</div>
+    <div class="cat-title">⓪ 오늘의 통합 집행표 — 북 레벨 netting (engine.book.queue 그대로 · 표시 전용, 집행 확정은 사용자)</div>
+    <div id="opsBook"><div class="panel-wrap status">불러오는 중…</div></div>
+    <div class="cat-title" style="margin-top:18px">① 신호 인박스 — 기본=전부 진입, 부결(✕)만 선택 (default-enter)</div>
     <div id="opsInbox"><div class="panel-wrap status">불러오는 중…</div></div>
     <div class="cat-title" style="margin-top:18px">② 보유 인벤토리 — 일일 추적·손익·청산정책 자동 <u>표시</u> (청산 확정은 사용자)</div>
     <div id="opsBoard"><div class="panel-wrap status">불러오는 중…</div></div>
@@ -975,7 +987,8 @@ function renderBacktest(art, regBt){
 // H1: 모든 수치·정책·자문은 /quant-house/ops/* API 응답 그대로 — 프론트 하드코딩 0.
 // H2: stale·legs_note·policy_note·Kelly caveat·advisory_note 전부 원문 노출(자문≠명령).
 const OPS_KEY_LS = 'qh_ops_key';
-let _opsInit=false, _OPS_IB=null, _OPS_BOARD=null, _OPS_LEDGER=null;
+let _opsInit=false, _OPS_IB=null, _OPS_BOARD=null, _OPS_LEDGER=null, _OPS_BOOK=null;
+const _OPS_BOOK_OPEN = new Set();   // 집행표 행 펼침 상태 (재렌더 보존)
 const _OPS_VETO = new Set();
 const _OPS_SIZES = {};   // candidate_key → 사용자가 입력한 size (재렌더 보존)
 
@@ -1022,12 +1035,22 @@ async function opsPost(path, body){
 
 async function opsLoad(){
   _setMsg('불러오는 중…');
+  // ⓪ 집행표는 독립 조회 — 실패해도 인박스/보드는 살린다(에러는 정직 노출)
+  const bookP = apiGet('/quant-house/ops/book')
+    .then(function(bk){ _OPS_BOOK=bk; renderOpsBook(); })
+    .catch(function(e){ _OPS_BOOK=null;
+      const el=document.getElementById('opsBook');
+      if (el) el.innerHTML='<div class="panel-wrap status">집행표 조회 실패 — '+_esc(e.detail||e.message)+'</div>'; });
   try{
     const [ib, bd, lg] = await Promise.all([
       apiGet('/quant-house/ops/inbox'),
       apiGet('/quant-house/ops/board'),
       apiGet('/quant-house/ops/ledger')]);
     _OPS_IB=ib; _OPS_BOARD=bd; _OPS_LEDGER=lg;
+    // 엔진이 기본 부결로 지정한 후보(dedup 등 default_action=VETO*)는 부결 상태로 시작
+    (ib.candidates||[]).forEach(function(c){
+      if (String(c.default_action||'').indexOf('VETO')===0) _OPS_VETO.add(c.key);
+    });
     renderOpsInbox(); renderOpsBoard(); _setMsg('');
   }catch(e){
     const m=_esc(e.detail||e.message);
@@ -1042,6 +1065,77 @@ async function _opsRefreshBoard(openId){
     apiGet('/quant-house/ops/board'), apiGet('/quant-house/ops/ledger')]);
   _OPS_BOARD=bd; _OPS_LEDGER=lg; renderOpsBoard();
   if (openId) opsToggleDetail(openId);
+}
+
+// ── ⓪ 오늘의 통합 집행표 — engine.book.queue 그대로(netting·dedup·절감) ──
+function _man(v){ // KRW/bp → 만원/bp (단위 환산 표시만 — 값 가공 아님)
+  return (v==null||!isFinite(Number(v)))?'–':(Number(v)/1e4).toLocaleString('ko-KR',{maximumFractionDigits:1});
+}
+function renderOpsBook(){
+  const w=document.getElementById('opsBook'); const bk=_OPS_BOOK;
+  if (!w || !bk) return;
+  let h='';
+  if (bk.stale_vs_request) h+='<div class="vbanner v-fail">⚠ <b>stale</b> — 요청일 '+_esc(bk.date)+
+    ' ≠ forward as_of '+_esc(bk.as_of)+'. 집행표가 요청일보다 묵음 — cli.py forward 재실행 권장.</div>';
+  const tt=bk.totals||{};
+  h+='<div class="status" style="margin-bottom:8px">기준일 <b>'+_esc(bk.date||'–')+'</b> · forward as_of <b>'+_esc(bk.as_of||'–')+'</b>'+
+    ' · 오늘 gross 비용 <b>'+_krw(tt.gross_cost_krw)+'원</b> → net <b>'+_krw(tt.net_cost_krw)+'원</b>'+
+    ' (절감 <span class="bk-saved">'+_krw(tt.saved_krw)+'원'+
+    (tt.saved_pct!=null?(', '+(Math.round(Number(tt.saved_pct)*10)/10)+'%'):'')+'</span>)</div>';
+  // dedup 알림 — 엔진 판정 그대로(curve2 중복 → cv2n_fp로 집행, 사용자 규칙)
+  (bk.dedup||[]).forEach(function(d){
+    h+='<div class="vbanner v-warn">중복(dedup) — <b>'+_esc(d.struct||'')+'</b>'+
+      (d.entry_date?(' · '+_esc(d.entry_date)):'')+(d.sign!=null?(' · sign '+_esc(d.sign)):'')+
+      ' · 유지 <b>'+_esc(d.kept||'')+'</b> / 제외 '+_esc(d.dropped||'')+
+      (d.action?(' · '+_esc(d.action)):'')+(d.note?('<br>'+_esc(d.note)):'')+'</div>';
+  });
+  // unparsed — 분해 불가분 정직 노출(침묵 누락 금지)
+  (bk.unparsed||[]).forEach(function(u){
+    h+='<div class="vbanner v-fail">⚠ 집행표 미반영(분해 불가) — <b>'+_esc(u.strategy||'')+'</b> ('+
+      _esc(u.action||'')+'): '+_esc(u.reason||'')+'</div>';
+  });
+  if (!(bk.legs||[]).length){
+    h+='<div class="noart">오늘 집행 레그 없음 — 신규 진입·청산 신호가 없거나 전부 분해 불가(위 표기 참조).</div>'+
+      (bk.note?('<div class="status" style="margin-top:6px">'+_esc(bk.note)+'</div>'):'');
+    w.innerHTML=h; return;
+  }
+  h+='<div class="tlog-wrap"><table class="tlog"><thead><tr>'+
+    '<th class="lt">종목/선물</th><th class="lt">구분</th><th>테너</th><th class="lt">net 방향</th>'+
+    '<th>net DV01 (만원/bp)</th><th>gross→net DV01 (만원/bp)</th><th>비용 (원)</th><th>절감 (원)</th><th class="lt">기여</th>'+
+    '</tr></thead><tbody>';
+  bk.legs.forEach(function(l,i){
+    const flat = l.net_side==='FLAT';
+    const open = _OPS_BOOK_OPEN.has(l.key);
+    h+='<tr class="trow bkrow'+(flat?' flat':'')+(open?' open':'')+'" onclick="opsBookToggle(\''+_esc(l.key)+'\')">'+
+      '<td class="lt"><b>'+_esc(l.key)+'</b></td>'+
+      '<td class="lt">'+_esc(l.kind==='fut'?'선물':l.kind==='cash'?'현물':l.kind)+'</td>'+
+      '<td>'+(l.tenor!=null?(_esc(l.tenor)+'y'):'–')+'</td>'+
+      '<td class="lt"><span class="nside ns-'+_esc(l.net_side)+'">'+_esc(l.net_side)+'</span>'+
+        (flat?' <span class="bk-flatnote">집행 불필요 — 상쇄</span>':'')+'</td>'+
+      '<td><b>'+_man(l.net_dv01)+'</b></td>'+
+      '<td>'+_man(l.gross_dv01)+' → '+_man(l.net_dv01)+'</td>'+
+      '<td>'+_krw(l.gross_cost_krw)+'</td>'+
+      '<td class="'+(Number(l.saved_cost_krw)>0?'bk-saved':'')+'">'+_krw(l.saved_cost_krw)+'</td>'+
+      '<td class="lt">'+((l.contributors||[]).length)+'건 '+(open?'▾':'▸')+'</td></tr>';
+    if (open){
+      h+='<tr class="tdetail"><td colspan="9"><div class="tdwrap">'+
+        (l.contributors||[]).map(function(ct){
+          return '<div class="bk-contrib"><b>'+_esc(ct.strategy)+'</b> · '+
+            '<span class="'+(ct.side==='BUY'?'pos':'neg')+'">'+_esc(ct.side)+'</span> '+
+            _man(ct.dv01)+'만원/bp · '+_esc(ct.action==='enter'?'진입':ct.action==='exit'?'청산':ct.action)+
+            ' · '+_esc(ct.source||'')+
+            (ct.paper?'<span class="bk-paper">paper — 풀예산 가정</span>':'')+
+            (ct.note?('<br><span class="status">'+_esc(ct.note)+'</span>'):'')+'</div>';
+        }).join('')+'</div></td></tr>';
+    }
+  });
+  h+='</tbody></table></div>'+
+    (bk.note?('<div class="status" style="margin-top:6px">'+_esc(bk.note)+'</div>'):'');
+  w.innerHTML=h;
+}
+function opsBookToggle(key){
+  if (_OPS_BOOK_OPEN.has(key)) _OPS_BOOK_OPEN.delete(key); else _OPS_BOOK_OPEN.add(key);
+  renderOpsBook();
 }
 
 // ── ① 신호 인박스 — default-enter, 부결만 선택 ──
@@ -1079,6 +1173,8 @@ function renderOpsInbox(){
         '<span class="abadge ab-'+_esc(c.status||'parked')+'">'+_esc(c.status||'')+'</span>'+
         '<span class="status">'+_esc(c.key)+'</span></div>'+
       '<div class="status" style="margin-bottom:6px">신호(raw): '+_esc(rawTxt)+'</div>'+
+      (c.dedup_note ? ('<div class="vbanner v-warn">중복(dedup) — '+_esc(c.dedup_note)+
+        '<br>기본 동작: <b>'+_esc(c.default_action||'VETO')+'</b> — 부결이 기본(해제는 사용자 명시 선택)</div>') : '')+
       (c.legs ? ('<table class="find-tbl" style="margin-bottom:4px"><tbody>'+
           c.legs.map(function(l){ return '<tr><td style="width:170px">'+_esc(l.key)+
             ' <span class="status">('+_esc(l.kind)+')</span></td><td><span class="'+(l.side>0?'pos':'neg')+'">'+

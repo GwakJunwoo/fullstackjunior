@@ -33,6 +33,16 @@ def _eng():
         raise HTTPException(500, f"engine.positions import 실패: {type(e).__name__}: {e}")
 
 
+def _eng_book():
+    if str(QH_ROOT) not in sys.path:
+        sys.path.insert(0, str(QH_ROOT))
+    try:
+        from engine import book
+        return book
+    except Exception as e:
+        raise HTTPException(500, f"engine.book import 실패: {type(e).__name__}: {e}")
+
+
 # ── 쓰기 보안 (X-QH-KEY == env QH_OPS_KEY) ──────────────────────────────────
 def _require_key(x_qh_key: str | None = Header(default=None, alias="X-QH-KEY")):
     # .env 는 매 요청 재로드 시도(키 추가 후 서버 재기동 없이 반영).
@@ -68,6 +78,13 @@ def _call(fn, *args, **kwargs):
 # ════════════════════════════════════════════════════════════════════════════
 # READ (키 불요 — 기존 read 정책 동일)
 # ════════════════════════════════════════════════════════════════════════════
+@router.get("/book")
+def ops_book(date: str | None = Query(default=None)):
+    """⓪오늘의 통합 집행표 — engine.book.queue 무변형 통과(북 레벨 netting·
+    curve2 dedup·비용절감). 표시·자문 전용 — 자동 집행 없음(집행 확정은 사용자)."""
+    return _call(_eng_book().queue, date)
+
+
 @router.get("/inbox")
 def ops_inbox(date: str | None = Query(default=None)):
     """①진입 인박스 — positions.inbox 그대로 (forward 재계산 0·default-enter)."""
