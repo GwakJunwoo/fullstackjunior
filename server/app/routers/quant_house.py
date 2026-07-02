@@ -49,6 +49,13 @@ def list_strategies():
     strategies = reg.get("strategies", {})
     # 웹 노출 대상만 (web_visible 가 명시적 false 면 숨김; 없으면 기본 노출)
     visible = {n: s for n, s in strategies.items() if s.get("web_visible") is not False}
+    # ★포폴전략(strategy_class=='portfolio')은 일반 전략 목록·카운트에서 분리(N6 구분).
+    #   of/curve2(일반 라이브)와 of_port/curve2_port(포트 재표현·proposed)를 사용자가
+    #   혼동하지 않게 — 전용 뷰(/portfolio-strategies)에서만 노출. 여기 by_category·
+    #   summary 는 *일반전략만* 집계(web_visible 필터처럼 표현 큐레이션·수치 무변형 H3).
+    general = {n: s for n, s in visible.items()
+               if s.get("strategy_class") != "portfolio"}
+    visible = general
     by_cat: dict[str, list] = {}
     for s in visible.values():
         item = dict(s)
@@ -278,6 +285,37 @@ def forward_signals():
     return json.loads(_FWD_JSON.read_text(encoding="utf-8"))
 
 
+# ★MTE 일별 state 지도 스냅샷 (엔진이 산출 — 라우터는 전달자·재계산 0)
+_MTE_STATE = QH_ROOT / "05_registry" / "research" / "mte_state_snapshot.json"
+
+
+@router.get("/mte-state")
+def mte_state():
+    """★MTE 일별 state 지도 — mte_state_snapshot.json 을 *그대로* 반환(H3 전달자).
+
+    HOUSE §11: MTE = universal 항시 state layer — *표시 전용*(운용자 재량층의 눈),
+    시그널원 아님·자동매매 0·≤t-1(look-ahead 0)·진입시점 재계산 금지.
+    라우터는 엔진 분기/재계산/가공 0 — 파일 부재·파싱 실패 시 available:false
+    정직 반환(가짜 state 표시 = 기만 금지, H2). available 플래그만 표현용 부가.
+    """
+    if not _MTE_STATE.exists():
+        return {"available": False,
+                "note": ("mte_state_snapshot.json 미생성 — 엔진 스냅샷 산출 대기 "
+                         "(05_registry/research/mte_state_snapshot.json). "
+                         "생성 전 가짜 state 를 표시하지 않음(정직).")}
+    try:
+        snap = json.loads(_MTE_STATE.read_text(encoding="utf-8"))
+    except Exception as e:
+        return {"available": False,
+                "note": f"mte_state_snapshot.json 파싱 실패 — {type(e).__name__}: {e}"}
+    if not isinstance(snap, dict):
+        return {"available": False,
+                "note": "mte_state_snapshot.json 형식 오류 — dict 아님(정직 반환)"}
+    out = dict(snap)          # 파일 내용 *그대로* 통과(변형 0)
+    out["available"] = True   # 표현용 플래그만 부가
+    return out
+
+
 from fastapi import Body
 
 
@@ -321,6 +359,119 @@ def portfolio_available():
             "status": e.get("status"),
         })
     return {"available": items}
+
+
+@router.get("/portfolio-suggest")
+def portfolio_suggest(target: str | None = Query(
+        default=None,
+        description="목표포폴 좌표(JSON) — list[{tenor,kind,target_dv01_krw}] 또는 "
+                    "{'10:cash':-3000000,...}. 미지정 시 현 북 노출만 표시(제안 0)."),
+                      min_gap: float = Query(default=50e4, ge=0)):
+    """★포폴 의사결정 소스 — 현 북 커브노출(curve_exposure) vs 목표포폴 괴리 → 비율조정 *제안*.
+
+    엔진 engine.portfolio_advisor.suggest_from_book 을 *그대로* 호출해 반환(재계산·변형 0·전달자).
+    target(목표 좌표)을 주면 괴리 기반 랭킹된 제안, 미지정 시 현 노출만(제안 0건·정직).
+
+    ★§3 제안 전용 — 자동집행 0·주문 0·원장 무수정. curve_exposure 가시화 규약 계승
+      (DV01 합산이지 P&L 아님). 엔진 note 그대로 통과.
+    """
+    try:
+        from engine import portfolio_advisor as pa
+    except Exception as e:
+        raise HTTPException(500, f"engine.portfolio_advisor import 실패: {e}")
+    # target 파싱(미지정 → 빈 좌표 = 현 노출만·제안 0). JSON 문자열만 허용(주문 아님·읽기전용).
+    if target:
+        try:
+            raw = json.loads(target)
+        except Exception as e:
+            raise HTTPException(400, f"target JSON 파싱 실패: {e}")
+        try:
+            tmap = pa.parse_target_map(raw)
+        except Exception as e:
+            raise HTTPException(400, f"target 좌표 정규화 실패: {e}")
+    else:
+        tmap = {}
+    try:
+        s = pa.suggest_from_book(tmap, min_gap_krw=float(min_gap))
+    except Exception as e:
+        raise HTTPException(500, f"suggest_from_book 실패: {type(e).__name__}: {e}")
+    # 엔진 산출 *그대로* — 변형 0. target 부재 플래그만 표현용으로 부가(정직).
+    s["target_provided"] = bool(target)
+    return s
+
+
+@router.get("/portfolio-strategies")
+def portfolio_strategies():
+    """★포폴전략(strategy_class=='portfolio') 목록 + 아티팩트 5블록 유무.
+
+    현재 채택 포폴전략 0건 — 빈 상태 graceful(가짜 데이터 0). 엔진(adopt_portfolio)이
+    채택하면 registry strategy_class='portfolio' 로 자동 유입(라이브 read).
+
+    각 항목: 등록부 메타 + 아티팩트 portfolio 5블록(daily_nav·mtm_identity·dsr_hac
+    [★dsr_basis 라벨]·attribution·constraint_audit) *그대로* 통과(변형 0).
+
+    ★정직 표기 필드(2026-06-19 정직-N 재산출 반영): dsr·dsr_verdict 를 아티팩트
+    dsr_hac.dsr 에서 평면화해 전달(재계산 0) + 등록부 web_visible·withheld·
+    withheld_reason 그대로. 카드가 PASS(통과 포폴) vs FAIL/withheld(미통과)를
+    *시각적으로 구별*하도록 — withheld=True 는 통과 포폴로 비추면 안 됨(가짜 PASS 금지).
+    """
+    reg = _load_registry().get("strategies", {})
+    items = []
+    for nm, e in reg.items():
+        if e.get("strategy_class") != "portfolio":
+            continue
+        fp = SNAP_DIR / nm / "backtest_artifact.json"
+        block = None
+        net_bp = None
+        dsr_val = None
+        dsr_verdict = None
+        dsr_basis = e.get("dsr_basis")
+        if fp.exists():
+            try:
+                art = json.loads(fp.read_text(encoding="utf-8"))
+                # 아티팩트 portfolio 5블록을 *변형 없이* 통과(N6 — 엔진 진실 그대로)
+                block = art.get("portfolio")
+                # 칩 라벨용 — 아티팩트에서 *그대로* 읽음(재계산 0). net_bp=종착 NAV,
+                #   dsr_basis 는 등록부에 없으면 dsr_hac 블록에서 끌어옴(전달자).
+                net_bp = (art.get("stats") or {}).get("total_pnl_bp")
+                if isinstance(block, dict):
+                    _dh = block.get("dsr_hac") or {}
+                    if dsr_basis is None:
+                        dsr_basis = _dh.get("dsr_basis")
+                    # ★DSR 값·verdict 를 카드 라벨용으로 *그대로* 끌어올림(재계산 0·H3).
+                    #   카드가 PASS/FAIL 을 정직 표기하려면 깊은 dsr_hac.dsr 를 평면화해야 함.
+                    _d = _dh.get("dsr") or {}
+                    dsr_val = _d.get("dsr")
+                    dsr_verdict = _d.get("verdict")
+            except Exception:
+                block = None
+        items.append({
+            "name": nm,
+            "category": e.get("category"),
+            "version": e.get("version"),
+            "status": e.get("status"),
+            "tagline": e.get("tagline"),
+            "tier": e.get("tier") or (e.get("tier_eval") or {}).get("tier"),
+            "strategy_class": e.get("strategy_class"),
+            "parent": e.get("parent"),
+            "net_bp": net_bp,         # 종착 NAV(bp) — 아티팩트 stats 그대로
+            "dsr_basis": dsr_basis,   # 등록부 없으면 아티팩트 dsr_hac 에서(전달)
+            "dsr": dsr_val,           # ★아티팩트 dsr_hac.dsr.dsr 그대로(정직-N 디플레이트값)
+            "dsr_verdict": dsr_verdict,  # ★PASS/FAIL 그대로 — 카드가 통과/미통과 구별용
+            # ★정직 표기용 큐레이션 플래그(등록부 그대로 전달·변형 0). withheld 면 통과 포폴 아님.
+            "web_visible": e.get("web_visible"),
+            "withheld": bool(e.get("withheld")),
+            "withheld_reason": e.get("withheld_reason"),
+            "has_artifact": fp.exists(),
+            "portfolio": block,   # 5블록 그대로(없으면 None — 정직)
+        })
+    return {
+        "count": len(items),
+        "strategies": items,
+        "note": ("strategy_class=='portfolio' 전략만. 0건이면 채택 포폴전략 없음(정직). "
+                 "★dsr_basis(segment_net vs daily_nav_hac) 라벨 — 포폴 DSR 은 일반전략 "
+                 "DSR 과 단위가 달라 직접 비교 불가(N6). mtm_identity.ok 는 채택 하드블록."),
+    }
 
 
 @router.post("/daily-refresh")

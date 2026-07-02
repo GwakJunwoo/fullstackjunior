@@ -202,6 +202,13 @@
     .xs-SL { background:rgba(248,113,113,.16); color:var(--red); border:.5px solid rgba(248,113,113,.45); }
     .xs-TIME { background:rgba(251,191,36,.14); color:#fbbf24; border:.5px solid rgba(251,191,36,.42); }
     .xs-none { background:rgba(255,255,255,.04); color:var(--t3); border:.5px solid var(--bd2); }
+    .xstate.x-ok { background:rgba(52,211,153,.16); color:var(--green); border:.5px solid rgba(52,211,153,.42); }
+    .xstate.x-warn { background:rgba(251,191,36,.14); color:#fbbf24; border:.5px solid rgba(251,191,36,.42); }
+    .qcards { display:grid; grid-template-columns:repeat(auto-fill,minmax(260px,1fr)); gap:10px; }
+    .qcard { background:var(--bg2,rgba(255,255,255,.02)); border:1px solid var(--bd2); border-radius:7px; padding:11px 13px; transition:border-color .15s; }
+    .qcard:hover { border-color:rgba(96,165,250,.6); }
+    .qcard-top { font-size:13px; display:flex; align-items:center; flex-wrap:wrap; gap:2px; }
+    .qcard .pp { color:var(--green); } .qcard .pn { color:var(--red); }
     .ovrtag { font-size:8.5px; font-weight:700; padding:1px 5px; border-radius:3px; background:rgba(251,191,36,.16); color:#fbbf24; border:.5px solid rgba(251,191,36,.4); margin-left:5px; }
     .ops-in { background:var(--s2); border:.5px solid var(--bd2); border-radius:var(--rs); color:var(--t1); font-size:11.5px; padding:5px 8px; }
     .ops-in:focus { outline:none; border-color:var(--blue); }
@@ -254,7 +261,9 @@
 
   <div id="gStaleBanner"></div>
   <div id="tierbar" class="tierbar"></div>
+  <div id="portfolioClassBar"></div>
   <div id="list"></div>
+  <div id="mtePanel"></div>
 
   <div id="detail" class="detail panel-wrap" style="margin-top:14px"></div>
   <div id="tradeDetail" class="panel-wrap" style="display:none;margin-top:12px"></div>
@@ -277,6 +286,8 @@
     <div id="opsInbox"><div class="panel-wrap status">불러오는 중…</div></div>
     <div class="cat-title" style="margin-top:18px">② 보유 인벤토리 — 일일 추적·손익·청산정책 자동 <u>표시</u> (청산 확정은 사용자)</div>
     <div id="opsBoard"><div class="panel-wrap status">불러오는 중…</div></div>
+    <div class="cat-title" style="margin-top:18px">③ 포폴 비율조정 제안 — 현 북 커브노출(curve_exposure) vs 목표포폴 괴리 (engine.portfolio_advisor 그대로 · <u>§3 제안전용·자동집행 0·주문 0</u>)</div>
+    <div id="opsSuggest"><div class="panel-wrap status">목표포폴을 입력하면 비율조정 제안을 표시합니다.</div></div>
     <div class="cat-title" style="margin-top:18px">④ 수기 편입</div>
     <div class="panel-wrap" id="opsManual"></div>
   </div>
@@ -433,9 +444,94 @@ async function load() {
 
   renderList(all);
 
+  // ★포폴전략 클래스(strategy_class=='portfolio') 상태 바 — 현재 0건이면 정직 표시(가짜 0).
+  //   엔진 adopt_portfolio 채택 시 라이브 read 로 자동 유입(H1·N6). 실패해도 목록 정상.
+  gLoadPortfolioClassBar();
+
   // 목록 최상단 전역 staleness 배너 — forward 1회 호출(목록은 평소 forward 안 부름).
   // 클릭(상세) 없이 즉시 묵음 경고. 실패해도 목록은 정상.
   gLoadStaleBanner();
+
+  // ★MTE State 지도 — /quant-house/mte-state (snapshot 그대로·재계산 0). 실패해도 목록 정상.
+  gLoadMtePanel();
+}
+
+async function gLoadPortfolioClassBar(){
+  const el=document.getElementById('portfolioClassBar'); if(!el) return;
+  let r; try{ r=await apiGet('/quant-house/portfolio-strategies'); }
+  catch(e){ el.innerHTML=''; return; }   // 구버전 백엔드 대비 — 조용히 미표시(목록 무영향)
+  if (!r || r.count===0){
+    el.innerHTML='<div class="vbanner v-none" style="margin:4px 0 10px">📦 <b>포폴전략(strategy_class=portfolio)</b>: '+
+      '채택 <b>0건</b> — 아직 채택된 포폴전략 없음(정직). 엔진 <code>adopt_portfolio</code> 채택 시 '+
+      'daily_nav·항등식·DSR(dsr_basis)·귀속·제약 5블록이 여기에 자동 노출됩니다.</div>';
+    return;
+  }
+  // ★1건 이상 — 포트뷰 전용 섹션(일반 전략 목록과 *명확히 구분*·N6).
+  //   of(일반 라이브) vs of_port(포트 재표현·proposed)를 사용자가 혼동 안 하게:
+  //   ⟦포트뷰⟧ 배지 + proposed 상태 + net(bp) + DSR·verdict(PASS/FAIL) + dsr_basis + parent 출처.
+  //   ★정직-N(2026-06-19): of_port DSR 0.999 PASS=통과 포폴 / curve2_port 0.022 FAIL·withheld=미통과.
+  //   가짜 0.96 절대 재노출 금지 — verdict·withheld 를 시각적으로 구별(H2).
+  //   통과(PASS·withheld 아님)와 미통과(FAIL 또는 withheld)를 분리 렌더.
+  const _pass=(r.strategies||[]).filter(function(p){
+    return (p.dsr_verdict==='PASS') && !p.withheld;
+  });
+  const _fail=(r.strategies||[]).filter(function(p){
+    return !((p.dsr_verdict==='PASS') && !p.withheld);
+  });
+  function _portCard(p, passed){
+    const net=(p.net_bp!=null)?p.net_bp:null;
+    const v=p.dsr_verdict||null;
+    // verdict 칩: PASS=초록 / FAIL=빨강 / 미가용=노랑
+    const vChip = (v==='PASS')
+      ? '<span class="xstate x-ok" style="margin-left:6px">DSR PASS</span>'
+      : (v==='FAIL')
+        ? '<span class="xstate" style="margin-left:6px;background:rgba(248,113,113,.16);color:var(--red);border:.5px solid rgba(248,113,113,.42)">DSR FAIL</span>'
+        : '<span class="xstate x-warn" style="margin-left:6px">DSR ?</span>';
+    // withheld 면 통과 포폴 절대 아님 — 빨강 보류 배지 + 사유
+    const whBadge = p.withheld
+      ? '<span class="xstate" style="margin-left:6px;background:rgba(248,113,113,.16);color:var(--red);border:.5px solid rgba(248,113,113,.42)">withheld(보류)</span>'
+      : '';
+    const border = passed ? 'rgba(52,211,153,.40)' : 'rgba(248,113,113,.40)';
+    return '<div class="qcard" style="cursor:pointer;border-color:'+border+'" '+
+      'onclick="openStrat(\''+_esc(p.name)+'\')">'+
+      '<div class="qcard-top">'+
+        '<span class="tier sm" style="background:rgba(96,165,250,.18);color:#60a5fa">포트뷰</span> '+
+        '<b>'+_esc(p.name)+'</b>'+ vChip + whBadge +
+      '</div>'+
+      '<div class="status" style="margin:4px 0 2px">'+
+        (p.parent?('재표현 출처: <b>'+_esc(p.parent)+'</b>(라이브) · '):'')+
+        'strategy_class=portfolio · '+_esc(p.status||'?')+'</div>'+
+      '<div style="margin:3px 0">'+
+        (p.dsr!=null?('DSR <b class="'+(v==='PASS'?'pp':'pn')+'">'+_fmt(p.dsr)+'</b> ('+(v||'?')+') &nbsp;·&nbsp; '):'')+
+        'net <b class="'+(net!=null&&net>=0?'pp':'pn')+'">'+(net!=null?(_fmt(net)+'bp'):'–')+'</b>'+
+        (p.dsr_basis?(' &nbsp;·&nbsp; <span class="xstate x-warn">dsr_basis='+_esc(p.dsr_basis)+'</span>'):'')+
+        '</div>'+
+      // ★미통과 정직 사유(withheld_reason) — net 이 커도 통과 아님을 명시(가짜 인상 차단)
+      (!passed?('<div class="status" style="color:var(--red)">미통과(통과 포폴 아님) — '+
+        _esc(p.withheld_reason || ('정직-N 하 DSR '+(p.dsr!=null?_fmt(p.dsr):'?')+' '+(v||'')+
+          (p.parent?(' · 부모 '+p.parent+' 약알파'):'')))+'</div>'):'')+
+      (p.has_artifact?'<div class="status">daily_nav·항등식·DSR·귀속·제약 5블록 → 클릭(상세)</div>'
+        :'<div class="status" style="color:var(--red)">아티팩트 없음(정직)</div>')+
+      '</div>';
+  }
+  let h='<div class="cat-title" style="margin:14px 0 4px">📦 포트전략 (포트뷰 · 라이브 전략의 *포트 재표현*) '+
+    '<span class="status" style="font-weight:400;text-transform:none;letter-spacing:0">— '+
+    'strategy_class=portfolio · <b>proposed(데모)</b> · 위 일반 전략 목록·카운트와 별개</span></div>'+
+    '<div class="vbanner v-warn" style="margin:2px 0 4px">⚠ 아래는 일반 라이브 전략(of·curve2 등)을 '+
+    '<b>포트폴리오 단위로 재표현한 proposed(active 아님)</b> 데모입니다. 일반 전략 카드(위)와 혼동 금지 — '+
+    'DSR 은 <code>dsr_basis</code> 단위라 일반전략 per-trade DSR 과 <b>직접 비교 불가</b>(N6).</div>';
+  // (A) 통과 포폴(PASS·withheld 아님)
+  if (_pass.length){
+    h+='<div class="vbanner v-ok" style="margin:2px 0 4px">✅ <b>통과 포폴</b> — 정직-N(전역 8055) 디플레이트 후 DSR PASS.</div>'+
+      '<div class="qcards" style="margin-bottom:8px">'+_pass.map(function(p){return _portCard(p,true);}).join('')+'</div>';
+  }
+  // (B) 미통과/보류(FAIL 또는 withheld) — 통과 포폴로 절대 안 비춤(정직)
+  if (_fail.length){
+    h+='<div class="vbanner v-fail" style="margin:6px 0 4px">⛔ <b>미통과/보류(withheld)</b> — 정직-N 하 DSR FAIL '+
+      '또는 운용자 보류. <b>통과 포폴 아님</b>·웹 노출 큐레이션 제외 대상(web_visible=false). 참고용 정직 표시.</div>'+
+      '<div class="qcards" style="margin-bottom:12px">'+_fail.map(function(p){return _portCard(p,false);}).join('')+'</div>';
+  }
+  el.innerHTML=h;
 }
 
 // 전역 staleness 배너 — /quant-house/forward 의 data_consistency 를 그대로 표시(재계산 금지).
@@ -472,6 +568,103 @@ function gRenderStaleBanner(el, dc){
     el.innerHTML = '<div class="gstale gs-ok">✓ 전 전략 신호 최신 ('+
       (dc.forward_as_of||dc.as_of||'')+')</div>';
   }
+}
+
+// ★MTE State 지도 — /quant-house/mte-state = mte_state_snapshot.json *그대로*(재계산·분기 0).
+// HOUSE §11: MTE = universal 항시 state layer — *표시 전용*(운용자 재량층의 눈)·시그널원 아님·
+// 자동매매 0·≤t-1(look-ahead 0)·진입시점 재계산 금지. 미생성 시 정직 빈 상태(가짜 state 금지 H2).
+async function gLoadMtePanel(){
+  const el=document.getElementById('mtePanel'); if(!el) return;
+  let r; try{ r=await apiGet('/quant-house/mte-state'); }
+  catch(e){ el.innerHTML=_mteHead()+
+    '<div class="panel-wrap status">MTE state 조회 실패: '+_esc(e.detail||e.message)+
+    ' (구버전 백엔드면 재기동 필요)</div>'; return; }
+  renderMtePanel(el, r);
+}
+
+function _mteHead(){
+  return '<div class="cat-title" style="margin-top:18px">🧭 MTE State 지도 — universal 항시 state layer '+
+    '<span class="status" style="font-weight:400;text-transform:none;letter-spacing:0">'+
+    '(HOUSE §11 · <u>표시 전용 — 시그널원 아님·자동매매 0</u> · ≤t-1 · 진입시점 재계산 금지)</span></div>';
+}
+
+// 스냅샷 숫자 셀 — 값 없으면 '–'(정직), 숫자면 부호색(표현만·값 무변형)
+function _mteCell(v){
+  if (v==null || v==='') return '<td>–</td>';
+  const n=Number(v);
+  if (!isFinite(n)) return '<td>'+_esc(v)+'</td>';
+  return '<td class="'+(n>0?'pp':n<0?'pn':'')+'">'+_fmt(n)+'</td>';
+}
+
+function renderMtePanel(el, r){
+  const head=_mteHead();
+  // (0) 미생성/파싱실패 — 정직 빈 상태(엔진 note 그대로·가짜 state 0)
+  if (!r || r.available===false){
+    el.innerHTML = head + '<div class="noart">'+
+      _esc((r&&r.note)||'mte_state_snapshot.json 미생성')+
+      '<br>스냅샷 생성 전 — 가짜 state 를 그리지 않습니다(정직 빈 상태).</div>';
+    return;
+  }
+  // (1) asof·신선도 — meta.freshness(dict{ktb_max,rates_max}) 값 *그대로* 표기(재계산 0)
+  const meta=r.meta||{};
+  const frD=(meta.freshness&&typeof meta.freshness==='object')?meta.freshness:null;
+  const frChip = frD
+    ? '<span class="xstate x-ok">ktb '+_esc(frD.ktb_max||'?')+' · rates '+_esc(frD.rates_max||'?')+'</span>'
+    : (meta.freshness!=null
+       ? '<span class="xstate x-warn">'+_esc(String(meta.freshness))+'</span>'
+       : '<span class="xstate x-warn">신선도 미기재</span>');
+  let h = head + '<div class="panel-wrap">';
+  h += '<div class="status" style="margin-bottom:8px">asof <b>'+_esc(r.asof||'?')+'</b> · 신선도 '+frChip+
+       (meta.elapsed_sec!=null?(' · 산출 '+_esc(meta.elapsed_sec)+'s'):'')+
+       ' <span style="color:var(--t3)">— 스냅샷 값 그대로(웹 재계산 0)</span></div>';
+  // (2) 거시 레짐 — macro.regime.label(정본 스키마·구 regime_label 폴백) + state 값 그대로
+  const mac=r.macro||{};
+  const regLbl=(mac.regime&&mac.regime.label!=null)?mac.regime.label:(mac.regime_label!=null?mac.regime_label:null);
+  if (regLbl!=null || mac.state_position!=null || mac.state_velocity!=null){
+    h += '<div style="margin:2px 0 10px;font-size:12.5px">거시 레짐 '+
+      (regLbl!=null?('<span class="xstate" style="background:rgba(96,165,250,.16);color:#60a5fa;border:.5px solid rgba(96,165,250,.42);font-size:11px">'+_esc(regLbl)+'</span>'):'<span class="status">라벨 없음</span>')+
+      ' &nbsp;·&nbsp; state_position <b class="'+((Number(mac.state_position)||0)>=0?'pos':'neg')+'">'+_fmt(mac.state_position)+'</b>'+
+      ' &nbsp;·&nbsp; state_velocity <b class="'+((Number(mac.state_velocity)||0)>=0?'pos':'neg')+'">'+_fmt(mac.state_velocity)+'</b></div>';
+  } else {
+    h += '<div class="status" style="margin:2px 0 10px">macro 블록 없음(스냅샷에 미포함 — 정직 표시)</div>';
+  }
+  // (3) 라이브 전략별 struct 6측정 테이블 — 스냅샷 strategies 그대로
+  const strats=r.strategies||{};
+  const names=Object.keys(strats);
+  const COLS=['velocity','acceleration','persistence','distance','state_velocity','state_position'];
+  if (!names.length){
+    h += '<div class="status">전략별 struct 측정 없음(스냅샷 strategies 비어있음 — 정직 표시)</div>';
+  } else {
+    let rows='';
+    const structsTop=r.structs||{};   // ★정본 스키마: 측정치는 top-level r.structs[name].measures
+    names.forEach(function(nm){
+      const e=strats[nm]||{};
+      // strategies[nm].structs = struct *이름 배열* — top-level r.structs 와 조인
+      const sks=Array.isArray(e.structs)?e.structs:Object.keys(e.structs||{});
+      if (!sks.length || e.micro===false){
+        // struct 측정 없는 전략(예: of — instrument youth 로 micro 미성립) → macro state만·정직
+        rows += '<tr><td class="lt"><b>'+_esc(nm)+'</b></td><td class="lt" colspan="'+(COLS.length+1)+'" style="color:var(--t3)">'+
+          _esc(e.note||'struct 측정 없음 — micro 미성립·macro state만(정직)')+'</td></tr>';
+        return;
+      }
+      sks.forEach(function(sk,i){
+        const ent=structsTop[sk]||{};
+        const m=(ent.measures)||((Array.isArray(e.structs))?{}:(e.structs&&e.structs[sk])||{});
+        const invalid=(ent.valid===false);
+        rows += '<tr>'+
+          '<td class="lt">'+(i===0?('<b>'+_esc(nm)+'</b>'):'')+'</td>'+
+          '<td class="lt"><code>'+_esc(sk)+'</code>'+(invalid?' <span class="xstate x-warn" style="font-size:10px">invalid</span>':'')+'</td>'+
+          COLS.map(function(c){ return _mteCell(m[c]); }).join('')+
+          '</tr>';
+      });
+    });
+    h += '<div class="tlog-wrap" style="max-height:280px"><table class="tlog"><thead><tr>'+
+      '<th class="lt">전략</th><th class="lt">struct</th>'+
+      COLS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+
+      '</tr></thead><tbody>'+rows+'</tbody></table></div>';
+  }
+  h += '</div>';
+  el.innerHTML = h;
 }
 
 function renderList(all){
@@ -599,12 +792,25 @@ async function showDetail(name) {
       '</span>'+
       '<br><span class="status">'+bt2.rr_caveat+'</span>'+
     '</div>') : '';
+  // ★포트뷰 재표현 출처(parent) + withheld 정직 배너 — strategy_class=portfolio 전용(2026-06-19).
+  //   parent: of_port=of 의, curve2_port=curve2 의 포트 재표현(출처 정직 표기·이중계상 방지).
+  //   withheld=True: 정직-N FAIL 등 보류 — 통과 포폴 절대 아님(가짜 PASS 금지·H2). 일반전략엔 미발동.
+  const _isPort = (s.strategy_class==='portfolio');
+  const portBanner = _isPort ? (
+    '<div class="vbanner v-warn" style="margin-bottom:8px">📦 <b>포트뷰(포트 재표현)</b> · strategy_class=portfolio · 상태 <b>'+_esc(s.status||'?')+'</b>'+
+      (s.parent?(' — 재표현 출처: <b>'+_esc(s.parent)+'</b>(라이브 전략). 이 카드는 새 알파가 아니라 부모 알파를 포트폴리오 단위로 재표현한 것입니다(active P&L 노출은 부모).'):'')+
+    '</div>'+
+    (s.withheld ? ('<div class="vbanner v-fail" style="margin-bottom:10px">⛔ <b>보류(withheld) — 통과 포폴 아님</b>. '+
+      _esc(s.withheld_reason || '정직-N 하 미통과')+
+      (s.web_visible===false?' · <span class="status">web_visible=false(웹 큐레이션 제외)</span>':'')+
+      '</div>') : '')
+  ) : '';
   d.innerHTML =
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
     '<div class="tier-detail-head">'+tierHead+
       '<div style="font-size:14px;font-weight:600">'+s.name+' <span class="status">@'+s.version+' · '+s.category+'</span></div></div>'+
     '<button class="btn" onclick="_destroyCharts();document.getElementById(\'detail\').classList.remove(\'show\')">닫기</button></div>'+
-    banner+ tierPanel+ adoptBanner+
+    banner+ portBanner+ tierPanel+ adoptBanner+
     (s.tagline?('<div style="font-size:13px;color:var(--t2);margin:-2px 0 10px">'+s.tagline+'</div>'):'')+
     '<table class="find-tbl" style="margin-bottom:10px"><tbody>'+
       '<tr><td style="width:90px">컨셉</td><td>'+(s.concept||'—')+'</td></tr>'+
@@ -957,9 +1163,23 @@ function renderBacktest(art, regBt){
       '<div class="cat-title">월간 PnL (bp)</div><div class="qchart sm"><canvas id="cMo"></canvas></div>'+
       '<div class="cat-title">Drawdown (bp)</div><div class="qchart sm"><canvas id="cDd"></canvas></div>')
      :('<div class="noart" style="margin:6px 0 12px">누적/월간/Drawdown 시계열 미생성 — sparse 트레이드로그('+art.n_trades+'건) 아티팩트. 아래 진입 포지션 로그로 거래별 확인.</div>'))+
+    // ★포폴전략 5블록(strategy_class=='portfolio') — daily_nav·mtm_identity·dsr_hac
+    //   (★dsr_basis 라벨)·attribution·constraint_audit. 엔진 art.portfolio 그대로(변형 0·N6).
+    //   일반전략은 이 키 자체가 없어 발동 안 됨(무영향).
+    (art.strategy_class==='portfolio' ? _portfolioBlocksHtml(art.portfolio||{}) : '')+
     '<div class="cat-title">진입 포지션 로그 ('+art.n_trades+'건) <span class="status" style="font-weight:400;text-transform:none;letter-spacing:0">— 진입일 오름차순(엔진 산출 순서 그대로, 최신 거래는 맨 아래)</span></div>'+ structNote +
     '<div class="tlog-wrap"><table class="tlog"><thead><tr>'+head+
     '</tr></thead><tbody>'+body+'</tbody></table></div>';
+
+  // ★포폴 daily_nav 차트(있을 때만) — 일반전략 equity 차트와 별개 캔버스
+  if (art.strategy_class==='portfolio' && (((art.portfolio||{}).daily_nav)||[]).length){
+    const nav=art.portfolio.daily_nav;
+    const cv=document.getElementById('cPNav');
+    if (cv) _charts.push(new Chart(cv.getContext('2d'),{
+      type:'line', data:{ labels:nav.map(p=>p.d), datasets:[{ data:nav.map(p=>p.v),
+        borderColor:'#60a5fa', backgroundColor:'rgba(96,165,250,.12)', borderWidth:1.3,
+        fill:true, pointRadius:0, tension:.15 }] }, options:{..._baseOpts()} }));
+  }
 
   const eq=art.equity||[], mo=art.monthly||[], dd=art.drawdown||[];
   if (eq.length){
@@ -981,6 +1201,79 @@ function renderBacktest(art, regBt){
         borderColor:'#f87171', backgroundColor:'rgba(248,113,113,.14)', borderWidth:1,
         fill:true, pointRadius:0, tension:.1 }] }, options:{..._baseOpts()} }));
   }
+}
+
+// ★포폴전략 5블록 렌더 — 엔진 backtest_artifact.portfolio 그대로(변형 0·N6 분기 0).
+//   daily_nav(NAV 차트는 호출측에서)·mtm_identity·dsr_hac(★dsr_basis 라벨)·attribution·constraint_audit.
+//   ★N6 정직: 포폴 DSR 은 dsr_basis(segment_net)라 일반전략 DSR 과 직접 비교 불가 — 명시.
+function _portfolioBlocksHtml(p){
+  if (!p || !Object.keys(p).length){
+    return '<div class="vbanner v-warn">포폴 아티팩트 5블록 미생성 — strategy_class=portfolio 이나 portfolio 블록 부재(정직).</div>';
+  }
+  let h='<div class="cat-title">포폴전략 — 일별 NAV / 항등식 / DSR·HAC / 귀속 / 제약 (engine.adopt_portfolio 5블록 그대로)</div>';
+  // (1) daily_nav 차트 자리(차트는 호출측에서 생성). 빈 배열이면 정직 안내.
+  const nav=p.daily_nav||[];
+  if (nav.length) h+='<div class="cat-title" style="font-size:12px">일별 NAV (bp · canonical 세그먼트 일별 MtM 누적)</div>'+
+    '<div class="qchart sm"><canvas id="cPNav"></canvas></div>';
+  else h+='<div class="noart">daily_nav 미생성(빈 배열) — NAV 차트 표시 불가.</div>';
+  // (2) mtm_identity — ok 정직 노출(채택 하드블록)
+  const mi=p.mtm_identity||{};
+  const okv=mi.ok;
+  h+='<div class="vbanner v-'+(okv===true?'ok':(okv===false?'fail':'warn'))+'" style="margin:6px 0">'+
+    '항등식(mtm_identity): <b>'+(okv===true?'OK ✅ (Σ일별증분==canonical 종착·타일링 NAV==Σ세그net)':
+      (okv===false?'위반 ⛔ (누수 사인 — 채택 불가)':'미가용'))+'</b>'+
+    (mi.tiling_identity?(' <span class="status">· tiling: '+_esc(mi.tiling_identity)+'</span>'):'')+
+    (mi.note?(' <span class="status">· '+_esc(mi.note)+'</span>'):'')+'</div>';
+  // (3) dsr_hac — ★dsr_basis 라벨 정직(N6) + verdict(PASS/FAIL) 색 구별(정직-N).
+  //   배너 색: PASS=초록 / FAIL=빨강 / 미가용=노랑. 가짜 0.96 흔적 0 — 아티팩트 정직값만.
+  const dh=p.dsr_hac||{};
+  const dsr=dh.dsr||{};
+  const _vd=dsr.verdict||null;
+  const _vCls=(_vd==='PASS')?'ok':((_vd==='FAIL')?'fail':'warn');
+  h+='<div class="vbanner v-'+_vCls+'" style="margin:6px 0">'+
+    '<b>DSR / HAC</b> '+
+    (_vd?('<b style="color:'+(_vd==='PASS'?'var(--green)':'var(--red)')+'">['+_vd+']</b> '):'')+
+    '— ★단위 라벨 <span class="xstate x-warn">dsr_basis = '+_esc(dh.dsr_basis||'?')+'</span> '+
+    '<span class="status">(이 DSR 은 '+(dh.dsr_basis==='segment_net'?'세그먼트-net':'해당')+
+    ' 단위 — <b>일반전략 per-trade DSR 과 단위가 달라 직접 비교 불가</b>)</span><br>'+
+    (dsr.dsr!=null?('DSR <b class="'+(_vd==='PASS'?'pp':(_vd==='FAIL'?'pn':''))+'">'+_fmt(dsr.dsr)+'</b>'+
+       (_vd?(' ('+_vd+')'):'')):'DSR 미가용')+
+    (dsr.n_trials!=null?(' · n_trials <b>'+dsr.n_trials+'</b> <span class="status">(정직-N 디플레이트)</span>'):'')+
+    (dsr.n_obs!=null?(' · n_obs '+dsr.n_obs):'')+
+    (dh.hac_basis?(' &nbsp;|&nbsp; HAC basis <b>'+_esc(dh.hac_basis)+'</b>'):'')+
+    (dh.se_inflation!=null?(' · se_inflation <b>'+_fmt(dh.se_inflation)+'</b> <span class="status">(자기상관 부풀림)</span>'):'')+
+    (dh.note?('<br><span class="status">'+_esc(dh.note)+'</span>'):'')+
+    (dh.honest_n_note?('<br><span class="status">'+_esc(dh.honest_n_note)+'</span>'):'')+'</div>';
+  // (4) attribution — leg_key 별 귀속(gross/cost/net)
+  const at=p.attribution||[];
+  if (at.length){
+    h+='<div class="cat-title" style="font-size:12px">귀속(attribution) — leg_key 별 gross/cost/net</div>'+
+      '<div class="tlog-wrap"><table class="tlog"><thead><tr>'+
+      '<th class="lt">leg_key</th><th>gross</th><th>cost</th><th>net</th><th>세그먼트수</th>'+
+      '</tr></thead><tbody>';
+    at.forEach(function(r){
+      const net=r.net_bp!=null?r.net_bp:r.net;
+      h+='<tr><td class="lt"><b>'+_esc(r.leg_key||r.leg||'?')+'</b></td>'+
+        '<td>'+_fmt(r.gross_bp!=null?r.gross_bp:r.gross)+'</td>'+
+        '<td>'+_fmt(r.cost_bp!=null?r.cost_bp:r.cost)+'</td>'+
+        '<td class="'+(net>=0?'pp':'pn')+'">'+_fmt(net)+'</td>'+
+        '<td>'+(r.n_segments!=null?r.n_segments:(r.n!=null?r.n:'–'))+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+  } else h+='<div class="noart">attribution 미생성(빈 배열).</div>';
+  // (5) constraint_audit — DV01중립·캡·롤(가시화)
+  const ca=p.constraint_audit||{};
+  const allClear=ca.all_clear;
+  h+='<div class="vbanner v-'+(allClear===true?'ok':(allClear===false?'fail':'warn'))+'" style="margin:6px 0">'+
+    '제약 감사(constraint_audit): <b>'+(allClear===true?'전건 통과 ✅':(allClear===false?'위반 있음 ⚠':'요약 키 없음'))+'</b>';
+  // 나머지 키를 정직하게 펼침(엔진이 준 그대로 — 가공 0)
+  const extra=Object.entries(ca).filter(function(kv){return kv[0]!=='all_clear'&&kv[0]!=='note';});
+  if (extra.length) h+='<br><span class="status">'+extra.map(function(kv){
+    return _esc(kv[0])+': '+_esc(typeof kv[1]==='object'?JSON.stringify(kv[1]):kv[1]);
+  }).join(' · ')+'</span>';
+  if (ca.note) h+='<br><span class="status">'+_esc(ca.note)+'</span>';
+  h+='</div>';
+  return h;
 }
 
 // ═══════════════════ OPERATION 운용 콘솔 (engine.positions 전달자 — 표시·기록만) ═══════════════════
@@ -1058,6 +1351,8 @@ async function opsLoad(){
     document.getElementById('opsInbox').innerHTML='<div class="panel-wrap status">인박스 조회 실패 — '+m+'</div>';
     document.getElementById('opsBoard').innerHTML='<div class="panel-wrap status">보드 조회 실패 — '+m+'</div>';
   }
+  // ③ 포폴 제안 — 입력 UI 표시(현 노출 즉시 1회 산출, 목표 미입력=제안 0 graceful)
+  if (!_PSUG) opsSuggestRun();
 }
 
 async function _opsRefreshBoard(openId){
@@ -1293,6 +1588,97 @@ function renderOpsBoard(){
       '(가격÷듀레이션 환산 — 진짜 implied bp 아님) · 운용 판단은 가격(pt)·KRW 권장 '+
       '(1pt=계약당 100만원, 1틱 0.01=1만원 — KRW 는 Δ가격×100만×계약수 정산 정합). '+
       '⚠ 선물 만기 롤 시 자동 합성 없음 — 청산 후 재진입.</div>'):'');
+  w.innerHTML=h;
+}
+
+// ── ③ 포폴 비율조정 제안 — engine.portfolio_advisor.suggest_from_book 그대로(§3 제안전용) ──
+//   현 북 커브노출(curve_exposure) vs 목표포폴(사용자 입력 좌표) 괴리 → 랭킹된 제안.
+//   ★자동집행 0·주문 0 — 표시뿐. 엔진 산출(text·gap·risk_gate)을 변형 없이 렌더.
+let _PSUG=null;
+function _psugInputUI(){
+  return '<div class="panel-wrap" style="margin-bottom:8px">'+
+    '<div class="status" style="margin-bottom:6px">목표포폴 좌표 — <code>{"테너:종류": 목표DV01(원/bp)}</code> '+
+    '예: <code>{"10:cash":-3000000,"3:fut":1000000}</code> (net&gt;0=롱 듀레이션·금리하락 이익). '+
+    '미입력 시 현 북 노출만 표시(제안 0).</div>'+
+    '<div class="ctrl-row" style="gap:6px">'+
+    '<input id="psugTarget" type="text" placeholder=\'{"10:cash":-3000000}\' '+
+    'style="flex:1;min-width:240px;background:var(--s1);border:1px solid var(--bd);color:var(--fg);'+
+    'border-radius:6px;padding:6px 9px;font-family:monospace;font-size:12px">'+
+    '<button class="btn upd" onclick="opsSuggestRun()">제안 산출</button>'+
+    '<button class="btn" onclick="document.getElementById(\'psugTarget\').value=\'\';opsSuggestRun()">현 노출만</button>'+
+    '</div></div>';
+}
+async function opsSuggestRun(){
+  const w=document.getElementById('opsSuggest'); if(!w) return;
+  const inp=document.getElementById('psugTarget');
+  const raw=inp?inp.value.trim():'';
+  let url='/quant-house/portfolio-suggest';
+  if (raw){
+    try{ JSON.parse(raw); }catch(e){ w.innerHTML=_psugInputUI()+
+      '<div class="panel-wrap vbanner v-fail">목표포폴 JSON 파싱 실패 — '+_esc(e.message)+'</div>'; return; }
+    url+='?target='+encodeURIComponent(raw);
+  }
+  w.innerHTML=_psugInputUI()+'<div class="panel-wrap status">제안 산출 중…</div>';
+  let s; try{ s=await apiGet(url); }
+  catch(e){ w.innerHTML=_psugInputUI()+'<div class="panel-wrap vbanner v-fail">제안 조회 실패 — '+
+    _esc(e.detail||e.message)+'</div>'; return; }
+  _PSUG=s; renderOpsSuggest();
+}
+function renderOpsSuggest(){
+  const w=document.getElementById('opsSuggest'); const s=_PSUG;
+  if (!w) return;
+  if (!s){ w.innerHTML=_psugInputUI(); return; }
+  let h=_psugInputUI();
+  const rg=s.risk_gate||{}; const dd=(rg.drawdown)||{};
+  const cov=s.coverage||{};
+  // 헤더 — as_of·현/목표 좌표수·총괴리·리스크게이트(낙폭·증액 scaler)
+  h+='<div class="panel-wrap">';
+  h+='<div class="status" style="margin-bottom:8px">as_of <b>'+_esc(s.as_of)+'</b> · '+
+    '현 노출 좌표 <b>'+(cov.current_coords!=null?cov.current_coords:'–')+'</b> · '+
+    '목표 좌표 <b>'+(cov.target_coords!=null?cov.target_coords:'–')+'</b> · '+
+    '제안 <b>'+s.n_suggestions+'</b>건 · 총 |괴리| <b>'+_krw(s.total_abs_gap_krw)+'</b> 원/bp'+
+    (s.target_provided?'':' · <span style="color:var(--blue)">목표 미입력 — 현 북 노출만(제안 0)</span>')+'</div>';
+  // 리스크 게이트(엔진 risk_gate 그대로 — 증액 scaler 는 권고·자동적용 0)
+  if (dd.available){
+    h+='<div class="status" style="margin-bottom:6px">리스크: 현 낙폭 <b class="'+
+      (dd.current_drawdown_bp>=0?'pos':'neg')+'">'+_fmt(dd.current_drawdown_bp)+'bp</b> '+
+      '(max '+_fmt(dd.max_drawdown_bp)+'bp) · 증액 게이트 scaler <b>×'+
+      (rg.increase_scaler!=null?rg.increase_scaler.toFixed(2):'1.00')+'</b> '+
+      '<span class="status">(권고·자동적용 0)</span></div>';
+  } else {
+    h+='<div class="status" style="margin-bottom:6px">리스크: NAV 경로 미제공 — 낙폭 게이트 비활성(정직) · '+
+      '증액 scaler ×'+(rg.increase_scaler!=null?rg.increase_scaler.toFixed(2):'1.00')+'</div>';
+  }
+  (rg.cap_exhausted_strategies||[]).length && (h+='<div class="vbanner v-warn">⚠ 예산 소진(증액 여력 0): '+
+    _esc((rg.cap_exhausted_strategies||[]).join(', '))+'</div>');
+  (rg.reasons||[]).forEach(function(r){ h+='<div class="vbanner v-warn">[게이트] '+_esc(r)+'</div>'; });
+  // 제안 표
+  if (!(s.suggestions||[]).length){
+    h+='<div class="noart">비율조정 제안 없음 — 현 노출 == 목표이거나 괴리가 임계 미만, 또는 목표 미입력.</div>';
+  } else {
+    h+='<div class="tlog-wrap"><table class="tlog"><thead><tr>'+
+      '<th class="lt">테너</th><th class="lt">종류</th><th>현재 DV01</th><th>목표 DV01</th>'+
+      '<th>괴리</th><th class="lt">방향</th><th class="lt">증액?</th><th>게이트후 권고</th>'+
+      '</tr></thead><tbody>';
+    s.suggestions.forEach(function(r){
+      const inc=r.increase_exposure;
+      const gateApplied=inc && rg.increase_scaler!=null && rg.increase_scaler<1.0;
+      h+='<tr><td class="lt"><b>'+_esc(r.tenor)+'y</b></td><td class="lt">'+_esc(r.kind)+'</td>'+
+        '<td>'+_krw(r.current_dv01_krw)+'</td><td>'+_krw(r.target_dv01_krw)+'</td>'+
+        '<td class="'+(r.gap_dv01_krw>=0?'pp':'pn')+'">'+(r.gap_dv01_krw>=0?'+':'')+_krw(r.gap_dv01_krw)+'</td>'+
+        '<td class="lt">'+_esc(r.action)+'</td>'+
+        '<td class="lt">'+(inc?'<span class="xstate x-warn">증액</span>':'<span class="xstate">축소(리스크↓)</span>')+'</td>'+
+        '<td>'+(gateApplied?('<b>'+_krw(r.suggested_after_gate_krw)+'</b><br><span class="status">×'+
+          rg.increase_scaler.toFixed(2)+'</span>'):'<span class="status">동일</span>')+'</td></tr>';
+    });
+    h+='</tbody></table></div>';
+  }
+  // 캡 + 엔진 note(§3 정직 명시) 그대로
+  const caps=s.caps||{};
+  h+='<div class="status" style="margin-top:8px">캡(가시화) — per-trade <b>'+_krw(caps.per_trade_krw)+'</b> · '+
+    '전략 한쪽 <b>'+_krw(caps.strategy_oneside_krw)+'</b> 원/bp</div>';
+  if (s.note) h+='<div class="status" style="margin-top:4px;color:var(--blue)">'+_esc(s.note)+'</div>';
+  h+='</div>';
   w.innerHTML=h;
 }
 
