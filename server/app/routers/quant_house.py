@@ -111,6 +111,10 @@ def backtest_artifact(name: str):
         if integ == "catalog":
             note = ("백테스트 아티팩트 없음 — catalog 전략(알파 로직 원본 Beta Trading·이 엔진 "
                     "미이식). ported 승격 후 cli.py backtest 실행 시 생성됨.")
+        elif integ == "harness" and not bt:
+            note = ("아티팩트 차트 미생성 — harness 통합 전략: 산출 정본은 source_ref"
+                    "(harness 결과 JSON)·등록부 tier_eval 이 게이트 권위(DSR·verdict). "
+                    "가짜 차트를 그리지 않음(정직).")
         elif bt:
             m = bt.get("mean_bp_per_trade")
             oos = bt.get("mean_bp_test_oos")
@@ -285,6 +289,41 @@ def forward_signals():
     return json.loads(_FWD_JSON.read_text(encoding="utf-8"))
 
 
+# ★포폴전략(strategy_class=portfolio) 일별 forward JSON 위치 — 엔진이 산출
+#   (예: engine.research.uni28_forward → 05_registry/research/uni28_v2_forward.json).
+#   라우터는 전달자: {name}_forward.json 을 *그대로* 반환(재계산·변형 0·H3).
+_PORT_FWD_DIR = QH_ROOT / "05_registry" / "research"
+
+
+@router.get("/portfolio-forward/{name}")
+def portfolio_forward(name: str):
+    """포폴전략 일별 forward 신호 — 05_registry/research/{name}_forward.json 그대로.
+
+    엔진(예: uni28_forward.build)이 산출한 진입/보유/청산·netting·PIT·disclaimer 를
+    변형 없이 통과(H3 전달자). 파일 부재/파싱 실패 시 available:false 정직 반환
+    (가짜 신호 표시 = 기만 금지·H2). available 플래그만 표현용 부가.
+    ★proposed=페이퍼 트래킹(사이징 0·자동매매 0) — disclaimer 는 엔진 원문 그대로.
+    """
+    safe = name.replace("/", "").replace("\\", "").replace("..", "")
+    fp = _PORT_FWD_DIR / f"{safe}_forward.json"
+    if not fp.exists():
+        return {"available": False, "name": name,
+                "note": (f"{safe}_forward.json 미생성 — 엔진 forward 산출 대기"
+                         "(cli daily-refresh 6d 단계 또는 uni28_forward.run). "
+                         "생성 전 가짜 신호를 표시하지 않음(정직).")}
+    try:
+        data = json.loads(fp.read_text(encoding="utf-8"))
+    except Exception as e:
+        return {"available": False, "name": name,
+                "note": f"{safe}_forward.json 파싱 실패 — {type(e).__name__}: {e}"}
+    if not isinstance(data, dict):
+        return {"available": False, "name": name,
+                "note": f"{safe}_forward.json 형식 오류 — dict 아님(정직 반환)"}
+    out = dict(data)          # 파일 내용 *그대로* 통과(변형 0)
+    out["available"] = True   # 표현용 플래그만 부가
+    return out
+
+
 # ★MTE 일별 state 지도 스냅샷 (엔진이 산출 — 라우터는 전달자·재계산 0)
 _MTE_STATE = QH_ROOT / "05_registry" / "research" / "mte_state_snapshot.json"
 
@@ -314,6 +353,86 @@ def mte_state():
     out = dict(snap)          # 파일 내용 *그대로* 통과(변형 0)
     out["available"] = True   # 표현용 플래그만 부가
     return out
+
+
+# ★주간 시장 리뷰 (engine/research/market_review.py 산출 스냅샷 — 라우터는 전달자·재계산 0)
+#   정본: 05_registry/research/market_review_snapshot.json (다축 z3·mom4·wavg·axis_note)
+#        + review_scoreboard.json (P4 일치성 원장 사후평가 — review_ledger.score_picks 산출)
+_REVIEW_SNAP = QH_ROOT / "05_registry" / "research" / "market_review_snapshot.json"
+_REVIEW_SCOREBOARD = QH_ROOT / "05_registry" / "research" / "review_scoreboard.json"
+
+
+def _review_passthrough(fp: Path, regen_hint: str) -> dict:
+    """리뷰 JSON 파일을 *그대로* 반환(H3 전달자 — 변형·재계산 0).
+
+    부재/파싱실패/형식오류 → available:false 정직 반환(가짜 데이터 금지·H2).
+    available 플래그만 표현용 부가.
+    """
+    if not fp.exists():
+        return {"available": False,
+                "note": f"{fp.name} 미생성 — {regen_hint}. "
+                        "생성 전 가짜 데이터를 표시하지 않음(정직)."}
+    try:
+        data = json.loads(fp.read_text(encoding="utf-8"))
+    except Exception as e:
+        return {"available": False,
+                "note": f"{fp.name} 파싱 실패 — {type(e).__name__}: {e}"}
+    if not isinstance(data, dict):
+        return {"available": False,
+                "note": f"{fp.name} 형식 오류 — dict 아님(정직 반환)"}
+    out = dict(data)          # 파일 내용 *그대로* 통과(변형 0)
+    out["available"] = True   # 표현용 플래그만 부가
+    return out
+
+
+@router.get("/market-review")
+def market_review():
+    """★주간 시장 리뷰 스냅샷 — market_review_snapshot.json *그대로*(H3 전달자).
+
+    표현/측정층 전용(자동매매 0·추천은 사람 실행·전 지표 ≤t 종가 look-ahead 0 —
+    meta.lookahead 원문). picks.meta.neutrality(방향 중립·매수/매도 단정 0)를
+    프론트가 그대로 노출한다. 재생성 = cli.py daily-refresh(market_review 훅).
+    """
+    return _review_passthrough(
+        _REVIEW_SNAP, "cli.py daily-refresh(market_review 훅) 실행 필요")
+
+
+@router.get("/review-scoreboard")
+def review_scoreboard():
+    """★주간 리뷰 일치성 스코어보드 — review_scoreboard.json *그대로*(H3 전달자).
+
+    P4 원장(review_ledger.score_picks) 산출: 주차별 방향중립 hit_rate·순위 IC·
+    참고 pnl_ref_bp. ★meta.pnl_note = "P&L 단독판정 금지" — 프론트가 원문 노출.
+    재생성 = cli.py review-ledger score (daily-refresh 훅이 매일 자동 실행).
+    """
+    return _review_passthrough(
+        _REVIEW_SCOREBOARD, "cli.py review-ledger score 실행 필요")
+
+
+@router.get("/review-docx")
+def review_docx():
+    """주간리뷰 docx 생성+다운로드 — engine.research.review_docx.build_docx() 호출.
+
+    엔진 빌더가 snapshot 단일출처로 문서를 산출(웹 재계산 0) → 파일 그대로 응답.
+    asof 는 snapshot 의 asof(빌더가 불일치 시 raise — 단일출처 강제). 수십 초 소요
+    가능(matplotlib PNG + 19표). 스냅샷 미생성 시 빌더가 에러 → 502 아닌 500 정직.
+    """
+    try:
+        from engine.research.review_docx import build_docx
+    except Exception as e:
+        raise HTTPException(500, f"engine.research.review_docx import 실패: {type(e).__name__}: {e}")
+    try:
+        r = build_docx()
+    except Exception as e:
+        raise HTTPException(500, f"build_docx 실패: {type(e).__name__}: {e}")
+    fp = Path(r.get("out") or "")
+    if not fp.exists():
+        raise HTTPException(500, f"docx 산출 파일 없음: {fp}")
+    from fastapi.responses import FileResponse
+    return FileResponse(
+        str(fp), filename=fp.name,
+        media_type=("application/vnd.openxmlformats-officedocument"
+                    ".wordprocessingml.document"))
 
 
 from fastapi import Body
@@ -397,6 +516,20 @@ def portfolio_suggest(target: str | None = Query(
         raise HTTPException(500, f"suggest_from_book 실패: {type(e).__name__}: {e}")
     # 엔진 산출 *그대로* — 변형 0. target 부재 플래그만 표현용으로 부가(정직).
     s["target_provided"] = bool(target)
+    # ★직렬화 가능화(수치 변형 아님): 델타캡 자유화(2026-06-23) 후 caps=inf 인데
+    # starlette JSON(allow_nan=False)이 inf 를 못 실어 500. inf → None + "unlimited"
+    # 라벨로 치환하고 치환 사실을 caps_note 로 정직 표기(엔진 무수정·표현층).
+    import math as _math
+    caps = s.get("caps")
+    if isinstance(caps, dict):
+        replaced = []
+        for k, v in list(caps.items()):
+            if isinstance(v, float) and (_math.isinf(v) or _math.isnan(v)):
+                caps[k] = None
+                replaced.append(k)
+        if replaced:
+            s["caps_note"] = ("unlimited(캡 OFF·ENFORCE_DELTA_CAPS=False): "
+                              + ", ".join(replaced) + " = inf → null 직렬화 치환")
     return s
 
 
@@ -421,6 +554,12 @@ def portfolio_strategies():
         if e.get("strategy_class") != "portfolio":
             continue
         fp = SNAP_DIR / nm / "backtest_artifact.json"
+        # ★통합 스택형(uni28_v2 등 — 재표현 아닌 1급 포폴전략) 정직 라벨용 등록부 필드
+        #   *그대로* 전달(재계산 0·H3): tier_eval.dsr/gate_verdict_train(게이트 권위),
+        #   constraints.n_sleeve(구성 규모), adoption_basis(채택 근거 원문).
+        _te = e.get("tier_eval") or {}
+        _cons = e.get("constraints") or {}
+        _fwd_fp = _PORT_FWD_DIR / f"{nm}_forward.json"
         block = None
         net_bp = None
         dsr_val = None
@@ -464,6 +603,14 @@ def portfolio_strategies():
             "withheld_reason": e.get("withheld_reason"),
             "has_artifact": fp.exists(),
             "portfolio": block,   # 5블록 그대로(없으면 None — 정직)
+            # ★스택형 정직 라벨(등록부 그대로·변형 0). 아티팩트 DSR 없을 때 카드가
+            #   게이트 권위(tier_eval)를 표기할 수 있게 — 값 재계산·보정 없음.
+            "gate_verdict": _te.get("gate_verdict_train"),
+            "dsr_registry": _te.get("dsr"),
+            "n_sleeve": _cons.get("n_sleeve"),
+            "adoption_basis": e.get("adoption_basis"),
+            "harness_id": e.get("harness_id"),
+            "has_forward": _fwd_fp.exists(),   # 일별 forward JSON 존재 여부(사실)
         })
     return {
         "count": len(items),
