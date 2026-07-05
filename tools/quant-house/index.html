@@ -1656,6 +1656,44 @@ function renderReview(el, r, sb){
     (meta.curve_note?('<div class="rv-axis" style="margin-top:4px">'+_esc(meta.curve_note)+'</div>'):'')+
     '</div></div>';
 
+  // (2.5) ★6종목 종합 넷팅 관찰 — snapshot.tenor_netting 그대로(웹 재계산 0·색/강조만 표현)
+  const tn=r.tenor_netting||null;
+  if (tn && Array.isArray(tn.rows) && tn.rows.length){
+    // 진앙 = |net_z| 최대 행(강조만 — 값 무변형·엔진 summary가 랭킹 정본)
+    let epi=-1, epiAbs=-1;
+    tn.rows.forEach(function(x,i){
+      const a=Math.abs(Number(x.net_z));
+      if (isFinite(a) && a>epiAbs){ epiAbs=a; epi=i; }
+    });
+    h+='<div class="cat-title" style="margin-top:16px">★6종목 종합 넷팅 관찰 — 전 현물 slope+fly '+
+      (tn.n_structs_total!=null?tn.n_structs_total:'?')+'구조 레그계수 넷팅 (asof '+_esc(tn.asof||'?')+')</div>';
+    h+='<div class="tlog-wrap"><table class="tlog"><thead><tr>'+
+      '<th class="lt">종목</th><th>level bp</th><th>own z</th><th>own mom</th>'+
+      '<th>net_z</th><th>net_mom</th><th>n구조</th><th>cheap/rich</th><th class="lt">해석</th></tr></thead><tbody>'+
+      tn.rows.map(function(x,i){
+        const ss=x.side_split||{};
+        const tc=(x.top_contributors||[]).map(function(c){
+          return c.pair+' (coeff '+c.coeff+' · contrib '+c.contrib+')';
+        }).join(' | ');
+        const hl=(i===epi)?' style="background:rgba(240,185,11,.10);box-shadow:inset 3px 0 0 #f0b90b"':'';
+        return '<tr'+hl+' title="'+_esc('기여 상위: '+(tc||'–'))+'">'+
+          '<td class="lt"><b>'+_esc(x.tenor)+'y</b>'+(i===epi?' <span style="color:#f0b90b">★진앙</span>':'')+'</td>'+
+          '<td>'+_fmt(x.level_bp)+'</td>'+_rvTd(x.own_z_wavg)+_rvTd(x.own_mom_wavg)+
+          _rvTd(x.net_z)+_rvTd(x.net_mom)+
+          '<td>'+(x.n_structs!=null?x.n_structs:'–')+'</td>'+
+          '<td>'+(ss.cheap!=null?ss.cheap:'–')+'/'+(ss.rich!=null?ss.rich:'–')+'</td>'+
+          '<td class="lt" style="white-space:normal;min-width:260px">'+_esc(x.note||'')+'</td></tr>';
+      }).join('')+'</tbody></table></div>';
+    if (tn.summary){
+      h+='<div class="panel-wrap" style="margin-top:6px"><div class="status" style="line-height:1.7">'+
+        '<b>시장 종합</b> — '+_esc(tn.summary)+'</div></div>';
+    }
+    if (tn.convention){
+      h+='<div class="rv-axis" style="margin:-4px 0 8px">규약: '+_esc(tn.convention)+
+        ' (행 hover = 기여 상위 구조 · ★진앙 = |net_z| 최대 — 강조만·전 수치 스냅샷 그대로)</div>';
+    }
+  }
+
   // (3) ★TOP PICK — picks.buckets 그대로 (MR/모멘텀 분리·confidence 배지·axis_note)
   const pk=r.picks||{}, bks=pk.buckets||{}, pm=pk.meta||{};
   h+='<div class="cat-title" style="margin-top:16px">★TOP PICK — 4버킷 × 양팩터 (MR / 모멘텀 분리)</div>';
