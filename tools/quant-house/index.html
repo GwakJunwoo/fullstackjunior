@@ -1291,6 +1291,7 @@ function renderBacktest(art, regBt){
     return '<div class="s"><div class="sl">'+l+'</div><div class="sv '+cls+'">'+_fmt(v,suf)+'</div></div>'; };
   const T = art.trades||[];
   const has = k => T.some(r=>r[k]!=null && r[k]!=='');
+  const isSleeve = has('sleeve')&&has('family'); // uni28_v2 류 통합 스택(39-sleeve) 트레이드로그
   const isPair = has('long')&&has('short');     // OF/OFn/Combine/CV2
   const isStruct = has('struct');                // CV1T 멀티레그(버터플라이/슬로프/베이시스)
   const hasMan = has('pnl_man');                 // Combine 만원 실손익
@@ -1308,7 +1309,20 @@ function renderBacktest(art, regBt){
       ? '<span class="leakwarn">⚠'+(t.span_cal!=null?t.span_cal+'일':'초과')+'</span>'
       : (base??'');
   const RSN = (t) => (t&&t.exit_reason||'')+((t&&t.flag)?(' <span class="flagtag">'+t.flag+'</span>'):'');
-  if (isStruct){
+  if (isSleeve){
+    // ★통합 스택(uni28_v2 류) — trades 컬럼: sleeve/family/sign/exit_pol/exit_reason.
+    //   전부 아티팩트 필드 그대로(재계산 0·H1). 다른 전략 trades 엔 sleeve+family 부재 → 미발동.
+    ncol=10;
+    head = '<th class="lt">sleeve</th><th class="lt">family</th><th>방향</th><th class="lt">진입일 ▲</th><th class="lt">청산일</th><th>보유</th><th class="lt">청산정책</th><th>PnL bp</th><th>비용</th><th class="lt">청산사유</th>';
+    // 아티팩트 trades 순서(entry_date 오름차순) 그대로 — 재정렬·reverse 금지.
+    body = T.map((t,i)=>({t,i})).map(({t,i})=>{ const pp=t.pnl_bp>=0; const lng=(t.sign!=null?t.sign:t.side)>0;
+      return RT(i,'<td class="lt"><b>'+_esc(t.sleeve||'')+'</b></td><td class="lt">'+_esc(t.family||'')+'</td>'+
+       '<td class="'+(lng?'lng':'sht')+'">'+(lng?'▲+1':'▼-1')+'</td>'+
+       '<td class="lt">'+t.entry_date+'</td><td class="lt">'+t.exit_date+'</td><td>'+HOLD(t,t.days_held)+'</td>'+
+       '<td class="lt">'+_esc(t.exit_pol||'')+'</td>'+
+       '<td class="'+(pp?'pp':'pn')+'">'+_fmt(t.pnl_bp)+'</td><td>'+_fmt(t.cost_bp)+'</td>'+
+       '<td class="lt">'+RSN(t)+'</td>', t); }).join('');
+  } else if (isStruct){
     ncol=10;
     const _iv = st.intraday;
     head = '<th class="lt">서브</th><th class="lt">구조(레그)</th><th class="lt">진입일 ▲</th><th class="lt">청산일</th><th>'+(_iv?'bar':'보유')+'</th><th>방향</th><th>'+(_iv?'val_in→out':'size')+'</th><th>PnL bp</th><th>비용</th><th class="lt">청산사유</th>';
@@ -1340,7 +1354,7 @@ function renderBacktest(art, regBt){
     ncol=10;
     head = '<th class="lt">종목</th><th class="lt">진입일 ▲</th><th class="lt">청산일</th><th>보유</th><th>방향</th><th>진입bp</th><th>청산bp</th><th>PnL bp</th><th>비용</th><th class="lt">청산사유</th>';
     // 아티팩트 trades 순서(entry_date 오름차순) 그대로 — 재정렬·reverse 금지.
-    body = T.map((t,i)=>({t,i})).map(({t,i})=>{ const lng=t.side>0; const pp=t.pnl_bp>=0;
+    body = T.map((t,i)=>({t,i})).map(({t,i})=>{ const lng=(t.side!=null?t.side:t.sign)>0; const pp=t.pnl_bp>=0;
       return RT(i,'<td class="lt">'+(t.code||'')+'</td><td class="lt">'+t.entry_date+'</td>'+
        '<td class="lt">'+t.exit_date+'</td><td>'+HOLD(t,t.days_held)+'</td>'+
        '<td class="'+(lng?'lng':'sht')+'">'+(lng?'▲LONG':'▼SHORT')+'</td>'+
@@ -1362,7 +1376,9 @@ function renderBacktest(art, regBt){
       (st.bp_per_year_clean!=null?S('연 bp ★clean(권위)','bp_per_year_clean','bp',1):S('연 bp','bp_per_year','bp',1))+
       (st.bp_per_year_clean!=null?S('연 bp(전체·강제청산포함)','bp_per_year','bp',1):'')+
       S('적중률','hit_rate','')+
-      S('Sharpe(거래·연율)','sharpe_annualized','',1)+ S('MaxDD','max_drawdown_bp','bp',1)+
+      S('Sharpe(거래·연율)','sharpe_annualized','',1)+
+      (st.sharpe_annualized==null&&st.sharpe_per_trade!=null?S('Sharpe/거래','sharpe_per_trade','',1):'')+
+      S('DSR(정본)','dsr','')+ S('MaxDD','max_drawdown_bp','bp',1)+
       S('평균보유('+hu+')','mean_hold','')+ S('거래/주','trades_per_week','')+
       S('평균/거래','mean_bp_per_trade','bp',1)+ S('총비용','total_cost_bp','bp')+
       (st.pnl_eok_per_year!=null?S('연 손익(억)','pnl_eok_per_year','',1):'')+
@@ -1371,6 +1387,27 @@ function renderBacktest(art, regBt){
       (st.sharpe_won_orig!=null?S('Sharpe(원안 won·참고)','sharpe_won_orig','',1):'')+
     '</div>'+
     (st.per_yr_man_orig!=null?'<div class="status" style="margin:-4px 0 10px">권위 지표 = <b>연 bp</b>(사이징 무관·파이프라인 산출). 만원/won 은 <b>원안 100억 노치 기준 참고값</b>이며 <b>배포 sizing(paper/극소)과 무관</b> — 실제 기대손익 아님.</div>':'')+
+    // ★스택 아티팩트 stats.train_test / by_year / by_family — 값 전부 아티팩트 그대로(재계산 0·H1).
+    //   oos_pristine=false 는 반드시 노출(TEST 기열람 legacy·T2캡 근거 — H2). 타 전략엔 키 부재 → 미발동.
+    (st.train_test?(function(tt){
+      return '<div class="vbanner v-'+(tt.oos_pass?'ok':'warn')+'" style="margin:2px 0 8px">'+
+        'TRAIN(≤'+_esc(tt.split||'?')+') <b>'+_fmt(tt.train_sum_bp)+'bp</b> · n='+(tt.train_n!=null?tt.train_n:'?')+
+        ' &nbsp;|&nbsp; TEST/OOS <b>'+_fmt(tt.test_sum_bp)+'bp</b> · n='+(tt.test_n!=null?tt.test_n:'?')+
+        (tt.test_t!=null?(' · t=<b>'+tt.test_t+'</b>'):'')+
+        (tt.basis?(' <span class="status">('+_esc(tt.basis)+' 기준)</span>'):'')+
+        (tt.oos_pristine===false?'<br><span class="status">⚠ OOS 비순수(oos_pristine=false) — legacy 기열람 셀 포함, 순수 OOS 아님(T2캡 근거)</span>':'')+
+      '</div>';})(st.train_test):'')+
+    (st.by_year?(function(by){
+      const ys=Object.keys(by).sort();
+      return '<div class="cat-title">연도별 PnL (bp'+(st.by_year_basis?(' · '+_esc(st.by_year_basis)+' 기준'):'')+' — stats.by_year 그대로)</div>'+
+        '<div class="tlog-wrap" style="margin-bottom:8px"><table class="tlog"><thead><tr>'+
+        ys.map(function(y){return '<th>'+_esc(y)+'</th>';}).join('')+'</tr></thead><tbody><tr>'+
+        ys.map(function(y){var v=by[y];return '<td class="'+(v>=0?'pp':'pn')+'">'+_fmt(v)+'</td>';}).join('')+
+        '</tr></tbody></table></div>';})(st.by_year):'')+
+    (st.by_family?('<div class="status" style="margin:0 0 10px">family 기여(net bp): '+
+      Object.entries(st.by_family).sort(function(a,b){return (b[1].net_sum_bp||0)-(a[1].net_sum_bp||0);})
+        .map(function(e){var v=e[1]||{};return '<b>'+_esc(e[0])+'</b> '+_fmt(v.net_sum_bp)+'bp <span class="status">(n='+(v.n!=null?v.n:'?')+')</span>';})
+        .join(' · ')+'</div>'):'')+
     // R:R(손익비) 캐비엇 — TP<SL(reward:risk<1) 손익비 역전을 통계 섹션에도 명시(H2). regBt.rr_caveat 만 있을 때.
     ((regBt&&regBt.rr_caveat)?('<div class="vbanner v-warn" style="margin:2px 0 10px">⚖ <b>R:R '+(regBt.rr_caveat.match(/reward:risk\s*([0-9.]+)/i)?regBt.rr_caveat.match(/reward:risk\s*([0-9.]+)/i)[1]:'<1')+' &lt;1 (손익비 역전·승률 의존)</b> — '+regBt.rr_caveat+'</div>'):'')+
     ((regBt&&regBt.t_stat_bp!=null)?('<div class="status" style="margin:-4px 0 10px">거래수익 유의성: t-stat <b>'+regBt.t_stat_bp+'</b>'+(regBt.p_value_bp!=null?(' · p='+regBt.p_value_bp):'')+' <b>(&lt;2 비유의 — 단독 통계검증 불가)</b></div>'):'')+
