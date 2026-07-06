@@ -1172,10 +1172,12 @@ async function renderPortForward(fs, name){
   h+='<div style="margin:2px 0 10px">'+
     '<span class="utilchip">신규 진입 <b>'+(cnt.entries_today!=null?cnt.entries_today:'?')+'</b></span>'+
     '<span class="utilchip">보유중 <b>'+(cnt.open_positions!=null?cnt.open_positions:'?')+'</b></span>'+
-    '<span class="utilchip">오늘 청산 <b>'+(cnt.exits_today!=null?cnt.exits_today:'?')+'</b></span>'+
+    '<span class="utilchip">오늘 청산 <b>'+(cnt.exits_sealed_today!=null?cnt.exits_sealed_today:(cnt.exits_today!=null?cnt.exits_today:'?'))+'</b></span>'+
+    '<span class="utilchip">원장 보유 <b>'+(cnt.ledger_open!=null?cnt.ledger_open:'?')+'</b></span>'+
     '<span class="utilchip">netting 스택 <b>'+(nt.stack_groups!=null?nt.stack_groups:'?')+'</b> 그룹 · conflict <b>'+(nt.conflict_groups!=null?nt.conflict_groups:'?')+'</b></span>'+
     '<span class="utilchip">futroll 제외 <b>'+(r.futroll_excluded!=null?r.futroll_excluded:'?')+'</b></span>'+
     '<span class="utilchip">nopath <b>'+(cnt.nopath_skipped!=null?cnt.nopath_skipped:'?')+'</b></span>'+
+    ((cnt.revision_alerts!=null&&cnt.revision_alerts>0)?('<span class="utilchip" style="background:#7a1f1f;color:#fff">⚠ 원장 불일치 <b>'+cnt.revision_alerts+'</b></span>'):'')+
     '</div>';
   // (3) sleeve 구성·MTE 정직고지 — sleeves/mte_added 그대로
   if (sl.n_total!=null){
@@ -1203,23 +1205,27 @@ async function renderPortForward(fs, name){
           '<td class="lt">'+legs+'</td><td class="lt">'+xps+'</td><td>'+_fmt(e.unit_cost_bp)+'</td></tr>';
       }).join('')+'</tbody></table></div>';
   } else h+='<div class="noart">오늘 신규 진입 신호 없음 (asof '+_esc(r.asof||'')+')</div>';
-  // (5) 오늘 청산 — exits_today 그대로(사유=엔진 분류 TP/SL/TIME 그대로·미화 0)
-  const xe=r.exits_today||[];
-  h+='<div class="cat-title" style="margin-top:10px">오늘 청산 ('+xe.length+'건)</div>';
+  // (5) 오늘 청산 — 원장 diff 기반 exits(신포맷·구 exits_today 폴백)·사유=엔진 분류 그대로
+  //   ★late_confirmed=지연패널 소급확정(누락 불가)·exit_seal_date=원장 봉인일·mte_weight 표시
+  const xe=r.exits||r.exits_today||[];
+  h+='<div class="cat-title" style="margin-top:10px">오늘 청산 ('+xe.length+'건 · 원장 봉인 diff — 지연확정 포함·누락 불가)</div>';
   if (xe.length){
     h+='<div class="tlog-wrap" style="max-height:220px"><table class="tlog"><thead><tr>'+
-      '<th class="lt">sleeve</th><th class="lt">방향</th><th class="lt">진입→청산</th><th>보유일</th><th class="lt">사유</th><th>PnL net bp</th><th>gross</th>'+
+      '<th class="lt">sleeve</th><th class="lt">방향</th><th class="lt">진입→청산</th><th>보유일</th><th class="lt">사유</th><th>가중</th><th>PnL net bp</th><th>gross</th>'+
       '</tr></thead><tbody>'+
       xe.map(function(e){
         const sht=/short/i.test(e.side||'');
         const rs=String(e.reason||'');
         const rc=(rs==='TP'?'xs-TP':(rs==='SL'?'xs-SL':(rs==='TIME'?'xs-TIME':'xs-none')));
         const np=(e.pnl_net_bp!=null?e.pnl_net_bp:null);
+        const late=(e.late_confirmed===true)?(' <span class="xstate xs-TIME" title="지연패널 소급확정 — 원장 diff로 포착(봉인 '+_esc(e.exit_seal_date||'')+')">소급확정</span>'):'';
+        const mw=(e.mte_weight!=null?('×'+_fmt(e.mte_weight)):'');
         return '<tr><td class="lt"><b>'+_esc(e.sleeve||'?')+'</b></td>'+
           '<td class="lt '+(sht?'sht':'lng')+'">'+(sht?'▼':'▲')+_esc(e.side||'')+'</td>'+
-          '<td class="lt">'+_esc(e.entry_date||'')+' → '+_esc(e.exit_date||'')+'</td>'+
+          '<td class="lt">'+_esc(e.entry_date||'')+' → '+_esc(e.exit_date||'')+late+'</td>'+
           '<td>'+(e.days_held!=null?e.days_held:'')+'</td>'+
           '<td class="lt"><span class="xstate '+rc+'">'+_esc(rs||'?')+'</span></td>'+
+          '<td class="lt">'+mw+'</td>'+
           '<td class="'+(np!=null&&np>=0?'pp':'pn')+'">'+_fmt(np)+'</td><td>'+_fmt(e.pnl_gross_bp)+'</td></tr>';
       }).join('')+'</tbody></table></div>';
   } else h+='<div class="noart">오늘 청산 신호 없음</div>';
