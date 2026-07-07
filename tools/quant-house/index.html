@@ -1825,6 +1825,63 @@ function renderReview(el, r, sb){
     }).join('')+'</tbody></table></div>';
   h+=_sect('개별채권 RV — 커브 잔차 ('+brv.length+')','rvBrv',brvTbl);
 
+  // (4.5) ★상품 간 비교 — snapshot.product_compare 그대로(웹 재계산 0·우위 하이라이트만 표현)
+  //   우위/문장/스프레드 전부 엔진 정본(product_advantage·product_compare_sentence) 원문 — 블록 부재 시 스킵
+  const pc=r.product_compare||null;
+  if (pc && Array.isArray(pc.tenors) && pc.tenors.length){
+    const PRODS=['현물','선물','스왑'];
+    // 스냅샷 수치 원문 표시(부호 부가·반올림 0 — _fmt 의 +/round 미적용)
+    function _pcRaw(v){ return (v==null||!isFinite(Number(v)))?'–':String(Number(v)); }
+    h+='<div class="cat-title" style="margin-top:16px">상품 간 비교 — 현물·선물·스왑 (asof '+_esc(pc.asof||'?')+')</div>';
+    // (a) 테너 4행 표 — 상품별 level·Δ5d·z (우위 상품 하이라이트)
+    h+='<div class="tlog-wrap"><table class="tlog"><thead><tr><th class="lt">구간</th>'+
+      PRODS.map(function(p){
+        return '<th>'+_esc(p)+' level bp</th><th>Δ5d bp</th><th>z wavg</th>';
+      }).join('')+'<th class="lt">우위</th></tr></thead><tbody>'+
+      pc.tenors.map(function(t){
+        const adv=t.advantage||{}, advP=adv.product||null;
+        let row='<td class="lt"><b>'+_esc(t.tenor)+'y</b></td>';
+        PRODS.forEach(function(p){
+          const d=(t.products||{})[p]||null;
+          if (!d){ row+='<td>–</td><td>–</td><td>–</td>'; return; }
+          const hl=(advP===p)?' style="background:rgba(240,185,11,.10);box-shadow:inset 0 -1px 0 #f0b90b"':'';
+          row+='<td'+hl+'>'+_pcRaw(d.level_bp)+'</td>'+
+            '<td'+hl+'>'+_rvNum(d.d5_bp)+'</td>'+
+            '<td'+hl+'>'+_rvNum(d.z_wavg)+'</td>';
+        });
+        const scTip=adv.scores?_esc('score: '+JSON.stringify(adv.scores)):'';
+        row+='<td class="lt" title="'+scTip+'">'+
+          (advP?('<b style="color:#f0b90b">'+_esc(advP)+'</b> <span class="status">(score '+_pcRaw(adv.score)+')</span>'):'중립')+'</td>';
+        return '<tr>'+row+'</tr>';
+      }).join('')+'</tbody></table></div>';
+    // (b) 상품간 스프레드 표 — 본드스왑·현선·선물-스왑 (스냅샷 spreads 그대로)
+    let sprRows='';
+    pc.tenors.forEach(function(t){
+      (t.spreads||[]).forEach(function(s){
+        sprRows+='<tr><td class="lt"><b>'+_esc(t.tenor)+'y</b></td>'+
+          '<td class="lt">'+_esc(s.label||s.pair||'?')+'</td>'+
+          '<td class="lt">'+_esc(s.pair||'')+'</td>'+
+          '<td>'+_pcRaw(s.spread_bp)+'</td>'+_rvTd(s.d5_bp)+_rvTd(s.z_wavg)+'</tr>';
+      });
+    });
+    h+='<div class="tlog-wrap" style="margin-top:8px"><table class="tlog"><thead><tr>'+
+      '<th class="lt">구간</th><th class="lt">스프레드</th><th class="lt">pair (앞−뒷)</th>'+
+      '<th>spread bp</th><th>Δ5d bp</th><th>z wavg</th></tr></thead><tbody>'+
+      sprRows+'</tbody></table></div>';
+    // (c) 구간별 우위 서술 — 엔진 정본 문장 원문 그대로(재작성 0)
+    const sents=pc.tenors.filter(function(t){return t.sentence;});
+    if (sents.length){
+      h+='<div class="panel-wrap" style="margin-top:6px"><div class="status" style="line-height:1.8">'+
+        sents.map(function(t){
+          return '<b>'+_esc(t.tenor)+'y</b> — '+_esc(t.sentence);
+        }).join('<br>')+'</div></div>';
+    }
+    if (pc.convention){
+      h+='<div class="rv-axis" style="margin:-4px 0 8px">규약: '+_esc(pc.convention)+
+        ' (우위 하이라이트 = 표현만 · 전 수치/문장 스냅샷 그대로)</div>';
+    }
+  }
+
   // (5) 일치성 스코어보드 — review_scoreboard.json 그대로
   h+=_rvScoreboardHtml(sb);
 
