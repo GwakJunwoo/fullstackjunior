@@ -1882,6 +1882,47 @@ function renderReview(el, r, sb){
     }
   }
 
+  // (4.6) ★국채선물 바스켓 비교 — snapshot.basket_compare 그대로(웹 재계산 0·리드/래그 하이라이트만 표현)
+  //   선물 주간Δ + 바스켓 종목별 주간Δ·선물대비 상대(rel_bp)·리드/래그 강조 + 딜러 문장 원문. 블록 부재 시 스킵.
+  const bc=r.basket_compare||null;
+  if (bc && bc.groups && Object.keys(bc.groups).length){
+    // 스냅샷 수치 원문 그대로(부호 부가·반올림 0)
+    function _bcRaw(v){ return (v==null||!isFinite(Number(v)))?'–':String(Number(v)); }
+    // 부호색만 부여(값은 원문·재계산 0)
+    function _bcTd(v){ if(v==null||!isFinite(Number(v))) return '<td>–</td>';
+      const n=Number(v); return '<td class="'+(n>0?'pp':n<0?'pn':'')+'">'+_bcRaw(v)+'</td>'; }
+    h+='<div class="cat-title" style="margin-top:16px">국채선물 바스켓 비교 — 종목 리드/래그 (asof '+_esc(bc.asof||'?')+')</div>';
+    Object.keys(bc.groups).forEach(function(gk){
+      const g=bc.groups[gk]||{};
+      const leadC=(g.lead&&g.lead.code)||null, lagC=(g.lag&&g.lag.code)||null;
+      h+='<div class="cat-title" style="margin-top:10px;font-size:12px">'+
+        _esc(g.fut_rate_alias||gk)+' — 선물 주간 Δ <b class="'+
+        (Number(g.fut_d5_bp)>0?'pp':Number(g.fut_d5_bp)<0?'pn':'')+'">'+_bcRaw(g.fut_d5_bp)+
+        '</b> bp <span class="status">(바스켓 평균 '+_bcRaw(g.basket_avg_d5)+
+        ' · 종목 '+_esc(g.basket_asof||'?')+')</span></div>';
+      h+='<div class="tlog-wrap"><table class="tlog"><thead><tr>'+
+        '<th class="lt">종목</th><th class="lt">코드</th><th>주간 Δ bp</th>'+
+        '<th>선물대비 상대 bp</th><th class="lt">리드/래그</th></tr></thead><tbody>'+
+        (g.members||[]).map(function(m){
+          const isL=(m.code===leadC), isG=(m.code===lagC);
+          const hl=isL?' style="background:rgba(240,185,11,.10);box-shadow:inset 0 -1px 0 #f0b90b"':'';
+          const tag=isL?'<b style="color:#f0b90b">리드(상대 약세)</b>':
+            isG?'<b style="color:#4a9eff">래그(상대 강세)</b>':'<span class="status">–</span>';
+          return '<tr><td class="lt"'+hl+'><b>'+_esc(m.shortname||'?')+'</b></td>'+
+            '<td class="lt">'+_esc(m.code||'')+'</td>'+_bcTd(m.d5_bp)+_bcTd(m.rel_bp)+
+            '<td class="lt">'+tag+'</td></tr>';
+        }).join('')+'</tbody></table></div>';
+      if (g.sentence){
+        h+='<div class="panel-wrap" style="margin-top:4px"><div class="status" style="line-height:1.8">'+
+          _esc(g.sentence)+'</div></div>';
+      }
+    });
+    if (bc.convention){
+      h+='<div class="rv-axis" style="margin:-2px 0 8px">규약: '+_esc(bc.convention)+
+        ' (리드/래그 하이라이트 = 표현만 · 전 수치/문장 스냅샷 그대로)</div>';
+    }
+  }
+
   // (5) 일치성 스코어보드 — review_scoreboard.json 그대로
   h+=_rvScoreboardHtml(sb);
 
