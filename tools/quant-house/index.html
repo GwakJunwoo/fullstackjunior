@@ -1708,11 +1708,14 @@ function renderReview(el, r, sb){
       const a=Math.abs(Number(x.net_z));
       if (isFinite(a) && a>epiAbs){ epiAbs=a; epi=i; }
     });
+    // net_z(20년제외) 병기 — 엔진 스냅샷에 net_z_ex20 필드 존재 시에만 컬럼 노출(부재=스킵·재계산0)
+    const hasEx20 = tn.rows.some(function(x){ return ('net_z_ex20' in x); });
     h+='<div class="cat-title" style="margin-top:16px">★6종목 종합 넷팅 관찰 — 전 현물 slope+fly '+
       (tn.n_structs_total!=null?tn.n_structs_total:'?')+'구조 레그계수 넷팅 (asof '+_esc(tn.asof||'?')+')</div>';
     h+='<div class="tlog-wrap"><table class="tlog"><thead><tr>'+
       '<th class="lt">종목</th><th>level bp</th><th>own z</th><th>own mom</th>'+
-      '<th>net_z</th><th>net_mom</th><th>n구조</th><th>cheap/rich</th><th class="lt">해석</th></tr></thead><tbody>'+
+      '<th>net_z</th>'+(hasEx20?'<th title="20Y 레그 포함 slope/fly 구조 전부 제외 후 재넷팅">net_z(20제외)</th>':'')+
+      '<th>net_mom</th><th>n구조</th><th>cheap/rich</th><th class="lt">해석</th></tr></thead><tbody>'+
       tn.rows.map(function(x,i){
         const ss=x.side_split||{};
         const tc=(x.top_contributors||[]).map(function(c){
@@ -1722,7 +1725,7 @@ function renderReview(el, r, sb){
         return '<tr'+hl+' title="'+_esc('기여 상위: '+(tc||'–'))+'">'+
           '<td class="lt"><b>'+_esc(x.tenor)+'y</b>'+(i===epi?' <span style="color:#f0b90b">★진앙</span>':'')+'</td>'+
           '<td>'+_fmt(x.level_bp)+'</td>'+_rvTd(x.own_z_wavg)+_rvTd(x.own_mom_wavg)+
-          _rvTd(x.net_z)+_rvTd(x.net_mom)+
+          _rvTd(x.net_z)+(hasEx20?_rvTd(x.net_z_ex20):'')+_rvTd(x.net_mom)+
           '<td>'+(x.n_structs!=null?x.n_structs:'–')+'</td>'+
           '<td>'+(ss.cheap!=null?ss.cheap:'–')+'/'+(ss.rich!=null?ss.rich:'–')+'</td>'+
           '<td class="lt" style="white-space:normal;min-width:260px">'+_esc(x.note||'')+'</td></tr>';
@@ -1733,8 +1736,45 @@ function renderReview(el, r, sb){
     }
     if (tn.convention){
       h+='<div class="rv-axis" style="margin:-4px 0 8px">규약: '+_esc(tn.convention)+
-        ' (행 hover = 기여 상위 구조 · ★진앙 = |net_z| 최대 — 강조만·전 수치 스냅샷 그대로)</div>';
+        ' (행 hover = 기여 상위 구조 · ★진앙 = |net_z| 최대 — 강조만·전 수치 스냅샷 그대로'+
+        (hasEx20?' · net_z(20제외) = 20Y 레그 포함 구조 제외 후 재넷팅 → 20Y 자체는 유효구조0이라 –':'')+')</div>';
     }
+  }
+
+  // (2.6) ★주간 팩터 손익 — snapshot.factor_weekly 그대로(웹 재계산 0·표현만)
+  //   손익=측정 팩터 표기(fade/momentum 가상 포지션 gross bp) · 자동매매/추천 아님 · 손익 단독판정 금지.
+  const fw=r.factor_weekly||null;
+  if (fw && Array.isArray(fw.rows) && fw.rows.length){
+    const fsum=fw.summary||{};
+    const winLbl=function(w){ return w==='momentum'?'모멘텀':w==='fade'?'평균회귀':(w||'–'); };
+    const winBadge=function(w){
+      const c=(w==='momentum')?'#f0b90b':(w==='fade')?'#5b8def':'#888';
+      return '<span style="color:'+c+';font-weight:700">'+_esc(winLbl(w))+'</span>';
+    };
+    h+='<div class="cat-title" style="margin-top:16px">★주간 팩터 손익 — 현물 slope+fly '+
+      (fw.n_structs_total!=null?fw.n_structs_total:'?')+'구조 (fade / momentum 가상 포지션 · asof '+
+      _esc(fw.asof||'?')+' · '+(fw.days!=null?fw.days:'?')+'일)</div>';
+    h+='<div class="tlog-wrap"><table class="tlog"><thead><tr>'+
+      '<th class="lt">관측일</th><th class="lt">전일</th>'+
+      '<th title="fade = −sign(z_{d−1})·Δspread(d)">fade '+_esc(fw.unit||'bp')+'</th>'+
+      '<th title="momentum = +sign(mom_{d−1})·Δspread(d)">momentum '+_esc(fw.unit||'bp')+'</th>'+
+      '<th title="유효구조 수 (z0/mom0 결측 제외)">n구조</th><th class="lt">당일 우위</th></tr></thead><tbody>'+
+      fw.rows.map(function(x){
+        return '<tr><td class="lt"><b>'+_esc(x.date)+'</b></td>'+
+          '<td class="lt">'+_esc(x.prev_date||'–')+'</td>'+
+          _rvTd(x.fade_bp)+_rvTd(x.mom_bp)+
+          '<td>'+(x.n_fade!=null?x.n_fade:(x.n_mom!=null?x.n_mom:'–'))+'</td>'+
+          '<td class="lt">'+winBadge(x.winner)+'</td></tr>';
+      }).join('')+'</tbody></table></div>';
+    h+='<div class="panel-wrap" style="margin-top:6px"><div class="status" style="line-height:1.7">'+
+      '<b>주간 합계</b> — fade '+_fmt(fsum.fade_total)+' '+_esc(fw.unit||'bp')+
+      ' · momentum '+_fmt(fsum.mom_total)+' '+_esc(fw.unit||'bp')+
+      ' → 우위 '+winBadge(fsum.winner)+
+      ' <span class="status">(n_days='+(fsum.n_days!=null?fsum.n_days:'?')+')</span></div></div>';
+    h+='<div class="rv-axis" style="margin:-2px 0 8px">'+
+      '⚠ gross(마찰전)·1주(≈5일) 관찰 표본 · 관찰/측정 도구(신호원·추천 아님) · '+
+      '손익 단독판정 금지 — 방향 일치성으로만 해석'+
+      (fw.note?('<br><span style="opacity:.75">'+_esc(fw.note)+'</span>'):'')+'</div>';
   }
 
   // (3) ★TOP PICK — picks.buckets 그대로 (MR/모멘텀 분리·confidence 배지·axis_note)
