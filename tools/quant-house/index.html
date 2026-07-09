@@ -1948,8 +1948,11 @@ function renderReview(el, r, sb){
           const hl=isL?' style="background:rgba(240,185,11,.10);box-shadow:inset 0 -1px 0 #f0b90b"':'';
           const tag=isL?'<b style="color:#f0b90b">리드(상대 약세)</b>':
             isG?'<b style="color:#4a9eff">래그(상대 강세)</b>':'<span class="status">–</span>';
-          return '<tr><td class="lt"'+hl+'><b>'+_esc(m.shortname||'?')+'</b></td>'+
-            '<td class="lt">'+_esc(m.code||'')+'</td>'+_bcTd(m.d5_bp)+_bcTd(m.rel_bp)+
+          // 종목 표기 = snapshot shortname 그대로(주). shortname 부재 시 code 접미 4자 폴백(정직·엔진 규약 일치).
+          const cd=m.code||'';
+          const nm=m.shortname||(cd?cd.slice(-4):'?');
+          return '<tr><td class="lt"'+hl+' title="'+_esc(cd)+'"><b>'+_esc(nm)+'</b></td>'+
+            '<td class="lt"><span class="status">'+_esc(cd)+'</span></td>'+_bcTd(m.d5_bp)+_bcTd(m.rel_bp)+
             '<td class="lt">'+tag+'</td></tr>';
         }).join('')+'</tbody></table></div>';
       if (g.sentence){
