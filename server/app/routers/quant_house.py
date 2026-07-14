@@ -47,15 +47,17 @@ def list_strategies():
     """
     reg = _load_registry()
     strategies = reg.get("strategies", {})
-    # 웹 노출 대상만 (web_visible 가 명시적 false 면 숨김; 없으면 기본 노출)
-    visible = {n: s for n, s in strategies.items() if s.get("web_visible") is not False}
     # ★포폴전략(strategy_class=='portfolio')은 일반 전략 목록·카운트에서 분리(N6 구분).
     #   of/curve2(일반 라이브)와 of_port/curve2_port(포트 재표현·proposed)를 사용자가
     #   혼동하지 않게 — 전용 뷰(/portfolio-strategies)에서만 노출. 여기 by_category·
     #   summary 는 *일반전략만* 집계(web_visible 필터처럼 표현 큐레이션·수치 무변형 H3).
-    general = {n: s for n, s in visible.items()
-               if s.get("strategy_class") != "portfolio"}
-    visible = general
+    general_all = {n: s for n, s in strategies.items()
+                   if s.get("strategy_class") != "portfolio"}
+    # 웹 노출 대상만 (web_visible 가 명시적 false 면 숨김; 없으면 기본 노출).
+    # hidden = *일반전략* 중 web_visible 큐레이션 제외 수(포폴 클래스는 여기 미포함 —
+    # /portfolio-strategies.hidden 이 따로 정직 보고. 합산 시 이중계상 없게).
+    visible = {n: s for n, s in general_all.items()
+               if s.get("web_visible") is not False}
     by_cat: dict[str, list] = {}
     for s in visible.values():
         item = dict(s)
@@ -74,7 +76,7 @@ def list_strategies():
         "deployed": sum(1 for s in visible.values() if s.get("status") == "deployed"),
         "blocked": sum(1 for s in visible.values() if (s.get("audit") or {}).get("blocked")),
         "tier_dist": tier_dist,
-        "hidden": len(strategies) - len(visible),
+        "hidden": len(general_all) - len(visible),
         "updated": reg.get("updated"),
     }
     return {"summary": summary, "by_category": by_cat}
@@ -547,11 +549,20 @@ def portfolio_strategies():
     dsr_hac.dsr 에서 평면화해 전달(재계산 0) + 등록부 web_visible·withheld·
     withheld_reason 그대로. 카드가 PASS(통과 포폴) vs FAIL/withheld(미통과)를
     *시각적으로 구별*하도록 — withheld=True 는 통과 포폴로 비추면 안 됨(가짜 PASS 금지).
+
+    ★web_visible=false 는 목록에서 제외(/strategies 와 동일한 표현 큐레이션 —
+    사용자 §3 2026-07-14 운용포커스 3전략. 수치·티어 무변형·H3). 숨김 개수는
+    hidden 으로 정직 보고 — 숨김 전략 데이터 자체는 /strategy/{name}·/backtest/{name}·
+    /portfolio-forward/{name} 로 여전히 접근 가능(엔진 진실 무변).
     """
     reg = _load_registry().get("strategies", {})
     items = []
+    n_hidden = 0
     for nm, e in reg.items():
         if e.get("strategy_class") != "portfolio":
+            continue
+        if e.get("web_visible") is False:
+            n_hidden += 1
             continue
         fp = SNAP_DIR / nm / "backtest_artifact.json"
         # ★통합 스택형(uni28_v2 등 — 재표현 아닌 1급 포폴전략) 정직 라벨용 등록부 필드
@@ -653,10 +664,13 @@ def portfolio_strategies():
         })
     return {
         "count": len(items),
+        "hidden": n_hidden,   # web_visible=false 큐레이션 제외 수(정직 보고)
         "strategies": items,
         "note": ("strategy_class=='portfolio' 전략만. 0건이면 채택 포폴전략 없음(정직). "
                  "★dsr_basis(segment_net vs daily_nav_hac) 라벨 — 포폴 DSR 은 일반전략 "
-                 "DSR 과 단위가 달라 직접 비교 불가(N6). mtm_identity.ok 는 채택 하드블록."),
+                 "DSR 과 단위가 달라 직접 비교 불가(N6). mtm_identity.ok 는 채택 하드블록. "
+                 "web_visible=false 는 표시 큐레이션 제외(hidden 카운트) — 데이터는 "
+                 "/strategy/{name} 등에서 접근 가능(엔진 진실 무변)."),
     }
 
 
