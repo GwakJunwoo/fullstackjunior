@@ -500,8 +500,15 @@ async function gLoadPortfolioClassBar(){
   //   ★정직-N(2026-06-19): of_port DSR 0.999 PASS=통과 포폴 / curve2_port 0.022 FAIL·withheld=미통과.
   //   가짜 0.96 절대 재노출 금지 — verdict·withheld 를 시각적으로 구별(H2).
   //   통과(PASS·withheld 아님)와 미통과(FAIL 또는 withheld)를 분리 렌더.
+  // ★deployed 버킷(사용자 §3 승인 배포 — uni_irs_v2·cta_delta 류) 최우선 분리.
+  //   deployed 를 _pass(✅통과 포폴)로 비추면 'DSR 배포바 통과' 위장(선택편향값 단독 표시 —
+  //   등록부 selection_bias_flag 금지사항), _fail(⛔미통과/보류)로 비추면 배포 사실 은폐 —
+  //   둘 다 분기·기만(H1/H2). 전용 카드(_depCard)가 정직 라벨을 1급 병기한다.
+  const _dep=(r.strategies||[]).filter(function(p){
+    return p.status==='deployed' && !p.withheld;
+  });
   const _pass=(r.strategies||[]).filter(function(p){
-    return (p.dsr_verdict==='PASS') && !p.withheld;
+    return (p.dsr_verdict==='PASS') && !p.withheld && p.status!=='deployed';
   });
   // ★통합 스택형 proposed(페이퍼) — uni28_v2 류: 재표현 아님·아티팩트 DSR 없음·
   //   게이트 권위=등록부 tier_eval(dsr_registry/gate_verdict). withheld 면 제외(보류가 우선).
@@ -510,8 +517,11 @@ async function gLoadPortfolioClassBar(){
       && !((p.dsr_verdict==='PASS') && !p.withheld) && p.dsr_registry!=null;
   });
   const _fail=(r.strategies||[]).filter(function(p){
-    return !((p.dsr_verdict==='PASS') && !p.withheld) && _prop.indexOf(p)<0;
+    return !((p.dsr_verdict==='PASS') && !p.withheld) && _prop.indexOf(p)<0
+      && _dep.indexOf(p)<0;
   });
+  // 카드 간 대조용 이름 조인(같은 응답 내 — 값 하드코딩 0). v2 카드의 v1 대조에 사용.
+  const _byName={}; (r.strategies||[]).forEach(function(p){ _byName[p.name]=p; });
   function _portCard(p, passed){
     const net=(p.net_bp!=null)?p.net_bp:null;
     const v=p.dsr_verdict||null;
@@ -548,6 +558,88 @@ async function gLoadPortfolioClassBar(){
         :'<div class="status" style="color:var(--red)">아티팩트 없음(정직)</div>')+
       '</div>';
   }
+  // ★deployed 포폴전략 카드 — 전 수치 = /portfolio-strategies 응답 그대로(재계산·하드코딩 0·H1).
+  //   ★정직 라벨 의무(H2·등록부 caveat 불가침): §3 override 배포 = 통계바 통과 아님.
+  //   uni_irs_v2 류: selection_bias_flag → DSR 을 '선택편향값 + 정직 range WARN' 병기 없이
+  //   단독 표시 금지. cta_delta 류: dsr_verdict_registry(통계확증 미달)·delta_claim=alpha 는
+  //   대조군-상대 라벨(절대바 통과 아님) 병기. 좋게 포장 금지.
+  function _depCard(p){
+    const _fx=function(v,sign){ const n=Number(v); if(!isFinite(n)) return String(v==null?'–':v);
+      return ((sign&&n>0)?'+':'')+n.toLocaleString('en-US',{maximumFractionDigits:3}); };
+    const _hac=(((p.portfolio||{}).dsr_hac)||{}).hac||{};
+    const parent=p.parent?(_byName[p.parent]||null):null;
+    const dch=p.delta_characteristics||null;
+    // (a) 성적 라인 — 전부 API 값 그대로
+    const statBits=[];
+    if (p.net_bp!=null) statBits.push('net <b class="'+(p.net_bp>=0?'pp':'pn')+'">'+_fx(p.net_bp,1)+'bp</b>'+
+      ((parent&&parent.net_bp!=null)?(' <span class="status">(부모 '+_esc(p.parent)+' '+_fx(parent.net_bp,1)+')</span>'):''));
+    if (p.mdd_mtm_bp!=null){
+      statBits.push('MtM MDD <b class="pn">'+_fx(p.mdd_mtm_bp)+'bp</b>'+
+        ((parent&&parent.mdd_mtm_bp!=null)?(' <span class="status">(부모 '+_fx(parent.mdd_mtm_bp)+')</span>'):' <span class="status">(일별MtM 정본)</span>'));
+    } else if (dch&&dch.mdd_dual_basis&&dch.mdd_dual_basis.daily_mtm_display_bp!=null){
+      // 델타트랙 MDD 이중기준 — 엔진 mdd_dual_basis(primary=일별MtM) 그대로
+      statBits.push('MtM MDD <b class="pn">'+_fx(dch.mdd_dual_basis.daily_mtm_display_bp)+'bp</b> <span class="status">(일별MtM 정본 · naive sleeve합 '+_fx(dch.mdd_dual_basis.naive_sleeve_sum_bp)+' 참고)</span>');
+    } else if (p.mdd_exit_bp!=null) statBits.push('MDD <b class="pn">'+_fx(p.mdd_exit_bp)+'bp</b> <span class="status">(exit집계 — 일별MtM 정본 미기록·과소집계 가능)</span>');
+    if (_hac.sharpe_ann!=null) statBits.push('일별 Sharpe <b>'+_fx(_hac.sharpe_ann)+'</b> <span class="status">(daily_nav HAC)</span>');
+    // path_pain — 아티팩트 블록(cohort 대조 내장) 우선·없으면 등록부 스칼라(값 그대로)
+    const ppn=p.path_pain||null;
+    const ppScore=(ppn&&ppn.score!=null)?ppn.score:p.path_pain_score;
+    if (ppScore!=null){
+      let cmp='';
+      if (ppn&&ppn.cohort_scores&&p.parent&&ppn.cohort_scores[p.parent]&&ppn.cohort_scores[p.parent].score_anchor!=null)
+        cmp=' <span class="status">(부모 '+_esc(p.parent)+' '+_fx(ppn.cohort_scores[p.parent].score_anchor)+')</span>';
+      else if (parent&&parent.path_pain_score!=null)
+        cmp=' <span class="status">(부모 '+_esc(p.parent)+' '+_fx(parent.path_pain_score)+')</span>';
+      statBits.push('path_pain <b>'+_fx(ppScore)+'</b>'+cmp);
+    }
+    if (p.test_t!=null) statBits.push('OOS t <b>'+_fx(p.test_t)+'</b>');
+    // (b) ★정직 라벨(의무) — 등록부 tier_eval/아티팩트 필드 그대로
+    const honesty=[];
+    if (p.dsr_registry!=null){
+      if (p.selection_bias_flag===true){
+        honesty.push('DSR <b>'+_fx(p.dsr_registry)+'</b> = <b>선택편향값</b>(배포바 0.95 기계적 돌파 — 진짜 통과 아님)'+
+          (p.dsr_honest_range?(' · 정직 <b>'+_esc(p.dsr_honest_range)+'</b>'):''));
+      } else {
+        honesty.push('DSR <b>'+_fx(p.dsr_registry)+'</b>'+
+          (p.dsr_verdict_registry?(' — <b>'+_esc(p.dsr_verdict_registry)+'</b>'):(Number(p.dsr_registry)<0.95?' <span class="status">(배포바 0.95 미달)</span>':'')));
+      }
+    }
+    if (p.delta_claim) honesty.push('delta_claim=<b>'+_esc(p.delta_claim)+'</b> <span class="status">(대조군-상대 라벨 — DSR 절대바 통과 아님)</span>');
+    if (dch&&dch.crisis_alpha_2022){
+      const ca=dch.crisis_alpha_2022;
+      honesty.push('crisis alpha 2022 <b class="pp">'+_fx(ca.combined_bp,1)+'bp</b> vs buy&hold 30y <b class="pn">'+_fx(ca.bh_30y_bp)+'</b>'+
+        (ca.note?(' <span class="status">— '+_esc(ca.note)+'</span>'):''));
+    }
+    honesty.push('배포 근거 = <b>사용자 §3 override</b>'+(p.deploy_basis?(' <span class="status">('+_esc(p.deploy_basis)+')</span>'):'')+' — 통계 배포바 통과 아님');
+    // (c) 채택근거 원문 — 카드는 앞부분만(전문 = 상세·값 아닌 표현 절삭)
+    const _ab=(typeof p.adoption_basis==='string')?p.adoption_basis:'';
+    const _abShort=_ab?(_ab.length>220?(_esc(_ab.slice(0,220))+'… <u>(전문 → 카드 클릭·상세)</u>'):_esc(_ab)):'';
+    return '<div class="qcard" style="cursor:pointer;border-color:rgba(52,211,153,.45)" '+
+      'onclick="openStrat(\''+_esc(p.name)+'\')">'+
+      '<div class="qcard-top">'+
+        (p.tier?('<span class="tier sm tier-'+_esc(p.tier)+'">'+_esc(p.tier)+'</span> '):'')+
+        '<b>'+_esc(p.display||p.name)+'</b>'+
+        (p.display?(' <span class="status" style="font-size:10px">'+_esc(p.name)+'</span>'):'')+
+        ' <span class="xstate x-ok" style="margin-left:6px">DEPLOYED</span>'+
+        '<span class="xstate x-warn" style="margin-left:4px">§3 override</span>'+
+        (p.track?('<span class="xstate" style="margin-left:4px;background:rgba(96,165,250,.16);color:#60a5fa;border:.5px solid rgba(96,165,250,.42)">track='+_esc(p.track)+'</span>'):'')+
+      '</div>'+
+      '<div class="status" style="margin:4px 0 2px">'+_esc(p.tagline||'')+
+        (p.statistical_tier?(' · statistical_tier=<code>'+_esc(p.statistical_tier)+'</code>'):'')+'</div>'+
+      // 파생 관계 — 부모(같은 응답)·sleeve·cap 전부 API 값
+      ((p.parent||p.n_sleeve!=null||p.cap!=null)?('<div class="status" style="margin:2px 0">'+
+        (p.parent?('파생: <b>'+_esc(p.parent)+'</b>'+(parent?('('+_esc(parent.status||'?')+(parent.n_sleeve!=null?('·'+parent.n_sleeve+' sleeve'):'')+')'):'')+' → '):'')+
+        (p.n_sleeve!=null?('<b>'+p.n_sleeve+'</b> sleeve'):'')+
+        (p.cap!=null?(' · 동시보유 <b>cap-'+p.cap+'</b>'):'')+'</div>'):'')+
+      (statBits.length?('<div style="margin:3px 0">'+statBits.join(' &nbsp;·&nbsp; ')+'</div>'):'')+
+      '<div class="vbanner v-warn" style="margin:5px 0 4px;padding:6px 9px">★정직: '+honesty.join('<br>')+'</div>'+
+      (_abShort?('<div class="status">채택근거: '+_abShort+'</div>'):'')+
+      '<div style="margin:3px 0">'+
+        (p.has_forward?'<span class="xstate x-ok">일별 forward ✓</span>':'<span class="xstate x-warn">forward 미생성</span>')+
+        ' <span class="status">· 신호 트래킹층 — 자동매매 0·실 사이징 데스크 결정'+(p.sizing?('('+_esc(p.sizing)+')'):'')+'</span>'+
+      '</div>'+
+      '</div>';
+  }
   // ★스택형 카드 — 게이트 권위=등록부 tier_eval(dsr_registry·gate_verdict) 그대로 표기.
   //   ★status=proposed 배지 필수: 페이퍼 트래킹(라이브 운용 아님·사이징 0·자동매매 0)·H2.
   function _stackCard(p){
@@ -555,6 +647,24 @@ async function gLoadPortfolioClassBar(){
     const gvChip = gv
       ? '<span class="xstate '+(gv==='PASS'?'x-ok':'x-warn')+'" style="margin-left:6px">게이트 '+_esc(gv)+'</span>'
       : '';
+    // ★성적 요약 — 전부 API 값 그대로(등록부 backtest·아티팩트 portfolio 블록·재계산 0·H1).
+    //   MDD 이중기준: mdd_mtm_bp(일별 MtM·정본) 있으면 주표기 + exit집계 참고 병기.
+    //   없으면 exit집계뿐인 사실을 라벨로 정직 표기(과소집계 가능 — v2 교훈·H2).
+    const _hac=(((p.portfolio||{}).dsr_hac)||{}).hac||{};
+    const _oosT=(p.test_t!=null)?p.test_t:((((p.portfolio||{}).dsr_hac)||{}).oos_split||{}).test_t;
+    const _y24=(p.by_year&&p.by_year['2024']!=null)?Number(p.by_year['2024']):null;
+    // 성적 전용 정밀 포맷(_fmt 은 |v|≥100 정수 반올림 — MDD −1823.9→−1824 로 정본 훼손됨.
+    //   여기선 소수 3자리까지 보존·천단위 구분. 표현만·값 무변형)
+    const _fx=function(v,sign){ const n=Number(v); if(!isFinite(n)) return String(v);
+      return ((sign&&n>0)?'+':'')+n.toLocaleString('en-US',{maximumFractionDigits:3}); };
+    const statBits=[];
+    if (p.net_bp!=null) statBits.push('net <b class="'+(p.net_bp>=0?'pp':'pn')+'">'+_fx(p.net_bp,1)+'bp</b>');
+    if (p.mdd_mtm_bp!=null) statBits.push('MDD <b class="pn">'+_fx(p.mdd_mtm_bp)+'bp</b> <span class="status">(일별MtM 정본'+
+      (p.mdd_exit_bp!=null?(' · exit집계 '+_fx(p.mdd_exit_bp)+' 참고'):'')+')</span>');
+    else if (p.mdd_exit_bp!=null) statBits.push('MDD <b class="pn">'+_fx(p.mdd_exit_bp)+'bp</b> <span class="status">(exit집계 — 일별MtM 정본 미기록·과소집계 가능)</span>');
+    if (_hac.sharpe_ann!=null) statBits.push('일별 Sharpe <b>'+_fx(_hac.sharpe_ann)+'</b> <span class="status">(daily_nav HAC)</span>');
+    if (_oosT!=null) statBits.push('OOS t <b>'+_fx(_oosT)+'</b>');
+    if (_y24!=null) statBits.push('2024 <b class="'+(_y24>=0?'pp':'pn')+'">'+_fx(_y24,1)+'bp</b>');
     return '<div class="qcard" style="cursor:pointer;border-color:rgba(251,191,36,.45)" '+
       'onclick="openStrat(\''+_esc(p.name)+'\')">'+
       '<div class="qcard-top">'+
@@ -571,6 +681,7 @@ async function gLoadPortfolioClassBar(){
         (p.has_forward?' &nbsp;·&nbsp; <span class="xstate x-ok">일별 forward ✓</span>'
                       :' &nbsp;·&nbsp; <span class="xstate x-warn">forward 미생성</span>')+
       '</div>'+
+      (statBits.length?('<div style="margin:3px 0">'+statBits.join(' &nbsp;·&nbsp; ')+'</div>'):'')+
       (p.adoption_basis?('<div class="status">채택근거: '+_esc(p.adoption_basis)+'</div>'):'')+
       '<div class="status" style="color:#fbbf24">★페이퍼 트래킹 — 라이브 운용 아님·사이징 0·자동매매 0. 클릭 → 상세(구성·게이트·오늘 신호)</div>'+
       '</div>';
@@ -578,6 +689,13 @@ async function gLoadPortfolioClassBar(){
   let h='<div class="cat-title" style="margin:14px 0 4px">📦 포폴전략 클래스 (strategy_class=portfolio) '+
     '<span class="status" style="font-weight:400;text-transform:none;letter-spacing:0">— '+
     '위 일반 전략 목록·카운트와 별개 · DSR 은 <code>dsr_basis</code> 단위라 일반전략 per-trade DSR 과 <b>직접 비교 불가</b>(N6)</span></div>';
+  // (D) ★deployed — 사용자 §3 승인 배포(통계바 통과 아님) 정직 배너와 함께 최상단
+  if (_dep.length){
+    h+='<div class="vbanner v-ok" style="margin:2px 0 4px">🟢 <b>deployed 포폴전략 '+_dep.length+'건</b> — '+
+      '사용자 §3 승인 배포(deploy_basis=user_§3_override). <b>신호 트래킹층 — 자동매매 0</b>·실 사이징 데스크 결정. '+
+      '<span style="color:#fbbf24">★§3 배포 = 통계 배포바(DSR 0.95) 통과 아님 — 카드의 정직 라벨(선택편향/통계확증 미달) 병기 의무.</span></div>'+
+      '<div class="qcards" style="margin-bottom:8px">'+_dep.map(_depCard).join('')+'</div>';
+  }
   // (S) ★통합 스택형 proposed — 페이퍼 트래킹(라이브 아님) 정직 배너와 함께
   if (_prop.length){
     h+='<div class="vbanner v-warn" style="margin:2px 0 4px">🧪 <b>proposed 통합 스택(페이퍼)</b> — '+
@@ -831,9 +949,17 @@ async function showDetail(name) {
   //   전부 tier_eval API 필드 렌더(하드코딩 0). caveat 없는 전략엔 칩 미발동(영향 0).
   const _teDsr = (te.dsr!=null ? te.dsr : null);
   const _dsrWarn = (_teDsr!=null && Number(_teDsr) < 0.95);
+  // ★DSR 칩 정직화: selection_bias_flag(uni_irs_v2 류)면 0.95 돌파값이라도 '선택편향값 +
+  //   정직 range' 병기 의무(등록부 caveat: 단독 위장 금지). delta_claim(cta_delta 류)은
+  //   대조군-상대 라벨이지 절대바 통과 아님을 칩으로 명시. 전부 tier_eval API 필드(하드코딩 0).
+  const _dsrChipTxt = (_teDsr==null) ? '' :
+    (te.selection_bias_flag===true
+      ? ('DSR <b>'+_teDsr+'</b> ★선택편향값(진짜 통과 아님)'+(te.dsr_honest_range?(' — 정직 <b>'+_esc(te.dsr_honest_range)+'</b>'):''))
+      : ('DSR <b>'+_teDsr+'</b>'+(te.dsr_verdict?(' — '+_esc(te.dsr_verdict)):(_dsrWarn?' &lt;0.95 미달':''))));
   const _condChips = te.caveat ? (
     '<div style="display:inline-flex;gap:8px;flex-wrap:wrap;margin-top:5px">'+
-      (_teDsr!=null?('<span class="v-WARN" style="padding:1px 7px;border-radius:5px;font-size:11px">DSR <b>'+_teDsr+'</b>'+(_dsrWarn?' &lt;0.95 미달':'')+'</span>'):'')+
+      (_dsrChipTxt?('<span class="v-WARN" style="padding:1px 7px;border-radius:5px;font-size:11px">'+_dsrChipTxt+'</span>'):'')+
+      (te.delta_claim?('<span class="v-WARN" style="padding:1px 7px;border-radius:5px;font-size:11px">delta_claim=<b>'+_esc(te.delta_claim)+'</b> <span style="opacity:.85">(대조군-상대 라벨·DSR 절대바 통과 아님)</span></span>'):'')+
       (te.vol_bet===true?('<span class="v-WARN" style="padding:1px 7px;border-radius:5px;font-size:11px">vol-conditional <span style="opacity:.85">(고변동기 의존·평시 신설알파 아님)</span></span>'):'')+
     '</div>') : '';
   const tierPanel = (tg && (te.basis||te.reason||te.sizing)) ? (
@@ -870,13 +996,19 @@ async function showDetail(name) {
   //   parent: of_port=of 의, curve2_port=curve2 의 포트 재표현(출처 정직 표기·이중계상 방지).
   //   withheld=True: 정직-N FAIL 등 보류 — 통과 포폴 절대 아님(가짜 PASS 금지·H2). 일반전략엔 미발동.
   const _isPort = (s.strategy_class==='portfolio');
-  // ★통합 스택형(constraints.n_sleeve 보유 — uni28_v2 류) vs 포트 재표현(of_port 류) 구분:
+  // ★통합 스택형/1급 포폴(uni28_v2·uni_irs_v2·cta_delta 류) vs 포트 재표현(of_port 류) 구분:
   //   스택형은 "부모 라이브 알파의 재표현"이 아니므로 재표현 문구를 쓰지 않는다(정직·데이터 구동).
-  const _isStack = _isPort && ((s.constraints||{}).n_sleeve!=null);
+  //   판별 = 등록부 필드 방언 전부(n_sleeve/n_sleeves/track/harness_id — of_port 류엔 전부 부재).
+  const _isStack = _isPort && ((s.constraints||{}).n_sleeve!=null || (s.constraints||{}).n_sleeves!=null
+    || s.track!=null || s.harness_id!=null);
   const portBanner = _isPort ? ((
     _isStack
-    ? ('<div class="vbanner v-warn" style="margin-bottom:8px">📦 <b>포폴전략 — 통합 스택</b> · strategy_class=portfolio · 상태 <b>'+_esc(s.status||'?')+'</b>'+
+    ? ('<div class="vbanner v-warn" style="margin-bottom:8px">📦 <b>'+
+        (s.track?('포폴전략 — '+_esc(s.track)+' 트랙 결합북'):'포폴전략 — 통합 스택')+'</b> · strategy_class=portfolio · 상태 <b>'+_esc(s.status||'?')+'</b>'+
         (s.status==='proposed'?' <span class="xstate x-warn">★페이퍼 트래킹 — 라이브 운용 아님·사이징 0·자동매매 0</span>':'')+
+        (s.status==='deployed'?(' <span class="xstate x-ok">DEPLOYED — 사용자 §3 override</span>'+
+          ' <span class="xstate x-warn">신호 트래킹층 · 자동매매 0 · 실 사이징 데스크 결정'+((s.tier_eval||{}).sizing?('('+_esc((s.tier_eval||{}).sizing)+')'):'')+'</span>'):'')+
+        (s.path_pain_score!=null?('<br><span class="status">경로고통 path_pain <b>'+s.path_pain_score+'</b> (일별 MtM 경로 기준 — 상세 블록은 아래 백테스트 섹션)</span>'):'')+
         (typeof s.adoption_basis==='string' && s.adoption_basis?('<br><span class="status">채택근거: '+_esc(s.adoption_basis)+'</span>'):'')+
       '</div>')
     : ('<div class="vbanner v-warn" style="margin-bottom:8px">📦 <b>포트뷰(포트 재표현)</b> · strategy_class=portfolio · 상태 <b>'+_esc(s.status||'?')+'</b>'+
@@ -934,15 +1066,27 @@ async function showDetail(name) {
       var bcls = isDelta ? (/ADOPT/.test(ov)?'warn':(/REJECT|FAIL/.test(ov)?'fail':'none'))
                          : ({PASS:"ok",WARN:"warn",FAIL:"fail","N/A":"none"}[ov]||"none");
       var lvl = function(vd){ var v=String(vd); return v.indexOf('PASS')===0?'PASS':(v.indexOf('FAIL')===0?'VIOLATION':(v.indexOf('WARN')===0?'WARN':'none')); };
+      // ★진단 스키마 3방언 지원(전부 등록부 값 그대로·재계산 0·H1):
+      //   ① by = {D키: 'PASS'} 문자열맵(일반전략) ② diagnostics = {D키:{verdict,detail}} 중첩맵
+      //   (uni_irs_v2 류) ③ 최상위 평면 D키(cta_delta 류 — engine.diagnostics.run_all 요약).
+      var rows = dg.by || dg.diagnostics || null;
+      if (!rows){ rows={}; Object.keys(dg).forEach(function(k){ if(/^D\d/.test(k)) rows[k]=dg[k]; }); }
       return '<div class="cat-title">'+title+'</div>'+
       (isDelta&&dg.track?('<div class="status" style="margin:-2px 0 6px">'+dg.track+'</div>'):'')+
       '<div class="vbanner v-'+bcls+'">overall <b>'+ov+'</b>'+
       (dg.dsr!=null?(' · Deflated Sharpe(D4)=<b>'+dg.dsr+'</b> (≥0.95 통과)'):'')+
       (isDelta&&dg.rv_gate_ref?('<br><span class="status">참고(무관·directional): '+dg.rv_gate_ref+'</span>'):'')+'</div>'+
       '<table class="find-tbl"><tbody>'+
-      Object.entries(dg.by||{}).map(([k,vd])=>'<tr><td class="lvl-'+lvl(vd)+'">'+k+'</td><td>'+vd+((dg.detail||{})[k]?(' — '+(dg.detail||{})[k]):'')+'</td></tr>').join('')+
+      Object.entries(rows||{}).map(function(kv){
+        var k=kv[0], vd=kv[1];
+        var isObj = (vd&&typeof vd==='object');
+        var v = isObj ? String(vd.verdict||'') : String(vd);
+        var det = isObj ? (vd.detail||'') : ((dg.detail||{})[k]||'');
+        return '<tr><td class="lvl-'+lvl(v)+'">'+k+'</td><td>'+v+(det?(' — '+det):'')+'</td></tr>';
+      }).join('')+
       (isDelta&&dg.oos?('<tr><td class="lvl-PASS">OOS(TEST 2022+)</td><td>+'+dg.oos.test_bp+'bp · t='+dg.oos.test_t+' · p='+dg.oos.test_p+' · n='+dg.oos.n_test+' <span class="status">(thin)</span></td></tr>'):'')+
       (isDelta&&dg.regime?('<tr><td>레짐</td><td>'+dg.regime+'</td></tr>'):'')+
+      (dg.note?('<tr><td>note</td><td class="status">'+_esc(dg.note)+'</td></tr>'):'')+
       '</tbody></table>';})(s.diagnostics):'')+
     ((s.diagnostics&&s.diagnostics.walkforward)?(function(w){
       var vc=(w.verdict||'').indexOf('PASS')===0?'ok':((w.verdict||'').indexOf('WARN')===0?'warn':'fail');
@@ -1126,20 +1270,51 @@ function _sleeveBuckets(list){
   return b;
 }
 function _stackManifestHtml(cons){
-  const org=cons.sleeves_original_28||[], mte=cons.sleeves_mte_variant_11||[];
-  if (!org.length && !mte.length) return '';
+  // ★두 manifest 방언 지원(등록부 필드 *그대로*·재계산 0·H1):
+  //   uni28_v2 류 = sleeves_original_28 + sleeves_mte_variant_11(별도 목록)
+  //   uni_irs 류  = sleeves_no20_28(__mte 접미 내장) + sleeves_asw_2 + removed_20y_legs_11 + asw_spec
+  const org=cons.sleeves_original_28||cons.sleeves_no20_28||[];
+  const mte=cons.sleeves_mte_variant_11||[];
+  const asw=cons.sleeves_asw_2||[];
+  const removed=cons.removed_20y_legs_11||[];
+  if (!org.length && !mte.length && !asw.length) return '';
   const bk=_sleeveBuckets(org);
   const order=['fly','cfyd','slope','xt','기타'].filter(function(k){return bk[k];});
+  // 내장 MTE변형(__mte 접미) — uni_irs 류는 별도 목록 대신 no20 목록 안에 포함
+  const embMte=org.filter(function(nm){return /__mte$/i.test(String(nm));});
+  const parts=[];
+  parts.push((cons.sleeves_no20_28?'no20 ':'원본 ')+org.length);
+  if (mte.length) parts.push('MTE변형 '+mte.length);
+  if (asw.length) parts.push('ASW '+asw.length);
   let h='<div class="cat-title">sleeve 구성 — '+(cons.n_sleeve!=null?cons.n_sleeve:'?')+
-    ' sleeve (원본 '+org.length+' + MTE변형 '+mte.length+') <span class="status" style="font-weight:400;text-transform:none;letter-spacing:0">— 등록부 constraints manifest 그대로</span></div>';
+    ' sleeve ('+parts.join(' + ')+') <span class="status" style="font-weight:400;text-transform:none;letter-spacing:0">— 등록부 constraints manifest 그대로</span></div>';
   h+='<div style="margin-bottom:6px">'+order.map(function(k){
     return '<div class="bk-contrib"><b>'+_esc(k)+'</b> <span class="status">'+bk[k].length+'개</span> — '+
       bk[k].map(function(nm){return '<code>'+_esc(nm)+'</code>';}).join(' ')+'</div>';
-  }).join('')+'</div>';
+  }).join('')+
+  (asw.length?('<div class="bk-contrib"><b>irs_asw</b> <span class="status">'+asw.length+'개</span> — '+
+      asw.map(function(nm){return '<code>'+_esc(nm)+'</code>';}).join(' ')+'</div>'):'')+
+  '</div>';
+  // ASW 스펙 — 등록부 asw_spec 원문 그대로(신호·청산·비용·데이터·테너)
+  if (asw.length && cons.asw_spec){
+    const sp=cons.asw_spec;
+    h+='<table class="find-tbl" style="margin:0 0 8px"><tbody>'+
+      ['signal','exit','cost_bp','data','irs_tenors'].map(function(k){
+        return sp[k]!=null?('<tr><td style="width:110px">ASW '+_esc(k)+'</td><td>'+_esc(String(sp[k]))+'</td></tr>'):'';
+      }).join('')+'</tbody></table>';
+  }
   if (mte.length){
     h+='<div class="vbanner v-warn" style="margin:2px 0 6px">🔁 <b>MTE변형 '+mte.length+' sleeve = 원본 복제 2배가중</b>'+
       (cons.mte_variant_caveat?(' — '+_esc(cons.mte_variant_caveat)):'')+
       '<br><span class="status">'+mte.map(function(nm){return '<code>'+_esc(nm)+'</code>';}).join(' ')+'</span></div>';
+  } else if (embMte.length){
+    h+='<div class="vbanner v-warn" style="margin:2px 0 6px">🔁 <b>MTE변형 '+embMte.length+' sleeve(목록 내장 __mte) = 원본 복제 2배가중</b>'+
+      (cons.mte_variant_caveat?(' — '+_esc(cons.mte_variant_caveat)):'')+
+      '<br><span class="status">'+embMte.map(function(nm){return '<code>'+_esc(nm)+'</code>';}).join(' ')+'</span></div>';
+  }
+  if (removed.length){
+    h+='<div class="status" style="margin:0 0 6px">➖ 20y레그 제거 <b>'+removed.length+'</b> sleeve(등록부 removed_20y_legs 그대로): '+
+      removed.map(function(nm){return '<code style="text-decoration:line-through;opacity:.7">'+_esc(nm)+'</code>';}).join(' ')+'</div>';
   }
   if (cons.cfyd_caveat) h+='<div class="status" style="margin:0 0 4px">⚠ '+_esc(cons.cfyd_caveat)+'</div>';
   if (cons.reused_test_seen_cells) h+='<div class="status" style="margin:0 0 8px">⚠ '+_esc(cons.reused_test_seen_cells)+'</div>';
@@ -1157,17 +1332,67 @@ async function renderPortForward(fs, name){
   if (!r || r.available===false){
     fs.className=''; fs.innerHTML='<div class="noart">'+_esc((r&&r.note)||'forward 미생성 — 엔진 산출 대기')+'</div>'; return;
   }
+  // ★델타트랙 목표포지션 포맷(cta_delta 류) — targets[] = 상태→목표포지션(연속북·진입/청산
+  //   원장 포맷 아님). uni28 류 스키마와 다르므로 방어적 분기 — 전 수치 JSON 그대로(재계산 0).
+  if (Array.isArray(r.targets)){
+    let dh='';
+    // (0) disclaimer + 엔진 honesty 블록 원문 — DSR 통계확증 미달 병기 의무(H2)
+    dh+='<div class="vbanner v-warn" style="margin-bottom:8px">🧪 '+_esc(r.disclaimer||'페이퍼 목표포지션 트래킹 — 자동매매 아님')+
+      (r.signal_tracking===true?' · signal_tracking=true':'')+(r.auto_execution===false?' · auto_execution=false':'')+'</div>';
+    if (r.honesty){
+      dh+='<div class="vbanner v-fail" style="margin-bottom:8px">★정직(엔진 honesty 원문): DSR@정직N <b>'+_fmt(r.honesty.dsr_programN)+'</b>'+
+        (r.honesty.dsr_bar!=null?(' (배포바 '+_fmt(r.honesty.dsr_bar)+')'):'')+
+        (r.honesty.statistical_confirmation?(' — <b>'+_esc(r.honesty.statistical_confirmation)+'</b>'):'')+
+        (r.honesty.note?('<br><span class="status" style="font-weight:400">'+_esc(r.honesty.note)+'</span>'):'')+'</div>';
+    }
+    const dpit=r.pit||{}, dpn=r.panels||{}, dsz=r.sizing||{};
+    const _dpk=Object.keys(dpn).filter(function(k){return /_max$/.test(k);});
+    dh+='<div class="status" style="margin-bottom:6px">신호 기준일(asof) <b>'+_esc(r.asof||'?')+'</b> → 체결일 <b>'+_esc(r.execution_date||'?')+'</b> (t+1)'+
+      (dpit.convention?(' · <span class="status">'+_esc(dpit.convention)+'</span>'):'')+
+      '<br>패널 최신: '+(_dpk.length?_dpk.map(function(k){
+        return _esc(k.replace(/_max$/,''))+' '+_esc(String(dpn[k]));}).join(' · '):'?')+
+      (r.generated_at?(' · 산출 '+_esc(r.generated_at)):'')+'</div>';
+    dh+='<div class="cat-title" style="margin-top:6px">오늘의 목표포지션 ('+r.targets.length+' sleeve · 체결 '+_esc(r.execution_date||'')+')</div>';
+    if (r.targets.length){
+      dh+='<div class="tlog-wrap"><table class="tlog"><thead><tr>'+
+        '<th class="lt">sleeve</th><th class="lt">instrument</th><th class="lt">방향</th><th>raw signal</th><th>vol lever</th><th>목표 unit</th><th>등위험 w</th><th class="lt">신호일</th><th class="lt">현재 종목</th><th class="lt">최근 롤</th><th>비용bp/leg</th>'+
+        '</tr></thead><tbody>'+r.targets.map(function(t){
+          const sht=/short/i.test(t.side||'')||(Number(t.sign)<0);
+          return '<tr><td class="lt"><b>'+_esc(t.sleeve||'?')+'</b></td><td class="lt">'+_esc(t.instrument||'')+'</td>'+
+            '<td class="lt '+(sht?'sht':'lng')+'">'+(sht?'▼':'▲')+_esc(t.side||'')+'</td>'+
+            '<td>'+_fmt(t.raw_signal)+'</td><td>'+_fmt(t.vol_lever)+'</td>'+
+            '<td class="'+(Number(t.target_unit)>=0?'pp':'pn')+'"><b>'+_fmt(t.target_unit)+'</b></td>'+
+            '<td>'+_fmt(t.risk_parity_weight)+'</td><td class="lt">'+_esc(t.signal_date||'')+'</td>'+
+            '<td class="lt"><code>'+_esc(t.current_code||'')+'</code></td><td class="lt">'+_esc(t.last_roll||'')+'</td>'+
+            '<td>'+_fmt(t.cost_rt_bp_leg)+'</td></tr>';
+        }).join('')+'</tbody></table></div>'+
+        '<div class="status">목표포지션 = 엔진 forward JSON 그대로(target_unit = sign×vol_lever per-unit·웹 재계산 0) — 체결·실 사이징은 사용자(자동매매 아님)</div>';
+    } else dh+='<div class="noart">목표포지션 없음 (asof '+_esc(r.asof||'')+')</div>';
+    if (r.combine&&r.combine.note) dh+='<div class="status" style="margin:4px 0">'+_esc(r.combine.note)+'</div>';
+    if (r.roll&&r.roll.note) dh+='<div class="status" style="margin:2px 0">'+_esc(r.roll.note)+'</div>';
+    if (dsz.note) dh+='<div class="status" style="margin:2px 0">사이징: '+_esc(dsz.note)+'</div>';
+    if (r.ledger&&r.ledger.n_records!=null) dh+='<div class="status" style="margin:2px 0">페이퍼 원장: '+
+      _esc(String(r.ledger.n_records))+' records'+(r.ledger.asof?(' · asof '+_esc(r.ledger.asof)):'')+'</div>';
+    fs.className=''; fs.innerHTML=dh;
+    return;
+  }
   const cnt=r.counts||{}, nt=r.netting||{}, sl=r.sleeves||{}, sz=r.sizing||{}, pit=r.pit||{}, pn=r.panels||{};
   let h='';
-  // (0) 페이퍼 disclaimer — 엔진 원문 그대로(필수·기만 금지)
+  // (0) 페이퍼 disclaimer — 엔진 원문 그대로(필수·기만 금지). deployed 는 forward_role 병기.
   h+='<div class="vbanner v-warn" style="margin-bottom:8px">🧪 '+_esc(r.disclaimer||'proposed — 페이퍼 트래킹(라이브 운용 아님·자동매매 0)')+
     (r.paper_tracking===true?' · paper_tracking=true':'')+(r.live_capital===false?' · live_capital=false':'')+
+    ((r.deployment&&r.deployment.forward_role)?('<br><span class="status">'+_esc(r.deployment.forward_role)+'</span>'):'')+
     (sz.note?('<br><span class="status">사이징: '+_esc(sz.note)+'</span>'):'')+'</div>';
   // (1) 기준일·PIT·패널 신선도 — 값 그대로
+  // 패널 신선도 — *_max 키 전부 그대로 나열(하드코딩 3키 금지 — uni_irs 의
+  //   irs_asw_panel_max·irs_rates_max 병기 의무 포함) + 엔진 panels.note 원문.
+  const _pnKeys=Object.keys(pn).filter(function(k){return /_max$/.test(k);});
   h+='<div class="status" style="margin-bottom:6px">신호 기준일(asof) <b>'+_esc(r.asof||'?')+'</b> → 체결일 <b>'+_esc(r.execution_date||'?')+'</b> (t+1)'+
     (pit.convention?(' · <span class="status">'+_esc(pit.convention)+'</span>'):'')+
-    '<br>패널 최신: cash '+_esc(pn.cash_max||'?')+' · rates_fut '+_esc(pn.rates_fut_max||'?')+' · ktbf_basis '+_esc(pn.ktbf_basis_max||'?')+
-    (r.generated_at?(' · 산출 '+_esc(r.generated_at)):'')+'</div>';
+    '<br>패널 최신: '+(_pnKeys.length?_pnKeys.map(function(k){
+      return _esc(k.replace(/_max$/,''))+' '+_esc(String(pn[k]));}).join(' · '):'?')+
+    (r.generated_at?(' · 산출 '+_esc(r.generated_at)):'')+
+    (pn.note?('<br><span class="status">'+_esc(pn.note)+'</span>'):'')+'</div>';
   // (2) 요약 카운트 — counts/netting 그대로
   h+='<div style="margin:2px 0 10px">'+
     '<span class="utilchip">신규 진입 <b>'+(cnt.entries_today!=null?cnt.entries_today:'?')+'</b></span>'+
@@ -1175,14 +1400,22 @@ async function renderPortForward(fs, name){
     '<span class="utilchip">오늘 청산 <b>'+(cnt.exits_sealed_today!=null?cnt.exits_sealed_today:(cnt.exits_today!=null?cnt.exits_today:'?'))+'</b></span>'+
     '<span class="utilchip">원장 보유 <b>'+(cnt.ledger_open!=null?cnt.ledger_open:'?')+'</b></span>'+
     '<span class="utilchip">netting 스택 <b>'+(nt.stack_groups!=null?nt.stack_groups:'?')+'</b> 그룹 · conflict <b>'+(nt.conflict_groups!=null?nt.conflict_groups:'?')+'</b></span>'+
+    // ★동시보유 진입캡(uni_irs_v2 류 — r.cap/counts.capped_out 존재 시에만·값 그대로)
+    ((r.cap&&r.cap.cap!=null)?('<span class="utilchip">동시보유 cap-<b>'+r.cap.cap+'</b> · capped_out 누적 <b>'+
+      (r.cap.capped_out_total!=null?r.cap.capped_out_total:(cnt.capped_out!=null?cnt.capped_out:'?'))+'</b></span>')
+      :(cnt.capped_out!=null?('<span class="utilchip">capped_out 누적 <b>'+cnt.capped_out+'</b></span>'):''))+
     '<span class="utilchip">futroll 제외 <b>'+(r.futroll_excluded!=null?r.futroll_excluded:'?')+'</b></span>'+
     '<span class="utilchip">nopath <b>'+(cnt.nopath_skipped!=null?cnt.nopath_skipped:'?')+'</b></span>'+
     ((cnt.revision_alerts!=null&&cnt.revision_alerts>0)?('<span class="utilchip" style="background:#7a1f1f;color:#fff">⚠ 원장 불일치 <b>'+cnt.revision_alerts+'</b></span>'):'')+
     '</div>';
   // (3) sleeve 구성·MTE 정직고지 — sleeves/mte_added 그대로
+  //   방어적 읽기: v2=n_original_live_gen / uni_irs=n_no20_live_gen(+n_asw_live_gen)
   if (sl.n_total!=null){
-    h+='<div class="status" style="margin:-4px 0 8px">sleeve <b>'+sl.n_total+'</b> = 원본 '+(sl.n_original_live_gen!=null?sl.n_original_live_gen:'?')+
+    const _nOrg=(sl.n_original_live_gen!=null)?sl.n_original_live_gen:sl.n_no20_live_gen;
+    h+='<div class="status" style="margin:-4px 0 8px">sleeve <b>'+sl.n_total+'</b> = '+
+      (sl.n_no20_live_gen!=null?'no20 ':'원본 ')+(_nOrg!=null?_nOrg:'?')+
       ' + MTE변형 '+(sl.n_mte_static!=null?sl.n_mte_static:'?')+
+      (sl.n_asw_live_gen!=null?(' + ASW '+sl.n_asw_live_gen):'')+
       ((r.mte_added&&r.mte_added.note)?('<br>⚠ '+_esc(r.mte_added.note)+(r.mte_added.coverage_end?(' (coverage_end '+_esc(r.mte_added.coverage_end)+')'):'')):'')+'</div>';
   }
   // (4) 오늘 신규 진입 — entries_today 그대로(레그·청산정책 포함)
@@ -1208,7 +1441,8 @@ async function renderPortForward(fs, name){
   // (5) 오늘 청산 — 원장 diff 기반 exits(신포맷·구 exits_today 폴백)·사유=엔진 분류 그대로
   //   ★late_confirmed=지연패널 소급확정(누락 불가)·exit_seal_date=원장 봉인일·mte_weight 표시
   const xe=r.exits||r.exits_today||[];
-  h+='<div class="cat-title" style="margin-top:10px">오늘 청산 ('+xe.length+'건 · 원장 봉인 diff — 지연확정 포함·누락 불가)</div>';
+  h+='<div class="cat-title" style="margin-top:10px">오늘 청산 ('+xe.length+'건 · 원장 봉인 diff — 지연확정 포함·누락 불가)</div>'+
+    (r.exits_note?('<div class="status" style="margin:-2px 0 4px">'+_esc(r.exits_note)+'</div>'):'');
   if (xe.length){
     h+='<div class="tlog-wrap" style="max-height:220px"><table class="tlog"><thead><tr>'+
       '<th class="lt">sleeve</th><th class="lt">방향</th><th class="lt">진입→청산</th><th>보유일</th><th class="lt">사유</th><th>가중</th><th>PnL net bp</th><th>gross</th>'+
@@ -1314,7 +1548,8 @@ function renderBacktest(art, regBt){
   const HOLD = (t, base) => (t&&t.leaked)
       ? '<span class="leakwarn">⚠'+(t.span_cal!=null?t.span_cal+'일':'초과')+'</span>'
       : (base??'');
-  const RSN = (t) => (t&&t.exit_reason||'')+((t&&t.flag)?(' <span class="flagtag">'+t.flag+'</span>'):'');
+  // 청산사유 필드 방언: exit_reason(일반) / reason(cta_delta 류 델타 에피소드) — 값 그대로
+  const RSN = (t) => (t&&(t.exit_reason||t.reason)||'')+((t&&t.flag)?(' <span class="flagtag">'+t.flag+'</span>'):'');
   if (isSleeve){
     // ★통합 스택(uni28_v2 류) — trades 컬럼: sleeve/family/sign/exit_pol/exit_reason.
     //   전부 아티팩트 필드 그대로(재계산 0·H1). 다른 전략 trades 엔 sleeve+family 부재 → 미발동.
@@ -1414,6 +1649,25 @@ function renderBacktest(art, regBt){
       Object.entries(st.by_family).sort(function(a,b){return (b[1].net_sum_bp||0)-(a[1].net_sum_bp||0);})
         .map(function(e){var v=e[1]||{};return '<b>'+_esc(e[0])+'</b> '+_fmt(v.net_sum_bp)+'bp <span class="status">(n='+(v.n!=null?v.n:'?')+')</span>';})
         .join(' · ')+'</div>'):'')+
+    // ★연도별 성적 방언: stats.by_year 없고 최상위 art.yearly(cta_delta 류 — net/sharpe/mdd)만
+    //   있으면 그대로 표(재계산 0·H1). 둘 다 있으면 by_year 우선(기존 렌더 유지).
+    ((!st.by_year && art.yearly)?(function(yr){
+      const ys=Object.keys(yr).sort();
+      return '<div class="cat-title">연도별 성적 (아티팩트 yearly 그대로)</div>'+
+        '<div class="tlog-wrap" style="margin-bottom:8px"><table class="tlog"><thead><tr><th class="lt"></th>'+
+        ys.map(function(y){return '<th>'+_esc(y)+'</th>';}).join('')+'</tr></thead><tbody>'+
+        [['net bp','net_bp',1],['Sharpe','sharpe',0],['MDD bp','mdd_bp',2]].map(function(row){
+          return '<tr><td class="lt">'+row[0]+'</td>'+ys.map(function(y){
+            var v=(yr[y]||{})[row[1]];
+            var cls=(row[2]===2)?'pn':((v!=null&&v>=0)?'pp':'pn');
+            return '<td class="'+(v!=null?cls:'')+'">'+_fmt(v)+'</td>';}).join('')+'</tr>';
+        }).join('')+'</tbody></table></div>';})(art.yearly):'')+
+    // ★경로고통(path_pain) 블록 — 아티팩트 그대로(일별 MtM 경로 기준·엔진 산출·재계산 0).
+    //   cohort_scores = 엔진이 산출한 코호트 대조(v1↔v2 등) — 값 그대로. 키 부재 전략 미발동.
+    (art.path_pain?_pathPainHtml(art.path_pain):'')+
+    // ★델타특성(delta_characteristics) 블록 — cta_delta 류: MDD 이중기준(일별MtM 정본)·
+    //   crisis alpha·노출캡 전부 엔진 원문 그대로(재계산 0). 키 부재 전략 미발동.
+    (art.delta_characteristics?_deltaCharHtml(art.delta_characteristics):'')+
     // R:R(손익비) 캐비엇 — TP<SL(reward:risk<1) 손익비 역전을 통계 섹션에도 명시(H2). regBt.rr_caveat 만 있을 때.
     ((regBt&&regBt.rr_caveat)?('<div class="vbanner v-warn" style="margin:2px 0 10px">⚖ <b>R:R '+(regBt.rr_caveat.match(/reward:risk\s*([0-9.]+)/i)?regBt.rr_caveat.match(/reward:risk\s*([0-9.]+)/i)[1]:'<1')+' &lt;1 (손익비 역전·승률 의존)</b> — '+regBt.rr_caveat+'</div>'):'')+
     ((regBt&&regBt.t_stat_bp!=null)?('<div class="status" style="margin:-4px 0 10px">거래수익 유의성: t-stat <b>'+regBt.t_stat_bp+'</b>'+(regBt.p_value_bp!=null?(' · p='+regBt.p_value_bp):'')+' <b>(&lt;2 비유의 — 단독 통계검증 불가)</b></div>'):'')+
@@ -1538,6 +1792,57 @@ function _portfolioBlocksHtml(p){
   }).join(' · ')+'</span>';
   if (ca.note) h+='<br><span class="status">'+_esc(ca.note)+'</span>';
   h+='</div>';
+  return h;
+}
+
+// ★경로고통(path_pain) 블록 렌더 — 아티팩트 path_pain *그대로*(엔진 산출·웹 재계산 0·H1).
+//   일별 MtM 경로 기준 ulcer/pain/TuW/최악주·월/회복 + score(anchor·rank) + 코호트 대조.
+//   _fmt 은 |v|≥100 정수 반올림이라 정본 소수 훼손 — 전용 포맷(_ppFx)로 소수 보존(표현만).
+function _ppFx(v){ if(v==null||v==='') return '–'; const n=Number(v); if(!isFinite(n)) return _esc(v);
+  return n.toLocaleString('en-US',{maximumFractionDigits:2}); }
+function _pathPainHtml(pp){
+  const cells=[['score (anchor)','score'],['score (rank)','score_rank'],['ulcer bp','ulcer_bp'],
+    ['pain bp','pain_bp'],['수면하 TuW %','tuw_pct'],['최장 TuW(일)','max_tuw_days'],
+    ['최악 주 bp','worst_week_bp'],['최악 월 bp','worst_month_bp'],
+    ['회복 p90(일)','recovery_days_p90'],['DD 에피소드','n_dd_episodes_completed']];
+  let h='<div class="cat-title">경로고통 path_pain — 일별 MtM 경로 기준 (아티팩트 그대로'+
+    (pp.span?(' · '+_esc(pp.span[0])+'~'+_esc(pp.span[1])):'')+')</div><div class="sgrid">';
+  cells.forEach(function(c){ if (pp[c[1]]!=null)
+    h+='<div class="s"><div class="sl">'+c[0]+'</div><div class="sv">'+_ppFx(pp[c[1]])+'</div></div>'; });
+  h+='</div>';
+  if (pp.cohort_scores && Object.keys(pp.cohort_scores).length){
+    h+='<div class="status" style="margin:-4px 0 10px">코호트 대조(score_anchor — 낮을수록 경로고통 완화): '+
+      Object.entries(pp.cohort_scores).map(function(e){
+        return '<b>'+_esc(e[0])+'</b> '+_ppFx((e[1]||{}).score_anchor);}).join(' · ')+
+      (pp.score_method?('<br>'+_esc(pp.score_method)):'')+'</div>';
+  } else if (pp.score_method){
+    h+='<div class="status" style="margin:-4px 0 10px">'+_esc(pp.score_method)+'</div>';
+  }
+  return h;
+}
+
+// ★델타특성(delta_characteristics) 블록 렌더 — 아티팩트 *그대로*(cta_delta 류·재계산 0).
+//   MDD 이중기준(primary=일별MtM — 엔진 note 원문)·crisis alpha(통계유의 부족 원문 포함)·
+//   노출캡. directional=DV01 중립 미적용을 명시(H2 — RV 로 오인 금지).
+function _deltaCharHtml(dc){
+  let h='<div class="cat-title">델타트랙 특성 (delta_characteristics 그대로)</div>';
+  h+='<div class="vbanner v-warn" style="margin:2px 0 6px">'+
+    (dc.directional===true?'<b>DIRECTIONAL — DV01 중립 미적용(방향성 본질)</b>':'')+
+    (dc.vol_target_cap!=null?(' · vol표적 레버캡 <b>'+_ppFx(dc.vol_target_cap)+'x</b>'):'')+
+    ((dc.exposure_caps&&dc.exposure_caps.budget_man!=null)?(' · 예산캡 <b>'+_ppFx(dc.exposure_caps.budget_man)+'만</b>'):'')+
+    ((dc.exposure_caps&&dc.exposure_caps.c8_man!=null)?(' · §C8 <b>'+_ppFx(dc.exposure_caps.c8_man)+'만</b>'):'')+'</div>';
+  const mb=dc.mdd_dual_basis||null;
+  if (mb){
+    h+='<div class="status" style="margin:0 0 6px">MDD 이중기준: 일별MtM(정본) <b class="pn">'+_ppFx(mb.daily_mtm_display_bp)+'bp</b>'+
+      ' · naive sleeve합 <b class="pn">'+_ppFx(mb.naive_sleeve_sum_bp)+'bp</b>'+
+      (mb.note?(' — '+_esc(mb.note)):'')+'</div>';
+  }
+  const ca=dc.crisis_alpha_2022||null;
+  if (ca){
+    h+='<div class="status" style="margin:0 0 10px">crisis alpha 2022: 결합 <b class="pp">'+_ppFx(ca.combined_bp)+'bp</b>'+
+      ' vs buy&hold 30y <b class="pn">'+_ppFx(ca.bh_30y_bp)+'bp</b> · 10y <b class="pn">'+_ppFx(ca.bh_10y_bp)+'bp</b>'+
+      (ca.note?(' — '+_esc(ca.note)):'')+'</div>';
+  }
   return h;
 }
 

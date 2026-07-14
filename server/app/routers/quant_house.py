@@ -562,9 +562,12 @@ def portfolio_strategies():
         _fwd_fp = _PORT_FWD_DIR / f"{nm}_forward.json"
         block = None
         net_bp = None
+        by_year = None
         dsr_val = None
         dsr_verdict = None
         dsr_basis = e.get("dsr_basis")
+        path_pain = None
+        delta_char = None
         if fp.exists():
             try:
                 art = json.loads(fp.read_text(encoding="utf-8"))
@@ -573,6 +576,11 @@ def portfolio_strategies():
                 # 칩 라벨용 — 아티팩트에서 *그대로* 읽음(재계산 0). net_bp=종착 NAV,
                 #   dsr_basis 는 등록부에 없으면 dsr_hac 블록에서 끌어옴(전달자).
                 net_bp = (art.get("stats") or {}).get("total_pnl_bp")
+                by_year = (art.get("stats") or {}).get("by_year")
+                # ★경로고통(path_pain)·델타특성(delta_characteristics) 블록 그대로 통과
+                #   (uni_irs 류=path_pain, cta_delta 류=delta_characteristics — 없으면 None 정직).
+                path_pain = art.get("path_pain")
+                delta_char = art.get("delta_characteristics")
                 if isinstance(block, dict):
                     _dh = block.get("dsr_hac") or {}
                     if dsr_basis is None:
@@ -581,17 +589,23 @@ def portfolio_strategies():
                     #   카드가 PASS/FAIL 을 정직 표기하려면 깊은 dsr_hac.dsr 를 평면화해야 함.
                     _d = _dh.get("dsr") or {}
                     dsr_val = _d.get("dsr")
+                    if dsr_val is None:
+                        # 델타트랙(cta_delta 류) 필드명 방언: dsr_programN(정직N 기준) —
+                        #   값 무변형 평면화(재계산 0). sessionN=1 인플레값은 절대 안 씀(H2).
+                        dsr_val = _d.get("dsr_programN")
                     dsr_verdict = _d.get("verdict")
             except Exception:
                 block = None
         items.append({
             "name": nm,
+            "display": e.get("display"),          # 표시명(있으면 — cta_delta 류)
             "category": e.get("category"),
             "version": e.get("version"),
             "status": e.get("status"),
             "tagline": e.get("tagline"),
             "tier": e.get("tier") or (e.get("tier_eval") or {}).get("tier"),
             "strategy_class": e.get("strategy_class"),
+            "track": e.get("track"),              # 델타트랙 라벨(track=delta) 그대로
             "parent": e.get("parent"),
             "net_bp": net_bp,         # 종착 NAV(bp) — 아티팩트 stats 그대로
             "dsr_basis": dsr_basis,   # 등록부 없으면 아티팩트 dsr_hac 에서(전달)
@@ -607,10 +621,35 @@ def portfolio_strategies():
             #   게이트 권위(tier_eval)를 표기할 수 있게 — 값 재계산·보정 없음.
             "gate_verdict": _te.get("gate_verdict_train"),
             "dsr_registry": _te.get("dsr"),
-            "n_sleeve": _cons.get("n_sleeve"),
+            # ★deployed 정직 라벨 필드(등록부 tier_eval 그대로·변형 0·H2 의무 병기):
+            #   selection_bias_flag/dsr_honest_range = uni_irs_v2 류(DSR 0.95 돌파가
+            #   선택편향값 — 정직값 병기 없이 단독 표시 금지). dsr_verdict_registry/
+            #   delta_claim = cta_delta 류(통계확증 미달·대조군-상대 라벨).
+            "selection_bias_flag": _te.get("selection_bias_flag"),
+            "dsr_honest_range": _te.get("dsr_honest_range"),
+            "dsr_verdict_registry": _te.get("dsr_verdict"),
+            "delta_claim": _te.get("delta_claim"),
+            "deploy_basis": _te.get("deploy_basis"),
+            "statistical_tier": _te.get("statistical_tier"),
+            "sizing": _te.get("sizing"),
+            # n_sleeve: 등록부 필드명 방언(uni28_v2=n_sleeve / uni_irs_v2=n_sleeves) —
+            #   값 무변형 통일 라벨(재계산 0).
+            "n_sleeve": _cons.get("n_sleeve", _cons.get("n_sleeves")),
+            "cap": _cons.get("cap"),              # 동시보유 진입캡(uni_irs_v2=3) 그대로
+            "path_pain_score": e.get("path_pain_score"),   # 등록부 스칼라 그대로
+            "path_pain": path_pain,               # 아티팩트 블록 그대로(cohort 대조 내장)
+            "delta_characteristics": delta_char,  # 델타특성 블록 그대로(crisis alpha 등)
             "adoption_basis": e.get("adoption_basis"),
             "harness_id": e.get("harness_id"),
             "has_forward": _fwd_fp.exists(),   # 일별 forward JSON 존재 여부(사실)
+            # ★스택 카드 성적 라벨용 — 전부 정본 *그대로* 전달(재계산·보정 0·H3):
+            #   MDD 이중기준: mdd_mtm_bp=일별 MtM 정본(등록부 backtest.mdd_daily_mtm_bp·
+            #   uni_irs 류) / mdd_exit_bp=exit집계(과소집계 가능 — v2 교훈). 카드가
+            #   MtM 정본을 주표기·exit집계를 참고 병기하도록 둘 다 전달.
+            "mdd_mtm_bp": (e.get("backtest") or {}).get("mdd_daily_mtm_bp"),
+            "mdd_exit_bp": (e.get("backtest") or {}).get("max_drawdown_bp"),
+            "test_t": _te.get("test_t"),       # OOS t — 등록부 tier_eval 그대로
+            "by_year": by_year,                # 아티팩트 stats.by_year 그대로(연도별 net bp)
         })
     return {
         "count": len(items),
