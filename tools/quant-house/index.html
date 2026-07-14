@@ -2626,6 +2626,14 @@ function switchTab(t){
 
 function _esc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 function _krw(v){ return (v==null||!isFinite(Number(v)))?'–':Number(v).toLocaleString('ko-KR'); }
+// ★델타캡 강제여부 — 엔진 board.caps.caps_enforced *그대로*(하드코딩 0·감사 W14).
+//   false = 캡 OFF(ENFORCE_DELTA_CAPS=False·§3 2026-06-23): 사용자 size 무클램프 통과.
+//   엔진이 재강제(true)하면 이 라벨들은 자동 소멸(데이터 구동 — 프론트 재수정 불요).
+function _capsOff(){ return !!(_OPS_BOARD && _OPS_BOARD.caps && _OPS_BOARD.caps.caps_enforced===false); }
+// §C8 구분 한 줄(혼동 방지 — 감사 W14/W15): 예산캡 2,500만/bp = 실재·유지(budget 제안 산술·
+//   백테스트 예산당수익 평가 기준). OFF 인 것은 *델타캡*(집행층 진입 거부·클램프 한도)뿐.
+const _CAP_DISTINCTION = '구분: §C8 예산캡 2,500만/bp(budget 제안 산술·예산당수익 평가 기준)는 '+
+  '<b>실재·유지</b> — OFF 인 것은 <b>델타캡</b>(집행층 진입 거부·size 클램프)뿐.';
 function _setMsg(m,err){ const el=document.getElementById('opsMsg'); if(!el)return; el.textContent=m||''; el.style.color=err?'var(--red)':''; }
 
 // ── 쓰기 키 UX: 최초 쓰기 시 프롬프트 → localStorage → X-QH-KEY 헤더 ──
@@ -2856,8 +2864,15 @@ function _opsCardHtml(c, i){
         '<div class="szbox"><div class="l">③ 최근성과 보정</div><div class="v">'+_krw(rec.suggest_krw)+'</div>'+
           '<div class="n">'+(rec.verdict?('판정 '+_esc(rec.verdict)+(rec.factor!=null?(' × '+rec.factor):'')+'<br>'):'')+_esc(rec.note||'')+'</div></div>'+
         '</div>'+
-        '<div class="status">상한: per-trade '+_krw(hc.per_trade_krw)+' · 전략 한쪽 합 '+_krw(hc.strategy_oneside_krw)+
-          ' — '+_esc(hc.note||'')+'<br>⚠ '+_esc(sz.advisory_note||'')+'</div>'))+
+        // ★감사 W14 — "상한"이 강제 클램프처럼 읽히면 과대주장: 캡 OFF(caps_enforced=false)면
+        //   "참고 상한(비강제)"로 라벨 + 무클램프 통과 명시. 엔진 note(hc.note·advisory_note)는
+        //   원문 그대로 병기(H3 전달 충실) — 강제 오독은 아래 정정 라인이 차단.
+        '<div class="status">'+(_capsOff()?'참고 상한(비강제·캡 OFF)':'상한')+': per-trade '+_krw(hc.per_trade_krw)+
+          ' · 전략 한쪽 합 '+_krw(hc.strategy_oneside_krw)+
+          ' — '+_esc(hc.note||'')+'<br>⚠ '+_esc(sz.advisory_note||'')+
+          (_capsOff()?('<br><b style="color:var(--red)">⚠ 델타캡 OFF(무한노출 가능·ENFORCE_DELTA_CAPS=False·§3 2026-06-23)</b>'+
+            ' — 사용자 지정 size 는 클램프 없이 그대로 통과(위 상한은 기본 제안 산술용 <b>참조</b>·거부 한도 아님).<br>'+
+            _CAP_DISTINCTION):'')+'</div>'))+
       '<div class="ctrl-row" style="margin-top:8px">'+
         '<span class="status">진입 size (DV01 원/bp, 비우면 기본=budget 잔여):</span>'+
         '<input class="ops-in sm" id="ops_sz_'+i+'" type="number" step="any" value="'+_esc(szSaved)+'" placeholder="'+(bud.suggest_krw!=null?bud.suggest_krw:'')+'">'+
@@ -2905,7 +2920,9 @@ function renderOpsBoard(){
   if (!w || !b) return;
   let h='<div class="status" style="margin-bottom:8px">as_of <b>'+_esc(b.as_of)+'</b> · open <b>'+b.n_open+'</b>건'+
     (b.total_pnl_krw!=null?(' · 북 합계 <b class="'+(b.total_pnl_krw>=0?'pos':'neg')+'">'+_krw(b.total_pnl_krw)+' KRW</b> (마크 기준)'):'')+
-    ' · '+_esc((b.caps||{}).unit||'')+'</div>';
+    ' · '+_esc((b.caps||{}).unit||'')+
+    // ★감사 W14 — 캡 강제여부를 헤더에 명시(엔진 caps_enforced 그대로·데이터 구동)
+    ((b.caps&&b.caps.caps_enforced===false)?' · <b style="color:var(--red)">델타캡 OFF(비강제·§3 2026-06-23 — 아래 사용률 분모는 §C8 참조값)</b>':'')+'</div>';
   // ★보유 포지션은 북 진실 — 표시필터(web_visible)로 *절대 필터하지 않음*(실보유 은폐=기만·H2).
   //   표시필터 외 전략 보유가 있으면 정직 병기만.
   if ((typeof _WEBVIS!=='undefined')&&_WEBVIS&&_WEBVIS.size>0){
@@ -2915,11 +2932,17 @@ function renderOpsBoard(){
   }
   const ut=b.utilization||{};
   if (Object.keys(ut).length){
+    // ★감사 W14 — 분모(cap_krw)는 caps_enforced=false 면 §C8 *참조값*(측정·표기용)이지
+    //   거부 한도가 아님: "참조" 병기 + 범례로 100% 초과 시에도 진입 거부 없음을 명시.
+    let _anyRef=false;
     h+='<div style="margin-bottom:6px">'+Object.entries(ut).map(function(su){
       const s=su[0], u=su[1];
+      const _ref=(u.caps_enforced===false); if(_ref) _anyRef=true;
       return '<span class="utilchip'+(u.utilization>=1?' full':'')+'"><b>'+_esc(s)+'</b> '+
-        _krw(u.oneside_dv01_krw)+' / '+_krw(u.cap_krw)+' ('+Math.round(u.utilization*100)+'%)</span>';
+        _krw(u.oneside_dv01_krw)+' / '+_krw(u.cap_krw)+(_ref?' 참조':'')+' ('+Math.round(u.utilization*100)+'%)</span>';
     }).join('')+'</div>';
+    if (_anyRef) h+='<div class="status" style="margin-bottom:6px">사용률 분모 = §C8 참조 2,500만/bp(측정·표기용) — '+
+      '델타캡 OFF: 100% 초과해도 진입 거부·축소 없음(경고 표기만·무한노출 가능). '+_CAP_DISTINCTION+'</div>';
   }
   (b.warnings||[]).forEach(function(x){ h+='<div class="vbanner v-fail">⚠ '+_esc(x)+'</div>'; });
   if (!(b.positions||[]).length){
@@ -3041,9 +3064,18 @@ function renderOpsSuggest(){
     h+='</tbody></table></div>';
   }
   // 캡 + 엔진 note(§3 정직 명시) 그대로
+  // ★감사 W15 — 캡=inf 는 라우터가 null 로 직렬화 치환(caps_note 정직 라벨 동봉).
+  //   null 을 '–' 대시로 그리면 무한노출이 "값 없음"처럼 흐려짐(H2 위반) →
+  //   caps_note 존재 시 "무제한(캡 OFF)" 명시 + caps_note 원문 렌더. 캡 재강제 시
+  //   caps 유한값·caps_note 부재 → 라벨 자동 소멸(데이터 구동).
   const caps=s.caps||{};
-  h+='<div class="status" style="margin-top:8px">캡(가시화) — per-trade <b>'+_krw(caps.per_trade_krw)+'</b> · '+
-    '전략 한쪽 <b>'+_krw(caps.strategy_oneside_krw)+'</b> 원/bp</div>';
+  const _capTxt=function(v){ return (v==null&&s.caps_note)
+    ? '<b style="color:var(--red)">무제한(캡 OFF)</b>' : ('<b>'+_krw(v)+'</b>'); };
+  h+='<div class="status" style="margin-top:8px">캡(가시화) — per-trade '+_capTxt(caps.per_trade_krw)+' · '+
+    '전략 한쪽 '+_capTxt(caps.strategy_oneside_krw)+' 원/bp</div>';
+  if (s.caps_note) h+='<div class="vbanner v-warn" style="margin-top:6px">⚠ <b>델타캡 OFF'+
+    '(무한노출·ENFORCE_DELTA_CAPS=False·§3 2026-06-23)</b> — 사이징은 사용자 결정·시스템 클램프 없음.'+
+    '<br>라우터 직렬화 라벨: '+_esc(s.caps_note)+'<br>'+_CAP_DISTINCTION+'</div>';
   if (s.note) h+='<div class="status" style="margin-top:4px;color:var(--blue)">'+_esc(s.note)+'</div>';
   h+='</div>';
   w.innerHTML=h;
