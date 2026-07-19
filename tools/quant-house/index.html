@@ -267,6 +267,10 @@
     </div>
   </div>
 
+  <!-- ★거버넌스 헤드라인(제3자 감사 2026-07-17 권고) — 게이트 승인율·전략별 판정·비용모델
+       검증상태·체결기준. 전부 /quant-house/governance(등록부 governance) 값 그대로. -->
+  <div id="govBanner"></div>
+
   <!-- ★표시 필터 정직 라벨(운용 포커스 큐레이션 — 등록부 web_visible 그대로·숨김 수는 API hidden) -->
   <div id="curationNote"></div>
 
@@ -491,6 +495,66 @@ async function load() {
 
   // ★MTE State 지도 — /quant-house/mte-state (snapshot 그대로·재계산 0). 실패해도 목록 정상.
   gLoadMtePanel();
+
+  // ★거버넌스 헤드라인 — /quant-house/governance. 1차로 목록 응답 governance 를 즉시 렌더하고
+  //   (왕복 대기 없이 헤드라인이 먼저 뜨게), 이어 체결기준까지 포함해 갱신. 실패해도 목록 정상.
+  if (data.governance) renderGovBanner({governance:data.governance, reconcile:null});
+  gLoadGovernance();
+}
+
+// ★게이트 승인율 정면화(제3자 감사 2026-07-17 흐린눈 #2) —
+//   "배포 3전략 전부 게이트 자동판정 미통과 → 사용자 §3 override" 라는 메타사실을
+//   각주가 아닌 *최상단 1급 헤드라인*으로. 전부 등록부 governance 값 그대로(하드코딩 0·H1/H2).
+async function gLoadGovernance(){
+  let g=null;
+  try{ g=await apiGet('/quant-house/governance'); }catch(e){ g=null; }
+  if (g) renderGovBanner(g);
+}
+
+function _gvCls(v){
+  const s=String(v||'').toUpperCase();
+  return (s==='PASS')?'x-ok':(s==='FAIL')?'xs-SL':'x-warn';
+}
+
+// 체결기준 칩 — reconcile_board.fill_basis 원문 그대로(없으면 빈 문자열·가짜 라벨 금지).
+//   "+10 TP 정확체결"이 실현 체결처럼 읽히지 않게 forward/원장 패널에 병기(H2).
+var _GOV_FILL=null;
+function _fillBasisChip(){
+  if (!_GOV_FILL || !_GOV_FILL.fill_basis) return '';
+  return '<span class="xstate x-warn" style="margin-left:4px">체결기준 '+_esc(_GOV_FILL.fill_basis)+'</span>';
+}
+
+function renderGovBanner(g){
+  const el=document.getElementById('govBanner'); if(!el) return;
+  if (g && g.reconcile) _GOV_FILL=g.reconcile;
+  const gov=(g&&g.governance)||null;
+  if (!gov){ el.innerHTML=''; return; }   // 등록부 미기재 — 가짜 배너 금지(정직)
+  const rec=(g&&g.reconcile)||null;
+  const verdicts=gov.deployed_gate_verdicts||{};
+  // 전략별 판정 칩 — 등록부 deployed_gate_verdicts 그대로(순서·값 무변형)
+  const chips=Object.keys(verdicts).map(function(n){
+    return '<span class="xstate '+_gvCls(verdicts[n])+'" style="margin-right:5px;font-size:11px">'+
+      _esc(n)+' <b>'+_esc(verdicts[n])+'</b></span>';
+  }).join('');
+  let h='<div class="vbanner v-fail" style="margin:0 0 10px;padding:10px 12px">'+
+    '<div style="font-size:14px;font-weight:700;letter-spacing:.2px">⚖ 게이트 승인율 '+
+      _esc(gov.gate_approval_rate||'미기재')+'</div>'+
+    '<div style="margin:6px 0 4px">'+(chips||'<span class="status">전략별 판정 미기재</span>')+'</div>';
+  if (gov.cost_model_verification)
+    h+='<div style="margin:3px 0"><span class="xstate x-warn" style="font-size:11px">비용모델 '+
+       _esc(gov.cost_model_verification)+'</span></div>';
+  if (rec&&rec.fill_basis)
+    h+='<div style="margin:3px 0"><span class="xstate x-warn" style="font-size:11px">체결기준 '+
+       _esc(rec.fill_basis)+'</span>'+
+       (rec.realized_track?('<span class="status" style="margin-left:6px">'+_esc(rec.realized_track)+'</span>'):'')+'</div>';
+  if (gov.interpretation)
+    h+='<div class="status" style="margin-top:5px;line-height:1.5">'+_esc(gov.interpretation)+'</div>';
+  h+='<div class="status" style="margin-top:4px">출처: registry.json <code>governance</code>'+
+     (gov.at?(' · '+_esc(gov.at)):'')+
+     (rec&&rec.built_at?(' · reconcile '+_esc(rec.built_at)):'')+
+     ' — 성과·사이징·알파 무변경(표기 전용)</div>'+
+    '</div>';
+  el.innerHTML=h;
 }
 
 // ★운용 포커스 통합 로더 — 표시 전략(일반+포폴)의 상태·오늘 시그널을 상단에 요약.
@@ -717,7 +781,16 @@ function gRenderPortfolioClassBar(r){
     // (b) ★정직 라벨(의무) — 등록부 tier_eval/아티팩트 필드 그대로
     const honesty=[];
     if (p.dsr_registry!=null){
-      if (p.selection_bias_flag===true){
+      if (p.dsr_selection_bias_inflated!=null){
+        // ★2026-07-17 감사 수선: 등록부가 정직값을 primary 슬롯(tier_eval.dsr)으로 옮김.
+        //   → 주 표시 = 정직 DSR, 팽창값(0.9527)은 '선택편향 팽창값'으로 격리 부기(주 숫자 금지).
+        // DSR 은 *원값 문자열 그대로*(반올림 금지 — 0.9527→0.953 은 정본 훼손)
+        honesty.push('DSR <b>'+_esc(String(p.dsr_registry))+'</b> <span class="status">(정직·primary)</span>'+
+          (p.gate_verdict_honest?(' — 게이트 <b>'+_esc(p.gate_verdict_honest)+'</b>'):'')+
+          '<br><span class="status">참고: '+_esc(String(p.dsr_selection_bias_inflated))+
+          ' = <b>선택편향 팽창값</b>(배포바 0.95 기계적 돌파 — 진짜 통과 아님·주 지표 아님)'+
+          (p.dsr_honest_range?(' · 정직 range '+_esc(p.dsr_honest_range)):'')+'</span>');
+      } else if (p.selection_bias_flag===true){
         honesty.push('DSR <b>'+_fx(p.dsr_registry)+'</b> = <b>선택편향값</b>(배포바 0.95 기계적 돌파 — 진짜 통과 아님)'+
           (p.dsr_honest_range?(' · 정직 <b>'+_esc(p.dsr_honest_range)+'</b>'):''));
       } else {
@@ -731,6 +804,23 @@ function gRenderPortfolioClassBar(r){
       honesty.push('crisis alpha 2022 <b class="pp">'+_fx(ca.combined_bp,1)+'bp</b> vs buy&hold 30y <b class="pn">'+_fx(ca.bh_30y_bp)+'</b>'+
         (ca.note?(' <span class="status">— '+_esc(ca.note)+'</span>'):''));
     }
+    // ★비용 취약(등록부 cost_vulnerability 원문 그대로 — 손익분기·미검증 명시)
+    const _cv=p.cost_vulnerability||null;
+    if (_cv){
+      honesty.push('비용 취약 <b>'+_esc(_cv.type||'?')+'</b> — 가정 왕복 <b>'+
+        (_cv.assumed_roundtrip_bp!=null?_fx(_cv.assumed_roundtrip_bp)+'bp':'?')+'</b>'+
+        (_cv.breakeven_roundtrip_bp!=null?(' · 손익분기 <b>'+_fx(_cv.breakeven_roundtrip_bp)+'bp</b>'):'')+
+        (_cv.unverified_breakeven_estimate_bp!=null?(' · 추정 손익분기 <b>'+_fx(_cv.unverified_breakeven_estimate_bp)+'bp</b>(미검증)'):'')+
+        (_cv.net_ev_bp_per_trade!=null?(' · 순EV '+_fx(_cv.net_ev_bp_per_trade,1)+'bp/거래'):'')+
+        (_cv.verification?(' <span class="xstate x-warn">'+_esc(_cv.verification)+'</span>'):''));
+    }
+    // ★알려진 문제(등록부 known_problems 원문 그대로 — 요약·미화 0. 카드는 sev 표기 + 앞부분)
+    const _kp=Array.isArray(p.known_problems)?p.known_problems:[];
+    _kp.forEach(function(k){
+      const dt=String(k.detail||'');
+      honesty.push('<span class="xstate '+(k.sev==='warn'?'x-warn':'xs-none')+'">'+_esc(k.sev||'info')+'</span> <b>'+
+        _esc(k.id||'')+'</b> — '+_esc(dt.length>180?(dt.slice(0,180)+'…'):dt));
+    });
     honesty.push('배포 근거 = <b>사용자 §3 override</b>'+(p.deploy_basis?(' <span class="status">('+_esc(p.deploy_basis)+')</span>'):'')+' — 통계 배포바 통과 아님');
     // (c) 채택근거 원문 — 카드는 앞부분만(전문 = 상세·값 아닌 표현 절삭)
     const _ab=(typeof p.adoption_basis==='string')?p.adoption_basis:'';
@@ -742,6 +832,8 @@ function gRenderPortfolioClassBar(r){
         '<b>'+_esc(p.display||p.name)+'</b>'+
         (p.display?(' <span class="status" style="font-size:10px">'+_esc(p.name)+'</span>'):'')+
         ' <span class="xstate x-ok" style="margin-left:6px">DEPLOYED</span>'+
+        // ★게이트 판정 뱃지 — 등록부 top-level gate_verdict 그대로. 성과와 동등 위계로 상단에.
+        (p.gate_verdict?('<span class="xstate '+_gvCls(p.gate_verdict)+'" style="margin-left:4px">게이트 <b>'+_esc(p.gate_verdict)+'</b></span>'):'')+
         '<span class="xstate x-warn" style="margin-left:4px">§3 override</span>'+
         (p.track?('<span class="xstate" style="margin-left:4px;background:rgba(96,165,250,.16);color:#60a5fa;border:.5px solid rgba(96,165,250,.42)">track='+_esc(p.track)+'</span>'):'')+
       '</div>'+
@@ -764,10 +856,14 @@ function gRenderPortfolioClassBar(r){
   // ★스택형 카드 — 게이트 권위=등록부 tier_eval(dsr_registry·gate_verdict) 그대로 표기.
   //   ★status=proposed 배지 필수: 페이퍼 트래킹(라이브 운용 아님·사이징 0·자동매매 0)·H2.
   function _stackCard(p){
+    // ★게이트 칩 — 1급 최종판정(등록부 top-level gate_verdict) 우선. 없으면 TRAIN 기계판정을
+    //   *그렇게 라벨해서* 표기(PASS 를 최종 승인처럼 보이게 하지 않음·2026-07-17 감사).
     const gv=p.gate_verdict||null;
+    const gvT=p.gate_verdict_train||null;
     const gvChip = gv
-      ? '<span class="xstate '+(gv==='PASS'?'x-ok':'x-warn')+'" style="margin-left:6px">게이트 '+_esc(gv)+'</span>'
-      : '';
+      ? '<span class="xstate '+_gvCls(gv)+'" style="margin-left:6px">게이트 <b>'+_esc(gv)+'</b></span>'
+      : (gvT ? '<span class="xstate x-warn" style="margin-left:6px">게이트(TRAIN 기계판정) '+_esc(gvT)+
+               ' <span style="opacity:.8">— 최종 승인 아님</span></span>' : '');
     // ★성적 요약 — 전부 API 값 그대로(등록부 backtest·아티팩트 portfolio 블록·재계산 0·H1).
     //   MDD 이중기준: mdd_mtm_bp(일별 MtM·정본) 있으면 주표기 + exit집계 참고 병기.
     //   없으면 exit집계뿐인 사실을 라벨로 정직 표기(과소집계 가능 — v2 교훈·H2).
@@ -1012,6 +1108,14 @@ function renderList(all){
       const exraw = (it.execution||{}).exit || '';
       const exm = exraw.match(/^\[([^\]]+)\]/);
       const extag = exm ? exm[1] : (exraw ? '이벤트고정' : '');
+      // ★게이트 판정 뱃지(등록부 top-level gate_verdict 그대로) — 성과 숫자와 *나란히*.
+      //   감사 권고: 판정이 성과 뒤에 숨지 않게 같은 행 1급 표시(값 하드코딩 0).
+      const _gv = it.gate_verdict || null;
+      const _gvHtml = _gv ? ('<span class="xstate '+_gvCls(_gv)+'" style="margin-right:6px" '+
+        'title="게이트 자동판정(등록부 gate_verdict) — 배포는 사용자 §3 override">게이트 <b>'+_esc(_gv)+'</b></span>') : '';
+      const _cvHtml = (it.cost_vulnerability && it.cost_vulnerability.verification)
+        ? ('<span class="xstate x-warn" style="margin-right:6px" title="'+
+           _esc(it.cost_vulnerability.type||'')+'">비용 '+_esc(it.cost_vulnerability.verification)+'</span>') : '';
       const row = document.createElement('div'); row.className='crow'; row.dataset.name=it.name;
       row.onclick = ()=>openStrat(it.name);
       row.innerHTML =
@@ -1020,6 +1124,7 @@ function renderList(all){
         '<span class="cat">'+(it.category||'')+'</span>'+
         '<span class="sdot '+ab+'" title="'+ab+'"></span><span class="stat status">'+ab+'</span>'+
         '<span class="spacer"></span>'+
+        _gvHtml+ _cvHtml+
         (extag?('<span class="szlbl" title="청산: '+exraw.replace(/"/g,'')+'">⎋ '+extag+'</span>'):'')+
         (sizing?('<span class="szlbl">'+sizing+'</span>'):'')+
         '<span class="num"><span class="k">'+c1lbl+'</span><br><span class="v '+((c1val||0)>=0?'pos':'neg')+'">'+_fmt(c1val)+'</span></span>'+
@@ -1082,8 +1187,15 @@ async function showDetail(name) {
   // ★DSR 칩 정직화: selection_bias_flag(uni_irs_v2 류)면 0.95 돌파값이라도 '선택편향값 +
   //   정직 range' 병기 의무(등록부 caveat: 단독 위장 금지). delta_claim(cta_delta 류)은
   //   대조군-상대 라벨이지 절대바 통과 아님을 칩으로 명시. 전부 tier_eval API 필드(하드코딩 0).
+  // ★2026-07-17 감사 수선: dsr_selection_bias_inflated 가 있으면 tier_eval.dsr 가 *정직 primary*
+  //   (uni_irs_v2 0.84) — 팽창값(0.9527)은 격리 부기. 이전 로직은 정직값을 '선택편향값'으로
+  //   오라벨했음(등록부 필드 이동 반영·값 하드코딩 0).
   const _dsrChipTxt = (_teDsr==null) ? '' :
-    (te.selection_bias_flag===true
+    (te.dsr_selection_bias_inflated!=null
+      ? ('DSR <b>'+_teDsr+'</b> (정직·primary)'+
+         (te.gate_verdict_honest?(' — 게이트 <b>'+_esc(te.gate_verdict_honest)+'</b>'):'')+
+         ' <span style="opacity:.85">· 참고 '+_esc(String(te.dsr_selection_bias_inflated))+'=선택편향 팽창값(주 지표 아님)</span>')
+      : te.selection_bias_flag===true
       ? ('DSR <b>'+_teDsr+'</b> ★선택편향값(진짜 통과 아님)'+(te.dsr_honest_range?(' — 정직 <b>'+_esc(te.dsr_honest_range)+'</b>'):''))
       : ('DSR <b>'+_teDsr+'</b>'+(te.dsr_verdict?(' — '+_esc(te.dsr_verdict)):(_dsrWarn?' &lt;0.95 미달':''))));
   const _condChips = te.caveat ? (
@@ -1100,6 +1212,8 @@ async function showDetail(name) {
       (te.override?('<br><span class="status">독립검증: '+te.override+'</span>'):'')+
       (te.status_grade_gap?('<br>⚠ '+te.status_grade_gap):'')+
       _condChips+
+      // ★DSR primary 슬롯의 근거 원문(등록부 dsr_primary_basis) — 어떤 값이 주 지표인지 명시
+      (te.dsr_primary_basis?('<br><span class="status">DSR primary 근거: '+_esc(te.dsr_primary_basis)+'</span>'):'')+
       (te.caveat?('<br><span class="status">⚠ 유의: '+te.caveat+'</span>'):'')+
     '</div>') : '';
   // ── 손익비역전(R:R<1) 캐비엇 배너 (rr_caveat 보유 전략을 검증된 알파처럼 보이지 않게: H2) ──
@@ -1149,12 +1263,37 @@ async function showDetail(name) {
       (s.web_visible===false?' · <span class="status">web_visible=false(웹 큐레이션 제외)</span>':'')+
       '</div>') : '')
   ) : '';
+  // ── ★게이트 판정 · 알려진 문제 · 비용 취약 (2026-07-17 제3자 감사 정면화) ──
+  //   등록부 top-level gate_verdict / known_problems / cost_vulnerability *원문 그대로*.
+  //   해당 필드가 없는 전략엔 미발동(영향 0). 요약·미화 0 — detail 전문 표기.
+  const _gvD = s.gate_verdict || null;
+  const _kpD = Array.isArray(s.known_problems) ? s.known_problems : [];
+  const _cvD = s.cost_vulnerability || null;
+  const gateBanner = (_gvD || _kpD.length || _cvD) ? (
+    '<div class="vbanner v-'+({PASS:'ok',WARN:'warn'}[String(_gvD).toUpperCase()]||'fail')+'" style="margin-bottom:10px">'+
+      (_gvD?('<b>게이트 자동판정 '+_esc(_gvD)+'</b>'+
+        (s.status==='deployed'?' <span class="xstate x-warn">배포 = 사용자 §3 override(게이트 통과 아님)</span>':'')):
+        '<b>알려진 문제 / 비용 취약</b>')+
+      (_cvD?('<div style="margin-top:6px">비용 취약 <b>'+_esc(_cvD.type||'?')+'</b>'+
+        (_cvD.assumed_roundtrip_bp!=null?(' — 가정 왕복 <b>'+_cvD.assumed_roundtrip_bp+'bp</b>'):'')+
+        (_cvD.net_ev_bp_per_trade!=null?(' · 순EV <b>'+_cvD.net_ev_bp_per_trade+'bp/거래</b>'):'')+
+        (_cvD.breakeven_roundtrip_bp!=null?(' · 손익분기 <b>'+_cvD.breakeven_roundtrip_bp+'bp</b>(초과 시 음전)'):'')+
+        (_cvD.unverified_breakeven_estimate_bp!=null?(' · 추정 손익분기 <b>'+_cvD.unverified_breakeven_estimate_bp+'bp</b>(미검증 갭)'):'')+
+        (_cvD.verification?(' <span class="xstate x-warn">'+_esc(_cvD.verification)+'</span>'):'')+
+        (_cvD.override_ref?('<br><span class="status">override: '+_esc(_cvD.override_ref)+'</span>'):'')+
+        (_cvD.ref?('<br><span class="status">ref: '+_esc(_cvD.ref)+'</span>'):'')+
+      '</div>'):'')+
+      (_kpD.length?('<div style="margin-top:6px">'+_kpD.map(function(k){
+        return '<div style="margin:3px 0"><span class="xstate '+(k.sev==='warn'?'x-warn':'xs-none')+'">'+
+          _esc(k.sev||'info')+'</span> <b>'+_esc(k.id||'')+'</b> — <span class="status">'+_esc(k.detail||'')+'</span></div>';
+      }).join('')+'</div>'):'')+
+    '</div>') : '';
   d.innerHTML =
     '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">'+
     '<div class="tier-detail-head">'+tierHead+
       '<div style="font-size:14px;font-weight:600">'+s.name+' <span class="status">@'+s.version+' · '+s.category+'</span></div></div>'+
     '<button class="btn" onclick="_destroyCharts();document.getElementById(\'detail\').classList.remove(\'show\')">닫기</button></div>'+
-    banner+ portBanner+ tierPanel+ adoptBanner+
+    banner+ gateBanner+ portBanner+ tierPanel+ adoptBanner+
     (s.tagline?('<div style="font-size:13px;color:var(--t2);margin:-2px 0 10px">'+s.tagline+'</div>'):'')+
     '<table class="find-tbl" style="margin-bottom:10px"><tbody>'+
       '<tr><td style="width:90px">컨셉</td><td>'+(s.concept||'—')+'</td></tr>'+
@@ -1326,6 +1465,10 @@ async function showDetail(name) {
           (_myStale ? ('<div class="vbanner v-fail" style="margin-bottom:8px">이 신호는 <b>'+
             (_myStale.as_of||j.panel_max||'')+'</b> 기준(묵음 '+(_myStale.lag_days!=null?_myStale.lag_days+'일':'')+
             ') — 신뢰 금지, cli.py forward 재실행 필요</div>') : '')+
+          // ★체결기준 정직 라벨(reconcile_board.fill_basis 원문) — 청산신호가 실현 체결로
+          //   읽히지 않게 신호 헤더에 병기(값 없으면 미표시·2026-07-17 감사 #5).
+          (_fillBasisChip()?('<div style="margin-bottom:6px">'+_fillBasisChip()+
+            (_GOV_FILL&&_GOV_FILL.realized_track?('<span class="status" style="margin-left:6px">'+_esc(_GOV_FILL.realized_track)+'</span>'):'')+'</div>'):'')+
           '<div class="status" style="margin-bottom:6px">기준일 <b>'+(j.panel_max||fwd.as_of||'')+'</b>'+_staleBadge+
           (j.active_count!=null?(' · 보유중 '+j.active_count):'')+
           ' · 신규 진입 <b>'+ne.length+'</b>건</div>';
@@ -1481,7 +1624,8 @@ async function renderPortForward(fs, name){
     let dh='';
     // (0) disclaimer + 엔진 honesty 블록 원문 — DSR 통계확증 미달 병기 의무(H2)
     dh+='<div class="vbanner v-warn" style="margin-bottom:8px">🧪 '+_esc(r.disclaimer||'페이퍼 목표포지션 트래킹 — 자동매매 아님')+
-      (r.signal_tracking===true?' · signal_tracking=true':'')+(r.auto_execution===false?' · auto_execution=false':'')+'</div>';
+      (r.signal_tracking===true?' · signal_tracking=true':'')+(r.auto_execution===false?' · auto_execution=false':'')+
+      _fillBasisChip()+'</div>';
     if (r.honesty){
       dh+='<div class="vbanner v-fail" style="margin-bottom:8px">★정직(엔진 honesty 원문): DSR@정직N <b>'+_fmt(r.honesty.dsr_programN)+'</b>'+
         (r.honesty.dsr_bar!=null?(' (배포바 '+_fmt(r.honesty.dsr_bar)+')'):'')+
@@ -1524,8 +1668,10 @@ async function renderPortForward(fs, name){
   // (0) 페이퍼 disclaimer — 엔진 원문 그대로(필수·기만 금지). deployed 는 forward_role 병기.
   h+='<div class="vbanner v-warn" style="margin-bottom:8px">🧪 '+_esc(r.disclaimer||'proposed — 페이퍼 트래킹(라이브 운용 아님·자동매매 0)')+
     (r.paper_tracking===true?' · paper_tracking=true':'')+(r.live_capital===false?' · live_capital=false':'')+
+    _fillBasisChip()+
     ((r.deployment&&r.deployment.forward_role)?('<br><span class="status">'+_esc(r.deployment.forward_role)+'</span>'):'')+
-    (sz.note?('<br><span class="status">사이징: '+_esc(sz.note)+'</span>'):'')+'</div>';
+    (sz.note?('<br><span class="status">사이징: '+_esc(sz.note)+'</span>'):'')+
+    (_GOV_FILL&&_GOV_FILL.realized_track?('<br><span class="status">'+_esc(_GOV_FILL.realized_track)+'</span>'):'')+'</div>';
   // (1) 기준일·PIT·패널 신선도 — 값 그대로
   // 패널 신선도 — *_max 키 전부 그대로 나열(하드코딩 3키 금지 — uni_irs 의
   //   irs_asw_panel_max·irs_rates_max 병기 의무 포함) + 엔진 panels.note 원문.

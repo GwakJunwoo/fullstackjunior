@@ -29,6 +29,55 @@ def _load_registry() -> dict:
     return json.loads(REGISTRY.read_text(encoding="utf-8"))
 
 
+# ★거버넌스 정직 블록(2026-07-17 제3자 감사 흐린눈 #2 수선) — registry top-level
+#   governance + reconcile 보드 fill_basis 를 *변형 없이* 통과(전달자·H3).
+#   게이트 승인율 0/3·100% §3-override 는 웹 헤드라인 1급 표시 대상(감사 권고).
+RECONCILE_BOARD = QH_ROOT / "05_registry" / "reconcile" / "reconcile_board.json"
+
+
+def _governance_block(reg: dict | None = None) -> dict:
+    """registry.governance(정본) + reconcile_board 체결기준을 그대로 묶어 전달.
+
+    계산·보정·요약 0 — 값이 없으면 None 을 정직하게 반환(가짜 PASS 금지).
+    """
+    reg = reg if reg is not None else _load_registry()
+    gov = reg.get("governance")
+    fill = None
+    if RECONCILE_BOARD.exists():
+        try:
+            rb = json.loads(RECONCILE_BOARD.read_text(encoding="utf-8"))
+            fill = {
+                "fill_basis": rb.get("fill_basis"),
+                "fill_basis_note": rb.get("fill_basis_note"),
+                "realized_track": rb.get("realized_track"),
+                "built_at": rb.get("built_at"),
+            }
+        except Exception:
+            fill = None
+    return {
+        "governance": gov,              # registry top-level 그대로(없으면 None)
+        "reconcile": fill,              # 보드 체결기준 그대로(없으면 None)
+        "available": gov is not None,
+        "note": ("registry.json top-level governance + reconcile_board.json 원문 전달"
+                 "(재계산·요약 0). governance=None 이면 등록부 미기재(정직)."),
+    }
+
+
+def _load_registry_governance():
+    """registry top-level governance 그대로(없으면 None)."""
+    return _load_registry().get("governance")
+
+
+@router.get("/governance")
+def governance():
+    """★배포 거버넌스 헤드라인 — 게이트 승인율·전략별 판정·비용모델 검증상태·체결기준.
+
+    제3자 감사(2026-07-17) 권고: "게이트 승인율 0/3·100% §3-override 라는 메타사실이
+    서사에 가려지지 않게 1급 지표로 정면화". 웹 최상단 배너의 데이터 소스.
+    """
+    return _governance_block()
+
+
 def _lineage(strategies: dict, name: str) -> list[str]:
     chain, cur, seen = [], name, set()
     while cur and cur in strategies and cur not in seen:
@@ -79,7 +128,10 @@ def list_strategies():
         "hidden": len(general_all) - len(visible),
         "updated": reg.get("updated"),
     }
-    return {"summary": summary, "by_category": by_cat}
+    # ★거버넌스(게이트 승인율 0/3·§3-override·비용모델 미검증)를 목록 응답에 동봉 —
+    #   웹 헤드라인 배너가 별도 왕복 없이 1급 표시하도록. 값 무변형(H3).
+    return {"summary": summary, "by_category": by_cat,
+            "governance": reg.get("governance")}
 
 
 @router.get("/strategy/{name}")
@@ -630,7 +682,18 @@ def portfolio_strategies():
             "portfolio": block,   # 5블록 그대로(없으면 None — 정직)
             # ★스택형 정직 라벨(등록부 그대로·변형 0). 아티팩트 DSR 없을 때 카드가
             #   게이트 권위(tier_eval)를 표기할 수 있게 — 값 재계산·보정 없음.
-            "gate_verdict": _te.get("gate_verdict_train"),
+            # ★2026-07-17 감사 수선: gate_verdict = 등록부 *top-level 1급 최종판정*
+            #   (of FAIL·uni_irs_v2 WARN·cta_delta FAIL). 이전엔 tier_eval.gate_verdict_train
+            #   (기계 TRAIN 판정 — uni_irs_v2=PASS)을 gate_verdict 로 내보내 웹이 'PASS'로
+            #   비추는 분기가 있었음. 이제 둘을 *분리 전달*(변형 0·오독 차단).
+            "gate_verdict": e.get("gate_verdict"),
+            "gate_verdict_train": _te.get("gate_verdict_train"),
+            "gate_verdict_honest": _te.get("gate_verdict_honest"),
+            # ★정직 정면화 필드 원문 그대로(요약·가공 0)
+            "known_problems": e.get("known_problems"),
+            "cost_vulnerability": e.get("cost_vulnerability"),
+            "dsr_selection_bias_inflated": _te.get("dsr_selection_bias_inflated"),
+            "dsr_primary_basis": _te.get("dsr_primary_basis"),
             "dsr_registry": _te.get("dsr"),
             # ★deployed 정직 라벨 필드(등록부 tier_eval 그대로·변형 0·H2 의무 병기):
             #   selection_bias_flag/dsr_honest_range = uni_irs_v2 류(DSR 0.95 돌파가
@@ -666,6 +729,8 @@ def portfolio_strategies():
         "count": len(items),
         "hidden": n_hidden,   # web_visible=false 큐레이션 제외 수(정직 보고)
         "strategies": items,
+        # ★거버넌스 동봉(게이트 승인율 0/3·비용모델 미검증) — 값 무변형
+        "governance": _load_registry_governance(),
         "note": ("strategy_class=='portfolio' 전략만. 0건이면 채택 포폴전략 없음(정직). "
                  "★dsr_basis(segment_net vs daily_nav_hac) 라벨 — 포폴 DSR 은 일반전략 "
                  "DSR 과 단위가 달라 직접 비교 불가(N6). mtm_identity.ok 는 채택 하드블록. "
