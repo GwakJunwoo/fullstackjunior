@@ -799,6 +799,15 @@ function gRenderPortfolioClassBar(r){
       }
     }
     if (p.delta_claim) honesty.push('delta_claim=<b>'+_esc(p.delta_claim)+'</b> <span class="status">(대조군-상대 라벨 — DSR 절대바 통과 아님)</span>');
+    // ★체결타이밍 강건성(lag_retention) — 라우터 전달 그대로(재계산 0·H1). 부재 시 미발동(H2).
+    //   lag2 PASS = "타이밍 함정 아님" 확인이지 엣지 검증(DSR/통계바 통과) 아님 — 게이트 자동판정 여전히 FAIL.
+    const _lr=p.lag_retention||null;
+    if (_lr){
+      const _al=_lr.aligned||{}; const _shr=(_al.sharpe_retention!=null?_al.sharpe_retention:null);
+      honesty.push('체결타이밍 강건성(lag2) '+(_lr.pass?'<b class="pp">PASS</b>':'<b class="pn">FAIL</b>')+
+        (_shr!=null?(' · Sharpe 유지율 <b>'+_fx(_shr)+'</b>'):'')+
+        ' <span class="status">(신호종가↔t+1종가 진입 동일 성적 — 느린 추세라 하루 지연에 강건. <b>타이밍 함정 아님</b> 확인이지 DSR/통계바 통과와 무관 — 게이트 자동판정은 여전히 FAIL)</span>');
+    }
     if (dch&&dch.crisis_alpha_2022){
       const ca=dch.crisis_alpha_2022;
       honesty.push('crisis alpha 2022 <b class="pp">'+_fx(ca.combined_bp,1)+'bp</b> vs buy&hold 30y <b class="pn">'+_fx(ca.bh_30y_bp)+'</b>'+
@@ -2220,6 +2229,24 @@ function _deltaGateHtml(ge){
       ' · sizing-add '+_pf(dg.D3_attribution.sizing_add_pass)+
       (dg.D3_attribution.D3_sizing_add_t_hac!=null?(' t_hac '+_ppFx(dg.D3_attribution.D3_sizing_add_t_hac)):'')+'</td></tr>'):'')+
     '</tbody></table>';
+  // ★체결타이밍 강건성(lag_retention) — 아티팩트 gate_evidence.delta_gate.lag_retention *그대로*(재계산 0·H1).
+  //   lag1(배포·신호종가 진입) ↔ lag2(t+1 종가 진입) 재산출 유지율. 필드 부재 시 미발동(가짜 0·H2).
+  //   ★정직 라벨: lag2 PASS = "타이밍 함정 아님" 확인이지 엣지 검증(DSR/통계바 통과) 아님 — 혼동 차단.
+  const lr=dg.lag_retention||null;
+  if (lr){
+    const al=lr.aligned||{}; const fs=lr.full_support||{};
+    const _dep=(lr.lag_deploy!=null?lr.lag_deploy:1); const _str=(lr.lag_stress!=null?lr.lag_stress:2);
+    h+='<div class="vbanner '+(lr.pass?'v-ok':'v-fail')+'" style="margin:2px 0 6px">'+
+      '체결타이밍 강건성(lag'+_esc(_str)+'): '+(lr.pass?'<b class="pp">PASS</b>':'<b class="pn">FAIL</b>')+
+      (al.sharpe_retention!=null?(' · Sharpe 유지율 <b>'+_ppFx(al.sharpe_retention)+'</b>(정렬 공통지지)'):'')+
+      (fs.sharpe_retention!=null?(' / <b>'+_ppFx(fs.sharpe_retention)+'</b>(전지지)'):'')+
+      (al.net_retention!=null?(' · net 유지율 <b>'+_ppFx(al.net_retention)+'</b>'):'')+
+      '<br><span class="status">신호종가 진입(lag'+_esc(_dep)+'·배포) ↔ t+1 종가 진입(lag'+_esc(_str)+'·스트레스) 재산출 = 동일 성적. 느린 추세(EWMA vol 역가중 앙상블)라 체결 하루 지연에 강건.</span>'+
+      (al.lag1&&al.lag2?('<br><span class="status">정렬 net: lag'+_esc(_dep)+' TRAIN '+_ppFx(al.lag1.net_train_bp)+' / TEST '+_ppFx(al.lag1.net_test_bp)+'bp · lag'+_esc(_str)+' TRAIN '+_ppFx(al.lag2.net_train_bp)+' / TEST '+_ppFx(al.lag2.net_test_bp)+'bp (양 lag 양수)</span>'):'')+
+      '<br><span class="status"><b>⚠ 맥락(정직):</b> lag2 PASS = <b>"타이밍 함정 아님"</b> 확인이지 <b>엣지 검증(DSR·통계바 통과) 아님</b>. 빠른 모멘텀이면 1일 지연에 붕괴하는 관문을 통과했을 뿐 — 게이트 자동판정은 여전히 <b class="pn">FAIL</b>(§3 override 배포). 두 층위 혼동 금지.</span>'+
+      (lr.measured_at?('<br><span class="status">측정 '+_esc(lr.measured_at)+(lr.db_recency_note?' · 기록 D1/D2/D3 는 PIT 2026-07-14 보존(현 DB 기준 미세 드리프트 — lag2 결론 불변)':'')+'</span>'):'')+
+      '</div>';
+  }
   const ab=ge.dsr_absolute_bar||null;
   if (ab){
     h+='<div class="vbanner v-fail" style="margin:2px 0 6px">DSR 절대바: DSR@정직N <b>'+_ppFx(ab.dsr_programN)+'</b>'+

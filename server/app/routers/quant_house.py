@@ -631,6 +631,7 @@ def portfolio_strategies():
         dsr_basis = e.get("dsr_basis")
         path_pain = None
         delta_char = None
+        lag_retention = None
         if fp.exists():
             try:
                 art = json.loads(fp.read_text(encoding="utf-8"))
@@ -644,6 +645,12 @@ def portfolio_strategies():
                 #   (uni_irs 류=path_pain, cta_delta 류=delta_characteristics — 없으면 None 정직).
                 path_pain = art.get("path_pain")
                 delta_char = art.get("delta_characteristics")
+                # ★체결타이밍 강건성(lag_retention) — 아티팩트 gate_evidence.delta_gate 그대로
+                #   통과(재계산 0·H3). lag1(배포·신호종가) ↔ lag2(t+1종가) 재산출 유지율.
+                #   카드가 "lag2 PASS(타이밍 함정 아님)"를 게이트 FAIL 과 *나란히* 표기하도록.
+                #   ★lag2 PASS ≠ DSR/통계바 통과 — 웹 렌더가 두 층위를 구분 라벨(H2). 없으면 None 정직.
+                lag_retention = ((art.get("gate_evidence") or {})
+                                 .get("delta_gate") or {}).get("lag_retention")
                 if isinstance(block, dict):
                     _dh = block.get("dsr_hac") or {}
                     if dsr_basis is None:
@@ -713,6 +720,7 @@ def portfolio_strategies():
             "path_pain_score": e.get("path_pain_score"),   # 등록부 스칼라 그대로
             "path_pain": path_pain,               # 아티팩트 블록 그대로(cohort 대조 내장)
             "delta_characteristics": delta_char,  # 델타특성 블록 그대로(crisis alpha 등)
+            "lag_retention": lag_retention,       # 체결타이밍 강건성(lag1↔lag2) 그대로·None 정직
             "adoption_basis": e.get("adoption_basis"),
             "harness_id": e.get("harness_id"),
             "has_forward": _fwd_fp.exists(),   # 일별 forward JSON 존재 여부(사실)
