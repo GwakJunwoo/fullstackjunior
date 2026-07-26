@@ -581,8 +581,11 @@ async function gLoadFocus(all, summary){
     const hg=(summary&&summary.hidden!=null)?summary.hidden:null;
     const hp=(port&&port.hidden!=null)?port.hidden:null;
     const hTot=(hg!=null||hp!=null)?((hg||0)+(hp||0)):null;
+    // ★proposed 페이퍼 병기(데이터 구동 — 표시 전략 중 배포 아닌 건을 정직 구분·H2)
+    const nProp=comb.filter(function(x){ return x.status==='proposed'; }).length;
     cn.innerHTML='<div class="vbanner v-none" style="margin:0 0 10px">🎯 <b>표시 필터: 운용 포커스 전략만</b>'+
-      ' <span class="status">(등록부 web_visible 큐레이션 · 사용자 §3 2026-07-14)</span> — 표시 <b>'+comb.length+'</b>'+
+      ' <span class="status">(등록부 web_visible 큐레이션 · 사용자 §3 2026-07-14 / proposed 웹 개시 §3 2026-07-26)</span> — 표시 <b>'+comb.length+'</b>'+
+      (nProp?(' <span class="status">(이 중 proposed 페이퍼 <b>'+nProp+'</b>건 — 배포 아님)</span>'):'')+
       (hTot!=null?(' · 숨김 <b>'+hTot+'</b>건(일반 '+(hg!=null?hg:'?')+' · 포폴 '+(hp!=null?hp:'?')+')'):'')+
       ' · 전체 등록부(숨김 포함 데이터)는 registry.json·API(/strategy/{name}) 정본 그대로 — 성과·티어 무변.</div>';
   }
@@ -628,7 +631,8 @@ function renderFocusStrip(all, pvis, fwd, pfwd){
   pvis.forEach(function(p){
     const r=pfwd[p.name];
     let sig, asof=null;
-    if (!p.has_forward) sig=chip('forward 미생성','x-warn');
+    if (!p.has_forward) sig=chip(p.status==='proposed'
+      ?'일별 시그널 없음 — forward 미생성·백테스트 등재만':'forward 미생성','x-warn');
     else if (!r || r.available===false) sig=chip('forward '+((r&&r.available===false)?'미생성':'조회 실패'),'x-warn');
     else if (Array.isArray(r.targets)){
       // 델타트랙: 목표포지션(연속북 — 진입/청산 원장 아님)
@@ -691,14 +695,18 @@ function gRenderPortfolioClassBar(r){
   const _dep=_pv.filter(function(p){
     return p.status==='deployed' && !p.withheld;
   });
-  const _pass=_pv.filter(function(p){
-    return (p.dsr_verdict==='PASS') && !p.withheld && p.status!=='deployed';
-  });
-  // ★통합 스택형 proposed(페이퍼) — uni28_v2 류: 재표현 아님·아티팩트 DSR 없음·
+  // ★통합 스택형 proposed(페이퍼) — uni28_v2·uni_irs_v3 류: 재표현 아님·
   //   게이트 권위=등록부 tier_eval(dsr_registry/gate_verdict). withheld 면 제외(보류가 우선).
+  //   ★2026-07-26 분기 수선: 아티팩트 dsr_verdict 가 PASS(uni_irs_v3 류)여도
+  //   status=proposed 스택은 여기 — '✅통과 포폴(재표현 데모)' 버킷에 비추면
+  //   PROPOSED·페이퍼 라벨이 소실돼 배포처럼 읽힘(분기=기만·H1/H2).
   const _prop=_pv.filter(function(p){
     return p.status==='proposed' && !p.withheld && p.dsr_verdict!=='FAIL'
-      && !((p.dsr_verdict==='PASS') && !p.withheld) && p.dsr_registry!=null;
+      && p.dsr_registry!=null;
+  });
+  const _pass=_pv.filter(function(p){
+    return (p.dsr_verdict==='PASS') && !p.withheld && p.status!=='deployed'
+      && _prop.indexOf(p)<0;
   });
   const _fail=_pv.filter(function(p){
     return !((p.dsr_verdict==='PASS') && !p.withheld) && _prop.indexOf(p)<0
@@ -891,23 +899,88 @@ function gRenderPortfolioClassBar(r){
     if (_hac.sharpe_ann!=null) statBits.push('일별 Sharpe <b>'+_fx(_hac.sharpe_ann)+'</b> <span class="status">(daily_nav HAC)</span>');
     if (_oosT!=null) statBits.push('OOS t <b>'+_fx(_oosT)+'</b>');
     if (_y24!=null) statBits.push('2024 <b class="'+(_y24>=0?'pp':'pn')+'">'+_fx(_y24,1)+'bp</b>');
+    // ★P&L 정본 배지 — 등록부 coexist_policy 그대로(H2: proposed 를 deployed 처럼 비추면 기만).
+    const _cxp=p.coexist_policy||null;
+    const pnlTruthChip=(_cxp&&_cxp.pnl_source_of_truth)
+      ? '<span class="xstate" style="margin-left:4px;background:rgba(248,113,113,.14);color:var(--red);border:.5px solid rgba(248,113,113,.42)" title="'+
+        _esc(_cxp.pnl_source_of_truth)+(_cxp.role?(' — '+_cxp.role):'')+'">배포 아님 · P&amp;L 정본='+_esc(_cxp.parent||String(_cxp.pnl_source_of_truth).split(' ')[0])+'</span>'
+      : '';
+    // ★variant 칩(v3.1 fly mirror 사이징 등) — 툴팁=등록부 mirror_sizing.rule 원문
+    const _mir=p.mirror_sizing||null;
+    const variantChip=p.variant
+      ? '<span class="xstate" style="margin-left:4px;background:rgba(96,165,250,.16);color:#60a5fa;border:.5px solid rgba(96,165,250,.42)"'+
+        (_mir&&_mir.rule?(' title="'+_esc(_mir.rule)+'"'):'')+'>variant='+_esc(p.variant)+'</span>'
+      : '';
+    // ★DSR 병기 의무(H2) — statistical_tier(T2 캡·non-pristine 계보 등) 없이 단독 노출 금지.
+    //   원값 문자열 그대로(0.9945 반올림 금지 — _fmt 는 0.99 로 정본 훼손). ex-carry ablation 병기.
+    const dsrBits=(p.dsr_registry!=null)
+      ? ('DSR <b>'+_esc(String(p.dsr_registry))+'</b>'+
+         (p.dsr_ex_carry_ablation!=null?(' <span class="status">(ex-carry '+_esc(String(p.dsr_ex_carry_ablation))+')</span>'):'')+
+         (p.statistical_tier?(' <span class="xstate x-warn">'+_esc(p.statistical_tier)+'</span>'):'')+
+         (p.selection_bias_flag===true?' <span class="status">★non-pristine/선택편향 계보 — 완전 clean 아님</span>'
+           :(Number(p.dsr_registry)<0.95?' <span class="status">(배포바 0.95 미달)</span>':''))+
+         ' &nbsp;·&nbsp; ')
+      : '';
+    // ★캐비앗 축약(등록부 tier_reason/tier_caveat 원문 — 절삭은 표현만·전문=툴팁+상세)
+    const _rsn=(typeof p.tier_reason==='string')?p.tier_reason:'';
+    const _cav=(typeof p.tier_caveat==='string')?p.tier_caveat:'';
+    const caveatHtml=(_rsn||_cav)
+      ? ('<div class="status" style="margin:2px 0" title="'+_esc((_rsn?(_rsn+'\n\n'):'')+_cav)+'">⚠ '+
+         _esc(_rsn.length>170?(_rsn.slice(0,170)+'…'):_rsn)+
+         (_cav?(' <span style="opacity:.85">· 유의 전문(W1 계보/W2 캐리회계/W3 레짐/NEW-A·B 등) → 호버·상세</span>'):'')+
+         (p.carry_coverage_pct_full30!=null?(' · 캐리 커버리지 <b>'+_esc(String(p.carry_coverage_pct_full30))+'%</b>(full30'+
+           (p.carry_coverage_pct_inbook!=null?('·in-book '+_esc(String(p.carry_coverage_pct_inbook))+'%'):'')+')'):'')+
+         '</div>')
+      : '';
+    // ★부모(배포 정본) 대비 — 같은 응답 내 카드 값 조인(값 하드코딩 0·재계산 0. 부모 숨김 시 미발동).
+    const _par=p.parent?(_byName[p.parent]||null):null;
+    const _parHac=_par?((((_par.portfolio||{}).dsr_hac)||{}).hac||{}):{};
+    const parBits=[];
+    if (_par){
+      if (_parHac.sharpe_ann!=null&&_hac.sharpe_ann!=null) parBits.push('일별 Sharpe '+_fx(_parHac.sharpe_ann)+'→<b>'+_fx(_hac.sharpe_ann)+'</b>');
+      if (_par.mdd_mtm_bp!=null&&p.mdd_mtm_bp!=null) parBits.push('MtM MDD '+_fx(_par.mdd_mtm_bp)+'→<b>'+_fx(p.mdd_mtm_bp)+'</b>bp');
+      if (_par.net_bp!=null&&p.net_bp!=null) parBits.push('net '+_fx(_par.net_bp,1)+'→<b>'+_fx(p.net_bp,1)+'</b>bp'+
+        (p.net_bp<_par.net_bp?(' <span class="status">('+_fx(p.net_bp-_par.net_bp,1)+')</span>'):''));
+    }
+    const parCmpHtml=parBits.length
+      ? ('<div class="status" style="margin:2px 0">부모 <b>'+_esc(p.parent)+'</b>('+_esc(_par.status||'?')+'·P&amp;L 정본) 대비: '+
+         parBits.join(' · ')+' — 위험조정 개선·net 은 감소(전부 API 값 그대로)</div>')
+      : '';
+    // ★계보 변형 대조표 — 하니스 정본 comparison_vs_base *그대로*(재계산 0). 없으면 미발동.
+    const _cmp=p.comparison_vs_base||null;
+    let cmpHtml='';
+    if (_cmp){
+      const met=[['net_sum_bp','net(bp)'],['ann_bp_per_yr','연환산(bp/yr)'],['mdd_daily_mtm_bp','MtM MDD(bp)'],
+                 ['sharpe_daily_ann','일별 Sharpe'],['dsr','DSR'],['verdict','판정']];
+      const avail=met.filter(function(m){return _cmp[m[0]]&&typeof _cmp[m[0]]==='object';});
+      if (avail.length){
+        const colsSet={}; avail.forEach(function(m){Object.keys(_cmp[m[0]]).forEach(function(c){colsSet[c]=1;});});
+        const cols=Object.keys(colsSet);
+        cmpHtml='<div class="status" style="margin:4px 0 1px">계보 변형 대조 — 하니스 정본 그대로(재계산 0·폐기 셀 포함 정직)</div>'+
+          '<table class="find-tbl" style="margin:0 0 4px;font-size:11px"><thead><tr><th></th>'+
+          cols.map(function(c){return '<th>'+_esc(c)+'</th>';}).join('')+'</tr></thead><tbody>'+
+          avail.map(function(m){return '<tr><td>'+_esc(m[1])+'</td>'+cols.map(function(c){
+            const v=_cmp[m[0]][c]; return '<td>'+(v==null?'–':_esc(String(v)))+'</td>';}).join('')+'</tr>';}).join('')+
+          '</tbody></table>';
+      }
+    }
     return '<div class="qcard" style="cursor:pointer;border-color:rgba(251,191,36,.45)" '+
       'onclick="openStrat(\''+_esc(p.name)+'\')">'+
       '<div class="qcard-top">'+
         (p.tier?('<span class="tier sm tier-'+_esc(p.tier)+'">'+_esc(p.tier)+'</span> '):'')+
         '<b>'+_esc(p.name)+'</b>'+
-        ' <span class="xstate x-warn" style="margin-left:6px">PROPOSED · 페이퍼</span>'+gvChip+
+        ' <span class="xstate x-warn" style="margin-left:6px">PROPOSED · 페이퍼</span>'+pnlTruthChip+variantChip+gvChip+
       '</div>'+
       '<div class="status" style="margin:4px 0 2px">'+_esc(p.tagline||'')+'</div>'+
       '<div style="margin:3px 0">'+
-        (p.dsr_registry!=null?('DSR <b class="'+(Number(p.dsr_registry)>=0.95?'pp':'pn')+'">'+_fmt(p.dsr_registry)+'</b>'+
-          (Number(p.dsr_registry)<0.95?' <span class="status">(배포바 0.95 미달)</span>':'')+' &nbsp;·&nbsp; '):'')+
-        (p.n_sleeve!=null?('<b>'+p.n_sleeve+'</b> sleeve &nbsp;·&nbsp; '):'')+
+        dsrBits+
+        (p.n_sleeve!=null?('<b>'+p.n_sleeve+'</b> sleeve'+(p.cap!=null?(' · cap-'+p.cap):'')+' &nbsp;·&nbsp; '):'')+
         'strategy_class=portfolio'+
         (p.has_forward?' &nbsp;·&nbsp; <span class="xstate x-ok">일별 forward ✓</span>'
-                      :' &nbsp;·&nbsp; <span class="xstate x-warn">forward 미생성</span>')+
+                      :' &nbsp;·&nbsp; <span class="xstate x-warn">일별 시그널 없음 — forward 미생성·백테스트 등재만</span>')+
       '</div>'+
       (statBits.length?('<div style="margin:3px 0">'+statBits.join(' &nbsp;·&nbsp; ')+'</div>'):'')+
+      caveatHtml+ parCmpHtml+ cmpHtml+
       (p.adoption_basis?('<div class="status">채택근거: '+_esc(p.adoption_basis)+'</div>'):'')+
       '<div class="status" style="color:#fbbf24">★페이퍼 트래킹 — 라이브 운용 아님·사이징 0·자동매매 0. 클릭 → 상세(구성·게이트·오늘 신호)</div>'+
       '</div>';
@@ -1181,8 +1254,11 @@ async function showDetail(name) {
   const _consSkip = (s.strategy_class==='portfolio' && cons.n_sleeve!=null)
     ? {sleeves_original_28:1, sleeves_mte_variant_11:1} : {};
   // ★null 값 = "null" 원시문자 노출 금지 → 명시 라벨(미산출) — 값 부재를 정직 표기(H2·재계산 0)
+  // ★객체/배열 제약(selection_rule·mirror_sizing 등 — uni_irs_v3 류)은 [object Object] 가 아니라
+  //   등록부 원문 JSON 그대로 렌더(H1: 엔진엔 있는데 화면엔 뭉개짐 = 분기).
   const consRows = Object.entries(cons).filter(([k])=>!_consSkip[k])
-    .map(([k,val])=>'<tr><td>'+k+'</td><td>'+(val==null?'<span class="status">미산출(null)</span>':val)+'</td></tr>').join('') || '<tr><td class="status" colspan=2>12제약 선언 없음</td></tr>';
+    .map(([k,val])=>'<tr><td>'+k+'</td><td>'+(val==null?'<span class="status">미산출(null)</span>'
+      :(typeof val==='object'?('<code style="white-space:pre-wrap;word-break:break-word;font-size:11px">'+_esc(JSON.stringify(val,null,1))+'</code>'):val))+'</td></tr>').join('') || '<tr><td class="status" colspan=2>12제약 선언 없음</td></tr>';
 
   const tg = s.tier || (s.tier_eval||{}).tier;
   const te = s.tier_eval || {};

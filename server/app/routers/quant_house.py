@@ -632,6 +632,7 @@ def portfolio_strategies():
         path_pain = None
         delta_char = None
         lag_retention = None
+        comparison_vs_base = None
         if fp.exists():
             try:
                 art = json.loads(fp.read_text(encoding="utf-8"))
@@ -651,6 +652,20 @@ def portfolio_strategies():
                 #   ★lag2 PASS ≠ DSR/통계바 통과 — 웹 렌더가 두 층위를 구분 라벨(H2). 없으면 None 정직.
                 lag_retention = ((art.get("gate_evidence") or {})
                                  .get("delta_gate") or {}).get("lag_retention")
+                # ★계보 변형 대조(uni_irs_v3 류) — 아티팩트 gate_evidence.source_result
+                #   (하니스 정본 JSON)의 comparison_vs_v3 블록 *그대로* 통과(재계산 0·H3).
+                #   base(v3)·filter(폐기)·weight(등재) 3변형 net/DSR/MDD/Sharpe 병렬 원문 —
+                #   웹이 'v3-base 대비 위험조정 개선'을 정직 대조표로 렌더. 부재 시 None 정직.
+                _src = (art.get("gate_evidence") or {}).get("source_result")
+                if _src:
+                    try:
+                        _sfp = Path(_src)
+                        if _sfp.exists():
+                            comparison_vs_base = json.loads(
+                                _sfp.read_text(encoding="utf-8")
+                            ).get("comparison_vs_v3")
+                    except Exception:
+                        comparison_vs_base = None
                 if isinstance(block, dict):
                     _dh = block.get("dsr_hac") or {}
                     if dsr_basis is None:
@@ -713,6 +728,23 @@ def portfolio_strategies():
             "deploy_basis": _te.get("deploy_basis"),
             "statistical_tier": _te.get("statistical_tier"),
             "sizing": _te.get("sizing"),
+            # ★uni_irs_v3(v3.1_mirror) 웹 개시(사용자 §3 2026-07-26) 정직 라벨 필드 —
+            #   전부 등록부 *원문 그대로*(요약·가공 0·H3). 없는 전략엔 None(미발동).
+            #   variant: v3.1_mirror(fly mirror 사이징) 표기용.
+            #   coexist_policy.pnl_source_of_truth: "P&L 정본은 uni_irs_v2" 배지 —
+            #   proposed 를 deployed 처럼 비추면 기만(H2).
+            #   tier_reason/tier_caveat: DSR 0.9945 단독 노출 금지 — non-pristine 계보
+            #   (T2 캡)·W1/W2/W3·NEW-A/NEW-B 캐비앗 병기 의무.
+            "variant": e.get("variant"),
+            "web_visible_note": e.get("web_visible_note"),
+            "coexist_policy": e.get("coexist_policy"),
+            "tier_reason": _te.get("reason"),
+            "tier_caveat": _te.get("caveat"),
+            "dsr_ex_carry_ablation": _te.get("dsr_ex_carry_ablation"),
+            "carry_coverage_pct_full30": _cons.get("carry_coverage_pct_full30"),
+            "carry_coverage_pct_inbook": _cons.get("carry_coverage_pct_inbook"),
+            "mirror_sizing": _cons.get("mirror_sizing"),
+            "comparison_vs_base": comparison_vs_base,
             # n_sleeve: 등록부 필드명 방언(uni28_v2=n_sleeve / uni_irs_v2=n_sleeves) —
             #   값 무변형 통일 라벨(재계산 0).
             "n_sleeve": _cons.get("n_sleeve", _cons.get("n_sleeves")),
