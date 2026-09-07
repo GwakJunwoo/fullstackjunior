@@ -293,6 +293,7 @@
   <div id="portfolioClassBar"></div>
   <div id="list"></div>
   <div id="mtePanel"></div>
+  <div id="newsflowPanel"></div>
 
   <div id="detail" class="detail panel-wrap" style="margin-top:14px"></div>
   <div id="tradeDetail" class="panel-wrap" style="display:none;margin-top:12px"></div>
@@ -550,6 +551,9 @@ async function load() {
 
   // ★MTE State 지도 — /quant-house/mte-state (snapshot 그대로·재계산 0). 실패해도 목록 정상.
   gLoadMtePanel();
+
+  // ★newsflow 관측 계기판 — /quant-house/newsflow (파생 지표만·재계산 0·기사 제목 0). 실패해도 목록 정상.
+  gLoadNewsflowPanel();
 
   // ★거버넌스 헤드라인 — /quant-house/governance. 1차로 목록 응답 governance 를 즉시 렌더하고
   //   (왕복 대기 없이 헤드라인이 먼저 뜨게), 이어 체결기준까지 포함해 갱신. 실패해도 목록 정상.
@@ -1212,6 +1216,67 @@ function renderMtePanel(el, r){
       COLS.map(function(c){ return '<th>'+c+'</th>'; }).join('')+
       '</tr></thead><tbody>'+rows+'</tbody></table></div>';
   }
+  h += '</div>';
+  el.innerHTML = h;
+}
+
+// ★newsflow 관측 계기판 — /quant-house/newsflow = EYE _newsflow_row 파생 지표 *그대로*.
+// 관측 전용(지시 아님·시그널원 아님) · 기사 제목·본문·기자 실명 0(백엔드 화이트리스트).
+// 주제밀도 top3 · 서사드리프트(1d/5d) · 이례성(60d) · 기사수 · PIT T-1. 실패해도 목록 정상.
+async function gLoadNewsflowPanel(){
+  const el=document.getElementById('newsflowPanel'); if(!el) return;
+  let r; try{ r=await apiGet('/quant-house/newsflow'); }
+  catch(e){ el.innerHTML=_nfHead()+
+    '<div class="panel-wrap status">newsflow 조회 실패: '+_esc(e.detail||e.message)+
+    ' (구버전 백엔드면 재기동 필요)</div>'; return; }
+  renderNewsflowPanel(el, r);
+}
+
+function _nfHead(){
+  return '<div class="cat-title" style="margin-top:18px">📰 기사 흐름 관측 — 주제밀도·서사드리프트·이례성 '+
+    '<span class="status" style="font-weight:400;text-transform:none;letter-spacing:0">'+
+    '(기자 기사 흐름 관측 · <u>PIT T-1 · 지시 아님·시그널원 아님</u> · 파생 지표만·기사 원문 0)</span></div>';
+}
+
+// 카테고리:밀도 문자열("발행:2.112")을 칩으로. 값 무변형(표시만).
+function _nfTopicChip(s){
+  const t=String(s||''); const i=t.lastIndexOf(':');
+  const cat=(i>=0)?t.slice(0,i):t; const den=(i>=0)?t.slice(i+1):'';
+  return '<span class="xstate" style="background:rgba(96,165,250,.14);color:#60a5fa;border:.5px solid rgba(96,165,250,.4);font-size:11px;margin-right:6px">'+
+    _esc(cat)+' <b>'+_esc(den)+'</b></span>';
+}
+
+function renderNewsflowPanel(el, r){
+  const head=_nfHead();
+  // (0) 미가용(코퍼스 미형성/파싱실패) — 엔진 note 그대로·가짜 표시 0(H2)
+  if (!r || r.available===false){
+    el.innerHTML = head + '<div class="noart">'+
+      _esc((r&&r.note)||'newsflow 미가용')+
+      '<br>산출 전 — 가짜 지표를 그리지 않습니다(정직 빈 상태).</div>';
+    return;
+  }
+  const topics=Array.isArray(r.top_topics)?r.top_topics:[];
+  let h = head + '<div class="panel-wrap">';
+  h += '<div class="status" style="margin-bottom:8px">asof <b>'+_esc(r.date||'?')+'</b>'+
+       (r.n_articles!=null?(' · 기사 <b>'+_esc(r.n_articles)+'</b>건'):'')+
+       ' <span style="color:var(--t3)">— 파생 지표 그대로(웹 재계산 0)</span></div>';
+  // (1) 주제밀도 top3 — 카테고리:밀도 칩(우리 어휘)
+  h += '<div style="margin:2px 0 10px;font-size:12.5px">주제밀도 top3 &nbsp;'+
+       (topics.length?topics.map(_nfTopicChip).join(''):'<span class="status">없음(정직)</span>')+'</div>';
+  // (2) 서사드리프트(1d/5d)·이례성(60d) — 값 그대로(부호색 없이 관측 톤)
+  const cell=function(lbl,v,unit){
+    return '<div style="display:inline-block;margin-right:18px">'+
+      '<span class="status" style="font-size:11px">'+lbl+'</span> '+
+      '<b>'+(v!=null&&isFinite(Number(v))?_fmt(v):'–')+'</b>'+(unit?('<span class="status" style="font-size:10px"> '+unit+'</span>'):'')+'</div>';
+  };
+  h += '<div style="margin:2px 0 4px;font-size:12.5px">'+
+       cell('서사드리프트 1d', r.drift_1d)+
+       cell('서사드리프트 5d', r.drift_5d)+
+       cell('이례성 60d', r.anomaly_60d)+'</div>';
+  // (3) 정직 라벨 — 엔진 label(후보 오디션)·저작권 note 그대로
+  if (r.label) h += '<div class="status" style="margin-top:6px;font-size:11px">'+_esc(r.label)+'</div>';
+  if (r.copyright_note) h += '<div class="status" style="margin-top:2px;font-size:10.5px;color:var(--t3)">'+_esc(r.copyright_note)+'</div>';
+  if (r.note) h += '<div class="status" style="margin-top:2px;font-size:10.5px;color:var(--t3)">'+_esc(r.note)+'</div>';
   h += '</div>';
   el.innerHTML = h;
 }

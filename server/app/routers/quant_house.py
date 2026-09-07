@@ -409,6 +409,50 @@ def mte_state():
     return out
 
 
+# ★newsflow 관측 계기판 (newslab 가공층 산출 → EYE 소비 → 라우터 전달자·재계산 0)
+#   소스 = engine.research.eye._newsflow_row(None) — EYE 의 *깨끗한* newsflow row.
+#   ★저작권 불가침: raw newslab/newsflow_daily.jsonl 은 titles(기사 제목) 포함이라
+#   직접 사용 금지. _newsflow_row 는 titles 를 제거하고 지표+우리 카테고리만 반환.
+#   추가로 by_reporter(기자 실명)는 표시 목적 외라 라우터에서 드롭(저작권·개인정보).
+#   eye_daily.jsonl 최신행에 newsflow 키가 없을 수 있어(과거 스키마) 파일 대신
+#   _newsflow_row(None) 직접 호출 = stale 무관 안전 경로(브리프 지시).
+_NEWSFLOW_FIELDS = ("date", "n_articles", "top_topics",
+                    "drift_1d", "drift_5d", "anomaly_60d", "label", "note")
+
+
+@router.get("/newsflow")
+def newsflow():
+    """★기사 흐름 관측 계기판 — 주제밀도·서사드리프트·이례성(파생 지표만).
+
+    EYE(engine.research.eye._newsflow_row)가 소비하는 깨끗한 newsflow row 를
+    *그대로* 전달(H3 전달자·재계산·가공 0·관측 전용·지시 아님·honest-N 0).
+    ★titles(기사 제목)·본문 절대 미노출 — _newsflow_row 가 지표+카테고리만 반환,
+    라우터는 그 화이트리스트 필드만 통과(by_reporter 기자 실명도 드롭).
+    카테고리명(발행/해외/수급/외국인 등)은 우리 어휘라 노출 OK.
+    미가용(코퍼스 미형성/파싱 실패) 시 available:false 정직 반환(가짜 표시 금지·H2).
+    PIT 는 생산측 강제(usable = T-1) — note 라벨 그대로 옮긴다.
+    """
+    try:
+        from engine.research import eye
+        row = eye._newsflow_row(None)
+    except Exception as e:  # noqa: BLE001
+        return {"available": False,
+                "note": f"newsflow 소비 실패 — {type(e).__name__}: {e} "
+                        "(engine.research.eye._newsflow_row). 가짜 표시 안 함(정직)."}
+    if not isinstance(row, dict):
+        # _newsflow_row 가 '미가용(...)' 문자열을 반환 = 코퍼스 미형성/빈 산출/예외
+        return {"available": False,
+                "note": (str(row) if isinstance(row, str) else "newsflow 미가용")
+                        + " — 파생 지표만 노출(기사 제목·본문 0). 가짜 표시 안 함."}
+    # ★화이트리스트 필드만 통과 — titles·by_reporter(기자 실명) 등 저작권/개인정보
+    #   필드는 원천적으로 배제(변형 0·drop 만). 지표 값 자체는 무접촉(분기 0).
+    out = {k: row[k] for k in _NEWSFLOW_FIELDS if k in row}
+    out["available"] = True   # 표현용 플래그만 부가
+    out["copyright_note"] = ("연합인포맥스 원문 재배포 0 — 파생 지표만. "
+                             "기사 제목·본문·기자 실명 미노출.")
+    return out
+
+
 # ★주간 시장 리뷰 (engine/research/market_review.py 산출 스냅샷 — 라우터는 전달자·재계산 0)
 #   정본: 05_registry/research/market_review_snapshot.json (다축 z3·mom4·wavg·axis_note)
 #        + review_scoreboard.json (P4 일치성 원장 사후평가 — review_ledger.score_picks 산출)
