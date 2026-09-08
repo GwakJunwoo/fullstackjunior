@@ -453,6 +453,56 @@ def newsflow():
     return out
 
 
+# ★newsflow 임베딩 2D 산점도 (newslab/newsflow_embed2d.json — 민수 산출·라우터 전달자·재계산 0)
+#   소스 = <QH_ROOT>/newslab/newsflow_embed2d.json (gitignore·UTF-8·daily-refresh 6c10b 갱신).
+#   ★저작권 불가침: 소스 JSON 은 이미 clean(titles/body/reporter 0·민수 실증)이나
+#   라우터도 화이트리스트로 이중 방어 — points 는 아래 필드만 통과, 그 외 키(title/body/
+#   reporter 류)가 섞여 들어와도 원천 드롭. 지표·좌표 값 자체는 무접촉(분기 0).
+_NEWSFLOW_EMBED2D = QH_ROOT / "newslab" / "newsflow_embed2d.json"
+_EMBED2D_POINT_FIELDS = ("date", "x", "y", "n_articles", "top_topics",
+                         "drift_1d", "drift_5d", "anomaly_60d")
+_EMBED2D_TOP_FIELDS = ("ok", "asof", "model", "projection",
+                       "explained_variance", "explained_variance_cumulative",
+                       "n_points", "latest", "oos_note", "pit")
+
+
+@router.get("/newsflow-embed2d")
+def newsflow_embed2d():
+    """★뉴스 임베딩 2D 투영 산점도 — 점=하루·(x,y)=PCA 2D(768dim→2D).
+
+    newslab/newsflow_embed2d.json 을 화이트리스트 필드만 통과(H3 전달자·재계산 0).
+    ★titles/body/reporter 절대 미노출 — 소스 clean + 라우터 화이트리스트 이중 방어.
+    좌표·지표 무변형(분기 0). 미생성/미가용 시 available:false 정직 반환(H2).
+    PCA 2D 는 EV 21% 저차원 투영 = 관측 지도이지 알파 아님(oos_note 그대로 노출).
+    """
+    if not _NEWSFLOW_EMBED2D.exists():
+        return {"available": False,
+                "note": ("newsflow_embed2d.json 미생성 — "
+                         "python newslab/newsflow.py --embed2d (또는 daily-refresh 6c10b). "
+                         "생성 전 가짜 산점도를 표시하지 않음(정직).")}
+    try:
+        data = json.loads(_NEWSFLOW_EMBED2D.read_text(encoding="utf-8"))
+    except Exception as e:  # noqa: BLE001
+        return {"available": False,
+                "note": f"newsflow_embed2d.json 파싱 실패 — {type(e).__name__}: {e} "
+                        "(가짜 표시 안 함·정직)."}
+    if not isinstance(data, dict) or not isinstance(data.get("points"), list):
+        return {"available": False,
+                "note": "newsflow_embed2d.json 형식 오류(points 배열 없음) — 정직 반환."}
+    # ★화이트리스트: top-level 메타 + points 각 점의 지표/좌표 필드만 통과.
+    #   title/body/reporter 류 키가 있어도 아래 목록에 없으면 원천 드롭(변형 0·drop 만).
+    pts = []
+    for p in data["points"]:
+        if isinstance(p, dict):
+            pts.append({k: p[k] for k in _EMBED2D_POINT_FIELDS if k in p})
+    out = {k: data[k] for k in _EMBED2D_TOP_FIELDS if k in data}
+    out["points"] = pts
+    out["available"] = True
+    out["copyright_note"] = ("연합인포맥스 원문 재배포 0 — 좌표·파생 지표만. "
+                             "기사 제목·본문·기자 실명 미노출(소스 clean + 라우터 화이트리스트).")
+    return out
+
+
 # ★주간 시장 리뷰 (engine/research/market_review.py 산출 스냅샷 — 라우터는 전달자·재계산 0)
 #   정본: 05_registry/research/market_review_snapshot.json (다축 z3·mom4·wavg·axis_note)
 #        + review_scoreboard.json (P4 일치성 원장 사후평가 — review_ledger.score_picks 산출)
