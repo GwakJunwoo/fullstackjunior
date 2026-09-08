@@ -2017,6 +2017,31 @@ async function renderPortForward(fs, name){
     '<span class="utilchip">nopath <b>'+(cnt.nopath_skipped!=null?cnt.nopath_skipped:'?')+'</b></span>'+
     ((cnt.revision_alerts!=null&&cnt.revision_alerts>0)?('<span class="utilchip" style="background:#7a1f1f;color:#fff">⚠ 원장 불일치 <b>'+cnt.revision_alerts+'</b></span>'):'')+
     '</div>';
+  // (2b) ★cap 블록 정직 라벨(2026-09-08 사용자 §3·D-iv) — cap 수치가 "왜 바뀌었나"의 출처 설명(관측 톤·경고 아님).
+  //   값은 r.cap 그대로(후보→admitted/capped 분해 병기·웹 재계산 0). 롤캘린더 출처는
+  //   (a) 엔진이 r.roll_calendar 메타를 기장하면 그 필드값을 *그대로* 나열(필드명 추측 0 — 알려진 키 우선 + 나머지 스칼라 전부),
+  //   (b) 메타 미기장이면 uni_irs_v2 한정 정적 fallback(BQH d4880e6 2026-09-07: ktb TP 카테고리 적재로 거래일
+  //       캘린더 오염 → KR allowlist 복원)이며 "fallback" 임을 라벨에 명시(H2). 다른 전략엔 fallback 부착 안 함(미검증 귀속 금지).
+  if (r.cap&&r.cap.cap!=null){
+    const cp=r.cap;
+    let cl='cap 분해: 후보 <b>'+(cp.n_candidates_after_removal!=null?cp.n_candidates_after_removal:'?')+'</b>'+
+      (cp.n_candidates_before_removal!=null?(' (sleeve 제거 전 '+cp.n_candidates_before_removal+')'):'')+
+      ' → admitted <b>'+(cp.admitted_total!=null?cp.admitted_total:'?')+'</b> · capped <b>'+
+      (cp.capped_out_total!=null?cp.capped_out_total:'?')+'</b>';
+    const rc=r.roll_calendar;
+    if (rc&&typeof rc==='object'){
+      const pref=['version','asof','date','corrected_at','source','allowlist','n_trading_days','commit','note'];
+      const seen={}, parts=[];
+      function _rcv(v){ return Array.isArray(v)?v.map(function(x){return _esc(String(x));}).join(','):(v&&typeof v==='object'?_esc(JSON.stringify(v)):_esc(String(v))); }
+      pref.forEach(function(k){ if (rc[k]!=null){ seen[k]=1; parts.push(k+'=<b>'+_rcv(rc[k])+'</b>'); } });
+      Object.keys(rc).forEach(function(k){ if (!seen[k]&&rc[k]!=null) parts.push(_esc(k)+'='+_rcv(rc[k])); });
+      cl+='<br>롤캘린더(엔진 roll_calendar 메타 그대로): '+(parts.length?parts.join(' · '):'(빈 메타)');
+    } else if (name==='uni_irs_v2'){
+      cl+='<br>롤캘린더 정정(2026-09-07 · BQH d4880e6 · ktb TP 카테고리 적재로 거래일 캘린더 오염 → KR 거래일 복원) 반영 — '+
+        '이전 cap 수치는 TP 캘린더 오염분 포함. <span style="opacity:.75">[roll_calendar 메타 미기장 · 정적 fallback 문구]</span>';
+    }
+    h+='<div class="status" style="margin:-4px 0 8px">'+cl+'</div>';
+  }
   // (3) sleeve 구성·MTE 정직고지 — sleeves/mte_added 그대로
   //   방어적 읽기: v2=n_original_live_gen / uni_irs=n_no20_live_gen(+n_asw_live_gen)
   if (sl.n_total!=null){
