@@ -835,6 +835,10 @@ def portfolio_strategies():
             "tier_reason": _te.get("reason"),
             "tier_caveat": _te.get("caveat"),
             "dsr_ex_carry_ablation": _te.get("dsr_ex_carry_ablation"),
+            # ★dsr_economic(uni_irs_v3·사용자 §3 2026-09-11): 경제 P&L 대용 모형 DSR 블록
+            #   *통째로* 통과(dsr/at_current_N/sr_per_trade/oos_test_t/net_bp/label/authority).
+            #   병기 전용·정본 dsr/tier 무변·재계산 0. 필드 부재 전략은 None.
+            "dsr_economic": _te.get("dsr_economic"),
             "carry_coverage_pct_full30": _cons.get("carry_coverage_pct_full30"),
             "carry_coverage_pct_inbook": _cons.get("carry_coverage_pct_inbook"),
             "mirror_sizing": _cons.get("mirror_sizing"),

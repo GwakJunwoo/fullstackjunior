@@ -988,9 +988,22 @@ function gRenderPortfolioClassBar(r){
       : '';
     // ★DSR 병기 의무(H2) — statistical_tier(T2 캡·non-pristine 계보 등) 없이 단독 노출 금지.
     //   원값 문자열 그대로(0.9945 반올림 금지 — _fmt 는 0.99 로 정본 훼손). ex-carry ablation 병기.
+    // ★dsr_economic 병기(uni_irs_v3·§3 2026-09-11): 경제 P&L 대용 모형 DSR — 등록부 블록 그대로.
+    //   앵커N/현N 두 값·0.95 바 이탈은 적색+문구로 정직 표기. 툴팁=등록부 label+authority 원문.
+    //   필드 부재(다른 전략)=빈 문자열(null-safe). 정본 DSR 무변·재계산 0.
+    const _de=(p.dsr_economic&&typeof p.dsr_economic==='object'&&p.dsr_economic.dsr!=null)?p.dsr_economic:null;
+    const _deCur=(_de&&_de.at_current_N&&_de.at_current_N.dsr!=null)?_de.at_current_N.dsr:null;
+    const _deBelow=_de?(Number(_de.dsr)<0.95||(_deCur!=null&&Number(_deCur)<0.95)):false;
+    const econBits=_de
+      ? (' <span class="status"'+(_deBelow?' style="color:var(--red)"':'')+' title="'+
+         _esc('경제 P&L 대용 모형 — '+(_de.label||'')+(_de.authority?(' / '+_de.authority):''))+'">(economic '+
+         _esc(String(_de.dsr))+' @앵커N'+(_deCur!=null?(' · '+_esc(String(_deCur))+' @현N'):'')+
+         (_deBelow?' · 0.95 바 이탈·대용모형·실현치 아님':'')+')</span>')
+      : '';
     const dsrBits=(p.dsr_registry!=null)
       ? ('DSR <b>'+_esc(String(p.dsr_registry))+'</b>'+
          (p.dsr_ex_carry_ablation!=null?(' <span class="status">(ex-carry '+_esc(String(p.dsr_ex_carry_ablation))+')</span>'):'')+
+         econBits+
          (p.statistical_tier?(' <span class="xstate x-warn">'+_esc(p.statistical_tier)+'</span>'):'')+
          (p.selection_bias_flag===true?' <span class="status">★non-pristine/선택편향 계보 — 완전 clean 아님</span>'
            :(Number(p.dsr_registry)<0.95?' <span class="status">(배포바 0.95 미달)</span>':''))+
