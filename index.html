@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html lang="ko">
+<!-- CONTEST_MODE (2026-09 사내대회) — 대회 후 원복: 아래 data-contest="1" 속성만 지우면 전부 원상복구 -->
+<html lang="ko" data-contest="1">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -47,6 +48,10 @@
 
     @media (max-width: 620px) { .tool-grid { grid-template-columns: 1fr 1fr; } }
     @media (max-width: 400px) { .tool-grid { grid-template-columns: 1fr; } }
+
+    /* CONTEST_MODE (2026-09 사내대회) — 대회 후 원복. html[data-contest] 일 때만 적용(이 페이지 한정).
+       Bond Quant House · 금리 대시보드 카드 외 도구 카드 시각적 숨김(DOM 무수정). */
+    html[data-contest] .tool-grid > .tool-card:not([href="/tools/quant-house/"]):not([href="/tools/dashboard/"]) { display: none !important; }
   </style>
 </head>
 <body>
