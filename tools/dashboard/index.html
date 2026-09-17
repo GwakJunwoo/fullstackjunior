@@ -1,5 +1,6 @@
 <!DOCTYPE html>
-<html lang="ko">
+<!-- CONTEST_MODE (2026-09 사내대회) — 대회 후 원복: 아래 data-contest="1" 속성만 지우면 전부 원상복구 -->
+<html lang="ko" data-contest="1">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -174,6 +175,10 @@
 
     @media (max-width: 640px) { .mini-grid { grid-template-columns: 1fr 1fr; } }
     @media (max-width: 400px) { .mini-grid { grid-template-columns: 1fr; } }
+
+    /* CONTEST_MODE (2026-09 사내대회) — 대회 후 원복. html[data-contest] 일 때만 적용(이 페이지 한정).
+       상단 네비의 다른 도구 링크(CD91 전망·시장 수급·DB 탐색) 시각적 숨김(DOM 무수정·본문 무접촉). */
+    html[data-contest] .nav-links > .nav-link:not([href="/tools/dashboard/"]) { display: none !important; }
   </style>
 </head>
 <body>
