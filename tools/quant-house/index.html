@@ -1,11 +1,17 @@
 <!DOCTYPE html>
-<html lang="ko">
+<!-- CONTEST_MODE (2026-09 사내대회) — 대회 후 원복: 아래 data-contest="1" 속성만 지우면 전부 원상복구 -->
+<html lang="ko" data-contest="1">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Bond Quant House — 다전략 운용</title>
   <link rel="stylesheet" href="/assets/css/main.css">
   <style>
+    /* CONTEST_MODE (2026-09 사내대회) — 대회 후 원복. html[data-contest] 일 때만 적용(이 페이지 한정).
+       주간 리뷰 외 탭 버튼·뷰 + 상단 네비 링크 시각적 숨김(DOM·JS·API 무수정). */
+    html[data-contest] .nav-links,
+    html[data-contest] #tab-strat, html[data-contest] #tab-ops, html[data-contest] #tab-news,
+    html[data-contest] #view-strat, html[data-contest] #view-ops, html[data-contest] #view-news { display:none !important; }
     .panel-wrap { background:var(--s1); border:.5px solid var(--bd); border-radius:var(--r); padding:1rem 1.125rem; margin-bottom:12px; }
     .ctrl-row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
     .conn-dot { width:7px; height:7px; border-radius:50%; background:var(--t3); display:inline-block; margin-right:6px; }
@@ -3137,7 +3143,10 @@ const _OPS_VETO = new Set();
 const _OPS_SIZES = {};   // candidate_key → 사용자가 입력한 size (재렌더 보존)
 let _OPS_HID_OPEN = false;   // 표시필터 외 전략 후보 접힘/펼침 (표현만 — 확정 대상 무변)
 
+// CONTEST_MODE (2026-09 사내대회) — 대회 후 원복. 스위치 = <html data-contest> 속성(단일 출처).
+const CONTEST_MODE = document.documentElement.hasAttribute('data-contest');
 function switchTab(t){
+  if (CONTEST_MODE && t!=='review') t='review';   // CONTEST_MODE (2026-09 사내대회) — 대회 후 원복: 숨긴 탭 진입 → 주간 리뷰로
   document.getElementById('view-strat').style.display = (t==='strat')?'':'none';
   document.getElementById('view-ops').style.display = (t==='ops')?'':'none';
   document.getElementById('view-review').style.display = (t==='review')?'':'none';
@@ -3815,6 +3824,7 @@ async function opsManualSubmit(){
 
 renderCostNotice();   // ★공시 라벨은 API 무관 — 백엔드 다운 시에도 항상 표시(H2)
 load();
+if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) — 대회 후 원복: 기본 탭 = 주간 리뷰
 </script>
 </body>
 </html>
