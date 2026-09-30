@@ -596,6 +596,19 @@ function _gvCls(v){
   const s=String(v||'').toUpperCase();
   return (s==='PASS')?'x-ok':(s==='FAIL')?'xs-SL':'x-warn';
 }
+// ★known_problems 필드 방언 — 구 등재(sev/detail) · arb_book_v26 류(severity/text). 값 무변형 읽기.
+//   MAJOR/CRITICAL=적색 · MINOR/warn=황색 · INFO=회색. 요약·미화 0 — 원문 그대로.
+function _kpSev(k){ return String((k&&(k.sev||k.severity))||'info'); }
+function _kpTxt(k){ return String((k&&(k.detail||k.text))||''); }
+function _kpBadge(k){
+  const sv=_kpSev(k); const u=sv.toUpperCase();
+  const cls=(u==='MAJOR'||u==='CRITICAL')?'xs-SL':((u==='WARN'||u==='MINOR')?'x-warn':'xs-none');
+  return '<span class="xstate '+cls+'">'+_esc(sv)+'</span>';
+}
+function _kpFind(list,id){ return (Array.isArray(list)?list:[]).filter(function(k){return k&&k.id===id;})[0]||null; }
+// ★DSR 밴드/일별 N 병기 문자열(등록부 tier_eval / 아티팩트 dsr 블록 원값 String — 반올림 금지)
+function _dsrBandTxt(band){ return (Array.isArray(band)&&band.length===2)?('['+_esc(String(band[0]))+', '+_esc(String(band[1]))+']'):''; }
+function _dsrByNTxt(byN){ return (byN&&typeof byN==='object')?Object.keys(byN).map(function(k){return _esc(k)+'→'+_esc(String(byN[k]));}).join(' · '):''; }
 
 // 체결기준 칩 — reconcile_board.fill_basis 원문 그대로(없으면 빈 문자열·가짜 라벨 금지).
 //   "+10 TP 정확체결"이 실현 체결처럼 읽히지 않게 forward/원장 패널에 병기(H2).
@@ -915,8 +928,8 @@ function gRenderPortfolioClassBar(r){
     // ★알려진 문제(등록부 known_problems 원문 그대로 — 요약·미화 0. 카드는 sev 표기 + 앞부분)
     const _kp=Array.isArray(p.known_problems)?p.known_problems:[];
     _kp.forEach(function(k){
-      const dt=String(k.detail||'');
-      honesty.push('<span class="xstate '+(k.sev==='warn'?'x-warn':'xs-none')+'">'+_esc(k.sev||'info')+'</span> <b>'+
+      const dt=_kpTxt(k);
+      honesty.push(_kpBadge(k)+' <b>'+
         _esc(k.id||'')+'</b> — '+_esc(dt.length>180?(dt.slice(0,180)+'…'):dt));
     });
     honesty.push('배포 근거 = <b>사용자 §3 override</b>'+(p.deploy_basis?(' <span class="status">('+_esc(p.deploy_basis)+')</span>'):'')+' — 통계 배포바 통과 아님');
@@ -982,9 +995,26 @@ function gRenderPortfolioClassBar(r){
     if (_y24!=null) statBits.push('2024 <b class="'+(_y24>=0?'pp':'pn')+'">'+_fx(_y24,1)+'bp</b>');
     // ★P&L 정본 배지 — 등록부 coexist_policy 그대로(H2: proposed 를 deployed 처럼 비추면 기만).
     const _cxp=p.coexist_policy||null;
+    // ★coexist_policy 방언: parent(단일 정본·uni_irs_v3 류) / parents 배열(원천 공유·arb_book_v26 류).
+    //   parents 면 "P&L 정본=" 이 아니라 "원천 공유" 라벨(첫 단어 폴백이 자기 이름을 정본처럼 비추는 분기 차단).
+    const _cxpParents=(_cxp&&Array.isArray(_cxp.parents)&&_cxp.parents.length)?_cxp.parents:null;
     const pnlTruthChip=(_cxp&&_cxp.pnl_source_of_truth)
       ? '<span class="xstate" style="margin-left:4px;background:rgba(248,113,113,.14);color:var(--red);border:.5px solid rgba(248,113,113,.42)" title="'+
-        _esc(_cxp.pnl_source_of_truth)+(_cxp.role?(' — '+_cxp.role):'')+'">배포 아님 · P&amp;L 정본='+_esc(_cxp.parent||String(_cxp.pnl_source_of_truth).split(' ')[0])+'</span>'
+        _esc(_cxp.pnl_source_of_truth)+(_cxp.role?(' — '+_cxp.role):'')+'">'+
+        (_cxpParents?('배포 아님 · 원천 공유='+_esc(_cxpParents.join(' · '))+(_cxp.capital_additive===false?' · 자본 비가산':''))
+                    :('배포 아님 · P&amp;L 정본='+_esc(_cxp.parent||String(_cxp.pnl_source_of_truth).split(' ')[0])))+'</span>'
+      : '';
+    // ★capital_state(HOUSE §12.6 1급) · 통계 verdict · RV 합류 사전 기준 미달 배지 — 전부 API 원문(부재 시 미발동)
+    const capChip=p.capital_state
+      ? '<span class="xstate '+(p.capital_state==='live'?'x-ok':'x-warn')+'" style="margin-left:4px">capital_state='+_esc(p.capital_state)+'</span>'
+      : '';
+    const svChip=(p.statistical_verdict&&p.gate_verdict)
+      ? '<span class="xstate '+_gvCls(p.statistical_verdict)+'" style="margin-left:4px" title="게이트 자동판정(집안 verdict)과 통계축 verdict 는 다른 층위 — 나란히 표기(단일값 인용 금지)">통계축 '+_esc(p.statistical_verdict)+'</span>'
+      : '';
+    const _kpMj=_kpFind(p.known_problems,'manifest_join_criteria');
+    const _mfj=(p.gate_stages&&p.gate_stages.manifest_P1_P2)?p.gate_stages.manifest_P1_P2:null;
+    const joinChip=(_kpMj||_mfj)
+      ? '<span class="xstate xs-SL" style="margin-left:4px" title="'+_esc(_kpMj?_kpTxt(_kpMj):JSON.stringify(_mfj))+'">RV 합류 사전 선언 기준 미달 → 참고</span>'
       : '';
     // ★variant 칩(v3.1 fly mirror 사이징 등) — 툴팁=등록부 mirror_sizing.rule 원문
     const _mir=p.mirror_sizing||null;
@@ -1006,9 +1036,21 @@ function gRenderPortfolioClassBar(r){
          _esc(String(_de.dsr))+' @앵커N'+(_deCur!=null?(' · '+_esc(String(_deCur))+' @현N'):'')+
          (_deBelow?' · 0.95 바 이탈·대용모형·실현치 아님':'')+')</span>')
       : '';
+    // ★DSR 밴드 병기(arb_book_v26 류): 일별 DSR(정본·WARN) + 에피소드 앵커/밴드/pooled — 어떤 단일 판도
+    //   '≥0.95 통과' 로 읽히지 않게 verdict 와 함께(등록부 tier_eval 원값 String·재계산 0). 부재 시 빈 문자열.
+    const bandBits=(p.dsr_band||p.dsr_daily_by_N)
+      ? (' <span class="status">'+
+         (p.dsr_verdict_registry?('<b>'+_esc(p.dsr_verdict_registry)+'</b> 일별 MtM(정본·N 합산)'):'')+
+         (p.dsr_daily_by_N?(' — by N: '+_dsrByNTxt(p.dsr_daily_by_N)):'')+
+         (p.dsr_episode_anchor!=null?(' · 에피소드 앵커 '+_esc(String(p.dsr_episode_anchor))):'')+
+         (p.dsr_band?(' · 밴드 '+_dsrBandTxt(p.dsr_band)):'')+
+         (p.dsr_pooled!=null?(' · pooled '+_esc(String(p.dsr_pooled))):'')+
+         ' · <b>단일 판 인용 금지</b></span>')
+      : '';
     const dsrBits=(p.dsr_registry!=null)
       ? ('DSR <b>'+_esc(String(p.dsr_registry))+'</b>'+
          (p.dsr_ex_carry_ablation!=null?(' <span class="status">(ex-carry '+_esc(String(p.dsr_ex_carry_ablation))+')</span>'):'')+
+         bandBits+
          econBits+
          (p.statistical_tier?(' <span class="xstate x-warn">'+_esc(p.statistical_tier)+'</span>'):'')+
          (p.selection_bias_flag===true?' <span class="status">★non-pristine/선택편향 계보 — 완전 clean 아님</span>'
@@ -1063,18 +1105,38 @@ function gRenderPortfolioClassBar(r){
       '<div class="qcard-top">'+
         (p.tier?('<span class="tier sm tier-'+_esc(p.tier)+'">'+_esc(p.tier)+'</span> '):'')+
         '<b>'+_esc(p.name)+'</b>'+
-        ' <span class="xstate x-warn" style="margin-left:6px">PROPOSED · 페이퍼</span>'+pnlTruthChip+variantChip+gvChip+
+        ' <span class="xstate x-warn" style="margin-left:6px">PROPOSED · 페이퍼</span>'+capChip+pnlTruthChip+variantChip+gvChip+svChip+joinChip+
       '</div>'+
       '<div class="status" style="margin:4px 0 2px">'+_esc(p.tagline||'')+'</div>'+
       '<div style="margin:3px 0">'+
         dsrBits+
         (p.n_sleeve!=null?('<b>'+p.n_sleeve+'</b> sleeve'+(p.cap!=null?(' · cap-'+p.cap):'')+' &nbsp;·&nbsp; '):'')+
+        ((p.n_sleeve==null&&p.n_lines!=null)?('<b>'+p.n_lines+'</b> 라인'+(Array.isArray(p.lines)?('('+_esc(p.lines.join(' + '))+')'):'')+' &nbsp;·&nbsp; '):'')+
         'strategy_class=portfolio'+
         (p.has_forward?' &nbsp;·&nbsp; <span class="xstate x-ok">일별 forward ✓</span>'
                       :' &nbsp;·&nbsp; <span class="xstate x-warn">일별 시그널 없음 — forward 미생성·백테스트 등재만</span>')+
       '</div>'+
       (statBits.length?('<div style="margin:3px 0">'+statBits.join(' &nbsp;·&nbsp; ')+'</div>'):'')+
       caveatHtml+ parCmpHtml+ cmpHtml+
+      // ★결합북 정직 블록(arb_book_v26 류 — 필드 부재 전략은 미발동): 법원1 미확증·기준 미달 원문·
+      //   MAJOR 문제 수·체결 규약(낙관)·비용 규약 미종결·사이징/자동매매 — 전부 API 원문(요약 절삭만·값 무변형)
+      (function(){
+        const L=[];
+        const c1=(p.gate_stages&&p.gate_stages.court1)?p.gate_stages.court1:null;
+        if (c1&&c1.passed===false) L.push('법원1 <b class="pn">미확증</b>(default-deny) · 법원2 forward one-shot 후보'+
+          (p.gate_stages.premise_all_clear===false?' · 대전제 all_clear <b class="pn">False</b>':''));
+        if (_kpMj) L.push('<b>기준 미달 → 참고</b>: '+_esc(_kpTxt(_kpMj)));
+        const _kpAll=Array.isArray(p.known_problems)?p.known_problems:[];
+        const _nMj=_kpAll.filter(function(k){return /^(MAJOR|CRITICAL)$/i.test(_kpSev(k));}).length;
+        if (_kpAll.length) L.push('알려진 문제 <b>'+_kpAll.length+'</b>건'+(_nMj?(' (MAJOR '+_nMj+')'):'')+' — 원문 전문은 상세');
+        if (p.fill_convention) L.push('체결 규약: '+_esc(p.fill_convention));
+        const _cv2=p.cost_vulnerability||null;
+        if (_cv2&&_cv2.type==='convention_pending') L.push('비용 규약 <b>§3 미종결</b>'+(_cv2.stress?(' — '+_esc(_cv2.stress)):'')+(_cv2.verification?(' · '+_esc(_cv2.verification)):''));
+        const _ex=p.execution||null;
+        if (_ex&&(_ex.sizing!=null||_ex.auto!=null)) L.push((_ex.sizing!=null?('사이징 <b>'+_esc(String(_ex.sizing))+'</b>'):'')+
+          (_ex.auto!=null?((_ex.sizing!=null?' · ':'')+'자동매매 <b>'+(_ex.auto===true?'ON':'0')+'</b>'):'')+(_ex.method?(' · '+_esc(_ex.method)):''));
+        return L.length?('<div class="vbanner v-warn" style="margin:5px 0 4px;padding:6px 9px">★정직: '+L.join('<br>')+'</div>'):'';
+      })()+
       (p.adoption_basis?('<div class="status">채택근거: '+_esc(p.adoption_basis)+'</div>'):'')+
       '<div class="status" style="color:#fbbf24">★페이퍼 트래킹 — 라이브 운용 아님·사이징 0·자동매매 0. 클릭 → 상세(구성·게이트·오늘 신호)</div>'+
       '</div>';
@@ -1551,6 +1613,17 @@ async function showDetail(name) {
       (te.override?('<br><span class="status">독립검증: '+te.override+'</span>'):'')+
       (te.status_grade_gap?('<br>⚠ '+te.status_grade_gap):'')+
       _condChips+
+      // ★DSR 밴드 병기(arb_book_v26 류·등록부 tier_eval 원값 String) — 게이트 자동판정과 통계축 verdict,
+      //   일별 DSR(정본·WARN)과 에피소드 밴드를 *나란히*. 단일 DSR 값만 크게 쓰지 않음(H2). 부재 시 미발동.
+      ((te.dsr_band||te.dsr_daily_by_N)?('<br><span class="status">게이트 자동판정 <b>'+_esc(te.gate_verdict_honest||s.gate_verdict||'?')+'</b>'+
+        (te.statistical_verdict?(' · 통계축 <b>'+_esc(te.statistical_verdict)+'</b>'):'')+
+        (te.dsr!=null?(' · 일별 MtM DSR(정본) <b>'+_esc(String(te.dsr))+'</b>'+(te.dsr_verdict?(' '+_esc(te.dsr_verdict)):'')):'')+
+        (te.dsr_daily_by_N?(' — by N: '+_dsrByNTxt(te.dsr_daily_by_N)):'')+
+        (te.dsr_episode_anchor!=null?(' · 에피소드 앵커 '+_esc(String(te.dsr_episode_anchor))):'')+
+        (te.dsr_band?(' · 밴드 '+_dsrBandTxt(te.dsr_band)):'')+
+        (te.dsr_pooled!=null?(' · pooled '+_esc(String(te.dsr_pooled))):'')+
+        ' · <b>단일 판 인용 금지</b>'+
+        (te.oos_pristine===false?' · oos_pristine <b>False</b>':'')+'</span>'):'')+
       // ★DSR primary 슬롯의 근거 원문(등록부 dsr_primary_basis) — 어떤 값이 주 지표인지 명시
       (te.dsr_primary_basis?('<br><span class="status">DSR primary 근거: '+_esc(te.dsr_primary_basis)+'</span>'):'')+
       (te.caveat?('<br><span class="status">⚠ 유의: '+te.caveat+'</span>'):'')+
@@ -1589,6 +1662,13 @@ async function showDetail(name) {
     ? ('<div class="vbanner v-warn" style="margin-bottom:8px">📦 <b>'+
         (s.track?('포폴전략 — '+_esc(s.track)+' 트랙 결합북'):'포폴전략 — 통합 스택')+'</b> · strategy_class=portfolio · 상태 <b>'+_esc(s.status||'?')+'</b>'+
         (s.status==='proposed'?' <span class="xstate x-warn">★페이퍼 트래킹 — 라이브 운용 아님·사이징 0·자동매매 0</span>':'')+
+        (s.capital_state?(' <span class="xstate '+(s.capital_state==='live'?'x-ok':'x-warn')+'">capital_state='+_esc(s.capital_state)+'</span>'):'')+
+        (function(){ const k=_kpFind(s.known_problems,'manifest_join_criteria');
+          return k?(' <span class="xstate xs-SL" title="'+_esc(_kpTxt(k))+'">RV 합류 사전 선언 기준 미달 → 참고</span>'):''; })()+
+        ((s.coexist_policy&&Array.isArray(s.coexist_policy.parents)&&s.coexist_policy.parents.length)
+          ?('<br><span class="status">원천 공유(coexist_policy): <b>'+_esc(s.coexist_policy.parents.join(' · '))+'</b>'+
+            (s.coexist_policy.capital_additive===false?' · 자본 비가산':'')+
+            (s.coexist_policy.pnl_source_of_truth?(' — '+_esc(s.coexist_policy.pnl_source_of_truth)):'')+'</span>'):'')+
         (s.status==='deployed'?(' <span class="xstate x-ok">DEPLOYED — 사용자 §3 override</span>'+
           ' <span class="xstate x-warn">신호 트래킹층 · 자동매매 0 · 실 사이징 데스크 결정'+((s.tier_eval||{}).sizing?('('+_esc((s.tier_eval||{}).sizing)+')'):'')+'</span>'):'')+
         (s.path_pain_score!=null?('<br><span class="status">경로고통 path_pain <b>'+s.path_pain_score+'</b> (일별 MtM 경로 기준 — 상세 블록은 아래 백테스트 섹션)</span>'):'')+
@@ -1623,8 +1703,7 @@ async function showDetail(name) {
         (_cvD.ref?('<br><span class="status">ref: '+_esc(_cvD.ref)+'</span>'):'')+
       '</div>'):'')+
       (_kpD.length?('<div style="margin-top:6px">'+_kpD.map(function(k){
-        return '<div style="margin:3px 0"><span class="xstate '+(k.sev==='warn'?'x-warn':'xs-none')+'">'+
-          _esc(k.sev||'info')+'</span> <b>'+_esc(k.id||'')+'</b> — <span class="status">'+_esc(k.detail||'')+'</span></div>';
+        return '<div style="margin:3px 0">'+_kpBadge(k)+' <b>'+_esc(k.id||'')+'</b> — <span class="status">'+_esc(_kpTxt(k))+'</span></div>';
       }).join('')+'</div>'):'')+
     '</div>') : '';
   d.innerHTML =
@@ -1646,6 +1725,13 @@ async function showDetail(name) {
       '<tr><td style="width:90px">진입</td><td>'+(s.execution.entry||'—')+'</td></tr>'+
       '<tr><td>청산</td><td><b style="color:var(--t1,#7cf)">'+(s.execution.exit||'—')+'</b></td></tr>'+
       (s.execution.discipline?('<tr><td>규율</td><td>'+s.execution.discipline+'</td></tr>'):'')+
+      (s.execution.fill?('<tr><td>체결 규약</td><td><span style="color:#fbbf24">'+_esc(s.execution.fill)+'</span></td></tr>'):'')+
+      ((s.execution.sizing!=null||s.execution.auto!=null)?('<tr><td>사이징/자동</td><td>'+(s.execution.sizing!=null?('사이징 <b>'+_esc(String(s.execution.sizing))+'</b>'):'')+
+        (s.execution.auto!=null?((s.execution.sizing!=null?' · ':'')+'자동매매 <b>'+(s.execution.auto===true?'ON':'0')+'</b>'):'')+
+        (s.capital_state?(' · capital_state=<b>'+_esc(s.capital_state)+'</b>'):'')+'</td></tr>'):'')+
+      ((s.execution.premise_all_clear!=null||s.execution.mtm_identity_ok!=null)?('<tr><td>대전제/항등식</td><td>'+
+        (s.execution.premise_all_clear!=null?('대전제 all_clear <b class="'+(s.execution.premise_all_clear?'pp':'pn')+'">'+String(s.execution.premise_all_clear)+'</b>'):'')+
+        (s.execution.mtm_identity_ok!=null?(' · mtm_identity ok <b class="'+(s.execution.mtm_identity_ok?'pp':'pn')+'">'+String(s.execution.mtm_identity_ok)+'</b>'):'')+'</td></tr>'):'')+
       (s.execution.directional_dv01?(function(dv){
         return '<tr><td>방향성(DV01)</td><td><b class="neg">DIRECTIONAL — net DV01 '+(dv.net_pct_of_T_leg>=0?'+':'')+dv.net_pct_of_T_leg+'% '+(dv.net_pct_of_T_leg>=0?'long':'short')+' duration</b> <span class="status">('+(dv.long_n!=null&&dv.n!=null?dv.long_n+'/'+dv.n+' 부호일관 · ':'')+'DV01중립 아님)</span>'+(dv.note?('<br><span class="status">'+dv.note+'</span>'):'')+'</td></tr>';})(s.execution.directional_dv01):'')+
       (s.execution.operation_won_eok_per_yr!=null?('<tr><td>예산당 수익</td><td><b>'+s.execution.operation_won_eok_per_yr+'</b> 억/yr <span class="status">(한쪽델타 2500만·노출통제)</span></td></tr>'):'')+
@@ -1902,6 +1988,24 @@ function _stackManifestHtml(cons){
   const mte=cons.sleeves_mte_variant_11||[];
   const asw=cons.sleeves_asw_2||[];
   const removed=cons.removed_20y_legs_11||[];
+  // ★결합북 라인 방언(arb_book_v26 류) — constraints.lines/k/netting/premise_exempt 원문 그대로(재계산 0).
+  if (!org.length && !mte.length && !asw.length && Array.isArray(cons.lines) && cons.lines.length){
+    const kk=(cons.k&&typeof cons.k==='object')?cons.k:{};
+    let g='<div class="cat-title">라인 구성 — '+(cons.n_lines!=null?cons.n_lines:cons.lines.length)+
+      ' 라인 <span class="status" style="font-weight:400;text-transform:none;letter-spacing:0">— 등록부 constraints 그대로(가중 K 는 사후 상수)</span></div>';
+    g+='<div style="margin-bottom:6px">'+cons.lines.map(function(nm){return '<code>'+_esc(String(nm))+'</code>';}).join(' + ')+'</div>';
+    g+='<table class="find-tbl" style="margin:0 0 8px"><tbody>'+
+      (Object.keys(kk).length?('<tr><td style="width:110px">K(가중)</td><td>'+Object.keys(kk).map(function(x){return _esc(x)+'=<b>'+_esc(String(kk[x]))+'</b>';}).join(' · ')+'</td></tr>'):'')+
+      (cons.unit_bp?('<tr><td>단위</td><td>'+_esc(String(cons.unit_bp))+'</td></tr>'):'')+
+      (cons.rv_window?('<tr><td>RV 창</td><td>'+_esc(String(cons.rv_window))+'</td></tr>'):'')+
+      (cons.netting?('<tr><td>넷팅</td><td>'+_esc(String(cons.netting))+'</td></tr>'):'')+
+      (cons.dv01_cap_man!=null?('<tr><td>DV01 캡(만)</td><td>'+_esc(String(cons.dv01_cap_man))+'</td></tr>'):'')+
+      '</tbody></table>';
+    if (Array.isArray(cons.premise_exempt)&&cons.premise_exempt.length)
+      g+='<div class="vbanner v-fail" style="margin:2px 0 8px">⚠ 대전제 미충족 라인(premise_exempt 원문): '+
+        cons.premise_exempt.map(function(x){return _esc(String(x));}).join(' · ')+' — adopt_portfolio 코드 거부 → 직접 등재(§3 예외)</div>';
+    return g;
+  }
   if (!org.length && !mte.length && !asw.length) return '';
   const bk=_sleeveBuckets(org);
   const order=['fly','cfyd','slope','xt','기타'].filter(function(k){return bk[k];});
@@ -2225,7 +2329,7 @@ function renderBacktest(art, regBt){
     const _iv = st.intraday;
     head = '<th class="lt">서브</th><th class="lt">구조(레그)</th><th class="lt">진입일 ▲</th><th class="lt">청산일</th><th>'+(_iv?'bar':'보유')+'</th><th>방향</th><th>'+(_iv?'val_in→out':'size')+'</th><th>PnL bp</th><th>비용</th><th class="lt">청산사유</th>';
     // 아티팩트 trades 순서(entry_date 오름차순) 그대로 — 재정렬·reverse 금지(H1·H2: 엔진 산출 순서 보존).
-    body = T.map((t,i)=>({t,i})).map(({t,i})=>{ const pp=t.pnl_bp>=0; const lng=t.side>0;
+    body = T.map((t,i)=>({t,i})).map(({t,i})=>{ const pp=t.pnl_bp>=0; const lng=(t.side!=null?t.side:t.sign)>0;
       const hold = t.days_held ?? t.hold_bars ?? '';
       const c7 = _iv ? (_fmt(t.val_in)+'→'+_fmt(t.val_out)) : _fmt(t.size);
       return RT(i,'<td class="lt">'+(t.strategy||(_iv?'CV2-G1':''))+'</td><td class="lt">'+(t.struct||'')+'</td>'+
@@ -2280,7 +2384,11 @@ function renderBacktest(art, regBt){
   }
   window._TCOL = ncol;
 
-  const structNote = isStruct
+  // ★결합북(arb_book_v26 류·strategy_class=portfolio) trades 도 struct 컬럼을 쓰지만 CV1T 가 아니다 — CV1T 안내문 대신
+  //   라인(strategy)·구조(struct) 설명. 값 무변형·표현만.
+  const structNote = (isStruct && art.strategy_class==='portfolio')
+    ? '<div class="status" style="margin:4px 0 8px">결합북 에피소드 — <b>서브</b>=라인(strategy 필드: base_v33/uni_v5/of_le3y/beta_hedge/rv_v4_next/netting) · <b>구조</b>=struct(종목/레그) · 방향=sign · size=라인 K 반영. 전부 아티팩트 trades 그대로(재계산 0).</div>'
+    : isStruct
     ? '<div class="status" style="margin:4px 0 8px">⚠ CV1T 는 비지표 페어가 아니라 <b>멀티레그 구조</b>(butterfly·slope·basis). struct 컬럼이 실제 레그 — 예: <code>bf_3_10_30</code>=3-10-30 버터플라이, <code>basis_10y_KTB10F</code>=10년 현물 vs KTB10F 선물 베이시스. PnL bp 는 구조 BPV 기준.</div>' : '';
   // ★델타 연속북 설명(H2) — "마지막 행 = 백테스트 끝" 오해 차단. 행=에피소드·보유중=평가 절단.
   const deltaNote = isDeltaEp
@@ -2298,7 +2406,10 @@ function renderBacktest(art, regBt){
       S('적중률','hit_rate','')+
       S('Sharpe(거래·연율)','sharpe_annualized','',1)+
       (st.sharpe_annualized==null&&st.sharpe_per_trade!=null?S('Sharpe/거래','sharpe_per_trade','',1):'')+
-      S('DSR(정본)','dsr','')+ S('MaxDD','max_drawdown_bp','bp',1)+
+      ((st.dsr&&typeof st.dsr==='object')
+        ? ('<div class="s"><div class="sl">DSR(일별 MtM 정본)</div><div class="sv '+(String(st.dsr.verdict||'').indexOf('PASS')===0?'pos':'neg')+'">'+
+           _esc(String(st.dsr.dsr!=null?st.dsr.dsr:'–'))+(st.dsr.verdict?(' <span class="status">'+_esc(st.dsr.verdict)+'</span>'):'')+'</div></div>')
+        : S('DSR(정본)','dsr',''))+ S('MaxDD','max_drawdown_bp','bp',1)+
       S('평균보유('+hu+')','mean_hold','')+ S('거래/주','trades_per_week','')+
       S('평균/거래','mean_bp_per_trade','bp',1)+ S('총비용','total_cost_bp','bp')+
       (st.pnl_eok_per_year!=null?S('연 손익(억)','pnl_eok_per_year','',1):'')+
@@ -2309,7 +2420,25 @@ function renderBacktest(art, regBt){
     (st.per_yr_man_orig!=null?'<div class="status" style="margin:-4px 0 10px">권위 지표 = <b>연 bp</b>(사이징 무관·파이프라인 산출). 만원/won 은 <b>원안 100억 노치 기준 참고값</b>이며 <b>배포 sizing(paper/극소)과 무관</b> — 실제 기대손익 아님.</div>':'')+
     // ★스택 아티팩트 stats.train_test / by_year / by_family — 값 전부 아티팩트 그대로(재계산 0·H1).
     //   oos_pristine=false 는 반드시 노출(TEST 기열람 legacy·T2캡 근거 — H2). 타 전략엔 키 부재 → 미발동.
-    (st.train_test?(function(tt){
+    // ★DSR 밴드 배너(stats.dsr 객체 방언) — 일별 by N·에피소드 앵커·밴드·pooled 병기(원값 String·단일 판 인용 금지)
+    ((st.dsr&&typeof st.dsr==='object'&&(st.dsr.band||st.dsr.daily_by_N))?(function(d){
+      return '<div class="vbanner v-warn" style="margin:2px 0 8px">DSR 병기(단일 판 인용 금지): 일별 MtM(정본) <b>'+_esc(String(d.dsr))+'</b>'+
+        (d.verdict?(' <b>'+_esc(d.verdict)+'</b>'):'')+
+        (d.daily_by_N?(' — by N: '+_dsrByNTxt(d.daily_by_N)):'')+
+        (d.episode_anchor!=null?(' · 에피소드 앵커 '+_esc(String(d.episode_anchor))+(d.episode_verdict?(' '+_esc(d.episode_verdict)):'')):'')+
+        (d.band?(' · 밴드 '+_dsrBandTxt(d.band)):'')+
+        (d.pooled!=null?(' · pooled '+_esc(String(d.pooled))):'')+
+        (d.n_global!=null?(' · 전역 N '+_esc(String(d.n_global))):'')+
+        (d.basis?('<br><span class="status">'+_esc(d.basis)+'</span>'):'')+'</div>';})(st.dsr):'')+
+    (st.fill_convention?('<div class="vbanner v-warn" style="margin:2px 0 8px">체결 규약(fill_convention · 낙관 요소 명시): '+_esc(st.fill_convention)+'</div>'):'')+
+    ((st.train_test&&st.train_test.train&&typeof st.train_test.train==='object')?(function(tt){
+      // ★결합북 방언(arb_book_v26 류): train/test/ex2022/window_2022plus 각 {net_bp,ann_bp,sharpe,mdd_bp,calmar,n_days} — 원문 그대로
+      const segs=[['train','TRAIN'],['test','TEST/OOS'],['ex2022','ex-2022'],['window_2022plus','2022~']].filter(function(x){return tt[x[0]]&&typeof tt[x[0]]==='object';});
+      return '<div class="vbanner v-warn" style="margin:2px 0 8px">분할 '+_esc(tt.split||'?')+' — '+
+        segs.map(function(x){const v=tt[x[0]];return x[1]+' net <b>'+_ppFx(v.net_bp)+'bp</b>'+(v.ann_bp!=null?(' · 연 '+_ppFx(v.ann_bp)):'')+(v.sharpe!=null?(' · Sh '+_ppFx(v.sharpe)):'')+(v.mdd_bp!=null?(' · MDD '+_ppFx(v.mdd_bp)):'')+(v.n_days!=null?(' · '+v.n_days+'일'):'');}).join(' &nbsp;|&nbsp; ')+
+        (tt.oos_pristine===false?'<br><span class="status">⚠ OOS 비순수(oos_pristine=false)'+(tt.note?(' — '+_esc(tt.note)):'')+'</span>':'')+
+      '</div>';})(st.train_test):'')+
+    ((st.train_test&&!(st.train_test.train&&typeof st.train_test.train==='object'))?(function(tt){
       return '<div class="vbanner v-'+(tt.oos_pass?'ok':'warn')+'" style="margin:2px 0 8px">'+
         'TRAIN(≤'+_esc(tt.split||'?')+') <b>'+_fmt(tt.train_sum_bp)+'bp</b> · n='+(tt.train_n!=null?tt.train_n:'?')+
         ' &nbsp;|&nbsp; TEST/OOS <b>'+_fmt(tt.test_sum_bp)+'bp</b> · n='+(tt.test_n!=null?tt.test_n:'?')+
@@ -2350,6 +2479,7 @@ function renderBacktest(art, regBt){
     // ★델타게이트 증거(gate_evidence.delta_gate) — delta_claim=alpha 의 근거(D1/D2/D3 t_hac)·
     //   절대바 미달·기계검증 아님 목록 전부 아티팩트 원문 그대로(재계산 0·H1). 키 부재 전략 미발동.
     ((art.gate_evidence&&art.gate_evidence.delta_gate)?_deltaGateHtml(art.gate_evidence):'')+
+    ((art.gate_evidence&&!art.gate_evidence.delta_gate&&art.gate_evidence.stages&&(art.gate_evidence.stages.court1||art.gate_evidence.stages.manifest_P1_P2))?_bookGateHtml(art.gate_evidence):'')+
     // R:R(손익비) 캐비엇 — TP<SL(reward:risk<1) 손익비 역전을 통계 섹션에도 명시(H2). regBt.rr_caveat 만 있을 때.
     ((regBt&&regBt.rr_caveat)?('<div class="vbanner v-warn" style="margin:2px 0 10px">⚖ <b>R:R '+(regBt.rr_caveat.match(/reward:risk\s*([0-9.]+)/i)?regBt.rr_caveat.match(/reward:risk\s*([0-9.]+)/i)[1]:'<1')+' &lt;1 (손익비 역전·승률 의존)</b> — '+regBt.rr_caveat+'</div>'):'')+
     ((regBt&&regBt.t_stat_bp!=null)?('<div class="status" style="margin:-4px 0 10px">거래수익 유의성: t-stat <b>'+regBt.t_stat_bp+'</b>'+(regBt.p_value_bp!=null?(' · p='+regBt.p_value_bp):'')+' <b>(&lt;2 비유의 — 단독 통계검증 불가)</b></div>'):'')+
@@ -2414,14 +2544,15 @@ function _portfolioBlocksHtml(p){
   let h='<div class="cat-title">포폴전략 — 일별 NAV / 항등식 / DSR·HAC / 귀속 / 제약 (engine.adopt_portfolio 5블록 그대로)</div>';
   // (1) daily_nav 차트 자리(차트는 호출측에서 생성). 빈 배열이면 정직 안내.
   const nav=p.daily_nav||[];
-  if (nav.length) h+='<div class="cat-title" style="font-size:12px">일별 NAV (bp · canonical 세그먼트 일별 MtM 누적)</div>'+
+  const _miB=((p.mtm_identity||{}).canonical===false)?((p.mtm_identity||{}).basis||'스크립트 경로(canonical 분해 아님)'):'canonical 세그먼트 일별 MtM 누적';
+  if (nav.length) h+='<div class="cat-title" style="font-size:12px">일별 NAV (bp · '+_esc(_miB)+')</div>'+
     '<div class="qchart sm"><canvas id="cPNav"></canvas></div>';
   else h+='<div class="noart">daily_nav 미생성(빈 배열) — NAV 차트 표시 불가.</div>';
   // (2) mtm_identity — ok 정직 노출(채택 하드블록)
   const mi=p.mtm_identity||{};
   const okv=mi.ok;
   h+='<div class="vbanner v-'+(okv===true?'ok':(okv===false?'fail':'warn'))+'" style="margin:6px 0">'+
-    '항등식(mtm_identity): <b>'+(okv===true?'OK ✅ (Σ일별증분==canonical 종착·타일링 NAV==Σ세그net)':
+    '항등식(mtm_identity): <b>'+(okv===true?(mi.canonical===false?'OK ✅ (스크립트 경로 — canonical 세그먼트 분해 아님·6라인 합==총'+(mi.nav_vs_segsum_diff_bp!=null?(' · diff '+_esc(String(mi.nav_vs_segsum_diff_bp))+'bp'):'')+')':'OK ✅ (Σ일별증분==canonical 종착·타일링 NAV==Σ세그net)'):
       (okv===false?'위반 ⛔ (누수 사인 — 채택 불가)':'미가용'))+'</b>'+
     (mi.tiling_identity?(' <span class="status">· tiling: '+_esc(mi.tiling_identity)+'</span>'):'')+
     (mi.note?(' <span class="status">· '+_esc(mi.note)+'</span>'):'')+'</div>';
@@ -2445,8 +2576,14 @@ function _portfolioBlocksHtml(p){
     '— ★단위 라벨 <span class="xstate x-warn">dsr_basis = '+_esc(dh.dsr_basis||'미기록')+'</span> '+
     '<span class="status">(이 DSR 은 '+(dh.dsr_basis==='segment_net'?'세그먼트-net':(dh.dsr_basis?_esc(dh.dsr_basis):'해당'))+
     ' 단위 — <b>일반전략 per-trade DSR 과 단위가 달라 직접 비교 불가</b>)</span><br>'+
-    (_dv!=null?(_dvLbl+' <b class="'+(_vdPass?'pp':(_vdFail?'pn':''))+'">'+_fmt(_dv)+'</b>'+
+    (_dv!=null?(_dvLbl+' <b class="'+(_vdPass?'pp':(_vdFail?'pn':''))+'">'+_esc(String(_dv))+'</b>'+
        (_vd?(' ('+_esc(_vd)+')'):'')):'DSR 미산출(아티팩트 부재)')+
+    // ★밴드 병기(arb_book_v26 류 dsr 블록: daily_by_N/episode_anchor/band/pooled_dsr) — 부재 시 미발동
+    (dsr.daily_by_N?(' · by N: '+_dsrByNTxt(dsr.daily_by_N)):'')+
+    (dsr.episode_anchor!=null?(' · 에피소드 앵커 '+_esc(String(dsr.episode_anchor))+(dsr.episode_verdict?(' '+_esc(dsr.episode_verdict)):'')):'')+
+    (dsr.band?(' · 밴드 '+_dsrBandTxt(dsr.band)):'')+
+    (dsr.pooled_dsr!=null?(' · pooled '+_esc(String(dsr.pooled_dsr))):'')+
+    (dsr.note?('<br><span class="status">'+_esc(dsr.note)+'</span>'):'')+
     (_ntr!=null?(' · n_trials <b>'+_ntr+'</b> <span class="status">(정직-N 디플레이트)</span>'):'')+
     (dsr.n_obs!=null?(' · n_obs '+dsr.n_obs):(dsr.n_episodes!=null?(' · 에피소드 '+dsr.n_episodes):''))+
     (dh.hac_basis?(' &nbsp;|&nbsp; HAC basis <b>'+_esc(dh.hac_basis)+'</b>'):'')+
@@ -2495,10 +2632,14 @@ function _portfolioBlocksHtml(p){
   // (5) constraint_audit — DV01중립·캡·롤(가시화)
   const ca=p.constraint_audit||{};
   const allClear=ca.all_clear;
-  h+='<div class="vbanner v-'+(allClear===true?'ok':(allClear===false?'fail':'warn'))+'" style="margin:6px 0">'+
-    '제약 감사(constraint_audit): <b>'+(allClear===true?'전건 통과 ✅':(allClear===false?'위반 있음 ⚠':'요약 키 없음'))+'</b>';
+  // ★premise_all_clear=False(대전제 미충족·arb_book_v26 류)면 all_clear True 여도 녹색 '전건 통과'로 비추지 않음(H2)
+  const _prem=ca.premise_all_clear;
+  h+='<div class="vbanner v-'+((allClear===true&&_prem!==false)?'ok':((allClear===false||_prem===false)?'fail':'warn'))+'" style="margin:6px 0">'+
+    '제약 감사(constraint_audit): <b>'+(allClear===true?'L12(DV01중립·캡·롤) 통과':(allClear===false?'위반 있음 ⚠':'요약 키 없음'))+'</b>'+
+    (_prem===false?(' · <b>대전제 all_clear False</b>'+(ca.premise_note?(' — '+_esc(ca.premise_note)):'')):'')+
+    (ca.all_clear_note?('<br><span class="status">'+_esc(ca.all_clear_note)+'</span>'):'');
   // 나머지 키를 정직하게 펼침(엔진이 준 그대로 — 가공 0)
-  const extra=Object.entries(ca).filter(function(kv){return kv[0]!=='all_clear'&&kv[0]!=='note';});
+  const extra=Object.entries(ca).filter(function(kv){return ['all_clear','note','premise_all_clear','premise_note','all_clear_note'].indexOf(kv[0])<0;});
   if (extra.length) h+='<br><span class="status">'+extra.map(function(kv){
     return _esc(kv[0])+': '+_esc(typeof kv[1]==='object'?JSON.stringify(kv[1]):kv[1]);
   }).join(' · ')+'</span>';
@@ -2555,6 +2696,45 @@ function _deltaCharHtml(dc){
       ' vs buy&hold 30y <b class="pn">'+_ppFx(ca.bh_30y_bp)+'bp</b> · 10y <b class="pn">'+_ppFx(ca.bh_10y_bp)+'bp</b>'+
       (ca.note?(' — '+_esc(ca.note)):'')+'</div>';
   }
+  return h;
+}
+
+// ★결합북 게이트 증거(gate_evidence.stages) 렌더 — arb_book_v26 류·아티팩트 *그대로*(재계산 0·H1).
+//   게이트 자동판정(집안 verdict) / 통계축 verdict / DSR 밴드 / 대전제 / manifest P1·P2(RV 합류 사전 기준) /
+//   법원1 체크·why / not_machine_verified 원문 — 좋아 보이는 값만 고르지 않음(H2).
+function _bookGateHtml(ge){
+  const sg=ge.stages||{};
+  const _pf=function(v){ return v===true?'<b class="pp">PASS</b>':(v===false?'<b class="pn">FAIL</b>':'–'); };
+  let h='<div class="cat-title">게이트 증거 (gate_evidence.stages 그대로'+(ge.gate_run_at?(' · '+_esc(ge.gate_run_at)):'')+')</div>';
+  h+='<div class="vbanner v-'+({PASS:'ok',WARN:'warn'}[String(sg.gate_verdict||ge.gate_verdict||'').toUpperCase()]||'fail')+'" style="margin:2px 0 6px">'+
+    '게이트 자동판정 <b>'+_esc(sg.gate_verdict||ge.gate_verdict||'?')+'</b>'+
+    (sg.premise_all_clear!=null?(' · 대전제 all_clear <b>'+String(sg.premise_all_clear)+'</b>'):'')+
+    (sg.statistical_verdict?(' &nbsp;|&nbsp; 통계축 <b>'+_esc(sg.statistical_verdict)+'</b>'):'')+
+    (sg.dsr!=null?(' · 에피소드 DSR 앵커 <b>'+_esc(String(sg.dsr))+'</b>'):'')+
+    (sg.dsr_band?(' · 밴드 '+_dsrBandTxt(sg.dsr_band)):'')+
+    (sg.dsr_pooled!=null?(' · pooled '+_esc(String(sg.dsr_pooled))):'')+
+    (sg.statistical_tier?('<br><span class="status">statistical_tier=<code>'+_esc(sg.statistical_tier)+'</code>'+(sg.oos_pristine===false?' · oos_pristine False':'')+'</span>'):'')+
+    (ge.tier_reason?('<br><span class="status">'+_esc(ge.tier_reason)+'</span>'):'')+'</div>';
+  const mf=sg.manifest_P1_P2||null;
+  if (mf){
+    h+='<div class="vbanner v-fail" style="margin:2px 0 6px">RV 합류 사전 선언(manifest P1/P2) — 원문: '+
+      Object.keys(mf).map(function(k){return _esc(k)+'=<b>'+_esc(String(mf[k]))+'</b>';}).join(' · ')+
+      '<br><span class="status">사전 기준 미달 → 규약상 합류 "참고"(사용자 §3 택1: 기준 미달·참고 라벨로 등재). 확정 북 아님.</span></div>';
+  }
+  const c1=sg.court1||null;
+  if (c1){
+    h+='<div class="vbanner '+(c1.passed?'v-ok':'v-fail')+'" style="margin:2px 0 6px">법원1 확증 '+_pf(c1.passed)+
+      (c1.checks?(' — '+Object.keys(c1.checks).map(function(k){const v=c1.checks[k];return _esc(k)+' '+(v===true?'✓':(v===false?'✗':'–'));}).join(' · ')):'')+
+      (c1.why?('<br><span class="status">'+_esc(c1.why)+'</span>'):'')+'</div>';
+  }
+  if (sg.oos&&typeof sg.oos==='object'){
+    h+='<div class="status" style="margin:0 0 6px">OOS 분할 체크(oos): '+Object.keys(sg.oos).filter(function(k){return k!=='note';}).map(function(k){const v=sg.oos[k];return _esc(k)+' '+(v===true?'✓':(v===false?'✗':_esc(String(v))));}).join(' · ')+'</div>';
+  }
+  if (Array.isArray(ge.not_machine_verified)&&ge.not_machine_verified.length){
+    h+='<div class="status" style="margin:0 0 6px">⚠ 기계검증 아님(not_machine_verified 원문): '+
+      ge.not_machine_verified.map(function(x){return _esc(x);}).join(' · ')+'</div>';
+  }
+  if (ge.via_path) h+='<div class="status" style="margin:0 0 6px">경로: '+_esc(ge.via_path)+'</div>';
   return h;
 }
 

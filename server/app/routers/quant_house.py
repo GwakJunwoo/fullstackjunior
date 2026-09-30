@@ -727,6 +727,11 @@ def portfolio_strategies():
         delta_char = None
         lag_retention = None
         comparison_vs_base = None
+        # ★arb_book_v26 류(결합북·script_path) 정직 라벨 원문 — 아티팩트 그대로(재계산 0·H3)
+        fill_convention = None
+        stats_cost_model = None
+        gate_stages = None
+        not_machine_verified = None
         if fp.exists():
             try:
                 art = json.loads(fp.read_text(encoding="utf-8"))
@@ -740,6 +745,14 @@ def portfolio_strategies():
                 #   (uni_irs 류=path_pain, cta_delta 류=delta_characteristics — 없으면 None 정직).
                 path_pain = art.get("path_pain")
                 delta_char = art.get("delta_characteristics")
+                # ★체결 규약·비용 규약·게이트 단계 원문(stats.fill_convention / stats.cost_model /
+                #   gate_evidence.stages{manifest_P1_P2·court1·statistical_verdict·premise_all_clear}
+                #   / not_machine_verified) 그대로 통과 — 카드가 "기준 미달·참고"·법원1 미확증·
+                #   낙관 체결을 1급 병기하도록. 필드 부재 전략은 None(미발동).
+                fill_convention = (art.get("stats") or {}).get("fill_convention")
+                stats_cost_model = (art.get("stats") or {}).get("cost_model")
+                gate_stages = (art.get("gate_evidence") or {}).get("stages")
+                not_machine_verified = (art.get("gate_evidence") or {}).get("not_machine_verified")
                 # ★체결타이밍 강건성(lag_retention) — 아티팩트 gate_evidence.delta_gate 그대로
                 #   통과(재계산 0·H3). lag1(배포·신호종가) ↔ lag2(t+1종가) 재산출 유지율.
                 #   카드가 "lag2 PASS(타이밍 함정 아님)"를 게이트 FAIL 과 *나란히* 표기하도록.
@@ -862,6 +875,26 @@ def portfolio_strategies():
             "mdd_exit_bp": (e.get("backtest") or {}).get("max_drawdown_bp"),
             "test_t": _te.get("test_t"),       # OOS t — 등록부 tier_eval 그대로
             "by_year": by_year,                # 아티팩트 stats.by_year 그대로(연도별 net bp)
+            # ★arb_book_v26(총 결합북·사용자 §3 2026-09-30 proposed 등재) 정직 라벨 필드 —
+            #   전부 등록부/아티팩트 *원문 그대로*(요약·가공 0·H3). 부재 전략은 None(미발동).
+            #   capital_state: paper/live 1급(HOUSE §12.6). execution: sizing 0·auto False·fill.
+            #   dsr_band/dsr_daily_by_N/dsr_episode_anchor/dsr_pooled/statistical_verdict:
+            #   "게이트 FAIL(대전제) 와 통계 PASS·DSR 밴드·일별 DSR WARN 을 나란히" — 단일 DSR 값
+            #   단독 표시 금지(H2). manifest_P1_P2/court1: RV 합류 사전 기준 미달·법원1 미확증.
+            "capital_state": e.get("capital_state"),
+            "execution": e.get("execution"),
+            "dsr_band": _te.get("dsr_band"),
+            "dsr_daily_by_N": _te.get("dsr_daily_by_N"),
+            "dsr_episode_anchor": _te.get("dsr_episode_anchor"),
+            "dsr_pooled": _te.get("dsr_pooled"),
+            "statistical_verdict": _te.get("statistical_verdict"),
+            "oos_pristine": _te.get("oos_pristine"),
+            "n_lines": _cons.get("n_lines"),
+            "lines": _cons.get("lines"),
+            "fill_convention": fill_convention,
+            "cost_model_stats": stats_cost_model,
+            "gate_stages": gate_stages,
+            "not_machine_verified": not_machine_verified,
         })
     return {
         "count": len(items),
