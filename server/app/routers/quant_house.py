@@ -557,6 +557,35 @@ def review_scoreboard():
         _REVIEW_SCOREBOARD, "cli.py review-ledger score 실행 필요")
 
 
+# ═══ 차익거래 일일 모니터 (2026-10-21 · 명세 intraday/_ARB_MONITOR_SPEC_20261021.md) ═══
+_MONITOR_DIR = QH_ROOT / "05_registry" / "research" / "monitor"
+_MONITOR_PANELS = ("market", "hets_today", "basis", "bias", "ledger", "exposure", "labels")
+_MONITOR_HINT = "harness/monitor_build.py <날짜> 실행 필요(daily-refresh 6m)"
+
+
+@router.get("/arb-monitor")
+def arb_monitor():
+    """★차익거래 모니터 — monitor/latest.json 이 가리키는 7개 json *그대로*(H3 전달자·재계산 0).
+
+    latest.json(파일명 포인터) → market·hets_today·basis·bias·ledger·exposure·labels 를 한 번에.
+    부재/파싱 실패 = available:false + 안내(가짜 데이터 금지·H2). 패널 하나만 없으면 그 패널만 available:false.
+    생산 = 05_registry/research/harness/monitor_build.py <날짜> (daily-refresh 6m 단계).
+    """
+    latest = _review_passthrough(_MONITOR_DIR / "latest.json", _MONITOR_HINT)
+    if not latest.get("available"):
+        return {"available": False, "note": latest.get("note")}
+    files = latest.get("files") if isinstance(latest.get("files"), dict) else {}
+    panels = {}
+    for p in _MONITOR_PANELS:
+        name = files.get(p)
+        # 파일명만 허용(경로 조작 방지) — latest.json 은 엔진 산출이지만 방어적으로
+        if not isinstance(name, str) or not name.endswith(".json") or "/" in name or "\\" in name or ".." in name:
+            panels[p] = {"available": False, "note": f"latest.json 에 {p} 파일명 없음/형식 오류 — {_MONITOR_HINT}"}
+            continue
+        panels[p] = _review_passthrough(_MONITOR_DIR / name, _MONITOR_HINT)
+    return {"available": True, "latest": latest, "panels": panels}
+
+
 @router.get("/review-docx")
 def review_docx():
     """주간리뷰 docx 생성+다운로드 — engine.research.review_docx.build_docx() 호출.

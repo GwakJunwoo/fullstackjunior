@@ -19,6 +19,9 @@
   // ── 정보 구조 (IA) ────────────────────────────────────────────────────
   // group 값이 바뀌는 지점에 2차 탭 세로 구분선. kw = 팔레트 검색어(영문·별칭).
   var AREAS = [
+    { id: 'arb', label: '차익거래 모니터', pages: [
+      { id: 'arb', label: '차익거래 모니터', href: '/tools/arb-monitor/', contest: true,
+        desc: '시장 동향 · 저평 계기판 · 오늘 판정 · b 감시', kw: 'arb arbitrage hets basis 차익 저평 판정 모니터' } ] },
     { id: 'review', label: '주간 리뷰', pages: [
       { id: 'review', label: '주간 리뷰', href: '/tools/quant-house/#review', contest: true,
         desc: '일드커브 · 넷팅 · 팩터 손익 · TOP PICK · 상품/바스켓 비교', kw: 'weekly review market 리뷰 시장' } ] },
@@ -198,8 +201,10 @@
     }
     return out;
   }
+  var localItems = [];   // 화면 안 항목(패널 앵커 등) — WBShell.setLocalItems([{label, href}])
   function entries() {
     var list = [];
+    localItems.forEach(function (it) { list.push({ kind: 'local', area: '이 화면', label: it.label, desc: '', href: it.href, kw: it.kw || '' }); });
     visibleAreas().forEach(function (a) {
       a.pages.forEach(function (p) { list.push({ kind: 'page', area: a.label, label: p.label, desc: p.desc || '', href: p.href, kw: p.kw || '' }); });
     });
@@ -245,7 +250,7 @@
     if (!palItems.length) { palList.innerHTML = '<li class="wb-palette-empty">일치하는 화면이 없습니다.</li>'; return; }
     var html = '', lastArea = null;
     palItems.forEach(function (it, i) {
-      var grp = it.kind === 'cmd' ? '명령' : '화면';
+      var grp = it.kind === 'cmd' ? '명령' : it.kind === 'local' ? '이 화면' : '화면';
       if (grp !== lastArea) { html += '<li class="wb-palette-group" role="presentation">' + grp + '</li>'; lastArea = grp; }
       html += '<li class="wb-palette-item" role="option" id="wb-pal-' + i + '" data-i="' + i + '" aria-selected="' + (i === palSel) + '">' +
         '<span class="wb-palette-item-label">' + esc(it.label) + '</span>' +
@@ -400,6 +405,7 @@
     openPalette: openPalette,
     measure: measure,
     helpBtn: helpBtn,
-    hideTip: hideTip
+    hideTip: hideTip,
+    setLocalItems: function (list) { localItems = Array.isArray(list) ? list.slice() : []; }
   };
 })();
