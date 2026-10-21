@@ -42,6 +42,11 @@
   --wb-action-ink: #f0eee9;
   --wb-overlay: rgb(51 54 59 / 32%);
   --wb-legacy-purple: #7d68a8;   /* 호환층 전용(구 --purple) — wb 팔레트에 보라 없음 */
+  /* 녹색 램프(양수 크기 · --wb-open 계열) · 0 근처 = pos-0 중성 · 큰 음수 = neg-1 옅은 회갈 · 글자 lo/hi(5·6단은 hi) */
+  --wb-pos-0: #e4e2dc; --wb-neg-1: #e8ded6;
+  --wb-pos-1: #dce8dd; --wb-pos-2: #c2dcc7; --wb-pos-3: #9ccba8;
+  --wb-pos-4: #6cb07f; --wb-pos-5: #2f8150; --wb-pos-6: #1d6640;
+  --wb-pos-fg-lo: #33363b; --wb-pos-fg-hi: #f6f8f6;
 }
 
 /* ── 2. 토큰 · 어두운 테마 ─────────────────────────────────────────────
@@ -79,6 +84,10 @@ html[data-wb="partial"]:not([data-contest]) {
   --wb-action-ink: #eef0f3;
   --wb-overlay: rgb(10 11 13 / 60%);
   --wb-legacy-purple: #a796d4;
+  --wb-pos-0: #262a30; --wb-neg-1: #2f2a27;
+  --wb-pos-1: #1f3328; --wb-pos-2: #1f4a31; --wb-pos-3: #1f633c;
+  --wb-pos-4: #1d6f40; --wb-pos-5: #2da35d; --wb-pos-6: #3ccb74;
+  --wb-pos-fg-lo: #e3e5e8; --wb-pos-fg-hi: #0f1712;
 }
 /* (d) 시스템 설정 따름 — 사용자가 밝음을 명시하지 않았으면 */
 @media (prefers-color-scheme: dark) {
@@ -111,6 +120,10 @@ html[data-wb="partial"]:not([data-contest]) {
     --wb-action-ink: #eef0f3;
     --wb-overlay: rgb(10 11 13 / 60%);
     --wb-legacy-purple: #a796d4;
+    --wb-pos-0: #262a30; --wb-neg-1: #2f2a27;
+    --wb-pos-1: #1f3328; --wb-pos-2: #1f4a31; --wb-pos-3: #1f633c;
+    --wb-pos-4: #1d6f40; --wb-pos-5: #2da35d; --wb-pos-6: #3ccb74;
+    --wb-pos-fg-lo: #e3e5e8; --wb-pos-fg-hi: #0f1712;
   }
 }
 
