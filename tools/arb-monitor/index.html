@@ -9,8 +9,8 @@
   <script>/* wb 기본 테마 선적용(첫 페인트 깜빡임 방지) — 저장값 없으면 어두움 · wb-shell.js 와 같은 규칙 */try{var t=localStorage.getItem('wb-theme');document.documentElement.setAttribute('data-theme',t==='light'||t==='dark'?t:'dark')}catch(e){document.documentElement.setAttribute('data-theme','dark')}</script>
   <title>차익거래 모니터 · Bond Quant House</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%9B%EF%B8%8F%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/assets/css/wb.css?v=20261021c">
-  <script src="/assets/js/wb-shell.js?v=20261021c"></script>
+  <link rel="stylesheet" href="/assets/css/wb.css?v=20261021d">
+  <script src="/assets/js/wb-shell.js?v=20261021d"></script>
   <style>
     .am-sec { margin-top: var(--wb-s6); scroll-margin-top: calc(var(--wb-shell-h) + var(--wb-filterbar-h) + 12px); }
     .am-sec:first-of-type { margin-top: var(--wb-s4); }
@@ -119,10 +119,20 @@
     .am-heat th.dim { border-left: 1px solid var(--wb-rule); }
     .am-heat td { height: 34px; padding: 0 6px; text-align: center; border-bottom: 1px solid var(--wb-rule); white-space: nowrap; }
     .am-heat td:first-child { text-align: left; font-weight: 600; }
-    .am-heat td.c { color: #fff; }
-    .am-heat td.c small { display: block; font-size: 10px; opacity: .8; line-height: 12px; }
-    .am-heat td.cur { box-shadow: inset 0 0 0 2px var(--wb-ink); }
-    .am-heat td.c.light { color: var(--wb-ink); }
+    /* 색 = 녹색 램프 토큰(--wb-pos-*) · 현재 상태 = 안쪽 1px 링(옅게) + 왼쪽 위 점 + 값 굵게(레이아웃 시프트 0) · n<15 = 흐린 숫자 */
+    .am-heat td.c { position: relative; background: var(--hb); color: var(--hf); }
+    .am-heat td.c .v { font-weight: 400; }
+    .am-heat td.c small { display: block; font-size: 10px; opacity: .75; line-height: 12px; }
+    .am-heat td.cur { box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wb-mark) 50%, transparent); }
+    .am-heat td.cur .v { font-weight: 600; }
+    .am-heat td.cur::before { content: ''; position: absolute; left: 4px; top: 4px; width: 5px; height: 5px; border-radius: 50%; background: currentColor; opacity: .7; }
+    .am-heat td.lown .v, .am-heat td.lown small { opacity: .5; }
+    .am-heat-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; padding: var(--wb-s2) var(--wb-inset) var(--wb-s3); font-size: var(--wb-fs-label); color: var(--wb-muted); }
+    .am-heat-scale { display: inline-flex; align-items: flex-start; gap: 0; }
+    .am-heat-scale span { display: inline-flex; flex-direction: column; align-items: center; gap: 2px; min-width: 34px; }
+    .am-heat-scale i { display: block; width: 34px; height: 10px; border: 1px solid var(--wb-rule); }
+    .am-heat-key { display: inline-flex; align-items: center; gap: 6px; }
+    .am-heat-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--wb-mark); opacity: .7; }
 
     /* 달력 · 정직 라벨 */
     .am-cal { list-style: none; margin: 0; padding: 0; }
@@ -297,6 +307,7 @@
     <section class="wb-card am-row am-anchor" id="am-x-heat">
       <div class="wb-card-head"><span class="wb-card-title">이 상태에서 평소 얼마였나<span id="amHelpHeat"></span></span><span class="wb-card-meta"><span class="wb-badge">뷰로 켜고 끄지 않음</span> <span class="wb-badge">2024~ 거래당 bp</span></span></div>
       <div class="am-tbl-wrap"><table class="am-heat" id="amHeat"></table></div>
+      <div class="am-heat-legend" id="amHeatLegend"></div>
     </section>
   </section>
 
@@ -330,7 +341,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
-<script src="/assets/js/wb-chart.js?v=20261021c"></script>
+<script src="/assets/js/wb-chart.js?v=20261021d"></script>
 <script>
 // ══════════════════════════════════════════════════════════════
 //  차익거래 모니터 — /quant-house/arb-monitor 응답을 그대로 표시(재계산 0 · 반올림·부호 표기만)
@@ -738,16 +749,27 @@ function renderExpo() {
     : emptyBox('보유 포지션 없음', '체결 기록(귀속 원장)이 없으면 열린 포지션도 없습니다.');
   // 열지도 — 그날 상태 칸 테두리 · 색 = 거래당 bp(같은 표 안 최대 |값| 기준 발산형)
   const TS = x.tree_state_mean || {}, trees = Object.keys(TS);
-  $('amHelpHeat').innerHTML = help('tree_state_mean 그대로 — 2024~ 상태 칸별 거래당(bp)과 표본 n. 테두리 칸 = 전일 실제 상태. 뷰로 트리를 켜고 끄지 않는다. 100% 맞혀도 손익은 같고 거래만 27% 준다(손익분기 적중률 99%). 커브·저평 뷰는 커브를 직접.');
+  $('amHelpHeat').innerHTML = help('tree_state_mean 그대로 — 2024~ 상태 칸별 거래당(bp)과 표본 n. ● 표식 칸 = 전일 실제 상태 · 색 = 거래당 bp(녹색이 진할수록 큼 · 0 근처·음수 = 회색, 큰 음수는 옅은 회갈) · 흐린 숫자 = 표본 n<15(값·색은 그대로). 뷰로 트리를 켜고 끄지 않는다. 100% 맞혀도 손익은 같고 거래만 27% 준다(손익분기 적중률 99%). 커브·저평 뷰는 커브를 직접.');
   if (!trees.length) { $('amHeat').innerHTML = `<tbody><tr><td>${emptyBox('열지도 데이터 없음')}</td></tr></tbody>`; return; }
   const cols = []; Object.keys(TS[trees[0]]).forEach(c => cols.push(c));
   const dims = []; cols.forEach(c => { const d = c.split('·')[0]; if (!dims.includes(d)) dims.push(d); });
-  const mx = Math.max(...trees.flatMap(t => cols.map(c => Math.abs(+((TS[t][c] || {}).mean) || 0)))) || 1;
   const cur = new Set(Object.entries(rp).map(([a, b]) => `${a}·${b}`));
-  const colorOf = v => { if (!isNum(v)) return ['transparent', true]; const r = Math.max(-1, Math.min(1, +v / mx)); const idx = Math.round(5 + r * 4); return [`var(--wb-ramp-${Math.max(1, Math.min(9, idx))})`, Math.abs(r) < 0.35]; };
+  // 고정 구간(bp/거래): 큰 음수(<−0.1) = 옅은 회갈 · 0 근처(−0.1~0.05) = 중성 · 0.05/0.15/0.25/0.35/0.5/0.65 = 녹색 1~6단
+  const BRK = [0.05, 0.15, 0.25, 0.35, 0.5, 0.65];
+  const tone = v => {
+    if (!isNum(v)) return { bg: 'transparent', fg: 'var(--wb-muted)' };
+    const n = +v;
+    if (n < -0.1) return { bg: 'var(--wb-neg-1)', fg: 'var(--wb-pos-fg-lo)' };
+    if (n < BRK[0]) return { bg: 'var(--wb-pos-0)', fg: 'var(--wb-pos-fg-lo)' };
+    const k = BRK.filter(b => n >= b).length;
+    return { bg: `var(--wb-pos-${k})`, fg: k >= 5 ? 'var(--wb-pos-fg-hi)' : 'var(--wb-pos-fg-lo)' };
+  };
   $('amHeat').innerHTML = `<thead><tr><th></th>${dims.map(d => `<th class="dim" colspan="${cols.filter(c => c.split('·')[0] === d).length}">${esc(d)}</th>`).join('')}</tr><tr><th>트리</th>${cols.map((c, i) => `<th class="${i && cols[i - 1].split('·')[0] !== c.split('·')[0] ? 'dim' : ''}">${esc(c.split('·')[1] || c)}</th>`).join('')}</tr></thead><tbody>` +
-    trees.map(t => `<tr><td>${esc(t)}</td>${cols.map(c => { const v = (TS[t][c] || {}); const [bg, light] = colorOf(v.mean);
-      return `<td class="c ${light ? 'light' : ''} ${cur.has(c) ? 'cur' : ''}" style="background:${bg}" title="${esc(t + ' · ' + c + ' · n ' + (v.n ?? '—'))}">${sgn(v.mean, 2)}<small>n ${v.n ?? '—'}</small></td>`; }).join('')}</tr>`).join('') + '</tbody>';
+    trees.map(t => `<tr><td>${esc(t)}</td>${cols.map(c => { const v = (TS[t][c] || {}); const tn = tone(v.mean); const low = isNum(v.n) && +v.n < 15;
+      return `<td class="c ${cur.has(c) ? 'cur' : ''} ${low ? 'lown' : ''}" style="--hb:${tn.bg};--hf:${tn.fg}" title="${esc(t + ' · ' + c + ' · ' + sgn(v.mean, 2) + 'bp · n ' + (v.n ?? '—') + (cur.has(c) ? ' · 전일 상태' : ''))}"><span class="v">${sgn(v.mean, 2)}</span><small>n ${v.n ?? '—'}</small></td>`; }).join('')}</tr>`).join('') + '</tbody>';
+  const sw = (bg, lab) => `<span><i style="background:${bg}"></i>${lab}</span>`;
+  $('amHeatLegend').innerHTML = `<span class="am-heat-key">거래당 bp</span><span class="am-heat-scale">${sw('var(--wb-neg-1)', '&lt;−0.1') + sw('var(--wb-pos-0)', '~0') + BRK.map((b, k) => sw(`var(--wb-pos-${k + 1})`, (k === BRK.length - 1 ? b + '+' : b))).join('')}</span>` +
+    `<span class="am-heat-key"><span class="am-heat-dot"></span>전일 상태</span><span class="am-heat-key" style="opacity:.6">흐린 숫자 = n&lt;15</span>`;
 }
 
 // ── 6. 달력 · 라벨 ───────────────────────────────────────────
