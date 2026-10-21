@@ -20,6 +20,10 @@
   // ── 정보 구조 (IA) ────────────────────────────────────────────────────
   // group 값이 바뀌는 지점에 2차 탭 세로 구분선. kw = 팔레트 검색어(영문·별칭).
   var AREAS = [
+    // 2026-10-21 사용자 지시: Overview = 들어가면 맨 먼저(루트 '/' → /tools/overview/) · 헤더 첫 탭(브랜드 클릭도 여기)
+    { id: 'overview', label: 'Overview', pages: [
+      { id: 'overview', label: 'Overview', href: '/tools/overview/', contest: true,
+        desc: '지표 3일 움직임 · 최신 금리 변동(D vs D−1) · 차익거래 · 주간 리뷰 · 금리 대시보드 요약', kw: 'overview home summary 요약 첫 화면 개요 홈' } ] },
     { id: 'arb', label: '차익거래 모니터', pages: [
       { id: 'arb', label: '차익거래 모니터', href: '/tools/arb-monitor/', contest: true,
         desc: '시장 동향 · 저평 계기판 · 오늘 판정 · b 감시', kw: 'arb arbitrage hets basis 차익 저평 판정 모니터' } ] },
@@ -127,12 +131,12 @@
           return sep + '<a href="' + esc(p.href) + '"' + (p.id === curPage ? ' class="is-active" aria-current="page"' : '') + '>' + esc(p.label) + '</a>';
         }).join('') + '</nav></div>';
     }
-    // 브랜드 클릭 = 첫 화면(주간 리뷰)
+    // 브랜드 클릭 = 첫 화면(보이는 첫 영역의 첫 화면 = Overview)
     var homeHref = (areas[0] && areas[0].pages[0]) ? areas[0].pages[0].href : '/tools/quant-house/';
     host.className = 'wb-shell';
     host.innerHTML =
       '<div class="wb-shell-bar">' +
-        '<a class="wb-brand" href="' + esc(homeHref) + '" aria-label="Bond Quant House — 주간 리뷰로">' +
+        '<a class="wb-brand" href="' + esc(homeHref) + '" aria-label="Bond Quant House — 첫 화면(Overview)으로">' +
           '<span class="wb-brand-emoji" aria-hidden="true">' + BRAND_EMOJI + '</span>' +
           '<span class="wb-brand-name">Bond Quant House</span></a>' +
         '<nav class="wb-nav1" aria-label="화면">' + nav1 + '</nav>' +

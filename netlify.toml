@@ -47,14 +47,19 @@
 #   [redirects.headers]
 #     ngrok-skip-browser-warning = "1"
 
-# ── 루트 = 차익거래 모니터 (2026-10-21 사용자 지시: "주소로 들어가면 이게 맨 먼저") ──
+# ── 루트 = Overview (2026-10-21 사용자 지시: "들어가면 바로 보이는 Overview 탭" · 이전 = 차익거래 모니터) ──
 # 302(임시)+force: 루트 index.html(폴백 리다이렉트 페이지)이 있어도 서버 단에서 바로 이동 — 깜빡임 0.
 # 301 이 아니라 브라우저에 영구 캐시되지 않음 → 되돌리기 = to 를 바꾸거나 이 블록 삭제.
 [[redirects]]
   from   = "/"
-  to     = "/tools/arb-monitor/"
+  to     = "/tools/overview/"
   status = 302
   force  = true
+
+[[redirects]]
+  from   = "/tools/overview"
+  to     = "/tools/overview/"
+  status = 301
 
 [[redirects]]
   from   = "/tools/arb-monitor"

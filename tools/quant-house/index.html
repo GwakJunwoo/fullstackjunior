@@ -10,8 +10,8 @@
   <title>주간 리뷰 · Bond Quant House</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%9B%EF%B8%8F%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="/assets/css/main.css">
-  <link rel="stylesheet" href="/assets/css/wb.css?v=20261021g">
-  <script src="/assets/js/wb-shell.js?v=20261021g"></script>
+  <link rel="stylesheet" href="/assets/css/wb.css?v=20261021h">
+  <script src="/assets/js/wb-shell.js?v=20261021h"></script>
   <style>
     /* CONTEST_MODE (2026-09 사내대회) — 대회 후 원복. html[data-contest] 일 때만 적용(이 페이지 한정).
        주간 리뷰 외 탭 버튼·뷰 + 상단 네비 링크 시각적 숨김(DOM·JS·API 무수정). */
@@ -398,210 +398,8 @@
       #revBody .rv-net { grid-template-columns: minmax(0, 1fr); }
       #revBody .rv-chart--scatter { height: 260px; }
     }
-
-    /* ═══ redesign-wb 4단계 — 주간 리뷰 '일반 | 고급' 보기 (assets/js/wb-review-plain.js) ═══
-       보기 = #view-review[data-rv-view] — 모듈이 설정. 속성이 없으면(모듈 실패 포함) 고급 = 기존 화면 그대로 보임.
-       색: + = up(빨강) · − = down(파랑) — 잔차·종합 점수는 + = 쌈 · 항상 쌈/비쌈 글자 병기 · 20년 = 회색. */
-    #view-review[data-rv-view="plain"] .rv-doc,
-    #view-review[data-rv-view="plain"] #wbRevToc { display: none; }
-    #view-review:not([data-rv-view="plain"]) #revPlain,
-    #view-review:not([data-rv-view="plain"]) #wbRevTocPlain { display: none; }
-    #view-review .rv-window[hidden] { display: none; }
-    #view-review .rv-window .wb-help { margin-left: 6px; }
-    #revPlain { min-width: 0; display: flex; flex-direction: column; gap: var(--wb-gap); }
-    #revPlain [id^="rvp-"] { scroll-margin-top: calc(var(--wb-shell-h) + var(--wb-filterbar-h) + 12px); }
-    #revPlain .rvp-muted { color: var(--wb-muted); }
-    #revPlain .rvp-empty-act { margin-top: var(--wb-s3); }
-    #revPlain .rvp-warn { padding: var(--wb-s2) var(--wb-s4); border: 1px solid var(--wb-rule); border-left: 2px solid var(--wb-up); border-radius: var(--wb-r-ctl); background: var(--wb-subtle); color: var(--wb-up); font-size: 13px; }
-    /* 결론 3줄 */
-    .rvp-concl { padding: 10px var(--wb-s4) var(--wb-s3); }
-    .rvp-concl-top { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin-bottom: 4px; font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-muted); }
-    .rvp-concl-k { font-size: 13px; font-weight: 600; color: var(--wb-ink); }
-    .rvp-concl-win.is-nonstd { color: var(--wb-warn); font-weight: 600; }
-    .rvp-lines { list-style: none; margin: 0; padding: 0; }
-    .rvp-lines li { display: flex; gap: var(--wb-s3); padding: 1px 0; font-size: 15px; line-height: 24px; color: var(--wb-ink); }
-    .rvp-lines .rvp-k { flex: none; width: 52px; padding-top: 1px; font-size: var(--wb-fs-label); color: var(--wb-muted); }
-    .rvp-lines .rvp-l { min-width: 0; }
-    /* 그림 카드 */
-    .rvp-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--wb-gap); align-items: stretch; }
-    .rvp-fig { display: flex; flex-direction: column; min-width: 0; }
-    .rvp-head { flex-wrap: nowrap; gap: 2px 8px; padding-top: 6px; padding-bottom: 6px; }
-    .rvp-kicker { flex: none; height: 20px; padding: 0 6px; display: inline-flex; align-items: center; border-radius: var(--wb-r-ctl); background: var(--wb-subtle); color: var(--wb-muted); font-size: var(--wb-fs-label); }
-    .rvp-title { flex: 0 1 auto; min-width: 0; text-wrap: balance; }
-    .rvp-title, .rvp-lines .rvp-l, .rvp-sent, .rvp-claims li, .rvp-trust-why { word-break: keep-all; overflow-wrap: anywhere; }   /* 한글 어절 단위 줄바꿈 */
-    .rvp-head .rvp-more { margin-left: auto; }
-    .rvp-head .wb-card-meta + .rvp-more { margin-left: 8px; }
-    .rvp-more { flex: none; height: 24px; padding: 0 8px; background: none; border: 1px solid transparent; border-radius: var(--wb-r-ctl); color: var(--wb-muted); font-size: var(--wb-fs-label); white-space: nowrap; cursor: pointer; }
-    .rvp-more:hover { color: var(--wb-ink); border-color: var(--wb-rule-strong); }
-    .rvp-body { flex: 1; min-width: 0; padding: var(--wb-s2) var(--wb-s4) var(--wb-s3); }
-    .rvp-chart { position: relative; }
-    .rvp-chart--curve { height: 120px; }
-    .rvp-chart--chg { height: 62px; margin-top: 2px; }
-    .rvp-chart--scatter { height: 182px; }
-    .rvp-chart--trend { height: 72px; }
-    .rvp-chart-none { padding: var(--wb-s4); font-size: 12px; color: var(--wb-muted); }
-    .rvp-legend { margin-bottom: 4px; }
-    .rvp-foot { margin-top: 6px; font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-muted); }
-    .rvp-foot--top { margin: 0 0 6px; }
-    .rvp-ldot { display: inline-block; flex: none; width: 8px; height: 8px; border-radius: 50%; }
-    .rvp-ldot--now { background: var(--wb-ink); }
-    .rvp-ldot--prev { border: 1.5px solid var(--wb-muted); }
-    .rvp-ldot--up { background: var(--wb-up); }
-    .rvp-ldot--down { background: var(--wb-down); }
-    .rvp-ldot--ind { width: 9px; height: 9px; border: 2px solid var(--wb-muted); }
-    .rvp-lbar { display: inline-block; width: 16px; height: 4px; border-radius: 2px; background: var(--wb-rule-strong); }
-    .rvp-axisw { margin-left: auto; }
-    /* 커브 — 1년 범위 막대 + 지금/비교 점 · 줄 클릭 = 추이 */
-    .rvp-crow { display: grid; grid-template-columns: 44px minmax(0, 1fr) 132px; align-items: center; gap: 8px; height: 30px; padding: 0 6px; border-radius: var(--wb-r-ctl); cursor: pointer; }
-    .rvp-crow:hover { background: var(--wb-subtle); }
-    .rvp-crow.is-sel { background: var(--wb-subtle); box-shadow: inset 2px 0 0 var(--wb-mark); }
-    .rvp-crow-k { font-weight: 600; }
-    .rvp-crow-bar { display: grid; grid-template-columns: 36px minmax(0, 1fr) 36px; align-items: center; gap: 6px; font-size: var(--wb-fs-label); color: var(--wb-muted); font-variant-numeric: tabular-nums; }
-    .rvp-rng-lo { text-align: right; }
-    .rvp-rng { position: relative; height: 14px; }
-    .rvp-rng-track { position: absolute; left: 0; right: 0; top: 5px; height: 4px; border-radius: 2px; background: var(--wb-rule-strong); }
-    .rvp-dot { position: absolute; top: 2px; width: 10px; height: 10px; margin-left: -5px; border-radius: 50%; }
-    .rvp-dot--now { z-index: 1; background: var(--wb-ink); }
-    .rvp-dot--prev { border: 1.5px solid var(--wb-muted); background: var(--wb-surface); }
-    .rvp-rng-none { grid-column: 1 / -1; }
-    .rvp-crow-v { display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-    .rvp-crow-m { font-size: var(--wb-fs-label); color: var(--wb-muted); }
-    .rvp-trend { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--wb-rule); }
-    .rvp-trend[hidden] { display: none; }
-    .rvp-trend-h { display: flex; justify-content: space-between; gap: 8px; font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); }
-    /* 테너 · 바스켓 — 가운데 0 좌우 막대 */
-    .rvp-tenor { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--wb-s4); align-items: start; }
-    .rvp-taxis, .rvp-trow { display: grid; grid-template-columns: 40px minmax(0, 1fr) 92px; align-items: center; gap: 8px; }
-    .rvp-taxis { height: 18px; padding: 0 6px; font-size: var(--wb-fs-label); color: var(--wb-muted); }
-    .rvp-taxis-t { display: flex; justify-content: space-between; }
-    .rvp-trow { height: 28px; padding: 0 6px; border-radius: var(--wb-r-ctl); cursor: pointer; }
-    .rvp-trow:hover { background: var(--wb-subtle); }
-    .rvp-trow.is-sel { background: var(--wb-subtle); box-shadow: inset 2px 0 0 var(--wb-mark); }
-    .rvp-trow-k { font-weight: 600; }
-    .rvp-trow.is-ref .rvp-trow-k, .rvp-trow.is-ref .rvp-trow-l { font-weight: 400; color: var(--wb-muted); }
-    .rvp-trow-l { font-size: 12px; line-height: 14px; }
-    .rvp-trow.is-ref .rvp-trow-l { font-size: var(--wb-fs-label); }
-    .rvp-dtrack { position: relative; height: 16px; }
-    .rvp-dmid { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--wb-rule-strong); }
-    .rvp-dguide { position: absolute; top: -1px; bottom: -1px; width: 0; border-left: 1px dashed var(--wb-rule-strong); }   /* 엔진 scale 경계(뚜렷·크게) */
-    .rvp-dbar { position: absolute; top: 3px; height: 10px; border-radius: var(--wb-r-bar); }
-    .rvp-dbar--up { background: color-mix(in srgb, var(--wb-up) 82%, transparent); }
-    .rvp-dbar--down { background: color-mix(in srgb, var(--wb-down) 82%, transparent); }
-    .rvp-dbar--ref, .rvp-dbar--zero { background: color-mix(in srgb, var(--wb-muted) 45%, transparent); }
-    .rvp-dprev { position: absolute; top: 0; width: 2px; height: 16px; margin-left: -1px; background: var(--wb-ink); opacity: .55; }
-    .rvp-tdetail { min-height: 120px; padding: var(--wb-s2) var(--wb-s3); border: 1px solid var(--wb-rule); border-radius: var(--wb-r-ctl); font-size: 12px; }
-    .rvp-tdetail-h { display: flex; align-items: baseline; gap: 8px; margin-bottom: 4px; font-size: 13px; }
-    .rvp-tdetail-kv { display: flex; flex-wrap: wrap; gap: 2px 12px; margin: 0 0 6px; }
-    .rvp-tdetail-kv div { display: flex; align-items: baseline; gap: 4px; }
-    .rvp-tdetail-kv dt { font-size: var(--wb-fs-label); color: var(--wb-muted); }
-    .rvp-tdetail-kv dd { margin: 0; font-weight: 600; font-variant-numeric: tabular-nums; }
-    .rvp-tdetail-sub { margin-bottom: 2px; font-size: var(--wb-fs-label); color: var(--wb-muted); }
-    .rvp-tdetail-list { list-style: none; margin: 0; padding: 0; }
-    .rvp-tdetail-list li { display: flex; justify-content: space-between; gap: 8px; padding: 3px 0; border-bottom: 1px solid var(--wb-rule); }
-    .rvp-tdetail-list li:last-child { border-bottom: 0; }
-    .rvp-tdetail-list b { font-variant-numeric: tabular-nums; }
-    .rvp-tdetail-empty { font-size: var(--wb-fs-label); color: var(--wb-muted); }
-    /* 이번 주 눈에 띄는 곳 */
-    .rvp-sec-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin: var(--wb-s2) 0 var(--wb-s3); }
-    .rvp-sec-title { font-size: var(--wb-fs-title); line-height: var(--wb-lh-title); font-weight: 600; }
-    .rvp-sec-head .rvp-more { margin-left: auto; }
-    .rvp-buckets { display: flex; flex-direction: column; gap: var(--wb-gap); }
-    .rvp-lanes { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .rvp-lane { min-width: 0; padding: var(--wb-s2) var(--wb-s4) var(--wb-s3); }
-    .rvp-lane + .rvp-lane { border-left: 1px solid var(--wb-rule); }
-    .rvp-lane-h { margin-bottom: 4px; font-size: var(--wb-fs-label); color: var(--wb-muted); }
-    .rvp-lane-empty { padding: 6px 0; font-size: 12px; color: var(--wb-muted); }
-    .rvp-note { padding: 8px 10px; border-radius: var(--wb-r-ctl); box-shadow: inset 2px 0 0 var(--wb-rule-strong); }
-    .rvp-lane > :not(.rvp-lane-h) + :not(.rvp-lane-h) { margin-top: 6px; }
-    .rvp-note[data-kind="bond"][data-sign="1"] { box-shadow: inset 2px 0 0 var(--wb-up); }      /* 테 색 = 종목 잔차 부호만 */
-    .rvp-note[data-kind="bond"][data-sign="-1"] { box-shadow: inset 2px 0 0 var(--wb-down); }
-    .rvp-fact { margin-top: 2px; font-size: 12px; line-height: 18px; color: var(--wb-muted); }
-    .rvp-stub { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; padding: 6px 10px; border: 1px dashed var(--wb-rule-strong); border-radius: var(--wb-r-ctl); font-size: 12px; color: var(--wb-muted); cursor: pointer; }
-    .rvp-stub:hover { color: var(--wb-ink); border-color: var(--wb-mark); }
-    .rvp-stub-n { font-weight: 600; color: var(--wb-ink); }
-    
-    .rvp-note[data-kind="bond"] { cursor: pointer; }
-    .rvp-note[data-kind="bond"]:hover { background: var(--wb-subtle); }
-    .rvp-note.is-linked { background: var(--wb-subtle); outline: 1px solid var(--wb-mark); outline-offset: -1px; }
-    .rvp-note-top { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; margin-bottom: 4px; }
-    .rvp-tail { font-size: var(--wb-fs-label); color: var(--wb-muted); }
-    .rvp-also { padding: 0 5px; border: 1px dashed var(--wb-rule-strong); border-radius: var(--wb-r-ctl); font-size: var(--wb-fs-label); color: var(--wb-muted); }
-    .rvp-note-main { display: flex; align-items: center; gap: var(--wb-s3); }
-    .rvp-sent { flex: 1; min-width: 0; font-size: 13px; line-height: 20px; }
-    .rvp-sent b { font-weight: 600; }
-    .rvp-spark { flex: none; color: var(--wb-muted); }
-    .rvp-spark path { fill: none; stroke: currentColor; stroke-width: 1.3; stroke-linejoin: round; }
-    .rvp-spark circle { fill: var(--wb-ink); }
-    .rvp-spark-zero { stroke: var(--wb-rule-strong); stroke-width: 1; stroke-dasharray: 2 2; }
-    .rvp-nospark { flex: none; width: 104px; font-size: var(--wb-fs-label); text-align: right; color: var(--wb-faint); }
-    .rvp-badge { display: inline-flex; align-items: center; height: 20px; padding: 0 6px; font-size: var(--wb-fs-label); white-space: nowrap; color: var(--wb-muted); border: 1px solid var(--wb-rule-strong); border-radius: var(--wb-r-ctl); }   /* 기본 = 중립(모르는 badge_key 포함) */
-    .rvp-b-conflict { color: var(--wb-warn); border-color: color-mix(in srgb, var(--wb-warn) 45%, transparent); }
-    .rvp-b-align { color: var(--wb-open); border-color: color-mix(in srgb, var(--wb-open) 45%, transparent); }
-    .rvp-b-mom_only { color: var(--wb-accent); border-color: color-mix(in srgb, var(--wb-accent) 45%, transparent); }
-    .rvp-b-mr_only { color: var(--wb-series-4); border-color: color-mix(in srgb, var(--wb-series-4) 45%, transparent); }
-    .rvp-b-neither, .rvp-b-bond_skew, .rvp-b-mom_weak { color: var(--wb-muted); border-color: var(--wb-rule-strong); }   /* bond_skew '커브 대비 치우침' · mom_weak '흐름 약함' = 중립 */
-    /* 상품 · 바스켓 */
-    .rvp-ptable { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
-    .rvp-ptable thead th { height: 26px; font-size: var(--wb-fs-label); font-weight: 400; text-align: center; color: var(--wb-muted); border-bottom: 1px solid var(--wb-rule-strong); }
-    .rvp-ptable tbody th { padding-right: 8px; font-size: 13px; font-weight: 600; text-align: left; white-space: nowrap; border-bottom: 1px solid var(--wb-rule); }
-    .rvp-pcell { height: 46px; padding: 4px 8px; text-align: center; border-bottom: 1px solid var(--wb-rule); border-left: 1px solid var(--wb-rule); }
-    .rvp-pcell b { display: block; font-weight: 600; }
-    .rvp-pcell span { font-size: var(--wb-fs-label); }
-    .rvp-pcell.is-none { color: var(--wb-faint); }
-    .rvp-pcell.is-best { background: var(--wb-subtle); box-shadow: inset 0 0 0 1px var(--wb-mark); }   /* 우위 = 중립 강조(쌈 색 아님 — '평소보다' 기준이라 수준과 반대일 수 있음) */
-    .rvp-pcell .rvp-pbest { display: block; margin-top: 1px; color: var(--wb-ink); font-weight: 600; }
-    .rvp-claims { list-style: none; margin: 8px 0 0; padding: 0; font-size: 12px; line-height: 18px; }
-    .rvp-claims li::before { content: '· '; color: var(--wb-muted); }
-    .rvp-baskets { display: flex; flex-direction: column; gap: var(--wb-s3); }
-    .rvp-bgroup-h { display: flex; align-items: baseline; gap: 6px; margin-bottom: 2px; font-size: 13px; }
-    .rvp-brow { display: grid; grid-template-columns: 52px minmax(0, 1fr) 44px 92px; align-items: center; gap: 8px; height: 28px; }
-    .rvp-brow-k { font-weight: 600; }
-    .rvp-brow-v { text-align: right; font-variant-numeric: tabular-nums; }
-    .rvp-brow-l { overflow: hidden; font-size: 12px; white-space: nowrap; text-overflow: ellipsis; color: var(--wb-muted); }
-    /* 믿어도 되나 — 적중률 막대 + 기준선 */
-    .rvp-trust-axis, .rvp-trust-row { display: grid; grid-template-columns: 150px minmax(0, 1fr) 96px 200px; align-items: center; gap: var(--wb-s3); }
-    .rvp-trust-note { margin: 0 0 8px; font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-warn); }
-    .rvp-trust-mark { margin-right: 4px; color: var(--wb-warn); }
-    .rvp-trust-row.is-caution .rvp-trust-fill { opacity: .45; }
-    .rvp-trust-vt { white-space: nowrap; }
-    .rvp-trust-why { display: block; font-size: var(--wb-fs-label); line-height: 14px; color: var(--wb-muted); white-space: normal; }
-    .rvp-trust-axis { height: 18px; font-size: var(--wb-fs-label); color: var(--wb-muted); }
-    .rvp-trust-axis-bar { position: relative; height: 18px; }
-    .rvp-trust-axis-bar i { position: absolute; top: 0; transform: translateX(-50%); font-style: normal; white-space: nowrap; color: var(--wb-warn); }
-    .rvp-trust-row { min-height: 30px; }
-    .rvp-trust-row.is-gap { margin-top: 4px; padding-top: 4px; border-top: 1px solid var(--wb-rule); }
-    .rvp-trust-l { font-size: 13px; }
-    .rvp-trust-bar { position: relative; height: 12px; border-radius: var(--wb-r-bar); background: var(--wb-subtle); }
-    .rvp-trust-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: var(--wb-r-bar); background: color-mix(in srgb, var(--wb-mark) 65%, transparent); }
-    .rvp-trust-base { position: absolute; top: -4px; bottom: -4px; width: 0; border-left: 1.5px dashed var(--wb-warn); }
-    .rvp-trust-v { display: flex; align-items: baseline; justify-content: flex-end; gap: 6px; font-variant-numeric: tabular-nums; }
-    .rvp-trust-verdict { font-size: 12px; padding: 4px 0; }
-    .wb-help.rvp-help--warn { color: var(--wb-warn); border-color: var(--wb-warn); }
-    /* 근거 */
-    .rvp-evi { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wb-s2) var(--wb-s5); }
-    .rvp-evi-item { font-size: 13px; }
-    .wb-tip .rvp-gloss { border-collapse: collapse; font-size: 12px; }
-    .wb-tip .rvp-gloss td { padding: 2px 8px 2px 0; vertical-align: top; border-bottom: 1px solid var(--wb-rule); }
-    .wb-tip .rvp-gloss td:first-child { white-space: nowrap; color: var(--wb-muted); }
-    @media (max-width: 1240px) { .rvp-tenor { grid-template-columns: minmax(0, 1fr); } .rvp-tdetail { min-height: 0; } }
-    @media (max-width: 1080px) { .rvp-grid { grid-template-columns: minmax(0, 1fr); } }
-    @media (max-width: 720px) {
-      .rvp-lines li { font-size: 14px; line-height: 22px; }
-      .rvp-lines .rvp-k { width: 40px; }
-      .rvp-lanes { grid-template-columns: minmax(0, 1fr); }
-      .rvp-lane + .rvp-lane { border-left: 0; border-top: 1px solid var(--wb-rule); }
-      .rvp-crow { grid-template-columns: 44px minmax(0, 1fr); grid-template-areas: "k v" "b b"; height: auto; row-gap: 2px; padding: 4px 6px; }
-      .rvp-crow-k { grid-area: k; } .rvp-crow-v { grid-area: v; } .rvp-crow-bar { grid-area: b; }
-      .rvp-trust-axis, .rvp-trust-row { grid-template-columns: minmax(0, 1fr) auto auto; grid-template-areas: "l v d" "b b b"; row-gap: 4px; }
-      .rvp-trust-axis { grid-template-areas: "b b b"; }
-      .rvp-trust-axis > span:not(.rvp-trust-axis-bar) { display: none; }
-      .rvp-trust-l { grid-area: l; } .rvp-trust-bar, .rvp-trust-axis-bar { grid-area: b; } .rvp-trust-v { grid-area: v; } .rvp-trust-verdict { grid-area: d; }
-      .rvp-chart--scatter { height: 240px; }
-      .rvp-head { flex-wrap: wrap; }
-      .rvp-note-main { flex-direction: column; align-items: stretch; gap: 4px; }
-      .rvp-note-main .rvp-spark, .rvp-note-main .rvp-nospark { align-self: flex-end; }
-    }
   </style>
+  <link rel="stylesheet" href="/assets/css/wb-review-plain.css?v=20261021h"><!-- 일반 보기 스타일(예전 인라인 4단계 블록 그대로 · 같은 캐스케이드 자리) -->
 </head>
 <body>
 <header id="wb-shell" data-area="review" data-page="review"></header>
@@ -763,9 +561,9 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
-<script src="/assets/js/wb-chart.js?v=20261021g"></script>
+<script src="/assets/js/wb-chart.js?v=20261021h"></script>
 <!-- redesign-wb 4단계: 주간 리뷰 '일반 | 고급' 보기 — snapshot.plain 을 그리기만(번역·판정·재계산 0) · 고급 = 기존 renderReview 그대로 -->
-<script src="/assets/js/wb-review-plain.js?v=20261021g"></script>
+<script src="/assets/js/wb-review-plain.js?v=20261021h"></script>
 <script>
 let CACHE = {};
 
