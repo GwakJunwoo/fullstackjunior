@@ -1,20 +1,20 @@
 <!DOCTYPE html>
-<!-- 2026-10-21 사용자 지시: 홈 카드 화면 폐지 — 루트(/) 접속 = 곧바로 주간 리뷰.
-     1차 수단 = netlify.toml 의 '/' → /tools/quant-house/ 302(force) — 서버 단 이동이라 이 파일은 보이지 않음(깜빡임 0).
+<!-- 2026-10-21 사용자 지시: 홈 카드 화면 폐지 — 루트(/) 접속 = 곧바로 차익거래 모니터("주소로 들어가면 이게 맨 먼저").
+     1차 수단 = netlify.toml 의 '/' → /tools/arb-monitor/ 302(force) — 서버 단 이동이라 이 파일은 보이지 않음(깜빡임 0).
      이 파일 = 폴백(규칙이 안 걸리는 환경·로컬 정적 서버): 즉시 location.replace + meta refresh + canonical.
      옛 홈 카드 그리드는 git 이력(redesign-wb 이전 커밋)에 남아 있음. -->
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>주간 리뷰 · Bond Quant House</title>
-  <link rel="canonical" href="https://www.fullstackjunior.com/tools/quant-house/">
+  <title>차익거래 모니터 · Bond Quant House</title>
+  <link rel="canonical" href="https://www.fullstackjunior.com/tools/arb-monitor/">
   <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%9B%EF%B8%8F%3C/text%3E%3C/svg%3E">
-  <meta http-equiv="refresh" content="0; url=/tools/quant-house/">
-  <script>location.replace('/tools/quant-house/' + location.search + location.hash);</script>
+  <meta http-equiv="refresh" content="0; url=/tools/arb-monitor/">
+  <script>location.replace('/tools/arb-monitor/' + location.search + location.hash);</script>
   <style>html { background: #e2e0da; } @media (prefers-color-scheme: dark) { html { background: #16181c; } }</style>
 </head>
 <body>
-  <noscript><a href="/tools/quant-house/">주간 리뷰로 이동</a></noscript>
+  <noscript><a href="/tools/arb-monitor/">차익거래 모니터로 이동</a></noscript>
 </body>
 </html>

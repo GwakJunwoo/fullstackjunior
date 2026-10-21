@@ -238,8 +238,8 @@ html[data-wb] :where(button, a, input, select, [tabindex]):focus-visible { outli
 .wb-kbd { font: 11px/16px var(--wb-font); color: var(--wb-muted); border: 1px solid var(--wb-rule); border-radius: 3px; padding: 0 4px; }
 @media (max-width: 720px) {
   .wb-shell-bar { gap: var(--wb-s4); }
-  .wb-brand-sub { display: none; }
-  .wb-brand-name { font-size: 13px; }
+  .wb-brand-sub, .wb-brand-name { display: none; }   /* 모바일: 🏛️ 만 — 화면 탭 자리 확보 */
+  .wb-nav1 { gap: var(--wb-s4); }
   .wb-finder { min-width: 0; width: 32px; justify-content: center; border: 1px solid transparent; border-radius: var(--wb-r-ctl); }
   .wb-finder .wb-finder-text, .wb-finder .wb-kbd { display: none; }
 }
