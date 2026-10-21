@@ -43,3 +43,6 @@ server/app/data/*.json
 # 루트 스크래치 (ripgrep 등 임시 산출 — publish="." 공개서빙 방지)
 /_rg.json
 /_*.json
+
+# redesign-wb: 참고 사이트 원본 명세·화면 캡처는 로컬 기록만(공개 저장소·공개 사이트에 싣지 않음)
+docs/design-wb/ref/

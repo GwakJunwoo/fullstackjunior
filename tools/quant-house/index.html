@@ -1,11 +1,16 @@
 <!DOCTYPE html>
 <!-- CONTEST_MODE (2026-09 사내대회) — 대회 후 원복: 아래 data-contest="1" 속성만 지우면 전부 원상복구 -->
-<html lang="ko" data-contest="1">
+<!-- 2026-10-21 사용자 결정: 대회 모드 = 영구 기본. redesign-wb 1단계 = 셸 + 주간 리뷰 탭만 개편(data-wb="partial").
+     숨긴 탭(전략·운용 콘솔·뉴스)은 무접촉 — 대회 모드를 끄면 wb.css 가 이 페이지를 어두운 테마로 고정해 레거시 탭을 보호. -->
+<html lang="ko" data-contest="1" data-wb="partial">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Bond Quant House — 다전략 운용</title>
+  <title>주간 리뷰 · Bond Quant House</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%9B%EF%B8%8F%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="/assets/css/main.css">
+  <link rel="stylesheet" href="/assets/css/wb.css?v=20261021">
+  <script src="/assets/js/wb-shell.js?v=20261021"></script>
   <style>
     /* CONTEST_MODE (2026-09 사내대회) — 대회 후 원복. html[data-contest] 일 때만 적용(이 페이지 한정).
        주간 리뷰 외 탭 버튼·뷰 + 상단 네비 링크 시각적 숨김(DOM·JS·API 무수정). */
@@ -248,8 +253,152 @@
     .rv-flabel { font-size:10px; font-weight:700; color:var(--t2); text-transform:uppercase; letter-spacing:.4px; margin:8px 0 2px; }
     @media (max-width:760px){ .rv-two{grid-template-columns:1fr;} .rv-cols{grid-template-columns:1fr;} }
   </style>
+  <style id="wb-review-style">
+    /* ═══ redesign-wb 1단계 — 셸 + 주간 리뷰 탭(패턴 ⑩ 보고서 뷰어) ═══
+       범위: 셸 배치 + #view-review 안쪽만. 숨긴 탭(전략·운용 콘솔·뉴스)의 스타일은 무접촉.
+       data-wb="partial" + 대회 모드가 아니면 wb.css 가 어두운 테마로 고정(레거시 탭 보호). */
+    html[data-wb] body > .container { padding: var(--wb-s5) var(--wb-gutter) var(--wb-s6); }
+    html[data-wb][data-contest] body > .container { max-width: 1680px; }
+    html[data-wb] body > .container > .nav { display: none; }            /* 구 상단 내비 → 셸이 대체 */
+    html[data-wb][data-contest] .tabbar { display: none; }               /* 대회 모드: 탭 1개뿐(주간 리뷰) = 셸과 중복 */
+
+    /* 필터 바 · 고지 배너 */
+    #view-review .rv-week { min-width: 0; }
+    #view-review .wb-stepper .wb-btn { width: 24px; height: 24px; padding: 0; border-color: transparent; color: var(--wb-muted); }
+    #view-review .wb-stepper-val { min-width: 0; height: 32px; }
+    #view-review #revDocxMsg, #view-review #revAsof { font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-muted); }
+    #view-review .wb-pagehead { align-items: center; }
+    #view-review .rv-observe { margin-left: 4px; }
+    #view-review .rv-observe .wb-help { margin-left: 6px; }
+
+    /* 목차 레일 + 문서 */
+    .rv-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: var(--wb-gap); align-items: start; }
+    .rv-toc {
+      position: sticky; top: calc(var(--wb-shell-h) + var(--wb-filterbar-h) + 8px);
+      max-height: calc(100vh - var(--wb-shell-h) - var(--wb-filterbar-h) - 24px); overflow: auto;
+    }
+    .rv-toc-list { list-style: none; margin: 0; padding: var(--wb-s2) 0; }
+    .rv-toc-list a {
+      display: flex; gap: 8px; padding: 6px var(--wb-s4); text-decoration: none;
+      font-size: 13px; line-height: 20px; color: var(--wb-muted); border-left: 2px solid transparent;
+    }
+    .rv-toc-list a:hover { color: var(--wb-ink); }
+    .rv-toc-list a.is-active { color: var(--wb-ink); font-weight: 600; border-left-color: var(--wb-mark); background: var(--wb-subtle); }
+    .rv-toc-list .lv2 a { padding-left: 40px; font-size: 12px; }
+    .rv-toc-num { flex: none; width: 18px; color: var(--wb-faint); font-weight: 400; }
+    .rv-toc-empty { padding: var(--wb-s3) var(--wb-s4); font-size: var(--wb-fs-label); color: var(--wb-muted); }
+    .rv-doc-body { padding: 0 var(--wb-s5) var(--wb-s5); }
+
+    /* 문서 본문 — renderReview 결과물(클래스 그대로)의 표현만 */
+    #revBody { font-size: 13px; line-height: 20px; }
+    #revBody b { font-weight: 600; }
+    #revBody .status { font-size: 12px; color: var(--wb-muted); }
+    #revBody .panel-wrap { background: var(--wb-subtle); border: 0; border-radius: var(--wb-r-ctl); padding: var(--wb-s3) var(--wb-s4); margin: 0 0 var(--wb-s3); }
+    #revBody > .panel-wrap:first-child, #revBody > .vbanner:first-child { margin-top: var(--wb-s5); }
+    #revBody .cat-title {
+      margin: 0 0 var(--wb-s3); padding-top: var(--wb-s5); border-top: 1px solid var(--wb-rule);
+      font-size: var(--wb-fs-title); line-height: var(--wb-lh-title); font-weight: 600; color: var(--wb-ink);
+      letter-spacing: 0; text-transform: none;
+      scroll-margin-top: calc(var(--wb-shell-h) + var(--wb-filterbar-h) + 12px);
+    }
+    #revBody > .panel-wrap + .cat-title, #revBody > .cat-title:first-child { margin-top: var(--wb-s5); }
+    #revBody .cat-title .rv-hsub, #revBody .cat-title .status { margin-left: 8px; font-size: 12px; font-weight: 400; color: var(--wb-muted); }
+    #revBody .cat-title[style*="font-size:12px"] { border-top: 0; padding-top: var(--wb-s2); font-size: 13px !important; }
+    #revBody .tlog-wrap { margin-bottom: var(--wb-s3); background: var(--wb-surface); border: 1px solid var(--wb-rule); border-radius: var(--wb-r-ctl); }
+    #revBody .tlog { font-size: 12px; line-height: 18px; }
+    #revBody .tlog th {
+      height: var(--wb-th); padding: 0 8px 0 12px; background: var(--wb-surface); border-bottom: 1px solid var(--wb-rule-strong);
+      font-size: var(--wb-fs-label); font-weight: 400; color: var(--wb-muted); text-transform: none; letter-spacing: 0;
+    }
+    #revBody .tlog td { height: 30px; padding: 0 8px 0 12px; border-bottom: 1px solid var(--wb-rule); }
+    #revBody .tlog tbody tr:last-child td { border-bottom: 0; }
+    #revBody .tlog tr:hover td { background: var(--wb-subtle); }
+    /* 부호색 = 시장 관례(+ 상승 적 · − 하락 청) — 금리 대시보드와 통일(redesign-wb 명시 변경·값 무변형) */
+    #view-review .pp { color: var(--wb-up); }
+    #view-review .pn { color: var(--wb-down); }
+    #revBody .vbanner { padding: var(--wb-s3) var(--wb-s4); border-radius: var(--wb-r-ctl); font-size: 13px; line-height: 22px; color: var(--wb-ink); background: var(--wb-subtle); border: 1px solid var(--wb-rule); }
+    #revBody .vbanner.v-warn { border-left: 2px solid var(--wb-warn); }
+    #revBody .vbanner.v-fail { border-left: 2px solid var(--wb-up); color: var(--wb-up); }
+    #revBody .vbanner.v-fail b { color: inherit; }
+    #revBody .rv-two { gap: var(--wb-gap); }
+    #revBody .qchart { background: transparent; border: 1px solid var(--wb-rule); border-radius: var(--wb-r-ctl); padding: var(--wb-s3); }
+    #revBody .rv-cols { gap: var(--wb-gap); margin-bottom: var(--wb-s3); }
+    #revBody .rv-cols > .panel-wrap { background: transparent; border: 1px solid var(--wb-rule); border-radius: var(--wb-r-card); padding: var(--wb-s3) var(--wb-s4); }
+    #revBody .rv-pick { padding: var(--wb-s2) 0; font-size: 13px; line-height: 20px; border-bottom: 1px solid var(--wb-rule); }
+    #revBody .rv-pick:last-child { border-bottom: 0; }
+    #revBody .rv-axis { font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-muted); }
+    #revBody .rv-flabel { margin: var(--wb-s3) 0 4px; font-size: var(--wb-fs-label); font-weight: 600; color: var(--wb-muted); text-transform: none; letter-spacing: 0; }
+    #revBody .rv-conf {
+      display: inline-flex; align-items: center; height: 18px; padding: 0 6px; margin-left: 6px; vertical-align: middle;
+      font-size: var(--wb-fs-label); font-weight: 400; letter-spacing: 0; background: transparent; border: 1px solid; border-radius: var(--wb-r-ctl);
+    }
+    #revBody .rc-align    { color: var(--wb-open);     border-color: color-mix(in srgb, var(--wb-open) 45%, transparent); }
+    #revBody .rc-conflict { color: var(--wb-warn);     border-color: color-mix(in srgb, var(--wb-warn) 45%, transparent); }
+    #revBody .rc-mr_only  { color: var(--wb-series-1); border-color: color-mix(in srgb, var(--wb-series-1) 45%, transparent); }
+    #revBody .rc-mom_only { color: var(--wb-accent);   border-color: color-mix(in srgb, var(--wb-accent) 45%, transparent); }
+    #revBody .rc-neither  { color: var(--wb-muted);    border-color: var(--wb-rule-strong); }
+    #revBody .utilchip { background: transparent; border: 1px solid var(--wb-rule); border-radius: var(--wb-r-ctl); padding: 2px 8px; font-size: 12px; }
+    #revBody .noart { background: transparent; border: 1px dashed var(--wb-rule-strong); border-radius: var(--wb-r-ctl); padding: var(--wb-s4); font-size: 13px; color: var(--wb-muted); }
+    #revBody .btn {
+      height: 24px; padding: 0 8px !important; display: inline-flex; align-items: center;
+      background: none; border: 1px solid var(--wb-rule-strong); border-radius: var(--wb-r-ctl); color: var(--wb-ink); font-size: var(--wb-fs-label);
+    }
+    #revBody .btn:hover { border-color: var(--wb-mark); color: var(--wb-ink); }
+    #revBody code { font-size: 12px; }
+
+    /* 참고 그래프 · 연계 */
+    #revBody .rv-chart { position: relative; height: 220px; margin: 0 0 var(--wb-s3); }
+    #revBody .rv-chart--sm { height: 150px; margin: var(--wb-s3) 0 0; }
+    #revBody .rv-chart--scatter { height: 300px; }
+    #revBody .rv-net { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--wb-gap); margin-bottom: var(--wb-s3); align-items: start; }
+    #revBody .rv-net .rv-chart { margin: 0; }
+    #revBody .rv-net-side { padding: var(--wb-s3) var(--wb-s4); border: 1px solid var(--wb-rule); border-radius: var(--wb-r-ctl); }
+    #revBody .rv-net-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: var(--wb-s2); }
+    #revBody .rv-net-head b { font-size: var(--wb-fs-title); margin-right: 4px; }
+    #revBody .rv-net-sub { font-size: var(--wb-fs-label); color: var(--wb-muted); margin-bottom: 4px; }
+    #revBody .rv-net-tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+    #revBody .rv-net-tbl th { height: 24px; text-align: left; font-size: var(--wb-fs-label); font-weight: 400; color: var(--wb-muted); border-bottom: 1px solid var(--wb-rule-strong); }
+    #revBody .rv-net-tbl td { height: 28px; border-bottom: 1px solid var(--wb-rule); }
+    #revBody .rv-net-tbl .num { text-align: right; }
+    #revBody tr.wb-linkable { cursor: pointer; }
+    #revBody tr.is-linked td { background: var(--wb-subtle) !important; }
+    #revBody tr.is-linked td:first-child { box-shadow: inset 2px 0 0 var(--wb-mark); }
+    #revBody .rv-pick.wb-linkable { cursor: pointer; }
+    #revBody .rv-pick.is-linked { background: var(--wb-subtle); box-shadow: inset 2px 0 0 var(--wb-mark); padding-left: 8px; }
+    #revBody .rv-overview { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: var(--wb-s5) 0 var(--wb-s2); }
+    #revBody .cat-title .rv-tbadge { margin-left: 8px; font-weight: 400; }
+    #revBody .cat-title .wb-help { vertical-align: 2px; }
+    .wb-tip .pp { color: var(--wb-up); } .wb-tip .pn { color: var(--wb-down); }
+    #revBody details.rv-fold { margin: 6px 0 0; border: 1px solid var(--wb-rule); border-radius: var(--wb-r-ctl); background: var(--wb-surface); }
+    #revBody details.rv-fold > summary {
+      display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 12px; cursor: pointer; list-style: none;
+      font-size: 12px; color: var(--wb-muted);
+    }
+    #revBody details.rv-fold > summary::-webkit-details-marker { display: none; }
+    #revBody details.rv-fold > summary::before { content: '▸'; font-size: 10px; }
+    #revBody details.rv-fold[open] > summary::before { content: '▾'; }
+    #revBody details.rv-fold > summary:hover, #revBody details.rv-fold[open] > summary { color: var(--wb-ink); }
+    #revBody details.rv-fold[open] > summary { border-bottom: 1px solid var(--wb-rule); }
+    #revBody details.rv-fold > .tlog-wrap { margin: 0; border: 0; border-radius: 0; }
+    @media (max-width: 1080px) { .rv-layout { grid-template-columns: 200px minmax(0, 1fr); } }
+    @media (max-width: 720px) {
+      .rv-layout { grid-template-columns: minmax(0, 1fr); }
+      .rv-toc { top: var(--wb-shell-h); z-index: 30; max-height: none; overflow-x: auto; overflow-y: hidden; scrollbar-width: none; }
+      .rv-toc .wb-card-head { display: none; }
+      .rv-toc-list { display: flex; padding: 0; }
+      .rv-toc-list .lv2 { display: none; }
+      .rv-toc-list a { white-space: nowrap; padding: 10px 12px; border-left: 0; border-bottom: 2px solid transparent; }
+      .rv-toc-list a.is-active { background: none; border-bottom-color: var(--wb-mark); }
+      .rv-toc-num { display: none; }
+      .rv-doc-body { padding: 0 var(--wb-s4) var(--wb-s4); }
+      #view-review .wb-filterbar-end { width: 100%; }
+      #revBody .rv-net { grid-template-columns: minmax(0, 1fr); }
+      #revBody .rv-chart--scatter { height: 260px; }
+    }
+  </style>
 </head>
 <body>
+<header id="wb-shell" data-area="review" data-page="review"></header>
 <div class="container">
   <nav class="nav">
     <span class="nav-brand">Bond Quant House</span>
@@ -330,17 +479,51 @@
     <div class="panel-wrap" id="opsManual"></div>
   </div>
 
-  <!-- ════════ 주간 시장 리뷰 (engine.research.market_review 스냅샷 그대로 — 표현/측정층·자동매매 0·추천은 사람 실행) ════════ -->
+  <!-- ════════ 주간 시장 리뷰 (engine.research.market_review 스냅샷 그대로 — 표현/측정층·자동매매 0·추천은 사람 실행) ════════
+       redesign-wb 1단계: 패턴 ⑩ 보고서 뷰어(필터 바 · 고지 배너 · 목차 레일 + 문서). id·onclick 무변경. -->
   <div id="view-review" style="display:none">
-    <div class="panel-wrap">
-      <div class="ctrl-row">
-        <button class="btn" onclick="reviewLoad()">새로고침</button>
-        <button class="btn upd" id="revDocxBtn" onclick="reviewDocx()">📄 주간리뷰 docx 다운로드</button>
-        <span id="revDocxMsg" class="status"></span>
-        <span id="revAsof" class="status" style="margin-left:auto"></span>
+    <div class="wb-pagehead">
+      <h1>주간 시장 리뷰</h1><button type="button" class="wb-help" data-help="KTB 다축 z · 모멘텀 관찰 — market_review 스냅샷 그대로" aria-label="설명 보기"></button>
+      <span class="wb-badge rv-observe">관찰 전용<button type="button" class="wb-help" data-help-ref="wbRevNotice" data-help="고지 원문은 스냅샷(meta.lookahead · picks.meta.neutrality · picks.meta.confidence_note)을 읽은 뒤 표시됩니다." aria-label="고지 원문 보기"></button></span>
+    </div>
+    <div class="wb-filterbar">
+      <div class="wb-field rv-week">
+        <span class="wb-label">기준 주차<button type="button" class="wb-help" data-help="과거 주차 조회 미지원 — /quant-house/market-review 는 최신 스냅샷 1개만 제공합니다(‹ › 비활성)." aria-label="설명 보기"></button></span>
+        <span class="wb-stepper">
+          <button type="button" class="wb-btn" disabled aria-label="이전 주차(미지원)">‹</button>
+          <span class="wb-stepper-val" id="wbRevWeek">—</span>
+          <button type="button" class="wb-btn" disabled aria-label="다음 주차(미지원)">›</button>
+        </span>
+      </div>
+      <div class="wb-field">
+        <span class="wb-label">보기</span>
+        <div class="wb-seg">
+          <button type="button" class="is-active" aria-pressed="true">웹</button>
+          <button type="button" id="revDocxBtn" onclick="reviewDocx()" title="엔진 build_docx 로 주간리뷰 docx 생성 후 내려받기">docx 다운로드</button>
+        </div>
+      </div>
+      <span id="revDocxMsg" class="status wb-filterbar-status"></span>
+      <div class="wb-filterbar-end">
+        <span id="revAsof" class="status wb-filterbar-status"></span>
+        <button type="button" class="wb-btn wb-btn--primary" onclick="reviewLoad()">새로고침</button>
       </div>
     </div>
-    <div id="revBody"><div class="panel-wrap status">불러오는 중…</div></div>
+    <div class="wb-hidden-src" id="wbRevNotice"></div><!-- 고지 원문(스냅샷) — '관찰 전용' 배지의 ? 가 읽음 -->
+    <div class="rv-layout">
+      <nav class="wb-card rv-toc" aria-label="주간 리뷰 목차">
+        <div class="wb-card-head"><span class="wb-card-title">목차</span></div>
+        <ul class="rv-toc-list" id="wbRevToc"><li class="rv-toc-empty">읽는 중</li></ul>
+      </nav>
+      <section class="wb-card rv-doc" aria-label="주간 리뷰 본문">
+        <div class="wb-card-head">
+          <span class="wb-card-title">KTB 주간 시장 리뷰</span>
+          <span class="wb-card-meta" id="wbRevDocMeta"></span>
+        </div>
+        <div class="rv-doc-body">
+          <div id="revBody"><div class="panel-wrap status">불러오는 중…</div></div>
+        </div>
+      </section>
+    </div>
   </div>
 
   <!-- ════════ 뉴스 임베딩 산점도 (newslab/newsflow_embed2d.json 그대로 — 관측 지도·재계산 0·기사 원문 0) ════════ -->
@@ -363,6 +546,7 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
+<script src="/assets/js/wb-chart.js?v=20261021"></script>
 <script>
 let CACHE = {};
 
@@ -2990,9 +3174,9 @@ function renderReview(el, r, sb){
         const tc=(x.top_contributors||[]).map(function(c){
           return c.pair+' (coeff '+c.coeff+' · contrib '+c.contrib+')';
         }).join(' | ');
-        const hl=(i===epi)?' style="background:rgba(240,185,11,.10);box-shadow:inset 3px 0 0 #f0b90b"':'';
+        const hl=(i===epi)?' style="background:var(--wb-accent-soft);box-shadow:inset 3px 0 0 var(--wb-accent)"':'';
         return '<tr'+hl+' title="'+_esc('기여 상위: '+(tc||'–'))+'">'+
-          '<td class="lt"><b>'+_esc(x.tenor)+'y</b>'+(i===epi?' <span style="color:#f0b90b">★진앙</span>':'')+'</td>'+
+          '<td class="lt"><b>'+_esc(x.tenor)+'y</b>'+(i===epi?' <span style="color:var(--wb-accent)">★진앙</span>':'')+'</td>'+
           '<td>'+_fmt(x.level_bp)+'</td>'+_rvTd(x.own_z_wavg)+_rvTd(x.own_mom_wavg)+
           _rvTd(x.net_z)+(hasEx20?_rvTd(x.net_z_ex20):'')+_rvTd(x.net_mom)+
           '<td>'+(x.n_structs!=null?x.n_structs:'–')+'</td>'+
@@ -3017,7 +3201,7 @@ function renderReview(el, r, sb){
     const fsum=fw.summary||{};
     const winLbl=function(w){ return w==='momentum'?'모멘텀':w==='fade'?'평균회귀':(w||'–'); };
     const winBadge=function(w){
-      const c=(w==='momentum')?'#f0b90b':(w==='fade')?'#5b8def':'#888';
+      const c=(w==='momentum')?'var(--wb-accent)':(w==='fade')?'var(--wb-series-1)':'var(--wb-muted)';
       return '<span style="color:'+c+';font-weight:700">'+_esc(winLbl(w))+'</span>';
     };
     h+='<div class="cat-title" style="margin-top:16px">★주간 팩터 손익 — 현물 slope+fly '+
@@ -3153,14 +3337,14 @@ function renderReview(el, r, sb){
         PRODS.forEach(function(p){
           const d=(t.products||{})[p]||null;
           if (!d){ row+='<td>–</td><td>–</td><td>–</td>'; return; }
-          const hl=(advP===p)?' style="background:rgba(240,185,11,.10);box-shadow:inset 0 -1px 0 #f0b90b"':'';
+          const hl=(advP===p)?' style="background:var(--wb-accent-soft);box-shadow:inset 0 -1px 0 var(--wb-accent)"':'';
           row+='<td'+hl+'>'+_pcRaw(d.level_bp)+'</td>'+
             '<td'+hl+'>'+_rvNum(d.d5_bp)+'</td>'+
             '<td'+hl+'>'+_rvNum(d.z_wavg)+'</td>';
         });
         const scTip=adv.scores?_esc('score: '+JSON.stringify(adv.scores)):'';
         row+='<td class="lt" title="'+scTip+'">'+
-          (advP?('<b style="color:#f0b90b">'+_esc(advP)+'</b> <span class="status">(score '+_pcRaw(adv.score)+')</span>'):'중립')+'</td>';
+          (advP?('<b style="color:var(--wb-accent)">'+_esc(advP)+'</b> <span class="status">(score '+_pcRaw(adv.score)+')</span>'):'중립')+'</td>';
         return '<tr>'+row+'</tr>';
       }).join('')+'</tbody></table></div>';
     // (b) 상품간 스프레드 표 — 본드스왑·현선·선물-스왑 (스냅샷 spreads 그대로)
@@ -3214,9 +3398,9 @@ function renderReview(el, r, sb){
         '<th>선물대비 상대 bp</th><th class="lt">리드/래그</th></tr></thead><tbody>'+
         (g.members||[]).map(function(m){
           const isL=(m.code===leadC), isG=(m.code===lagC);
-          const hl=isL?' style="background:rgba(240,185,11,.10);box-shadow:inset 0 -1px 0 #f0b90b"':'';
-          const tag=isL?'<b style="color:#f0b90b">리드(상대 약세)</b>':
-            isG?'<b style="color:#4a9eff">래그(상대 강세)</b>':'<span class="status">–</span>';
+          const hl=isL?' style="background:var(--wb-accent-soft);box-shadow:inset 0 -1px 0 var(--wb-accent)"':'';
+          const tag=isL?'<b style="color:var(--wb-accent)">리드(상대 약세)</b>':
+            isG?'<b style="color:var(--wb-series-1)">래그(상대 강세)</b>':'<span class="status">–</span>';
           // 종목 표기 = snapshot shortname 그대로(주). shortname 부재 시 code 접미 4자 폴백(정직·엔진 규약 일치).
           const cd=m.code||'';
           const nm=m.shortname||(cd?cd.slice(-4):'?');
@@ -3245,17 +3429,15 @@ function renderReview(el, r, sb){
   if (cv && (yc.current||[]).length){
     const mk=function(arr){ return (arr||[]).map(function(p){ return {x:p[0], y:p[1]}; }); };
     _revCharts.push(new Chart(cv.getContext('2d'),{ type:'line', data:{ datasets:[
-      { label:'현재 '+(yc.asof||''), data:mk(yc.current), borderColor:'#4a9eff',
-        backgroundColor:'rgba(74,158,255,.08)', borderWidth:1.7, pointRadius:1.6, tension:.25 },
-      { label:'1w전 '+(yc.week_ago_date||''), data:mk(yc.week_ago), borderColor:'#8b93a8',
+      { label:'현재 '+(yc.asof||''), data:mk(yc.current), borderColor:WBChart.tok('--wb-series-1'),
+        backgroundColor:WBChart.tok('--wb-series-1'), borderWidth:1.7, pointRadius:1.6, tension:.25 },
+      { label:'1w전 '+(yc.week_ago_date||''), data:mk(yc.week_ago), borderColor:WBChart.tok('--wb-series-6'),
         borderDash:[5,3], borderWidth:1.2, pointRadius:0, tension:.25 },
     ]}, options:{ responsive:true, maintainAspectRatio:false,
-      plugins:{ legend:{ labels:{color:AXC,font:{size:10},boxWidth:14} },
+      plugins:{ legend:{ align:'start' },
         tooltip:{ callbacks:{ label:function(c){ return c.dataset.label+' — 잔존 '+c.parsed.x+'y · '+c.parsed.y+'%'; } } } },
-      scales:{ x:{ type:'linear', title:{display:true,text:'잔존만기(년)',color:AXC,font:{size:9}},
-                   ticks:{color:AXC,font:{size:9}}, grid:{color:GRID} },
-               y:{ title:{display:true,text:'YTM %',color:AXC,font:{size:9}},
-                   ticks:{color:AXC,font:{size:9}}, grid:{color:GRID} } } } }));
+      scales:{ x:{ type:'linear', title:{display:true,text:'잔존만기(년)'} },
+               y:{ title:{display:true,text:'YTM %'} } } } }));
   } else if (cv){
     cv.parentElement.innerHTML='<div class="noart">yield_curve 시계열 미포함(스냅샷) — 커브 차트 표시 불가(정직)</div>';
   }
@@ -4005,6 +4187,490 @@ async function opsManualSubmit(){
 renderCostNotice();   // ★공시 라벨은 API 무관 — 백엔드 다운 시에도 항상 표시(H2)
 load();
 if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) — 대회 후 원복: 기본 탭 = 주간 리뷰
+</script>
+<script>
+/* ═══ redesign-wb 1단계 — 주간 리뷰 보고서 뷰어(패턴 ⑩) 표현 보조 · 셸 연동 ═══
+   renderReview 결과물(DOM)을 읽어 표현만 다듬는다. 기존 함수·DOM id·데이터·계산 무변경.
+   · 설명·해석 문장 → 원본 요소는 숨김 보관(.wb-hidden-src · 삭제 0), 같은 원문을 제목/행의 ? 툴팁으로.
+     예상 구조가 없으면 아무것도 숨기지 않는다(실패 = 보이는 쪽). 경고 배너(v-fail)·빈 상태(noart)는 항상 보임.
+   · 참고 그래프 = 스냅샷(_REV)에 이미 있는 값만: curve_moves.delta_bp · tenor_netting(_prev).net_z ·
+     factor_weekly.rows · picks.buckets[].status.z_wavg/mom_wavg. 새 수치 생성 0.
+   · 연계: 표 행 ↔ 막대/점 (선택 = subtle 배경 · 차트 강조 · 스크롤).
+   · 목차 레일 = 섹션 제목 순서 그대로 · 기준 주차 = asof 표시만(과거 주차 API 없음 → ‹ › 비활성).
+   · 해시 딥링크(#strat|#ops|#review|#news) → 기존 switchTab(대회 모드면 review 고정). */
+(function () {
+  'use strict';
+  var body = document.getElementById('revBody');
+  var toc = document.getElementById('wbRevToc');
+  if (!body || !toc) return;
+  var STATS = window.WB_REV_STATS = { hidden: 0, helps: 0, charts: [], links: [], gaps: [] };
+  function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
+  function rev() { return (typeof _REV !== 'undefined') ? _REV : null; }
+  function track(ch) { try { _revCharts.push(ch); } catch (e) { /* _revCharts 없음 */ } return ch; }
+  function num(v) { var n = Number(v); return (v == null || v === '' || !isFinite(n)) ? null : n; }
+  function sgn(v, d) { var n = num(v); return n == null ? '–' : (n > 0 ? '+' : '') + n.toFixed(d == null ? 2 : d); }
+  function signCol(v, a) { var n = num(v); return WBChart.alpha(n > 0 ? '--wb-up' : n < 0 ? '--wb-down' : '--wb-muted', a == null ? 1 : a); }
+
+  // ── ? 아이콘 · 원문 보관 ──────────────────────────────────────────────
+  function helpIcon(parts) {
+    parts = parts.filter(function (h) { return h && String(h).trim(); });
+    if (!parts.length) return null;
+    var b = document.createElement('span');
+    b.className = 'wb-help'; b.setAttribute('role', 'button'); b.tabIndex = 0; b.setAttribute('aria-label', '설명 보기');
+    var t = document.createElement('template');
+    t.innerHTML = parts.map(function (h) { return '<p>' + h + '</p>'; }).join('');
+    b.appendChild(t);
+    STATS.helps++;
+    return b;
+  }
+  function stash(el, parts) {
+    if (!el || el.classList.contains('wb-hidden-src')) return;
+    parts.push(el.innerHTML);
+    el.classList.add('wb-hidden-src');
+    STATS.hidden++;
+  }
+  function badge(text, extra) { var s = document.createElement('span'); s.className = 'wb-badge rv-tbadge' + (extra ? ' ' + extra : ''); s.textContent = text; return s; }
+
+  // 제목 '앞 — 뒤' → [앞](굵게) + [뒤](설명 · 숨김 대상)
+  function splitTitle(el) {
+    if (el.getAttribute('data-wb-split')) return;
+    el.setAttribute('data-wb-split', '1');
+    var nodes = Array.prototype.slice.call(el.childNodes), pos = -1, tn = null;
+    for (var i = 0; i < nodes.length; i++) {
+      if (nodes[i].nodeType === 3 && (pos = nodes[i].nodeValue.indexOf(' — ')) >= 0) { tn = nodes[i]; break; }
+    }
+    var head = document.createElement('span'); head.className = 'rv-h';
+    var sub = document.createElement('span'); sub.className = 'rv-hsub';
+    if (!tn) {   // 구분자 없음 → 전체가 제목
+      while (el.firstChild) head.appendChild(el.firstChild);
+      el.appendChild(head); return;
+    }
+    var after = tn.splitText(pos);
+    after.nodeValue = after.nodeValue.slice(3);
+    var n = el.firstChild;
+    while (n && n !== after) { var nx = n.nextSibling; head.appendChild(n); n = nx; }
+    while (n) { var nx2 = n.nextSibling; sub.appendChild(n); n = nx2; }
+    el.appendChild(head); el.appendChild(sub);
+  }
+  function isLv2(el) { return /font-size:\s*12px/.test(el.getAttribute('style') || ''); }
+  function label(el) {
+    var h = el.querySelector('.rv-h');
+    var t = (h ? h.textContent : el.textContent).replace(/^\s*★/, '').trim();
+    return t.replace(/\s*\([^()]*\)\s*$/, '') || '섹션';
+  }
+  function titleAppend(title, node) {   // [rv-h] 뒤 · [rv-hsub] 앞
+    if (!node) return;
+    var sub = title.querySelector('.rv-hsub');
+    if (sub) title.insertBefore(node, sub); else title.appendChild(node);
+  }
+  var DIRECTION = /(매수|매도|지급|수취)(·|\s*우위)/;   // 매매 방향 문구 → '실행은 재량' 배지
+
+  function groupsOf() {
+    var gs = [], cur = { title: null, key: '개요', lv2: false, nodes: [] };
+    gs.push(cur);
+    Array.prototype.forEach.call(body.children, function (el) {
+      if (el.classList.contains('cat-title')) {
+        splitTitle(el);
+        cur = { title: el, key: label(el), lv2: isLv2(el), nodes: [] };
+        gs.push(cur);
+      } else cur.nodes.push(el);
+    });
+    return gs;
+  }
+
+  // ── 섹션별 문장 숨김 → ? ─────────────────────────────────────────────
+  function tidyGroup(g) {
+    var parts = [];
+    if (g.title && !g.lv2) {   // lv2(바스켓 그룹) 부제는 수치 요약 → 유지
+      var sub = g.title.querySelector('.rv-hsub');
+      if (sub && sub.textContent.trim()) stash(sub, parts);
+    }
+    g.nodes.forEach(function (n) {
+      if (n.classList.contains('wb-hidden-src') || n.hasAttribute('data-wb-added')) return;
+      if (n.classList.contains('vbanner')) { if (!n.classList.contains('v-fail')) stash(n, parts); return; }
+      if (n.classList.contains('rv-axis') || n.classList.contains('status')) { stash(n, parts); return; }
+      if (n.classList.contains('rv-two')) { n.querySelectorAll('.rv-axis').forEach(function (x) { stash(x, parts); }); return; }
+      if (n.classList.contains('panel-wrap')) {
+        var only = n.children.length === 1 && n.children[0].classList.contains('status');
+        if (only && /^\s*주간 합계/.test(n.textContent)) return;   // 수치 요약 → 유지
+        if (only) { stash(n, parts); return; }
+        n.querySelectorAll(':scope > .status, :scope > .vbanner:not(.v-fail), .rv-axis, .utilchip .status').forEach(function (x) { stash(x, parts); });
+      }
+    });
+    if (g.title) {
+      var joined = parts.join(' ');
+      titleAppend(g.title, helpIcon(parts));
+      if (DIRECTION.test(joined)) titleAppend(g.title, badge('실행은 재량'));
+    }
+    return parts;
+  }
+
+  // 표의 '해석' 열 → 열 숨김 + 그 행 첫 칸의 ?
+  function foldInterpretColumn(wrap) {
+    var table = wrap && wrap.querySelector('table'); if (!table) return;
+    var ths = Array.prototype.slice.call(table.querySelectorAll('thead th'));
+    var idx = -1;
+    ths.forEach(function (th, i) { if (th.textContent.trim() === '해석') idx = i; });
+    if (idx < 0) return;
+    ths[idx].classList.add('wb-hidden-src');
+    table.querySelectorAll('tbody tr').forEach(function (tr) {
+      var td = tr.children[idx]; if (!td) return;
+      var parts = [];
+      stash(td, parts);
+      var tip = tr.getAttribute('title'); if (tip) parts.push(esc(tip));
+      if (tr.children[0]) tr.children[0].appendChild(helpIcon(parts));
+    });
+  }
+
+  // ── 개요(기준일) → 배지 줄 + ? ───────────────────────────────────────
+  function overview(g, r) {
+    var panel = g.nodes.filter(function (n) { return n.classList.contains('panel-wrap'); })[0];
+    if (!panel || panel.classList.contains('wb-hidden-src')) return;
+    var parts = []; stash(panel, parts);
+    var row = document.createElement('div'); row.className = 'rv-overview'; row.setAttribute('data-wb-added', '');
+    var yc = r.yield_curve || {};
+    [['기준일', r.asof], ['1w전', yc.week_ago_date], ['lookback', r.lookback_weeks != null ? r.lookback_weeks + '주' : null]].forEach(function (kv) {
+      if (kv[1] != null) row.appendChild(badge(kv[0] + ' ' + kv[1]));
+    });
+    var ic = helpIcon(parts); if (ic) row.appendChild(ic);
+    body.insertBefore(row, panel);
+  }
+
+  // ── 차트 공통 ─────────────────────────────────────────────────────────
+  function chartBox(cls) {
+    var d = document.createElement('div'); d.className = 'rv-chart' + (cls ? ' ' + cls : ''); d.setAttribute('data-wb-added', '');
+    var c = document.createElement('canvas'); d.appendChild(c); return d;
+  }
+  function linkRow(tr, fn) { tr.classList.add('wb-linkable'); tr.addEventListener('click', fn); }
+  function markRows(trs, i) { trs.forEach(function (tr, k) { tr.classList.toggle('is-linked', k === i); }); }
+  function scrollTo(el) { if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+
+  // ① 커브 구간 Δbp 막대 ↔ 커브 표
+  function curveDeltaChart(g, r) {
+    var cm = r.curve_moves || {};
+    var keys = Object.keys(cm).filter(function (k) { return cm[k] && typeof cm[k] === 'object' && num(cm[k].delta_bp) != null; });
+    var two = g.nodes.filter(function (n) { return n.classList.contains('rv-two'); })[0];
+    if (!keys.length || !two || !two.children[1]) return;
+    var box = chartBox('rv-chart--sm'); two.children[1].appendChild(box);
+    var trs = Array.prototype.slice.call(two.querySelectorAll('tbody tr'));
+    var rowOf = function (k) { return trs.filter(function (tr) { return tr.children[0] && tr.children[0].textContent.trim() === k; })[0]; };
+    var sel = -1;
+    var ch = track(new Chart(box.querySelector('canvas').getContext('2d'), {
+      type: 'bar',
+      data: { labels: keys, datasets: [{ label: 'Δ bp (1w)', data: keys.map(function (k) { return num(cm[k].delta_bp); }),
+        backgroundColor: function (c) { return signCol(c.raw, sel < 0 || sel === c.dataIndex ? 1 : .45); }, borderRadius: 2 }] },
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { return ' Δ ' + sgn(c.raw, 2) + 'bp'; } } } },
+        scales: { x: { title: { display: true, text: 'Δ bp (1w)' } }, y: { grid: { display: false } } },
+        onClick: function (e, els) { if (els.length) pick(els[0].index, true); } }
+    }));
+    function pick(i, fromChart) {
+      sel = i; ch.update('none');
+      trs.forEach(function (tr) { tr.classList.remove('is-linked'); });
+      var tr = rowOf(keys[i]); if (tr) { tr.classList.add('is-linked'); if (fromChart) scrollTo(tr); }
+    }
+    keys.forEach(function (k, i) { var tr = rowOf(k); if (tr) linkRow(tr, function () { pick(i, false); }); });
+    STATS.charts.push('커브 구간 Δbp'); STATS.links.push('커브 표 행 ↔ Δbp 막대');
+  }
+
+  // ② 6종목 net_z 전주 vs 금주 ↔ 넷팅 표 ↔ 기여 상위 구조
+  function nettingChart(g, r) {
+    var tn = r.tenor_netting || {}, pv = r.tenor_netting_prev || {};
+    var rows = Array.isArray(tn.rows) ? tn.rows : [];
+    var wrap = g.nodes.filter(function (n) { return n.classList.contains('tlog-wrap'); })[0];
+    if (!rows.length || !wrap) return;
+    var prev = {}; (Array.isArray(pv.rows) ? pv.rows : []).forEach(function (x) { prev[String(x.tenor)] = num(x.net_z); });
+    var hasPrev = Object.keys(prev).length > 0;
+    if (!hasPrev) STATS.gaps.push('tenor_netting_prev 없음 → 전주 막대 생략');
+    var box = document.createElement('div'); box.className = 'rv-net'; box.setAttribute('data-wb-added', '');
+    var cbox = chartBox(); box.appendChild(cbox);
+    var side = document.createElement('div'); side.className = 'rv-net-side'; box.appendChild(side);
+    body.insertBefore(box, wrap);
+    var epi = -1, ea = -1;   // 기본 선택 = |net_z| 최대(renderReview 의 ★진앙과 같은 규칙)
+    rows.forEach(function (x, i) { var a = Math.abs(num(x.net_z)); if (isFinite(a) && a > ea) { ea = a; epi = i; } });
+    var sel = epi;
+    var trs = Array.prototype.slice.call(wrap.querySelectorAll('tbody tr'));
+    var ds = [];
+    if (hasPrev) ds.push({ label: '전주' + (pv.asof ? ' ' + pv.asof : ''), data: rows.map(function (x) { return prev[String(x.tenor)] ?? null; }),
+      backgroundColor: WBChart.tok('--wb-muted', .4), borderRadius: 2 });
+    ds.push({ label: '금주' + (tn.asof ? ' ' + tn.asof : ''), data: rows.map(function (x) { return num(x.net_z); }),
+      backgroundColor: function (c) { return signCol(c.raw, c.dataIndex === sel ? 1 : .6); },
+      borderColor: function (c) { return c.dataIndex === sel ? WBChart.css('--wb-ink') : 'rgba(0,0,0,0)'; },
+      borderWidth: function (c) { return c.dataIndex === sel ? 1.5 : 0; }, borderRadius: 2 });
+    var ch = track(new Chart(cbox.querySelector('canvas').getContext('2d'), {
+      type: 'bar', data: { labels: rows.map(function (x) { return x.tenor + 'y'; }), datasets: ds },
+      options: { responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { align: 'start' }, tooltip: { callbacks: { label: function (c) { return ' ' + c.dataset.label.split(' ')[0] + ' net_z ' + sgn(c.raw); } } } },
+        scales: { x: { grid: { display: false } }, y: { title: { display: true, text: 'net_z' } } },
+        onClick: function (e, els) { if (els.length) pick(els[0].index, true); } }
+    }));
+    function renderSide(i) {
+      var x = rows[i] || {}, tc = Array.isArray(x.top_contributors) ? x.top_contributors : [];
+      side.innerHTML = '<div class="rv-net-head"><b>' + esc(x.tenor) + 'y</b><span class="wb-badge">net_z ' + sgn(x.net_z) + '</span>' +
+        (hasPrev ? '<span class="wb-badge">전주 ' + sgn(prev[String(x.tenor)]) + '</span>' : '') +
+        '<span class="wb-badge">n구조 ' + (x.n_structs != null ? esc(x.n_structs) : '–') + '</span></div>' +
+        '<div class="rv-net-sub">기여 상위 구조 ' + tc.length + (x.n_structs != null ? ' / ' + esc(x.n_structs) : '') +
+        WBShell.helpBtn('스냅샷 tenor_netting.rows[].top_contributors 그대로(상위 ' + tc.length + '개만 제공 — 나머지 구조 목록은 스냅샷에 없음). coeff = 레그 계수, contrib = 기여.') + '</div>' +
+        (tc.length ? '<table class="rv-net-tbl"><thead><tr><th>구조</th><th class="num">coeff</th><th class="num">contrib</th></tr></thead><tbody>' +
+          tc.map(function (c) { return '<tr><td>' + esc(c.pair) + '</td><td class="num">' + esc(c.coeff) + '</td><td class="num">' + esc(c.contrib) + '</td></tr>'; }).join('') +
+          '</tbody></table>' : '<div class="rv-net-sub">기여 구조 없음</div>');
+    }
+    function pick(i, fromChart) {
+      sel = i; ch.update('none'); markRows(trs, i); renderSide(i);
+      if (fromChart) scrollTo(trs[i]);
+    }
+    trs.forEach(function (tr, i) { linkRow(tr, function () { pick(i, false); }); });
+    if (sel >= 0) { markRows(trs, sel); renderSide(sel); }
+    STATS.charts.push('6종목 net_z 전주 vs 금주'); STATS.links.push('넷팅 표 행 ↔ net_z 막대 ↔ 기여 상위 구조 목록');
+  }
+
+  // ③ 주간 팩터 손익 일별 막대(평균회귀 vs 모멘텀) ↔ 팩터 표
+  function factorChart(g, r) {
+    var fw = r.factor_weekly || {}, rows = Array.isArray(fw.rows) ? fw.rows : [];
+    var wrap = g.nodes.filter(function (n) { return n.classList.contains('tlog-wrap'); })[0];
+    if (!rows.length || !wrap) return;
+    var box = chartBox(); body.insertBefore(box, wrap);
+    var trs = Array.prototype.slice.call(wrap.querySelectorAll('tbody tr'));
+    var sel = -1, unit = fw.unit || 'bp';
+    var a = function (c) { return sel < 0 || c.dataIndex === sel ? 1 : .4; };
+    var ch = track(new Chart(box.querySelector('canvas').getContext('2d'), {
+      type: 'bar',
+      data: { labels: rows.map(function (x) { return String(x.date || '').slice(5).replace('-', '.'); }), datasets: [
+        { label: '평균회귀(fade)', data: rows.map(function (x) { return num(x.fade_bp); }), backgroundColor: function (c) { return WBChart.alpha('--wb-series-1', a(c)); }, borderRadius: 2 },
+        { label: '모멘텀', data: rows.map(function (x) { return num(x.mom_bp); }), backgroundColor: function (c) { return WBChart.alpha('--wb-accent', a(c)); }, borderRadius: 2 } ] },
+      options: { responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { align: 'start' }, tooltip: { callbacks: { label: function (c) { return ' ' + c.dataset.label + ' ' + sgn(c.raw) + unit; } } } },
+        scales: { x: { grid: { display: false } }, y: { title: { display: true, text: unit + ' (gross)' } } },
+        onClick: function (e, els) { if (els.length) pick(els[0].index, true); } }
+    }));
+    function pick(i, fromChart) { sel = (sel === i && !fromChart) ? -1 : i; ch.update('none'); markRows(trs, sel); if (fromChart) scrollTo(trs[i]); }
+    trs.forEach(function (tr, i) { linkRow(tr, function () { pick(i, false); }); });
+    titleAppend(g.title, badge('gross'));
+    STATS.charts.push('주간 팩터 손익 일별(평균회귀 vs 모멘텀)'); STATS.links.push('팩터 표 행 ↔ 일별 막대');
+  }
+
+  // ④ TOP PICK z_wavg × mom_wavg 산점도(버킷 색 · MR=원 · 모멘텀=삼각) ↔ 픽 행
+  function picksScatter(g, r) {
+    var pk = r.picks || {}, bks = pk.buckets || {}, bkeys = Object.keys(bks);
+    var cols = g.nodes.filter(function (n) { return n.classList.contains('rv-cols'); })[0];
+    if (!bkeys.length || !cols) return;
+    var panels = Array.prototype.slice.call(cols.children);
+    var pts = [], domOf = [], missing = 0;
+    bkeys.forEach(function (bk, bi) {
+      var b = bks[bk] || {}, list = [].concat((b.mr || []).map(function (p) { return ['mr', p]; }), (b.momentum || []).map(function (p) { return ['momentum', p]; }));
+      var picks = panels[bi] ? Array.prototype.slice.call(panels[bi].querySelectorAll('.rv-pick')) : [];
+      var aligned = picks.length === list.length;   // DOM 순서 = renderReview 순서(버킷 → MR → 모멘텀)
+      list.forEach(function (fp, k) {
+        var st = fp[1].status || {}, x = num(st.z_wavg), y = num(st.mom_wavg);
+        var el = aligned ? picks[k] : null;
+        if (x == null || y == null) { missing++; return; }
+        pts.push({ x: x, y: y, b: bi, f: fp[0], name: fp[1].name || fp[1].key || '?', el: el });
+      });
+    });
+    if (missing) STATS.gaps.push('TOP PICK ' + missing + '개 = z_wavg/mom_wavg 결측 → 산점도 제외');
+    if (!pts.length) return;
+    var box = chartBox('rv-chart--scatter'); body.insertBefore(box, cols);
+    var LBL = (typeof _RV_BUCKET_LBL !== 'undefined') ? _RV_BUCKET_LBL : {};
+    var sel = null;
+    var ds = bkeys.map(function (bk, bi) {
+      var mine = pts.filter(function (p) { return p.b === bi; });
+      return { label: LBL[bk] || bk, data: mine,
+        pointStyle: function (c) { return c.raw && c.raw.f === 'momentum' ? 'triangle' : 'circle'; },
+        pointRadius: function (c) { return c.raw === sel ? 7 : 4.5; }, pointHoverRadius: 7,
+        backgroundColor: WBChart.tok('--wb-series-' + (bi + 1), .85), borderColor: function (c) { return c.raw === sel ? WBChart.css('--wb-ink') : WBChart.alpha('--wb-series-' + (bi + 1), 1); },
+        borderWidth: function (c) { return c.raw === sel ? 2 : 1; } };
+    });
+    var ch = track(new Chart(box.querySelector('canvas').getContext('2d'), {
+      type: 'scatter', data: { datasets: ds },
+      options: { responsive: true, maintainAspectRatio: false, animation: false,
+        plugins: { legend: { align: 'start', labels: { usePointStyle: true, pointStyle: 'circle', boxWidth: 8, boxHeight: 8 } },
+          tooltip: { callbacks: { label: function (c) { var p = c.raw; return ' ' + p.name + ' · ' + (p.f === 'mr' ? 'MR' : '모멘텀') + ' · z ' + sgn(p.x) + ' · mom ' + sgn(p.y); } } } },
+        scales: {
+          x: { title: { display: true, text: 'z_wavg' }, grid: { color: function (c) { return c.tick && c.tick.value === 0 ? WBChart.css('--wb-rule-strong') : WBChart.css('--wb-rule'); } } },
+          y: { title: { display: true, text: 'mom_wavg' }, grid: { color: function (c) { return c.tick && c.tick.value === 0 ? WBChart.css('--wb-rule-strong') : WBChart.css('--wb-rule'); } } } },
+        onClick: function (e, els) { if (els.length) pick(ch.data.datasets[els[0].datasetIndex].data[els[0].index], true); } }
+    }));
+    function pick(p, fromChart) {
+      sel = p; ch.update('none');
+      pts.forEach(function (q) { if (q.el) q.el.classList.toggle('is-linked', q === p); });
+      if (fromChart && p && p.el) scrollTo(p.el);
+      if (!fromChart && p) {   // 행 → 점: 툴팁으로 위치 표시
+        var di = p.b, ii = ch.data.datasets[di].data.indexOf(p);
+        if (ii >= 0) { ch.setActiveElements([{ datasetIndex: di, index: ii }]); ch.tooltip.setActiveElements([{ datasetIndex: di, index: ii }], { x: 0, y: 0 }); ch.update('none'); }
+      }
+    }
+    pts.forEach(function (p) { if (p.el) { p.el.classList.add('wb-linkable'); p.el.addEventListener('click', function () { pick(p, false); }); } });
+    if (pts.some(function (p) { return !p.el; })) STATS.gaps.push('일부 버킷의 픽 행 수가 스냅샷 목록과 달라 행↔점 연계 생략');
+    STATS.charts.push('TOP PICK z_wavg × mom_wavg 산점도'); STATS.links.push('TOP PICK 행 ↔ 산점도 점');
+  }
+
+  // 스코어보드 봉인 주차별 표(주마다 반복) → 주차마다 접기(기본 접힘 · 제목 클릭 펼침). 누적 표는 그대로.
+  function foldWeekly(g) {
+    var n = 0;
+    g.nodes.forEach(function (panel) {
+      Array.prototype.slice.call(panel.querySelectorAll('.rv-flabel')).forEach(function (lb) {
+        var tbl = lb.nextElementSibling;
+        if (!/^\s*봉인 주차/.test(lb.textContent) || !tbl || !tbl.classList.contains('tlog-wrap')) return;
+        var det = document.createElement('details'); det.className = 'rv-fold';
+        var sum = document.createElement('summary');
+        var rows = tbl.querySelectorAll('tbody tr').length;
+        sum.textContent = lb.textContent.trim() + ' · ' + rows + '행';
+        det.appendChild(sum);
+        lb.parentNode.insertBefore(det, lb);
+        lb.classList.add('wb-hidden-src');   // 라벨 원문 보관(요약줄에 같은 글)
+        det.appendChild(tbl);
+        n++;
+      });
+    });
+    if (n) STATS.folds = (STATS.folds || 0) + n;
+  }
+
+  // TOP PICK 버킷·픽 단위 설명 → ?
+  function tidyPicks(g) {
+    var cols = g.nodes.filter(function (n) { return n.classList.contains('rv-cols'); })[0];
+    if (!cols) return;
+    Array.prototype.forEach.call(cols.children, function (panel) {
+      var head = panel.children[0];
+      var parts = [];
+      Array.prototype.forEach.call(panel.children, function (c) { if (c.classList.contains('rv-axis')) stash(c, parts); });
+      if (head && parts.length) head.appendChild(helpIcon(parts));
+      panel.querySelectorAll('.rv-pick').forEach(function (pk) {
+        var pp = [];
+        Array.prototype.forEach.call(pk.children, function (c) { if (c.classList.contains('rv-axis')) stash(c, pp); });
+        var anchor = pk.querySelector('.rv-conf') || pk.querySelector('b');
+        var ic = helpIcon(pp);
+        if (ic && anchor) anchor.parentNode.insertBefore(ic, anchor.nextSibling);
+      });
+    });
+  }
+
+  // ── 목차 ─────────────────────────────────────────────────────────────
+  var heads = [], links = [];
+  function buildToc(gs) {
+    heads = []; links = [];
+    var items = [], numb = 0;
+    if (!body.children.length || (body.children.length === 1 && /불러오는 중/.test(body.textContent))) {
+      toc.innerHTML = '<li class="rv-toc-empty">읽는 중</li>'; return;
+    }
+    gs.forEach(function (g) {
+      var target = g.title || body.firstElementChild;
+      if (!target) return;
+      if (!g.title) { heads.push(target); items.push('<li><a href="#" data-i="' + (heads.length - 1) + '"><span class="rv-toc-num">00</span>개요 · 기준일</a></li>'); return; }
+      if (!g.title.id) g.title.id = 'wbrv-s' + heads.length;
+      heads.push(g.title);
+      var i = heads.length - 1;
+      if (g.lv2) items.push('<li class="lv2"><a href="#" data-i="' + i + '">' + esc(g.key) + '</a></li>');
+      else { numb++; items.push('<li><a href="#" data-i="' + i + '"><span class="rv-toc-num">' + (numb < 10 ? '0' : '') + numb + '</span>' + esc(g.key) + '</a></li>'); }
+    });
+    toc.innerHTML = items.length ? items.join('') : '<li class="rv-toc-empty">섹션 없음</li>';
+    links = Array.prototype.slice.call(toc.querySelectorAll('a[data-i]'));
+    links.forEach(function (a) {
+      a.addEventListener('click', function (e) {
+        e.preventDefault();   // 해시 변경 없음(탭 해시 라우팅과 분리)
+        var t = heads[+a.getAttribute('data-i')];
+        if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+    });
+    spy();
+  }
+  function spy() {
+    if (!links.length) return;
+    var cs = getComputedStyle(document.documentElement);
+    var off = (parseFloat(cs.getPropertyValue('--wb-shell-h')) || 48) + (parseFloat(cs.getPropertyValue('--wb-filterbar-h')) || 0) + 24;
+    var cur = 0;
+    for (var i = 0; i < heads.length; i++) { if (heads[i].getBoundingClientRect().top - off <= 0) cur = i; }
+    links.forEach(function (a) { a.classList.toggle('is-active', +a.getAttribute('data-i') === cur); });
+    var act = links[cur];
+    if (act && window.innerWidth <= 720) {
+      var bar = toc.parentElement, l = act.offsetLeft, rr = l + act.offsetWidth;
+      if (l < bar.scrollLeft || rr > bar.scrollLeft + bar.clientWidth) bar.scrollLeft = Math.max(0, l - 16);
+    }
+  }
+  var ticking = false;
+  window.addEventListener('scroll', function () {
+    if (ticking) return; ticking = true;
+    requestAnimationFrame(function () { ticking = false; spy(); });
+  }, { passive: true });
+
+  // ── 기준 주차(표시만) · 고지 원문(관찰 전용 배지의 ?) · 문서 머리 ────────
+  function isoWeek(ds) {
+    var d = new Date(ds + 'T00:00:00Z'); if (isNaN(d)) return null;
+    var day = (d.getUTCDay() + 6) % 7; d.setUTCDate(d.getUTCDate() - day + 3);
+    var y = d.getUTCFullYear(), jan4 = new Date(Date.UTC(y, 0, 4));
+    return { y: y, w: 1 + Math.round(((d - jan4) / 864e5 - 3 + ((jan4.getUTCDay() + 6) % 7)) / 7) };
+  }
+  function mmdd(ds) { return ds ? String(ds).slice(5, 10).replace('-', '.') : '?'; }
+  function meta(r) {
+    var wkEl = document.getElementById('wbRevWeek'), docMeta = document.getElementById('wbRevDocMeta'), nt = document.getElementById('wbRevNotice');
+    if (!r || r.available === false) { if (wkEl) wkEl.textContent = '—'; if (docMeta) docMeta.textContent = ''; return; }
+    var asof = r.asof || null, m = r.meta || {}, ww = m.week_window || {};
+    var ago = ww.week_ago_date || (r.yield_curve || {}).week_ago_date || null;
+    var iw = asof ? isoWeek(asof) : null;
+    var lbl = (iw ? iw.y + '·W' + iw.w : '?') + ' · ' + (ago ? mmdd(ago) + '~' : '') + mmdd(asof);
+    if (wkEl) wkEl.textContent = lbl;
+    if (docMeta) docMeta.textContent = lbl + (ww.n_obs_days != null ? ' · ' + ww.n_obs_days + '영업일' : '');
+    var pm = (r.picks || {}).meta || {};
+    var lines = [m.lookahead, pm.neutrality, pm.confidence_note].filter(function (x) { return x; });
+    if (nt) nt.innerHTML = lines.map(function (x) { return '<p>' + esc(x) + '</p>'; }).join('');
+  }
+
+  // ── 처리 루프 ─────────────────────────────────────────────────────────
+  var DONE = '';   // 같은 렌더를 두 번 처리하지 않게(렌더 표식 = 첫 자식 + 자식 수)
+  function process() {
+    var r = rev();
+    meta(r);
+    var gs = groupsOf();
+    var sig = (body.firstElementChild ? body.firstElementChild.outerHTML.length : 0) + ':' + body.children.length;
+    if (r && r.available !== false && sig !== DONE && body.querySelector('.cat-title')) {
+      STATS.hidden = 0; STATS.helps = 0; STATS.charts = []; STATS.links = []; STATS.gaps = []; STATS.folds = 0;
+      gs.forEach(function (g) {
+        try {
+          if (!g.title) { overview(g, r); return; }
+          if (g.key === 'TOP PICK') tidyPicks(g);
+          g.nodes.forEach(function (n) { if (n.classList.contains('tlog-wrap')) foldInterpretColumn(n); });
+          tidyGroup(g);
+          if (g.key === '일드커브') curveDeltaChart(g, r);
+          else if (/^6종목 종합 넷팅/.test(g.key)) nettingChart(g, r);
+          else if (g.key === '주간 팩터 손익') factorChart(g, r);
+          else if (g.key === 'TOP PICK') picksScatter(g, r);
+          else if (g.key === '추천 일치성 스코어보드') foldWeekly(g);
+        } catch (e) { if (window.console) console.warn('wb review tidy', g.key, e); }
+      });
+      gs = groupsOf();
+      DONE = (body.firstElementChild ? body.firstElementChild.outerHTML.length : 0) + ':' + body.children.length;
+    }
+    buildToc(gs);
+  }
+  var pending = false;
+  var mo = new MutationObserver(function () {
+    if (pending) return; pending = true;
+    requestAnimationFrame(function () {
+      pending = false;
+      mo.disconnect();
+      try { process(); } finally { mo.takeRecords(); mo.observe(body, { childList: true }); }
+    });
+  });
+  mo.observe(body, { childList: true });
+  process();
+
+  // ── 셸 연동: 활성 탭 → 셸 활성 표시 · 해시 딥링크 ──
+  var TABS = ['strat', 'ops', 'review', 'news'];
+  function activeTab() {
+    for (var i = 0; i < TABS.length; i++) { var b = document.getElementById('tab-' + TABS[i]); if (b && b.classList.contains('active')) return TABS[i]; }
+    return null;
+  }
+  var TAB_TITLE = { strat: '전략 등록부', ops: '운용 콘솔', review: '주간 리뷰', news: '뉴스 흐름' };
+  function syncShell() {
+    var t = activeTab();
+    if (t && window.WBShell) window.WBShell.setPage(t);
+    if (t && TAB_TITLE[t]) document.title = TAB_TITLE[t] + ' · Bond Quant House';
+  }
+  var bar = document.querySelector('.tabbar');
+  if (bar) new MutationObserver(syncShell).observe(bar, { subtree: true, attributes: true, attributeFilter: ['class'] });
+  function fromHash() { var t = (location.hash || '').slice(1); if (TABS.indexOf(t) >= 0 && typeof switchTab === 'function') switchTab(t); }
+  window.addEventListener('hashchange', fromHash);
+  fromHash(); syncShell();
+})();
 </script>
 </body>
 </html>

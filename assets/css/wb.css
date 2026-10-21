@@ -1,0 +1,469 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   wb.css — Bond Quant House 공통 디자인 시스템 ("workbench" 스타일)
+   2026-10-21 redesign-wb 1단계 · 명세 = docs/design-wb/WB_SPEC.md
+   ───────────────────────────────────────────────────────────────────────────
+   원칙: 조용한 작업대. 중성 회색 + 얇은 선 · 위계는 굵기·여백으로 · 그림자/그라데이션 없음 ·
+         숫자는 tabular-nums · 색은 오르내림(up/down)·경고·시리즈에만.
+   사용: <html data-wb> 페이지가 이 파일을 링크하면 토큰+컴포넌트(.wb-*)를 받는다.
+         data-wb="partial" = 일부만 개편된 페이지(quant-house) — 대회 모드가 아니면 어두운 테마 고정.
+   ★캐시: netlify.toml 이 /assets/* 를 1년 immutable 로 캐시한다 → 이 파일을 고치면 링크의
+         ?v= 값을 반드시 올릴 것(안 올리면 재방문자는 옛 파일을 계속 본다).
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css");
+
+/* ── 1. 토큰 · 밝은 테마(기본) ─────────────────────────────────────────── */
+:root {
+  color-scheme: light;
+  --wb-bg: #e2e0da;
+  --wb-surface: #edebe6;
+  --wb-subtle: #e5e3dd;
+  --wb-ink: #33363b;
+  --wb-muted: #5c5f65;
+  --wb-rule: #d6d3cc;
+  --wb-rule-strong: #bfbbb3;
+  --wb-mark: #4e525a;
+  --wb-up: #b0333a;
+  --wb-down: #2b5ca9;
+  --wb-warn: #9c4e1b;
+  --wb-accent: #7a5f34;
+  --wb-open: #1f8a4c;
+  --wb-series-1: #3876b0;
+  --wb-series-2: #a85455;
+  --wb-series-3: #c87340;
+  --wb-series-4: #1b968d;
+  --wb-series-5: #b18e15;
+  --wb-series-6: #7e8387;
+  --wb-ramp-1: #34558c; --wb-ramp-2: #4a6ba0; --wb-ramp-3: #6583b2;
+  --wb-ramp-4: #869cbd; --wb-ramp-5: #9c9aa3; --wb-ramp-6: #bb9186;
+  --wb-ramp-7: #b6735f; --wb-ramp-8: #a85843; --wb-ramp-9: #913f2e;
+  --wb-action-face: #454a52;
+  --wb-action-face-hover: #50555e;
+  --wb-action-ink: #f0eee9;
+  --wb-overlay: rgb(51 54 59 / 32%);
+  --wb-legacy-purple: #7d68a8;   /* 호환층 전용(구 --purple) — wb 팔레트에 보라 없음 */
+}
+
+/* ── 2. 토큰 · 어두운 테마 ─────────────────────────────────────────────
+   (a) 명시 선택 [data-theme=dark]
+   (b) 개편 안 된 페이지(html 에 data-wb 없음) — 어두운 화면 전용으로 짜였으므로 고정
+   (c) 부분 개편 페이지가 대회 모드가 아닐 때 — 숨겨 둔 레거시 탭이 밝은 배경에서 깨지지 않게 고정 */
+:root[data-theme="dark"],
+html:not([data-wb]),
+html[data-wb="partial"]:not([data-contest]) {
+  color-scheme: dark;
+  --wb-bg: #16181c;
+  --wb-surface: #1d2025;
+  --wb-subtle: #23272d;
+  --wb-ink: #e3e5e8;
+  --wb-muted: #969ba4;
+  --wb-rule: #2c3037;
+  --wb-rule-strong: #3a3f47;
+  --wb-mark: #c7cbd1;
+  --wb-up: #f0736b;
+  --wb-down: #6fa3ec;
+  --wb-warn: #e39a3b;
+  --wb-accent: #cfb07a;
+  --wb-open: #3ccb74;
+  --wb-series-1: #649bd2;
+  --wb-series-2: #b65c5e;
+  --wb-series-3: #de7f3c;
+  --wb-series-4: #25aba6;
+  --wb-series-5: #d0b035;
+  --wb-series-6: #b9bec3;
+  --wb-ramp-1: #4a68a0; --wb-ramp-2: #5c7cb2; --wb-ramp-3: #7590bd;
+  --wb-ramp-4: #94a5c4; --wb-ramp-5: #aeabb3; --wb-ramp-6: #c9a095;
+  --wb-ramp-7: #c9836f; --wb-ramp-8: #c26953; --wb-ramp-9: #b0503c;
+  --wb-action-face: #3b4250;
+  --wb-action-face-hover: #465062;
+  --wb-action-ink: #eef0f3;
+  --wb-overlay: rgb(10 11 13 / 60%);
+  --wb-legacy-purple: #a796d4;
+}
+/* (d) 시스템 설정 따름 — 사용자가 밝음을 명시하지 않았으면 */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --wb-bg: #16181c;
+    --wb-surface: #1d2025;
+    --wb-subtle: #23272d;
+    --wb-ink: #e3e5e8;
+    --wb-muted: #969ba4;
+    --wb-rule: #2c3037;
+    --wb-rule-strong: #3a3f47;
+    --wb-mark: #c7cbd1;
+    --wb-up: #f0736b;
+    --wb-down: #6fa3ec;
+    --wb-warn: #e39a3b;
+    --wb-accent: #cfb07a;
+    --wb-open: #3ccb74;
+    --wb-series-1: #649bd2;
+    --wb-series-2: #b65c5e;
+    --wb-series-3: #de7f3c;
+    --wb-series-4: #25aba6;
+    --wb-series-5: #d0b035;
+    --wb-series-6: #b9bec3;
+    --wb-ramp-1: #4a68a0; --wb-ramp-2: #5c7cb2; --wb-ramp-3: #7590bd;
+    --wb-ramp-4: #94a5c4; --wb-ramp-5: #aeabb3; --wb-ramp-6: #c9a095;
+    --wb-ramp-7: #c9836f; --wb-ramp-8: #c26953; --wb-ramp-9: #b0503c;
+    --wb-action-face: #3b4250;
+    --wb-action-face-hover: #465062;
+    --wb-action-ink: #eef0f3;
+    --wb-overlay: rgb(10 11 13 / 60%);
+    --wb-legacy-purple: #a796d4;
+  }
+}
+
+/* ── 3. 파생 토큰 · 타이포 · 간격 · 치수 (테마 공통) ─────────────────── */
+:root {
+  --wb-faint: color-mix(in srgb, var(--wb-muted) 70%, var(--wb-surface));
+  --wb-up-soft: color-mix(in srgb, var(--wb-up) 14%, transparent);
+  --wb-down-soft: color-mix(in srgb, var(--wb-down) 14%, transparent);
+  --wb-warn-soft: color-mix(in srgb, var(--wb-warn) 12%, transparent);
+  --wb-accent-soft: color-mix(in srgb, var(--wb-accent) 14%, transparent);
+
+  --wb-font: 'Pretendard Variable', Pretendard, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Malgun Gothic', sans-serif;
+  --wb-fs-label: 11px;  --wb-lh-label: 16px;
+  --wb-fs-body: 13px;   --wb-lh-body: 20px;
+  --wb-fs-title: 15px;  --wb-lh-title: 22px;
+  --wb-fs-page: 18px;   --wb-lh-page: 24px;
+  --wb-fs-figure: 24px; --wb-lh-figure: 30px;
+
+  --wb-s1: 4px; --wb-s2: 8px; --wb-s3: 12px; --wb-s4: 16px; --wb-s5: 24px; --wb-s6: 32px;
+  --wb-gutter: 24px;
+  --wb-gap: 16px;
+  --wb-section: 24px;
+  --wb-inset: 16px;
+
+  --wb-ctl: 32px;      /* 컨트롤 높이 */
+  --wb-ctl-sm: 24px;   /* 세그먼트·작은 버튼 */
+  --wb-card-head: 44px;
+  --wb-th: 28px;
+  --wb-row: 32px;
+  --wb-r-card: 6px;
+  --wb-r-ctl: 4px;
+  --wb-r-bar: 2px;
+
+  --wb-shell-h: 48px;      /* wb-shell.js 가 실측값으로 덮어씀 */
+  --wb-filterbar-h: 0px;   /* 〃 (sticky 필터 바 높이) */
+}
+@media (max-width: 720px) {
+  :root { --wb-gutter: 16px; --wb-ctl: 44px; --wb-ctl-sm: 32px; }
+}
+
+/* ── 4. 호환층 — 구 main.css 변수 → wb 토큰 ───────────────────────────
+   아직 개편 안 된 화면 조각(quant-house 숨김 탭·JS 문자열 템플릿의 var(--t1) 등)이 그대로 동작하게.
+   색 매핑은 '색상(hue) 유지' 기준: 구 페이지에서 green=양(+)/정상, red=음(−)/위험 의미를 바꾸지 않는다. */
+:root {
+  --bg: var(--wb-bg);
+  --s1: var(--wb-surface);
+  --s2: var(--wb-subtle);
+  --s3: color-mix(in srgb, var(--wb-subtle) 55%, var(--wb-rule-strong));
+  --s4: var(--wb-rule-strong);
+  --bd: var(--wb-rule);
+  --bd2: var(--wb-rule-strong);
+  --t1: var(--wb-ink);
+  --t2: var(--wb-muted);
+  --t3: var(--wb-faint);
+  --blue: var(--wb-series-1);
+  --green: var(--wb-open);
+  --amber: var(--wb-warn);
+  --red: var(--wb-up);
+  --purple: var(--wb-legacy-purple);
+  --r: 6px;
+  --rs: 4px;
+}
+
+/* ── 5. 기반 (data-wb 페이지) ─────────────────────────────────────────── */
+html[data-wb] { background: var(--wb-bg); scrollbar-color: var(--wb-rule-strong) transparent; }
+html[data-wb] *, html[data-wb] *::before, html[data-wb] *::after { box-sizing: border-box; }
+html[data-wb] body {
+  margin: 0; padding: 0; min-height: 100vh;
+  background: var(--wb-bg); color: var(--wb-ink);
+  font-family: var(--wb-font); font-size: var(--wb-fs-body); line-height: var(--wb-lh-body); font-weight: 400;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+/* 기반 규칙은 :where() 로 특이도 0 — 컴포넌트 클래스(.wb-btn--primary 등)를 절대 이기지 않게 */
+:where(html[data-wb]) :where(h1, h2, h3, h4, p, dl, dd, ul, ol, figure) { margin: 0; }
+:where(html[data-wb]) :where(button, input, select, textarea) { font: inherit; color: inherit; }
+:where(html[data-wb]) :where(a) { color: inherit; }
+html[data-wb] ::selection { background: color-mix(in srgb, var(--wb-series-1) 30%, transparent); }
+html[data-wb] :where(button, a, input, select, [tabindex]):focus-visible { outline: 2px solid var(--wb-mark); outline-offset: 1px; }
+.wb-num { font-variant-numeric: tabular-nums; }
+.wb-up { color: var(--wb-up); }
+.wb-down { color: var(--wb-down); }
+.wb-muted { color: var(--wb-muted); }
+.wb-warn-text { color: var(--wb-warn); }
+.wb-strong { font-weight: 600; }
+.wb-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* ── 6. 셸 헤더 (wb-shell.js 가 <header id="wb-shell"> 안을 채움) ────── */
+.wb-shell { position: sticky; top: 0; z-index: 50; background: var(--wb-bg); }
+.wb-shell-bar {
+  height: 48px; display: flex; align-items: stretch; gap: var(--wb-s5);
+  padding: 0 var(--wb-gutter); border-bottom: 1px solid var(--wb-rule);
+}
+.wb-brand { display: flex; align-items: center; gap: 8px; flex: none; text-decoration: none; color: var(--wb-ink); white-space: nowrap; }
+.wb-brand-emoji { flex: none; width: 22px; text-align: center; font-size: 17px; line-height: 24px; font-family: 'Segoe UI Emoji', 'Apple Color Emoji', 'Noto Color Emoji', sans-serif; }
+.wb-brand-name { font-weight: 600; }
+.wb-brand-sub { color: var(--wb-muted); }
+.wb-nav1, .wb-nav2 { display: flex; align-items: stretch; gap: var(--wb-s5); min-width: 0; overflow-x: auto; scrollbar-width: none; }
+.wb-nav1::-webkit-scrollbar, .wb-nav2::-webkit-scrollbar { display: none; }
+.wb-nav1 a, .wb-nav2 a {
+  position: relative; top: 1px;                 /* 활성 밑줄이 헤더 선에 겹치게 */
+  display: flex; align-items: center; white-space: nowrap; text-decoration: none;
+  color: var(--wb-muted); border-bottom: 2px solid transparent;
+}
+.wb-nav1 a { font-size: 13px; }
+.wb-nav2 a { font-size: 12px; }
+.wb-nav1 a:hover, .wb-nav2 a:hover { color: var(--wb-ink); }
+.wb-nav1 a.is-active, .wb-nav2 a.is-active { color: var(--wb-ink); font-weight: 600; border-bottom-color: var(--wb-mark); }
+.wb-nav2-sep { flex: none; width: 1px; margin: 12px 0; background: var(--wb-rule); }
+.wb-shell-sub { height: 40px; display: flex; align-items: stretch; padding: 0 var(--wb-gutter); border-bottom: 1px solid var(--wb-rule); }
+.wb-shell-tools { margin-left: auto; display: flex; align-items: center; gap: var(--wb-s2); flex: none; }
+.wb-iconbtn {
+  width: 32px; height: 32px; display: inline-grid; place-items: center; flex: none;
+  background: none; border: 1px solid transparent; border-radius: var(--wb-r-ctl);
+  color: var(--wb-muted); cursor: pointer;
+}
+.wb-iconbtn:hover { color: var(--wb-ink); border-color: var(--wb-rule-strong); }
+.wb-iconbtn svg { width: 16px; height: 16px; }
+.wb-finder {
+  height: 32px; min-width: 200px; display: flex; align-items: center; justify-content: space-between; gap: var(--wb-s4);
+  padding: 0 2px; background: none; border: 0; border-bottom: 1px solid var(--wb-rule-strong); border-radius: 0;
+  color: var(--wb-muted); font-size: 12px; cursor: text; text-align: left;
+}
+.wb-finder:hover { border-bottom-color: var(--wb-mark); color: var(--wb-ink); }
+.wb-kbd { font: 11px/16px var(--wb-font); color: var(--wb-muted); border: 1px solid var(--wb-rule); border-radius: 3px; padding: 0 4px; }
+@media (max-width: 720px) {
+  .wb-shell-bar { gap: var(--wb-s4); }
+  .wb-brand-sub { display: none; }
+  .wb-brand-name { font-size: 13px; }
+  .wb-finder { min-width: 0; width: 32px; justify-content: center; border: 1px solid transparent; border-radius: var(--wb-r-ctl); }
+  .wb-finder .wb-finder-text, .wb-finder .wb-kbd { display: none; }
+}
+.wb-finder-icon { display: none; width: 16px; height: 16px; }
+@media (max-width: 720px) { .wb-finder-icon { display: block; } }
+
+/* ── 7. 커맨드 팔레트 (화면 찾기 Ctrl K) ─────────────────────────────── */
+.wb-palette { position: fixed; inset: 0; z-index: 100; display: flex; justify-content: center; align-items: flex-start; padding: 12vh 16px 0; background: var(--wb-overlay); }
+.wb-palette[hidden] { display: none; }
+.wb-palette-panel { width: min(560px, 100%); background: var(--wb-surface); border: 1px solid var(--wb-rule-strong); border-radius: var(--wb-r-card); overflow: hidden; }
+.wb-palette-input {
+  width: 100%; height: 44px; padding: 0 var(--wb-s4); border: 0; border-bottom: 1px solid var(--wb-rule);
+  background: transparent; color: var(--wb-ink); font-size: var(--wb-fs-title); outline: none;
+}
+.wb-palette-input::placeholder { color: var(--wb-faint); }
+.wb-palette-list { list-style: none; margin: 0; padding: 4px 0; max-height: 52vh; overflow: auto; }
+.wb-palette-group { padding: 8px var(--wb-s4) 4px; font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-muted); }
+.wb-palette-item { display: flex; align-items: center; gap: var(--wb-s3); min-height: 40px; padding: 4px var(--wb-s4); cursor: pointer; }
+.wb-palette-item[aria-selected="true"] { background: var(--wb-subtle); }
+.wb-palette-item-label { font-weight: 600; }
+.wb-palette-item-desc { color: var(--wb-muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.wb-palette-item-area { margin-left: auto; flex: none; font-size: var(--wb-fs-label); color: var(--wb-muted); }
+.wb-palette-empty { padding: 16px; color: var(--wb-muted); }
+.wb-palette-foot { padding: 8px var(--wb-s4); border-top: 1px solid var(--wb-rule); font-size: var(--wb-fs-label); color: var(--wb-muted); }
+
+/* ── 8. 본문 · 페이지 머리 · 섹션 ────────────────────────────────────── */
+.wb-main { max-width: 1680px; margin: 0 auto; padding: var(--wb-s5) var(--wb-gutter) var(--wb-s6); }
+.wb-pagehead { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px var(--wb-s3); min-height: 40px; margin-bottom: var(--wb-s2); }
+.wb-pagehead h1 { font-size: var(--wb-fs-page); line-height: var(--wb-lh-page); font-weight: 600; }
+.wb-pagehead p { font-size: var(--wb-fs-body); color: var(--wb-muted); }
+.wb-section { margin-top: var(--wb-section); }
+.wb-section-head { display: flex; align-items: baseline; justify-content: space-between; gap: var(--wb-s3); margin: var(--wb-section) 0 var(--wb-s3); }
+.wb-section-title { font-size: var(--wb-fs-title); line-height: var(--wb-lh-title); font-weight: 600; }
+.wb-section-meta { font-size: 12px; color: var(--wb-muted); }
+
+/* ── 9. 카드 ─────────────────────────────────────────────────────────── */
+.wb-card { background: var(--wb-surface); border: 1px solid var(--wb-rule); border-radius: var(--wb-r-card); min-width: 0; }
+.wb-card-head {
+  min-height: var(--wb-card-head); display: flex; align-items: center; flex-wrap: wrap; gap: 4px var(--wb-s3);
+  padding: 4px var(--wb-s4); border-bottom: 1px solid var(--wb-rule);
+}
+.wb-card-title { font-size: var(--wb-fs-title); line-height: var(--wb-lh-title); font-weight: 600; }
+.wb-card-sub { font-size: 12px; color: var(--wb-muted); }
+.wb-card-meta { margin-left: auto; font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-muted); }
+.wb-card-body { padding: var(--wb-inset); }
+.wb-card-toolbar { display: flex; align-items: flex-end; flex-wrap: wrap; gap: var(--wb-s3) var(--wb-s5); padding: var(--wb-s3) var(--wb-inset) 0; }
+.wb-card-legend { padding: var(--wb-s2) var(--wb-inset) 0; }
+.wb-foot { padding: var(--wb-s2) var(--wb-inset) var(--wb-s3); font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-muted); }
+
+/* ── 10. KPI 띠 · 히어로 요약 ────────────────────────────────────────── */
+.wb-kpis { display: flex; flex-wrap: wrap; row-gap: var(--wb-s3); margin: 0; }
+.wb-kpi { min-width: 128px; padding: 0 var(--wb-s5); border-left: 1px solid var(--wb-rule); }
+.wb-kpi:first-child { padding-left: 0; border-left: 0; }
+.wb-kpi dt { font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-muted); white-space: nowrap; }
+.wb-kpi dd { margin: 4px 0 0; display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 6px; }
+.wb-kpi-val { font-size: var(--wb-fs-figure); line-height: var(--wb-lh-figure); font-weight: 600; letter-spacing: -0.01em; white-space: nowrap; }
+.wb-kpi-sub { font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-muted); white-space: nowrap; }
+.wb-kpi-group { padding: 0 var(--wb-s5); border-left: 1px solid var(--wb-rule); }
+.wb-kpi-group:first-child { padding-left: 0; border-left: 0; }
+.wb-kpi-group-title { font-size: 13px; font-weight: 600; margin-bottom: var(--wb-s2); }
+.wb-hero { display: flex; align-items: center; flex-wrap: wrap; gap: var(--wb-s4) var(--wb-s6); padding: var(--wb-inset); }
+.wb-hero-id { display: flex; align-items: center; gap: var(--wb-s3); min-width: 220px; }
+.wb-hero-mark {
+  flex: none; min-width: 40px; height: 28px; padding: 0 6px; display: grid; place-items: center;
+  border: 1px solid var(--wb-rule-strong); border-radius: var(--wb-r-ctl); font-size: var(--wb-fs-label); font-weight: 600; color: var(--wb-mark);
+}
+.wb-hero-name { font-size: 13px; font-weight: 600; }
+.wb-hero-src { font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-muted); }
+@media (max-width: 720px) {
+  .wb-kpis { display: grid; grid-template-columns: 1fr 1fr; column-gap: var(--wb-s4); }
+  .wb-kpi, .wb-kpi:first-child { padding: 0; border-left: 0; min-width: 0; }
+  .wb-kpi-val { font-size: 20px; line-height: 26px; }
+}
+
+/* ── 11. 표 ──────────────────────────────────────────────────────────── */
+.wb-table-wrap { overflow: auto; }
+.wb-table { width: 100%; border-collapse: collapse; font-size: var(--wb-fs-body); line-height: var(--wb-lh-body); }
+.wb-table th {
+  height: var(--wb-th); padding: 0 8px 0 12px; position: sticky; top: 0; z-index: 1;
+  font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); font-weight: 400; color: var(--wb-muted); text-align: left; white-space: nowrap;
+  background: var(--wb-surface); border-bottom: 1px solid var(--wb-rule-strong);
+}
+.wb-table td { height: var(--wb-row); padding: 0 8px 0 12px; border-bottom: 1px solid var(--wb-rule); white-space: nowrap; vertical-align: middle; }
+.wb-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.wb-table tbody tr:hover, .wb-table tbody tr.is-selected { background: var(--wb-subtle); }
+.wb-table tbody tr:last-child td { border-bottom: 0; }
+
+/* ── 12. 컨트롤: 세그먼트 · 버튼 · 밑줄 입력 · 필드 · 칩 ─────────────── */
+.wb-seg { display: inline-flex; flex-wrap: nowrap; max-width: 100%; overflow-x: auto; scrollbar-width: none; vertical-align: middle; }
+.wb-seg::-webkit-scrollbar { display: none; }
+.wb-seg > * {
+  flex: none; height: var(--wb-ctl-sm); padding: 0 10px; margin-left: -1px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); font-weight: 400; color: var(--wb-muted); white-space: nowrap;
+  background: none; border: 1px solid var(--wb-rule-strong); border-radius: 0; cursor: pointer;
+}
+.wb-seg > :first-child { margin-left: 0; border-top-left-radius: var(--wb-r-ctl); border-bottom-left-radius: var(--wb-r-ctl); }
+.wb-seg > :last-child { border-top-right-radius: var(--wb-r-ctl); border-bottom-right-radius: var(--wb-r-ctl); }
+.wb-seg > :hover { color: var(--wb-ink); }
+.wb-seg > .is-active, .wb-seg > .active, .wb-seg > [aria-pressed="true"] {
+  position: relative; z-index: 1; color: var(--wb-action-ink); font-weight: 600;
+  background: var(--wb-action-face); border-color: var(--wb-action-face);
+}
+.wb-seg > [disabled] { opacity: .45; cursor: not-allowed; }
+.wb-btn {
+  height: var(--wb-ctl); padding: 0 12px; display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: var(--wb-fs-body); line-height: var(--wb-lh-body); font-weight: 400; color: var(--wb-ink); white-space: nowrap; text-decoration: none;
+  background: none; border: 1px solid var(--wb-rule-strong); border-radius: var(--wb-r-ctl); cursor: pointer;
+}
+.wb-btn:hover { border-color: var(--wb-mark); }
+.wb-btn--primary { background: var(--wb-action-face); border-color: var(--wb-action-face); color: var(--wb-action-ink); font-weight: 600; }
+.wb-btn--primary:hover { background: var(--wb-action-face-hover); border-color: var(--wb-action-face-hover); }
+.wb-btn--text { border-color: transparent; color: var(--wb-muted); }
+.wb-btn--text:hover { border-color: transparent; color: var(--wb-ink); }
+.wb-btn--sm { height: var(--wb-ctl-sm); padding: 0 8px; font-size: var(--wb-fs-label); }
+.wb-btn--icon { width: var(--wb-ctl); padding: 0; }
+.wb-btn[disabled], .wb-btn:disabled { opacity: .45; cursor: not-allowed; border-color: var(--wb-rule-strong); }
+.wb-input {
+  height: var(--wb-ctl); padding: 0 2px; min-width: 0;
+  background: transparent; color: var(--wb-ink); font-size: var(--wb-fs-body);
+  border: 0; border-bottom: 1px solid var(--wb-rule-strong); border-radius: 0; outline: none;
+}
+.wb-input:hover, .wb-input:focus { border-bottom-color: var(--wb-mark); }
+.wb-input::placeholder { color: var(--wb-faint); }
+.wb-field { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.wb-label { font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-muted); white-space: nowrap; }
+.wb-stepper { display: inline-flex; align-items: center; gap: 4px; height: var(--wb-ctl); }
+.wb-stepper-val { min-width: 150px; padding: 0 4px; height: var(--wb-ctl); display: inline-flex; align-items: center; border-bottom: 1px solid var(--wb-rule-strong); font-weight: 600; white-space: nowrap; }
+.wb-chip {
+  height: var(--wb-ctl-sm); padding: 0 8px; display: inline-flex; align-items: center; gap: 6px;
+  font-size: var(--wb-fs-label); color: var(--wb-muted); white-space: nowrap;
+  background: none; border: 1px solid var(--wb-rule); border-radius: var(--wb-r-ctl); cursor: pointer;
+}
+.wb-chip:hover { color: var(--wb-ink); border-color: var(--wb-rule-strong); }
+.wb-chip.is-active, .wb-chip.active, .wb-chip[aria-pressed="true"] { color: var(--wb-ink); font-weight: 600; border-color: var(--wb-mark); }
+
+/* ── 13. 배지 · 범례 · 고지 ──────────────────────────────────────────── */
+.wb-badge {
+  display: inline-flex; align-items: center; height: 20px; padding: 0 6px; vertical-align: middle;
+  font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); font-weight: 400; color: var(--wb-muted); white-space: nowrap;
+  background: transparent; border: 1px solid var(--wb-rule); border-radius: var(--wb-r-ctl);
+}
+.wb-badge--up { color: var(--wb-up); border-color: color-mix(in srgb, var(--wb-up) 40%, transparent); }
+.wb-badge--down { color: var(--wb-down); border-color: color-mix(in srgb, var(--wb-down) 40%, transparent); }
+.wb-badge--warn { color: var(--wb-warn); border-color: color-mix(in srgb, var(--wb-warn) 40%, transparent); }
+.wb-badge--open { color: var(--wb-open); border-color: color-mix(in srgb, var(--wb-open) 40%, transparent); }
+.wb-badge--accent { color: var(--wb-accent); border-color: color-mix(in srgb, var(--wb-accent) 45%, transparent); }
+.wb-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px var(--wb-s4); font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-muted); }
+.wb-legend-item { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.wb-legend b { color: var(--wb-ink); font-weight: 600; }
+.wb-swatch { display: inline-block; flex: none; width: 12px; height: 2px; border-radius: 1px; background: currentColor; }
+.wb-swatch--dot { width: 6px; height: 6px; border-radius: 50%; }
+.wb-notice {
+  padding: var(--wb-s3) var(--wb-s4); background: var(--wb-subtle); border: 1px solid var(--wb-rule); border-radius: var(--wb-r-card);
+  font-size: var(--wb-fs-body); line-height: 22px; color: var(--wb-ink);
+}
+.wb-notice--warn { border-left: 2px solid var(--wb-warn); }
+
+/* ── 13b. 도움말 ? 아이콘 · 박스 툴팁 (설명·해석 문장은 여기로) ──────── */
+.wb-help {
+  position: relative; display: inline-grid; place-items: center; flex: none;
+  width: 12px; height: 12px; margin-left: 4px; padding: 0; vertical-align: 1px;
+  background: none; border: 1px solid var(--wb-rule-strong); border-radius: 50%;
+  color: var(--wb-muted); font: 600 8px/1 var(--wb-font); letter-spacing: 0; text-transform: none;
+  cursor: help; user-select: none;
+}
+.wb-help::before { content: '?'; }                       /* 글자는 CSS 로 — 제목 textContent 에 섞이지 않게 */
+.wb-help::after { content: ''; position: absolute; inset: -8px; }   /* 터치 대상 확대 */
+.wb-help:hover, .wb-help[aria-expanded="true"] { color: var(--wb-ink); border-color: var(--wb-mark); }
+.wb-help > template { display: none; }
+.wb-tip {
+  position: fixed; z-index: 200; max-width: 360px; max-height: 60vh; overflow: auto;
+  padding: 8px 12px; background: var(--wb-surface); border: 1px solid var(--wb-rule-strong); border-radius: var(--wb-r-card);
+  color: var(--wb-ink); font-size: 13px; line-height: 20px; font-weight: 400; text-align: left; letter-spacing: 0; text-transform: none;
+  overflow-wrap: anywhere;
+}
+.wb-tip[hidden] { display: none; }
+.wb-tip.is-text { white-space: pre-line; }
+.wb-tip p { margin: 0; }
+.wb-tip p + p { margin-top: 6px; }
+.wb-tip b, .wb-tip strong { font-weight: 600; }
+.wb-tip .status, .wb-tip .rv-axis { font-size: 12px; color: var(--wb-muted); }
+.wb-hidden-src { display: none !important; }            /* 툴팁으로 옮긴 원문 보관(삭제 아님) */
+
+/* ── 14. 상태: 스켈레톤 · 빈 상태 · 로딩 · 오류 ─────────────────────── */
+.wb-skel { display: inline-block; width: 80px; height: 12px; border-radius: var(--wb-r-bar); background: var(--wb-subtle); vertical-align: middle; animation: wb-pulse 1.4s ease-in-out infinite; }
+.wb-skel--fig { height: 24px; width: 96px; }
+.wb-skel--line { display: block; width: 100%; height: 10px; margin: 10px 0; }
+@keyframes wb-pulse { 0%, 100% { opacity: 1; } 50% { opacity: .55; } }
+@media (prefers-reduced-motion: reduce) { .wb-skel { animation: none; } }
+.wb-empty { padding: var(--wb-s5) var(--wb-s4); }
+.wb-empty-title { font-size: 13px; font-weight: 600; }
+.wb-empty-text { margin-top: 4px; font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-muted); }
+.wb-loading { color: var(--wb-muted); }
+.wb-error { color: var(--wb-warn); font-size: 13px; }
+
+/* ── 15. sticky 필터 바 (패턴 ③) ─────────────────────────────────────── */
+.wb-filterbar {
+  position: sticky; top: var(--wb-shell-h); z-index: 40;
+  display: flex; align-items: flex-end; flex-wrap: wrap; gap: var(--wb-s3) var(--wb-s5);
+  margin: 0 calc(-1 * var(--wb-gutter)) var(--wb-s4); padding: var(--wb-s2) var(--wb-gutter) var(--wb-s3);
+  background: var(--wb-bg);
+}
+.wb-filterbar.is-stuck { box-shadow: 0 1px 0 var(--wb-rule); }
+.wb-filterbar .wb-seg > * { height: var(--wb-ctl); padding: 0 12px; font-size: 12px; }   /* 필터 바 안에선 입력·버튼과 같은 높이 */
+.wb-filterbar-status { display: inline-flex; align-items: center; gap: 6px; min-height: var(--wb-ctl); font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-muted); }
+.wb-filterbar-end { margin-left: auto; display: flex; align-items: flex-end; gap: var(--wb-s2); }
+@media (max-width: 720px) {
+  .wb-filterbar { position: static; }
+  .wb-filterbar-end { margin-left: 0; }
+}
+
+/* ── 16. 그리드 (패턴 ⑤) ─────────────────────────────────────────────── */
+.wb-grid-2-1 { display: grid; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); gap: var(--wb-gap); align-items: start; }
+.wb-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--wb-gap); align-items: start; }
+.wb-grid-auto { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: var(--wb-gap); }
+.wb-stack > * + * { margin-top: var(--wb-gap); }
+@media (max-width: 1080px) {
+  .wb-grid-2-1 { grid-template-columns: minmax(0, 1fr); }
+  .wb-grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 720px) {
+  .wb-grid-3, .wb-grid-auto { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ── 17. 미니 스파크라인 (표 안 · muted 선 + 끝점) ───────────────────── */
+.wb-spark { display: block; width: 84px; height: 24px; }
