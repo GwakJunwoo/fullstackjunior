@@ -143,13 +143,14 @@
   function renderS1(R) {
     var dl = R.dl, D = dl[0];
     $('ovS1Meta').textContent = 'D ' + D + (dl[3] ? ' · D−3 ' + dl[3] : '');
-    var lgd = function (i, op, txt) { return '<span class="wb-legend-item"><i class="wb-swatch" style="color:var(--wb-ink);opacity:' + op + ';height:8px;width:10px;border-radius:2px"></i>' + esc(txt) + '</span>'; };
+    var lgd = function (i, op, txt) {   // 막대와 같은 색: 날짜별 진하기 × 부호(+ 빨강 / − 파랑) 두 칸
+      return '<span class="wb-legend-item"><i class="ov-sw2" style="opacity:' + op + '"><b style="background:var(--wb-up)"></b><b style="background:var(--wb-down)"></b></i>' + esc(txt) + '</span>'; };
     $('ovS1').innerHTML =
       '<div class="ov-grid2">' +
         '<section class="wb-card ov-card" aria-label="지표 일별 변화">' +
           '<div class="wb-card-head"><span class="wb-card-title">지표 2·3·5·10년 일별 변화' + help('국고 지표(2·3·5·10년지표) 종가의 전일 대비 변화(bp). 막대 = D−2 · D−1 · D 각각의 그 전날 대비 · D 가 가장 진함. 막대 아래 = 3일 누적(D − D−3). 색 = + 빨강 / − 파랑(금리 상승 / 하락). 타일(②)을 누르면 그 테너 강조.') + '</span><span class="wb-card-meta">bp · 전일 대비</span></div>' +
           '<div class="ov-body"><div class="wb-legend ov-legend">' +
-            (dl[2] ? lgd(2, .3, 'D−2 ' + mmdd(dl[2])) : '') + (dl[1] ? lgd(1, .55, 'D−1 ' + mmdd(dl[1])) : '') + lgd(0, 1, 'D ' + mmdd(D)) + '</div>' +
+            (dl[2] ? lgd(2, .3, 'D−2 ' + mmdd(dl[2])) : '') + (dl[1] ? lgd(1, .55, 'D−1 ' + mmdd(dl[1])) : '') + lgd(0, 1, 'D ' + mmdd(D)) + '<span class="wb-legend-item">' + help('색 = 부호(+ 빨강 / − 파랑) · 진할수록 최근') + '</span></div>' +
           '<div class="ov-chart ov-chart--bars"><canvas id="ovBars" aria-label="지표 일별 변화 막대"></canvas></div></div>' +
         '</section>' +
         '<section class="wb-card ov-card" aria-label="전 국채 커브">' +
