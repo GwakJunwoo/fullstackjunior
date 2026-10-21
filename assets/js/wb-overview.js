@@ -11,6 +11,8 @@
      레벨 % 소수 3 · 스프레드 = ((a − b) × 100).toFixed(4) 의 차). 날짜는 '마지막 두 점'이 아니라 D · D−1 로 고정
      (선물 라벨은 오늘 예비행이 있어 마지막 점 = 예비호가일 수 있음).
      엔진 산출물(모니터 json · 리뷰 plain)은 그대로 — 재계산 0(차익거래 모니터 명세 _ARB_MONITOR_SPEC_20261021 규칙).
+   ■ ③ 에는 정직 라벨 문장(labels.honesty)·정직-N 을 화면·툴팁 어디에도 넣지 않는다(2026-10-21 사용자 지시 "Overview에는 없애줘").
+     그 문장들은 차익거래 모니터 탭 본 페이지에 그대로 있다(→ 전체 보기).
    ■ 데이터: /ktb/curve-board · /ktb/multi_label_series · /ktb/curve · /quant-house/arb-monitor ·
      /quant-house/market-review · /quant-house/review-scoreboard — 기존 읽기 전용 API 그대로(새 라우트 없음).
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -364,7 +366,7 @@
       var P = d.panels || {}, L = d.latest || {};
       var ok = function (p) { return p && p.available !== false; };
       $('ovS3Meta').textContent = '기준 ' + (L.asof || '—') + '(전영업일) · 체결일 ' + (L.trade_day || '—') + (L.built_at ? ' · 빌드 ' + L.built_at : '');
-      var h = P.hets_today, b = P.basis, lg = P.ledger, ex = P.exposure, lb = P.labels;
+      var h = P.hets_today, b = P.basis, lg = P.ledger, ex = P.exposure;   // labels.honesty·n_effective = Overview 에 안 씀(2026-10-21 사용자 지시 · 모니터 탭 본 페이지에 그대로)
       // 오늘 판정
       var judge;
       if (ok(h)) {
@@ -399,10 +401,8 @@
           help('exposure.aggregate 그대로 · + = 스팁에 이익. 뷰로 트리를 켜고 끄지 않는다. 100% 맞혀도 손익은 같고 거래만 27% 준다(손익분기 적중률 99%). 커브·저평 뷰는 커브를 직접.') + '</div>' +
           '<div class="ov-line"><span class="ov-line-k">상태</span><span>' + Object.keys(rp).map(function (k) { return chip('전일 ' + k + ' ' + rp[k]); }).join('') + Object.keys(pre).map(function (k) { return chip(k + ' ' + pre[k]); }).join('') + '</span></div>';
       }
-      var hon = ok(lb) && Array.isArray(lb.honesty) ? '<ul class="ov-honesty" id="ovHonesty">' + lb.honesty.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') +
-        (lb.n_effective != null ? '<li>정직-N ' + raw(lb.n_effective) + '</li>' : '') + '</ul>' : '';
       $('ovS3').innerHTML = arbWarnings(d) + '<div class="ov-grid2 even">' + judge + basis + '</div>' +
-        '<section class="wb-card ov-card" style="margin-top:var(--wb-gap)"><div class="ov-body">' + (lines || '<div class="ov-foot">라이브·노출 데이터 없음</div>') + hon + '</div></section>';
+        '<section class="wb-card ov-card" style="margin-top:var(--wb-gap)"><div class="ov-body">' + (lines || '<div class="ov-foot">라이브·노출 데이터 없음</div>') + '</div></section>';
       STATS.sec.s3 = 'ok';
     } catch (e) { secErr('ovS3', '그리기 실패 — ', emsg(e), '/tools/arb-monitor/', '차익거래 모니터'); STATS.sec.s3 = 'err'; if (window.console) console.warn('ov s3', e); }
   }

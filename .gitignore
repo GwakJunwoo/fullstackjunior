@@ -47,5 +47,8 @@ server/app/data/*.json
 # redesign-wb: 참고 사이트 원본 명세·화면 캡처는 로컬 기록만(공개 저장소·공개 사이트에 싣지 않음)
 docs/design-wb/ref/
 
-# 주간 리뷰 일반 보기 웹 검증 픽스처(prep_fixtures.py 산출 · 스냅샷 데이터 — 커밋·배포 금지)
-tools/quant-house/_review_plain_check/_fx/
+# 웹 검증 하네스(검증 스크립트·dev server·카나리아·픽스처·결과 json) = 로컬 전용 — 공개 저장소·공개 사이트에 싣지 않음
+# (2026-10-21 사용자 지시 "검증 스크립트 폴더 빼고 다시 배포해") · overview/ · review_plain/(+_fx 픽스처) · results/
+/_local_checks/
+tools/quant-house/_review_plain_check/
+tools/overview/_check/
