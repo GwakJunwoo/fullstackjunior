@@ -459,7 +459,10 @@
     var meta = [t.horizon_label, num(t.n_weeks) != null ? t.n_weeks + '주' : null, (t.first_week && t.last_week) ? mmdd(t.first_week) + '~' + mmdd(t.last_week) : null].filter(Boolean).join(' · ');
     // 엔진 subtitle(짧은 판정 보류 안내)이 있으면 그것이 화면 글자 · baseline_note 는 ? 로. 없으면(옛 계약) baseline_note 를 화면 글자로.
     var sub = str(t.subtitle);
-    var help = helpHtml([df.mr, df.momentum, t.baseline_label, sub ? t.baseline_note : null, num(t.min_n) != null ? '판정 최소 표본 ' + t.min_n + '건' : null, lb.pnl,
+    // 헤더 ? — baseline_note 가 baseline_label 로 시작하면(엔진 원문) 라벨을 따로 또 찍지 않는다(웹 중복 제거)
+    var noteTip = sub ? str(t.baseline_note) : null;
+    var labelTip = (noteTip && t.baseline_label && noteTip.indexOf(t.baseline_label) === 0) ? null : t.baseline_label;
+    var help = helpHtml([df.mr, df.momentum, labelTip, noteTip, num(t.min_n) != null ? '판정 최소 표본 ' + t.min_n + '건' : null, lb.pnl,
       (t.first_week && t.last_week) ? '봉인 주차 ' + t.first_week + ' ~ ' + t.last_week : null]);
     var anyCaution = rows.some(function (r) { return r.baseline_caution === true || r.baseline_valid === false; });
     var why = function (r) {   // 판정 보류 등 짧은 사유(엔진 문자열) — 툴팁이 아니라 화면 글자
@@ -467,6 +470,9 @@
       for (var k = 0; k < ks.length; k++) if (str(r[ks[k]])) return r[ks[k]];
       return null;
     };
+    // 보류 사유는 subtitle 이 화면에 있으면 행마다 반복하지 않고 그 행 ? 로 · subtitle 이 없으면 첫 보류 행에만 한 번 화면 글자
+    var whyShow = -1;
+    if (!sub) rows.forEach(function (r, i) { if (whyShow < 0 && why(r)) whyShow = i; });
     var body = rows.length ? '<div class="rvp-trust">' +
       // 기준선 주의 원문 — 엔진 수선 전까지 툴팁이 아니라 카드 위 작은 글자(민재 계약)
       (sub ? '<div class="rvp-trust-note"><span aria-hidden="true">※ </span>' + esc(sub) + '</div>' :
@@ -476,7 +482,7 @@
         var pct = num(r.pct), w = pct == null ? 0 : Math.max(0, Math.min(100, pct));
         // 50% 기준선이 이 행에 타당한가 = 엔진 baseline_valid(있으면) · 없으면 baseline_caution 의 반대
         var caution = (r.baseline_valid != null) ? r.baseline_valid === false : r.baseline_caution === true, wy = why(r);
-        var rh = helpHtml([r.factor === 'mr' ? df.mr : r.factor === 'momentum' ? df.momentum : null,
+        var rh = helpHtml([wy && i !== whyShow ? wy : null, r.factor === 'mr' ? df.mr : r.factor === 'momentum' ? df.momentum : null,
           str(r.pct_2w_text) ? '2주 뒤 ' + r.pct_2w_text + (num(r.n_judged_2w) != null ? '(' + r.n_judged_2w + '건)' : '') : null,
           str(r.pnl_ref_text) ? '참고 손익 ' + r.pnl_ref_text + ' — ' + (lb.pnl || '단독판정 금지') : null]);
         var gap = i > 0 && rows[i - 1].bucket !== r.bucket ? ' is-gap' : '';
@@ -485,7 +491,7 @@
           // 기준선 주의 행 = 50% 눈금을 긋지 않음(50% 기준 판정 금지 · 막대 흐림)
           '<span class="rvp-trust-bar"><i class="rvp-trust-fill" style="width:' + w.toFixed(1) + '%"></i>' + (base != null && !caution ? '<i class="rvp-trust-base" style="left:' + (base * 100).toFixed(1) + '%"></i>' : '') + '</span>' +
           '<span class="rvp-trust-v"><b>' + esc(str(r.pct_text) || (pct == null ? '–' : pct + '%')) + '</b><span class="rvp-muted">' + (num(r.n_hit) != null && num(r.n_judged) != null ? esc(r.n_hit) + '/' + esc(r.n_judged) : '') + '</span></span>' +
-          '<span class="rvp-trust-verdict"><span class="rvp-trust-vt">' + esc(r.verdict || '') + rh + '</span>' + (wy ? '<span class="rvp-trust-why">' + esc(wy) + '</span>' : '') + '</span></div>';
+          '<span class="rvp-trust-verdict"><span class="rvp-trust-vt">' + esc(r.verdict || '') + rh + '</span>' + (wy && i === whyShow ? '<span class="rvp-trust-why">' + esc(wy) + '</span>' : '') + '</span></div>';
       }).join('') + '</div>' : empty('행 없음', '스코어보드 일반 보기 재료에 행이 없습니다.');
     return '<section class="wb-card rvp-fig" id="rvp-trust">' + head(t.title, help, lb.page ? '<span class="wb-badge">' + esc(lb.page) + '</span>' : '') +
       '<div class="rvp-body">' + (meta ? '<div class="rvp-foot rvp-foot--top">' + esc(meta) + '</div>' : '') + body + '</div></section>';

@@ -4,7 +4,7 @@
   - 커브 줄 0 now_text 없음 + now=34.05(→ 웹은 반올림 없이 원 값 '34.05')
   - 상품 2년 문장 '(수준은 반대)' + level_opposite · 스텁 1칸 stub_text 없음(→ 기본 문구)
   - 종목 카드 1장 = 옛 이름만(resid_change_bp · resid_prev · fact 없음) → 웹이 옛 이름으로 사실 줄을 만들면 안 됨
-  - scoreboard 행 0 pct_text 없음(→ pct 원 값 + '%')
+  - scoreboard 행 0 pct_text 없음(→ pct 원 값 + '%') · subtitle 없음(→ 첫 보류 행에만 사유 한 번 화면 글자)
 """
 import copy
 import json
@@ -38,6 +38,7 @@ old.pop("resid_chg_text", None)
 
 sb = json.loads((FX / "sb_dev.json").read_text(encoding="utf-8"))
 sb["plain"]["rows"][0].pop("pct_text", None)
+sb["plain"].pop("subtitle", None)          # subtitle 없음 → 첫 보류 행에만 사유 한 번(화면)
 (FX / "sb_edge.json").write_text(json.dumps(sb, ensure_ascii=False), encoding="utf-8")
 meta = {"zzz_key": cf[0]["key"], "to_bad_key": cf[1]["key"], "curve_row0": rows[0]["key"], "curve_row1": rows[1]["key"],
         "stub_no_text": stubs[0]["ref_key"] if stubs else None, "old_name_key": old["key"]}

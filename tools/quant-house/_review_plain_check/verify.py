@@ -130,13 +130,16 @@ with sync_playwright() as pw:
               and all(x["note20"] in tt for x in rows_t if x.get("note20")))
         # 믿어도 되나
         trust_txt = pg.evaluate("document.getElementById('rvp-trust').innerText")
-        trow = pg.evaluate("[...document.querySelectorAll('#rvp-trust .rvp-trust-row')].map(r => [r.querySelector('.rvp-trust-v b').textContent, !!r.querySelector('.rvp-trust-base'), r.classList.contains('is-caution'), (r.querySelector('.rvp-trust-why')||{}).textContent || null, r.querySelector('.rvp-trust-vt').textContent])")
-        check("A15 적중률 = pct_text · 판정 = verdict · 사유 = verdict_reason(화면 글자)",
+        trow = pg.evaluate("[...document.querySelectorAll('#rvp-trust .rvp-trust-row')].map(r => [r.querySelector('.rvp-trust-v b').textContent, !!r.querySelector('.rvp-trust-base'), r.classList.contains('is-caution'), (r.querySelector('.rvp-trust-why')||{}).textContent || null, r.querySelector('.rvp-trust-vt').textContent, [...r.querySelectorAll('.wb-help template')].map(t => t.innerHTML).join(' ')])")
+        check("A15 적중률 = pct_text · 판정 = verdict · 사유 = 행 ?(subtitle 이 화면에 있어 행마다 반복 0)",
               [x[0] for x in trow] == [rw["pct_text"] for rw in T["rows"]] and [x[4] for x in trow] == [rw["verdict"] for rw in T["rows"]]
-              and [x[3] for x in trow] == [rw.get("verdict_reason") or None for rw in T["rows"]], trow)
+              and all(x[3] is None for x in trow) and all(unesc(x[5]).count(rw["verdict_reason"]) == 1 for x, rw in zip(trow, T["rows"]) if rw.get("verdict_reason"))
+              and trust_txt.count(T["rows"][0].get("verdict_reason") or "\0") <= 1, trow)
         check("A16 50% 눈금 = baseline_valid 행만 · 보류 행 표식", [x[1] for x in trow] == [rw.get("baseline_valid") is not False for rw in T["rows"]]
               and [x[2] for x in trow] == [rw.get("baseline_valid") is False for rw in T["rows"]])
         ttip = unesc(tips_of(pg, "#rvp-trust"))
+        htip = unesc(pg.evaluate("(document.querySelector('#rvp-trust .rvp-head .wb-help template')||{innerHTML:''}).innerHTML"))
+        check("A17b 헤더 ? 에 '%s' 한 번만(baseline_note 가 같은 말로 시작 → 라벨 중복 0)" % T["baseline_label"], htip.count(T["baseline_label"]) == 1 and T["baseline_note"] in htip, htip.count(T["baseline_label"]))
         check("A17 subtitle = 화면 글자 · baseline_note = 툴팁 · 2주·참고 손익 = 엔진 문자열(툴팁)",
               T["subtitle"] in trust_txt and T["baseline_note"] not in trust_txt and T["baseline_note"] in ttip
               and all(("2주 뒤 " + rw["pct_2w_text"]) in ttip and ("참고 손익 " + rw["pnl_ref_text"]) in ttip for rw in T["rows"]))
@@ -339,6 +342,11 @@ with sync_playwright() as pw:
         check("H7 옛 이름(resid_change_bp·resid_prev)만 있는 카드 → 사실 줄 만들지 않음", oc is not None and oc[0] is False and "잔차 주간" not in oc[1], oc)
         check("H8 pct_text 없음 → pct 원 값 + %", pg.evaluate("document.querySelector('#rvp-trust .rvp-trust-v b').textContent") == f"{sbd['plain']['rows'][0]['pct']}%")
         hit = [t for t in BANNED + FAB if t in etc]
+        sbe = json.loads((FX / "sb_edge.json").read_text(encoding="utf-8"))["plain"]
+        whys = pg.evaluate("[...document.querySelectorAll('#rvp-trust .rvp-trust-row')].map(r => (r.querySelector('.rvp-trust-why')||{}).textContent || null)")
+        first = next((i for i, rw in enumerate(sbe["rows"]) if rw.get("verdict_reason")), None)
+        check("H10 subtitle 없음 → 첫 보류 행에만 사유 한 번(화면) · 나머지는 ?", first is not None and whys[first] == sbe["rows"][first]["verdict_reason"]
+              and sum(1 for w in whys if w) == 1 and "subtitle" not in sbe, whys)
         check("H9 금지어 0 · '해당 없음' 0 · 콘솔 0 (경계)", not hit and "해당 없음" not in etc and not errs, (hit, errs))
         pg.context.browser.close()
 
