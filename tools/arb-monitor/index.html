@@ -69,19 +69,26 @@
     .am-nopath { font-size: var(--wb-fs-label); color: var(--wb-faint); margin-left: 6px; }
 
     /* 저평 게이지 */
-    .am-gauge { position: relative; height: 64px; margin: var(--wb-s4) var(--wb-inset) var(--wb-s2); }
+    .am-gauge { position: relative; height: 86px; margin: var(--wb-s4) var(--wb-inset) var(--wb-s2); }
     .am-gauge-track { position: absolute; left: 0; right: 0; top: 26px; height: 8px; border-radius: 4px; background: var(--wb-subtle); border: 1px solid var(--wb-rule); }
     .am-gauge-zone { position: absolute; top: 26px; height: 8px; }
-    .am-gauge-zone.sell { background: var(--wb-down-soft); border-radius: 4px 0 0 4px; }
-    .am-gauge-zone.buy { background: var(--wb-up-soft); border-radius: 0 4px 4px 0; }
+    /* 색 = 어느 좌표의 선인지: U(매도 좌표) = series-1 · Ub(매수 좌표) = series-3 · 실선 = 진입 문턱 · 점선 = 반대매매 */
+    .am-gauge-zone.sell { background: color-mix(in srgb, var(--wb-series-1) 16%, transparent); border-radius: 4px 0 0 4px; }
+    .am-gauge-zone.buy { background: color-mix(in srgb, var(--wb-series-3) 16%, transparent); border-radius: 0 4px 4px 0; }
     .am-gauge-line { position: absolute; top: 18px; height: 24px; width: 1px; background: var(--wb-rule-strong); }
-    .am-gauge-line.th { width: 2px; background: var(--wb-mark); }
-    .am-gauge-line.exit { border-left: 1px dashed var(--wb-muted); background: none; }
-    .am-gauge-tick { position: absolute; top: 46px; transform: translateX(-50%); font-size: 10px; color: var(--wb-muted); white-space: nowrap; }
+    .am-gauge-line.th { width: 2px; }
+    .am-gauge-line.th.u { background: var(--wb-series-1); }
+    .am-gauge-line.th.ub { background: var(--wb-series-3); }
+    .am-gauge-line.exit { width: 0; background: none; border-left: 2px dashed; }
+    .am-gauge-line.exit.u { border-color: var(--wb-series-1); }
+    .am-gauge-line.exit.ub { border-color: var(--wb-series-3); }
+    .am-gauge-tick { position: absolute; top: 70px; transform: translateX(-50%); font-size: 10px; color: var(--wb-muted); white-space: nowrap; }
+    .am-gauge-tick.u { color: var(--wb-series-1); }
+    .am-gauge-tick.ub { color: var(--wb-series-3); }
     .am-gauge-mk { position: absolute; top: 0; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; font-size: 11px; font-weight: 600; white-space: nowrap; }
     .am-gauge-mk::after { content: ''; width: 2px; height: 16px; margin-top: 2px; background: currentColor; }
     .am-gauge-mk.u { color: var(--wb-series-1); }
-    .am-gauge-mk.ub { color: var(--wb-series-3); top: 40px; flex-direction: column-reverse; }
+    .am-gauge-mk.ub { color: var(--wb-series-3); top: 34px; flex-direction: column-reverse; }
     .am-gauge-mk.ub::after { margin: 0 0 2px; }
 
     /* 판정 · 상수 · 수식 */
@@ -242,7 +249,7 @@
     <div class="wb-card wb-hero"><dl class="wb-kpis" id="amBasisKpis"><div class="wb-kpi"><dt>U</dt><dd><span class="wb-skel wb-skel--fig"></span></dd></div></dl></div>
     <div class="wb-grid-2-1 am-row am-anchor" id="am-b-gauge">
       <section class="wb-card">
-        <div class="wb-card-head"><span class="wb-card-title">U · Ub 위치<button type="button" class="wb-help" data-help="눈금 = 전. 왼쪽 음영 = U ≤ −8(매도차익 문턱) · 오른쪽 음영 = Ub ≥ +8(매수차익 문턱). 점선 = 반대매매 선(book.exit_lines). 위 표식 = U(매도 좌표 real_cost) · 아래 표식 = Ub(매수 좌표 base)." aria-label="설명 보기"></button></span><span class="wb-card-meta" id="amBookMeta"></span></div>
+        <div class="wb-card-head"><span class="wb-card-title">U · Ub 위치<button type="button" class="wb-help" data-help="눈금 = 전. 색 = 어느 좌표의 선인지 — 파랑 = U(매도 좌표 real_cost) · 주황 = Ub(매수 좌표 base). 실선 = 진입 문턱(U ≤ −8 매도차익 · Ub ≥ +8 매수차익, 음영 = 그 구역) · 점선 = 반대매매(매도차익은 U ≥ +2/+4 · 매수차익은 Ub ≤ −2/−4 에서 끊음 · book.exit_lines_sell/_buy 그대로). 위 표식 = U · 아래 표식 = Ub." aria-label="설명 보기"></button></span><span class="wb-card-meta" id="amBookMeta"></span></div>
         <div class="am-gauge" id="amGauge"></div>
         <div class="wb-card-body" style="padding-top:0"><div class="am-chips" id="amBookChips" style="margin-top:0"></div></div>
       </section>
@@ -616,16 +623,27 @@ function renderBasis() {
   $('amBookMeta').textContent = `${b.contract || ''} · 만기 ${b.expiry || '—'} · 롤 ${bk.roll_next || '—'}`;
   // 게이지(표시용 눈금 — 값 그대로 위치만)
   const ts = isNum(bk.threshold_sell) ? +bk.threshold_sell : -8, tb = isNum(bk.threshold_buy) ? +bk.threshold_buy : 8;
-  const R = Math.max(12, Math.ceil(Math.max(Math.abs(+b.U || 0), Math.abs(+b.Ub || 0), Math.abs(ts), Math.abs(tb)) + 2));
+  // 반대매매 선: 매도(U 기준) = exit_lines_sell(옛 json 은 exit_lines) · 매수(Ub 기준) = exit_lines_buy(없으면 그리지 않음)
+  const exS = Array.isArray(bk.exit_lines_sell) ? bk.exit_lines_sell : (Array.isArray(bk.exit_lines) ? bk.exit_lines : []);
+  const exB = Array.isArray(bk.exit_lines_buy) ? bk.exit_lines_buy : [];
+  const sv = v => (+v > 0 ? '+' : +v < 0 ? MINUS : '') + Math.abs(+v);
+  const R = Math.max(12, Math.ceil(Math.max(Math.abs(+b.U || 0), Math.abs(+b.Ub || 0), Math.abs(ts), Math.abs(tb), ...exS.concat(exB).map(v => Math.abs(+v) || 0)) + 2));
   const X = v => ((+v + R) / (2 * R) * 100).toFixed(2) + '%';
-  const ticks = [-R, ts, 0, tb, R].map(v => `<span class="am-gauge-tick" style="left:${X(v)}">${v > 0 ? '+' : v < 0 ? MINUS : ''}${Math.abs(v)}</span>`).join('');
-  const exits = (bk.exit_lines || []).map(v => `<span class="am-gauge-line exit" style="left:${X(v)}" title="반대매매 선 ${v}"></span>`).join('');
+  const tick = (v, c) => `<span class="am-gauge-tick ${c || ''}" style="left:${X(v)}">${sv(v)}</span>`;
+  const line = (v, c, t) => `<span class="am-gauge-line ${c}" style="left:${X(v)}" title="${esc(t)}"></span>`;
+  const ticks = [tick(-R), tick(R), tick(0), tick(ts, 'u'), tick(tb, 'ub')].concat(exS.map(v => tick(v, 'u')), exB.map(v => tick(v, 'ub'))).join('');
+  const lines = line(0, '', '0') + line(ts, 'th u', `매도 문턱 ${sv(ts)} (U)`) + line(tb, 'th ub', `매수 문턱 ${sv(tb)} (Ub)`) +
+    exS.map(v => line(v, 'exit u', `매도 반대매매 ${sv(v)} (U)`)).join('') + exB.map(v => line(v, 'exit ub', `매수 반대매매 ${sv(v)} (Ub)`)).join('');
   $('amGauge').innerHTML = `<div class="am-gauge-track"></div>
     <div class="am-gauge-zone sell" style="left:0;width:${X(ts)}"></div><div class="am-gauge-zone buy" style="left:${X(tb)};right:0"></div>
-    <span class="am-gauge-line th" style="left:${X(ts)}"></span><span class="am-gauge-line" style="left:${X(0)}"></span><span class="am-gauge-line th" style="left:${X(tb)}"></span>${exits}${ticks}
+    ${lines}${ticks}
     <span class="am-gauge-mk u" style="left:${X(b.U)}">U ${sgn(b.U, 2)}</span><span class="am-gauge-mk ub" style="left:${X(b.Ub)}">Ub ${sgn(b.Ub, 2)}</span>`;
   const f = b.funding || {};
-  $('amBookChips').innerHTML = `<span class="wb-badge">매도 문턱 ${fix(ts, 0)}</span><span class="wb-badge">매수 문턱 +${fix(tb, 0)}</span><span class="wb-badge">반대매매 ${(bk.exit_lines || []).map(v => '+' + v).join(' / ')}</span><span class="wb-badge">조달 ${raw(f.cp_minus35)}%</span>${f.jump_today ? '<span class="wb-badge wb-badge--warn">조달 점프일</span>' : ''}`;
+  const swc = t => `<span class="wb-swatch" style="color:var(${t})"></span> `;
+  $('amBookChips').innerHTML = `<span class="wb-badge">${swc('--wb-series-1')}매도 문턱 ${sv(ts)} (U)</span><span class="wb-badge">${swc('--wb-series-3')}매수 문턱 ${sv(tb)} (Ub)</span>` +
+    (exS.length ? `<span class="wb-badge">${swc('--wb-series-1')}매도 반대매매 ${exS.map(sv).join(' / ')} (U)</span>` : '') +
+    (exB.length ? `<span class="wb-badge">${swc('--wb-series-3')}매수 반대매매 ${exB.map(sv).join(' / ')} (Ub)</span>` : '') +
+    `<span class="wb-badge">조달 ${raw(f.cp_minus35)}%</span>${f.jump_today ? '<span class="wb-badge wb-badge--warn">조달 점프일</span>' : ''}`;
   $('amIdxRv').innerHTML = `<thead><tr><th>테너</th><th>코드</th><th class="num">u</th><th class="num">RV</th><th class="num">RV 전일</th></tr></thead><tbody>` +
     (b.idx_rv || []).map(r => `<tr><td class="wb-strong">${esc(r.tenor)} ${r.in_basket ? '<span class="wb-badge">바스켓</span>' : ''}</td><td class="wb-muted">${esc(r.code)}</td><td class="num ${cls(r.u)}">${sgn(r.u, 2)}</td><td class="num ${cls(r.rv)} wb-strong">${sgn(r.rv, 2)}</td><td class="num ${cls(r.rv_prev)}">${sgn(r.rv_prev, 2)}</td></tr>`).join('') + '</tbody>';
   $('amSlotsMeta').textContent = '종목 저평 u · 전';
