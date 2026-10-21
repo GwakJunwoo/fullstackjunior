@@ -465,5 +465,39 @@ html[data-wb] :where(button, a, input, select, [tabindex]):focus-visible { outli
   .wb-grid-3, .wb-grid-auto { grid-template-columns: minmax(0, 1fr); }
 }
 
+/* ── 16b. 목차 레일 (주간 리뷰 목차와 같은 모양 · 공통) ────────────────
+   <div class="wb-toc-layout"><nav class="wb-card wb-toc"> [wb-card-head] [button.wb-toc-toggle] <ul class="wb-toc-list"> …
+   li > a(.is-active) · 하위 = li.lv2 · 번호 = span.wb-toc-num · 모바일(≤720) = 상단 sticky 접이식(.is-open) */
+.wb-toc-layout { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: var(--wb-gap); align-items: start; }
+.wb-toc {
+  position: sticky; top: calc(var(--wb-shell-h) + var(--wb-filterbar-h) + 8px);
+  max-height: calc(100vh - var(--wb-shell-h) - var(--wb-filterbar-h) - 24px); overflow: auto;
+}
+.wb-toc-toggle { display: none; }
+.wb-toc-list { list-style: none; margin: 0; padding: var(--wb-s2) 0; }
+.wb-toc-list a {
+  display: flex; gap: 8px; padding: 6px var(--wb-s4); text-decoration: none;
+  font-size: 13px; line-height: 20px; color: var(--wb-muted); border-left: 2px solid transparent;
+}
+.wb-toc-list a:hover { color: var(--wb-ink); }
+.wb-toc-list a.is-active { color: var(--wb-ink); font-weight: 600; border-left-color: var(--wb-mark); background: var(--wb-subtle); }
+.wb-toc-list .lv2 a { padding-left: 40px; font-size: 12px; }
+.wb-toc-num { flex: none; width: 18px; color: var(--wb-faint); font-weight: 400; }
+@media (max-width: 1080px) { .wb-toc-layout { grid-template-columns: 200px minmax(0, 1fr); } }
+@media (max-width: 720px) {
+  .wb-toc-layout { grid-template-columns: minmax(0, 1fr); }
+  .wb-toc { top: var(--wb-shell-h); z-index: 30; max-height: none; overflow: visible; }
+  .wb-toc > .wb-card-head { display: none; }
+  .wb-toc-toggle {
+    display: flex; align-items: center; gap: 8px; width: 100%; min-height: 44px; padding: 0 var(--wb-s4);
+    background: none; border: 0; color: var(--wb-ink); font-size: 13px; font-weight: 600; text-align: left; cursor: pointer;
+  }
+  .wb-toc-toggle .wb-toc-cur { font-weight: 400; color: var(--wb-muted); }
+  .wb-toc-toggle::after { content: '▾'; margin-left: auto; color: var(--wb-muted); }
+  .wb-toc.is-open .wb-toc-toggle::after { content: '▴'; }
+  .wb-toc-list { display: none; max-height: 60vh; overflow: auto; border-top: 1px solid var(--wb-rule); }
+  .wb-toc.is-open .wb-toc-list { display: block; }
+}
+
 /* ── 17. 미니 스파크라인 (표 안 · muted 선 + 끝점) ───────────────────── */
 .wb-spark { display: block; width: 84px; height: 24px; }

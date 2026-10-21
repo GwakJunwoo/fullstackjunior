@@ -7,12 +7,13 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>/* wb 기본 테마 선적용(첫 페인트 깜빡임 방지) — 저장값 없으면 어두움 · wb-shell.js 와 같은 규칙 */try{var t=localStorage.getItem('wb-theme');document.documentElement.setAttribute('data-theme',t==='light'||t==='dark'?t:'dark')}catch(e){document.documentElement.setAttribute('data-theme','dark')}</script>
   <title>차익거래 모니터 · Bond Quant House</title>
   <link rel="canonical" href="https://www.fullstackjunior.com/tools/arb-monitor/">
   <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%9B%EF%B8%8F%3C/text%3E%3C/svg%3E">
   <meta http-equiv="refresh" content="0; url=/tools/arb-monitor/">
   <script>location.replace('/tools/arb-monitor/' + location.search + location.hash);</script>
-  <style>html { background: #e2e0da; } @media (prefers-color-scheme: dark) { html { background: #16181c; } }</style>
+  <style>html { background: #16181c; } html[data-theme="light"] { background: #e2e0da; }</style>
 </head>
 <body>
   <noscript><a href="/tools/arb-monitor/">차익거래 모니터로 이동</a></noscript>
