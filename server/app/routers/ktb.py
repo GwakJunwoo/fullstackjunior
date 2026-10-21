@@ -1,9 +1,39 @@
+import re
+
 from fastapi import APIRouter, HTTPException, Query
 
 from ..core.db import clean_rows, get_conn, serialize
 
 
 router = APIRouter()
+
+
+def _basket_filter(basket: str):
+    """/ktb/curve 의 basket 조건(2026-10-21 수정 — 쿼리 조건만, 값·계산 무변경).
+
+    ktb.basket 열 = '3선1'·'3선2'·'10선1'·'30선2' 같은 *문자열*(비바스켓 = NULL).
+    예전엔 정수와 비교해 MySQL 형변환('3선1'→3)으로 basket=1 이 항상 0행이었음.
+      1          → 바스켓 편입 종목 전체(문서 계약 '1=선물바스켓만' 유지)
+      0          → 비바스켓
+      3·10·30    → 그 선물(3선/10선/30선)의 바스켓 전체 (예전 형변환 우연 동작을 명시 규칙으로)
+      '3선'      → 위와 같음 · '3선1' → 그 슬롯 정확히
+    그 밖의 값은 조용히 0행을 주지 않고 400.
+    """
+    b = (basket or "").strip()
+    if b in ("1", "true", "y", "yes"):
+        return "AND basket IS NOT NULL AND basket <> ''", []
+    if b in ("0", "false", "n", "no"):
+        return "AND (basket IS NULL OR basket = '')", []
+    if re.fullmatch(r"\d+", b):
+        return "AND basket LIKE %s", [f"{b}선%"]
+    if re.fullmatch(r"\d+선", b):
+        return "AND basket LIKE %s", [f"{b}%"]
+    if re.fullmatch(r"\d+선\d+", b):
+        return "AND basket = %s", [b]
+    raise HTTPException(
+        status_code=400,
+        detail="basket = 1(바스켓 전체) · 0(비바스켓) · 3/10/30(그 선물 바스켓) · '3선' · '3선1'(슬롯) 중 하나",
+    )
 
 
 @router.get("/ktb/curve-board")
@@ -235,8 +265,9 @@ def ktb_multi_series(
 def ktb_curve(
     date: str = Query(None, description="YYYY-MM-DD (없으면 최신)"),
     category: str = Query(None),
-    basket: int = Query(None, description="1=선물바스켓만, 0=비바스켓만"),
+    basket: str = Query(None, description="1=선물바스켓 전체 · 0=비바스켓 · 3/10/30=그 선물 바스켓 · '3선1'=슬롯"),
 ):
+    basket_sql, basket_params = _basket_filter(basket) if basket is not None else ("", [])
     try:
         with get_conn() as conn:
             cur = conn.cursor(dictionary=True)
@@ -252,9 +283,9 @@ def ktb_curve(
             if category:
                 filters.append("AND category = %s")
                 params.append(category)
-            if basket is not None:
-                filters.append("AND basket = %s")
-                params.append(basket)
+            if basket_sql:
+                filters.append(basket_sql)
+                params.extend(basket_params)
 
             cur.execute(
                 f"""

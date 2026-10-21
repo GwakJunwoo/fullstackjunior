@@ -6,10 +6,11 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>/* wb 기본 테마 선적용(첫 페인트 깜빡임 방지) — 저장값 없으면 어두움 · wb-shell.js 와 같은 규칙 */try{var t=localStorage.getItem('wb-theme');document.documentElement.setAttribute('data-theme',t==='light'||t==='dark'?t:'dark')}catch(e){document.documentElement.setAttribute('data-theme','dark')}</script>
   <title>차익거래 모니터 · Bond Quant House</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%9B%EF%B8%8F%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/assets/css/wb.css?v=20261021b">
-  <script src="/assets/js/wb-shell.js?v=20261021b"></script>
+  <link rel="stylesheet" href="/assets/css/wb.css?v=20261021c">
+  <script src="/assets/js/wb-shell.js?v=20261021c"></script>
   <style>
     .am-sec { margin-top: var(--wb-s6); scroll-margin-top: calc(var(--wb-shell-h) + var(--wb-filterbar-h) + 12px); }
     .am-sec:first-of-type { margin-top: var(--wb-s4); }
@@ -17,9 +18,10 @@
     .am-sec > .wb-section-head .wb-section-title { display: flex; align-items: center; gap: 6px; }
     .am-sec > .wb-section-head .am-head-right { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; justify-content: flex-end; }
     .am-row { margin-top: var(--wb-gap); }
-    .am-anchors { max-width: 100%; }
-    .am-anchors > a { text-decoration: none; }
-    .am-nav .wb-seg > * { font-size: 12px; }
+    .am-head-end { margin-left: auto; display: flex; align-items: center; gap: 8px; }
+    .am-anchor { scroll-margin-top: calc(var(--wb-shell-h) + var(--wb-filterbar-h) + 12px); }
+    .am-content { min-width: 0; }
+    .am-content > .am-sec:first-child { margin-top: 0; }
 
     /* 경고 줄 · 칩 줄 */
     .am-alerts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-bottom: var(--wb-s3); }
@@ -154,22 +156,35 @@
     <span class="wb-badge" id="amAsof">기준 —</span>
     <span class="wb-badge" id="amTrade">체결일 —</span>
     <span id="amStale"></span>
-  </div>
-
-  <div class="wb-filterbar am-nav">
-    <div class="wb-field">
-      <span class="wb-label">패널</span>
-      <nav class="wb-seg am-anchors" id="amAnchors" aria-label="패널 이동">
-        <a href="#am-market">시장 동향</a><a href="#am-basis">저평 계기판</a><a href="#am-judge">오늘 판정</a><a href="#am-ledger">라이브 vs 백테스트</a><a href="#am-expo">노출과 커브</a><a href="#am-cal">달력·라벨</a><a href="#am-bias">b 감시</a>
-      </nav>
-    </div>
-    <div class="wb-filterbar-end">
-      <span class="wb-filterbar-status" id="amBuilt">읽는 중</span>
-      <button type="button" class="wb-btn wb-btn--primary" id="amReload">새로고침</button>
-    </div>
+    <span class="am-head-end"><span class="wb-filterbar-status" id="amBuilt">읽는 중</span><button type="button" class="wb-btn wb-btn--primary" id="amReload">새로고침</button></span>
   </div>
 
   <div class="am-alerts" id="amAlerts"><span class="wb-skel"></span></div>
+
+  <div class="wb-toc-layout">
+  <nav class="wb-card wb-toc" id="amToc" aria-label="차익거래 모니터 목차">
+    <div class="wb-card-head"><span class="wb-card-title">목차</span></div>
+    <button type="button" class="wb-toc-toggle" id="amTocToggle" aria-expanded="false" aria-controls="amTocList">목차 <span class="wb-toc-cur" id="amTocCur"></span></button>
+    <ul class="wb-toc-list" id="amTocList">
+      <li><a href="#am-market"><span class="wb-toc-num">01</span>시장 동향</a></li>
+      <li class="lv2"><a href="#am-m-curve">커브 · 테너 변화</a></li>
+      <li class="lv2"><a href="#am-m-path">경로 61거래일</a></li>
+      <li class="lv2"><a href="#am-m-chg">변화 표</a></li>
+      <li><a href="#am-basis"><span class="wb-toc-num">02</span>저평 계기판</a></li>
+      <li class="lv2"><a href="#am-b-gauge">U · Ub 위치 · 지표 RV</a></li>
+      <li class="lv2"><a href="#am-b-slots">바스켓 슬롯</a></li>
+      <li><a href="#am-judge"><span class="wb-toc-num">03</span>오늘 판정</a></li>
+      <li class="lv2"><a href="#am-j-consts">트리별 상수</a></li>
+      <li class="lv2"><a href="#am-j-fx">HETS 사용자수식</a></li>
+      <li><a href="#am-ledger"><span class="wb-toc-num">04</span>라이브 vs 백테스트</a></li>
+      <li><a href="#am-expo"><span class="wb-toc-num">05</span>노출과 커브</a></li>
+      <li class="lv2"><a href="#am-x-open">열린 포지션</a></li>
+      <li class="lv2"><a href="#am-x-heat">상태 열지도</a></li>
+      <li><a href="#am-cal"><span class="wb-toc-num">06</span>달력 · 라벨</a></li>
+      <li><a href="#am-bias"><span class="wb-toc-num">07</span>b 감시</a></li>
+    </ul>
+  </nav>
+  <div class="am-content">
 
   <!-- 0. 시장 동향 -->
   <section class="am-sec" id="am-market">
@@ -183,7 +198,7 @@
     </dl></div>
     <div class="am-chips" id="amChips"></div>
 
-    <div class="wb-grid-2-1 am-row">
+    <div class="wb-grid-2-1 am-row am-anchor" id="am-m-curve">
       <section class="wb-card">
         <div class="wb-card-head"><span class="wb-card-title">커브 · 4시점<button type="button" class="wb-help" data-help="curves = 1개월 전 · 1주 전 · 전전일 · 전일의 2·3·5·10년 지표 민평(%). 최신(전일)이 굵은 선. 아래 표 행을 누르면 그 시점 선을 켜고 끕니다." aria-label="설명 보기"></button></span><span class="wb-card-meta"><span class="wb-badge am-asof" data-p="market">기준 —</span></span></div>
         <div class="am-chart"><canvas id="amCurve"></canvas></div>
@@ -198,14 +213,14 @@
       </section>
     </div>
 
-    <section class="wb-card am-row">
+    <section class="wb-card am-row am-anchor" id="am-m-path">
       <div class="wb-card-head"><span class="wb-card-title">경로 · 61거래일<button type="button" class="wb-help" data-help="paths 그대로. 위 = 바스켓 U(매도 좌표)·Ub(매수 좌표) — 점선 ±8 = 1권 북 문턱(U ≤ −8 매도차익 · Ub ≥ +8 매수차익, 음영 = 그 구역). 가운데 = 3−2 · 5−3 커브(bp). 아래 = 3년 지표 민평. 마우스를 올리면 세 그림에 같은 날짜 십자선. 아래 변화 표의 행을 누르면 해당 그림이 강조됩니다." aria-label="설명 보기"></button></span><span class="wb-card-meta"><span class="wb-badge am-asof" data-p="market">기준 —</span></span></div>
       <div class="am-path" id="amPathU" data-grp="U"><div class="am-path-head"><b>U · Ub</b><span class="wb-muted">전</span><span class="am-path-read" id="amReadU"></span></div><div class="am-chart am-chart--md"><canvas id="amCvU"></canvas></div></div>
       <div class="am-path" id="amPathC" data-grp="C"><div class="am-path-head"><b>3−2 · 5−3</b><span class="wb-muted">bp</span><span class="am-path-read" id="amReadC"></span></div><div class="am-chart am-chart--sm"><canvas id="amCvC"></canvas></div></div>
       <div class="am-path" id="amPathY" data-grp="Y"><div class="am-path-head"><b>3년 지표</b><span class="wb-muted">%</span><span class="am-path-read" id="amReadY"></span></div><div class="am-chart am-chart--sm"><canvas id="amCvY"></canvas></div></div>
     </section>
 
-    <section class="wb-card am-row">
+    <section class="wb-card am-row am-anchor" id="am-m-chg">
       <div class="wb-card-head"><span class="wb-card-title">변화 표<button type="button" class="wb-help" data-help="rows 그대로 — 현재 = now_display, 변화 = 현재 − 그 시점 값(엔진 산출). 단위: 수익률·커브 bp(소수 1) · 선물 가격 틱 · 저평/RV 전(소수 2). 색 = 부호. 셀 막대 = 그 행 안에서 크기 비교(가운데 0). RV 는 지표 교체 달에 1개월 변화가 점프합니다. 행을 누르면 위 경로 그림이 그 지표로 강조(경로가 없는 지표는 표만)." aria-label="설명 보기"></button></span><span class="wb-card-meta"><span class="wb-badge am-asof" data-p="market">기준 —</span></span></div>
       <div class="am-tbl-wrap"><table class="wb-table am-chg" id="amChg"><tbody><tr><td><span class="wb-skel"></span></td></tr></tbody></table></div>
     </section>
@@ -215,7 +230,7 @@
   <section class="am-sec" id="am-basis">
     <div class="wb-section-head"><h2 class="wb-section-title">저평 계기판<span id="amHelpBasis"></span></h2><div class="am-head-right"><span class="wb-badge am-asof" data-p="basis">기준 —</span></div></div>
     <div class="wb-card wb-hero"><dl class="wb-kpis" id="amBasisKpis"><div class="wb-kpi"><dt>U</dt><dd><span class="wb-skel wb-skel--fig"></span></dd></div></dl></div>
-    <div class="wb-grid-2-1 am-row">
+    <div class="wb-grid-2-1 am-row am-anchor" id="am-b-gauge">
       <section class="wb-card">
         <div class="wb-card-head"><span class="wb-card-title">U · Ub 위치<button type="button" class="wb-help" data-help="눈금 = 전. 왼쪽 음영 = U ≤ −8(매도차익 문턱) · 오른쪽 음영 = Ub ≥ +8(매수차익 문턱). 점선 = 반대매매 선(book.exit_lines). 위 표식 = U(매도 좌표 real_cost) · 아래 표식 = Ub(매수 좌표 base)." aria-label="설명 보기"></button></span><span class="wb-card-meta" id="amBookMeta"></span></div>
         <div class="am-gauge" id="amGauge"></div>
@@ -226,7 +241,7 @@
         <div class="am-tbl-wrap"><table class="wb-table" id="amIdxRv"></table></div>
       </section>
     </div>
-    <section class="wb-card am-row">
+    <section class="wb-card am-row am-anchor" id="am-b-slots">
       <div class="wb-card-head"><span class="wb-card-title">바스켓 슬롯</span><span class="wb-card-meta" id="amSlotsMeta"></span></div>
       <div class="am-tbl-wrap"><table class="wb-table" id="amSlots"></table></div>
     </section>
@@ -245,11 +260,11 @@
         <div class="wb-card-body"><div class="am-chips" id="amHetsMkt" style="margin-top:0"></div></div>
       </section>
     </div>
-    <section class="wb-card am-row">
+    <section class="wb-card am-row am-anchor" id="am-j-consts">
       <div class="wb-card-head"><span class="wb-card-title">트리별 상수<button type="button" class="wb-help" data-help="consts 그대로(반올림 없음 — 운용 입력값). 재가격 오차(틱) 6칸 = ±1·3·5bp 재가격 시 오차 · 0.3틱 넘으면 경고색. 열 = 트리 · 판정표 행을 누르면 그 트리 열이 강조됩니다." aria-label="설명 보기"></button></span><span class="wb-card-meta"><span class="wb-badge am-asof" data-p="hets_today">기준 —</span></span></div>
       <div class="am-tbl-wrap"><table class="wb-table am-consts" id="amConsts"></table></div>
     </section>
-    <section class="wb-card am-row">
+    <section class="wb-card am-row am-anchor" id="am-j-fx">
       <div class="wb-card-head"><span class="wb-card-title">HETS 사용자수식<button type="button" class="wb-help" data-help="formulas 원문 전체(줄이지 않음). 기본 접힘 — 접힌 줄의 복사 = 진입수식. 펼치면 진입·TP 청산·복귀 청산 수식과 조건, 각 복사 버튼. 청산수식의 Pe·Fe 자리에는 실제 체결가를 넣습니다." aria-label="설명 보기"></button></span><span class="wb-card-meta"><span class="wb-badge am-asof" data-p="hets_today">기준 —</span></span></div>
       <div class="am-fx-bar"><button type="button" class="wb-btn wb-btn--sm" id="amFxAll">전체 펼치기</button><span class="am-empty-note" id="amFxNote"></span></div>
       <div id="amFx"></div>
@@ -275,11 +290,11 @@
   <section class="am-sec" id="am-expo">
     <div class="wb-section-head"><h2 class="wb-section-title">노출과 커브<span id="amHelpExpo"></span></h2><div class="am-head-right"><span class="wb-badge am-asof" data-p="exposure">기준 —</span></div></div>
     <div class="wb-card wb-hero"><dl class="wb-kpis" id="amExpoKpis"><div class="wb-kpi"><dt>DV01</dt><dd><span class="wb-skel wb-skel--fig"></span></dd></div></dl><div class="am-chips" id="amExpoChips" style="margin-top:0"></div></div>
-    <section class="wb-card am-row">
+    <section class="wb-card am-row am-anchor" id="am-x-open">
       <div class="wb-card-head"><span class="wb-card-title">열린 포지션<span id="amHelpOpen"></span></span><span class="wb-card-meta"><span class="wb-badge am-asof" data-p="exposure">기준 —</span></span></div>
       <div id="amOpen"></div>
     </section>
-    <section class="wb-card am-row">
+    <section class="wb-card am-row am-anchor" id="am-x-heat">
       <div class="wb-card-head"><span class="wb-card-title">이 상태에서 평소 얼마였나<span id="amHelpHeat"></span></span><span class="wb-card-meta"><span class="wb-badge">뷰로 켜고 끄지 않음</span> <span class="wb-badge">2024~ 거래당 bp</span></span></div>
       <div class="am-tbl-wrap"><table class="am-heat" id="amHeat"></table></div>
     </section>
@@ -309,11 +324,13 @@
   </section>
 
   <footer class="am-honesty" id="amHonesty"></footer>
+  </div><!-- /am-content -->
+  </div><!-- /wb-toc-layout -->
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
-<script src="/assets/js/wb-chart.js?v=20261021b"></script>
+<script src="/assets/js/wb-chart.js?v=20261021c"></script>
 <script>
 // ══════════════════════════════════════════════════════════════
 //  차익거래 모니터 — /quant-house/arb-monitor 응답을 그대로 표시(재계산 0 · 반올림·부호 표기만)
@@ -796,18 +813,31 @@ function renderHonesty() {
   $('amHonesty').innerHTML = `<ol>${(lb.honesty || []).map(s => `<li>${esc(s)}</li>`).join('')}</ol><div class="meta">정직-N ${isNum(lb.n_effective) ? Number(lb.n_effective).toLocaleString('ko-KR') : '—'} · 빌드 ${esc(lb.built_at || '—')} · 기준 ${esc(lb.asof || '—')}</div>`;
 }
 
-// ── 앵커 내비 · 스크롤스파이 · Ctrl K 화면 안 항목 ─────────────
+// ── 목차 레일(주간 리뷰와 같은 컴포넌트) · 스크롤스파이 · 모바일 접이식 · Ctrl K 화면 안 항목 ──
 (() => {
-  const links = [...document.querySelectorAll('#amAnchors a')];
-  links.forEach(a => a.addEventListener('click', e => { e.preventDefault(); const t = document.querySelector(a.getAttribute('href')); if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }));
-  const secs = links.map(a => document.querySelector(a.getAttribute('href')));
+  const toc = $('amToc'), links = [...document.querySelectorAll('#amTocList a')];
+  const targets = links.map(a => document.querySelector(a.getAttribute('href')));
+  const setOpen = o => { toc.classList.toggle('is-open', o); $('amTocToggle').setAttribute('aria-expanded', o ? 'true' : 'false'); };
+  $('amTocToggle').addEventListener('click', () => setOpen(!toc.classList.contains('is-open')));
+  links.forEach((a, i) => a.addEventListener('click', e => {
+    e.preventDefault(); setOpen(false);
+    const t = targets[i]; if (t) t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }));
   let tick = false;
-  const spy = () => { const cs = getComputedStyle(document.documentElement), off = (parseFloat(cs.getPropertyValue('--wb-shell-h')) || 48) + (parseFloat(cs.getPropertyValue('--wb-filterbar-h')) || 0) + 24;
-    let cur = 0; secs.forEach((s, i) => { if (s && s.getBoundingClientRect().top - off <= 0) cur = i; });
-    links.forEach((a, i) => a.classList.toggle('is-active', i === cur)); };
+  const spy = () => {
+    const cs = getComputedStyle(document.documentElement);
+    const mob = window.innerWidth <= 720;
+    const off = (parseFloat(cs.getPropertyValue('--wb-shell-h')) || 48) + (parseFloat(cs.getPropertyValue('--wb-filterbar-h')) || 0) + (mob ? 60 : 24);
+    let cur = 0;
+    targets.forEach((t, i) => { if (t && t.getBoundingClientRect().top - off <= 0) cur = i; });
+    links.forEach((a, i) => a.classList.toggle('is-active', i === cur));
+    const top = links.slice(0, cur + 1).reverse().find(a => !a.parentElement.classList.contains('lv2'));
+    $('amTocCur').textContent = '· ' + (links[cur].parentElement.classList.contains('lv2') && top ? top.textContent.replace(/^[0-9]+/, '') + ' › ' : '') + links[cur].textContent.replace(/^[0-9]+/, '');
+  };
   window.addEventListener('scroll', () => { if (tick) return; tick = true; requestAnimationFrame(() => { tick = false; spy(); }); }, { passive: true });
+  window.addEventListener('resize', spy, { passive: true });
   spy();
-  if (window.WBShell && WBShell.setLocalItems) WBShell.setLocalItems(links.map(a => ({ label: a.textContent, href: a.getAttribute('href') })));
+  if (window.WBShell && WBShell.setLocalItems) WBShell.setLocalItems(links.map(a => ({ label: (a.parentElement.classList.contains('lv2') ? '› ' : '') + a.textContent.replace(/^[0-9]+/, ''), href: a.getAttribute('href') })));
 })();
 $('amReload').addEventListener('click', amLoad);
 document.addEventListener('wb-themechange', () => { if (AM.data && AM.data.available !== false) { renderBasis(); renderExpo(); } });

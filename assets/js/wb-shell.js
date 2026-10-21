@@ -8,7 +8,8 @@
    브랜드 = 🏛️ Bond Quant House · 클릭 = 첫 화면(주간 리뷰). 별도 '홈' 화면 없음(2026-10-21 사용자 지시).
    CONTEST_MODE: <html data-contest> 이면 contest:true 화면만 노출(헤더·팔레트 공통).
                  data-contest 를 지우면 전체 IA 가 다시 보인다(되돌리기 = 속성 하나).
-   테마: localStorage 'wb-theme' = 'light' | 'dark' | (없음 = 시스템 설정 따름).
+   테마: localStorage 'wb-theme' = 'light' | 'dark' | (없음 = 기본 어두움 — 시스템 설정과 무관 · 2026-10-21 사용자 지시).
+         첫 페인트 깜빡임 방지는 각 페이지 <head> 인라인 한 줄이 먼저 data-theme 을 박는다(이 파일과 같은 규칙).
          바뀔 때마다 document 에 'wb-themechange' 이벤트(detail.theme) — wb-chart.js 가 받아 차트 재색칠.
    ═══════════════════════════════════════════════════════════════════════════ */
 (function () {
@@ -59,7 +60,8 @@
     catch (e) { return mem; }
   }
   function system() { return (mql && mql.matches) ? 'dark' : 'light'; }
-  function effective() { return stored() || system(); }
+  var DEFAULT_THEME = 'dark';   // 사용자가 고른 값이 없으면 항상 어두움(시스템 설정 무시)
+  function effective() { return stored() || DEFAULT_THEME; }
   // 부분 개편 페이지가 대회 모드가 아니면 CSS 가 어두운 테마로 고정 → 토글 무의미(숨김)
   function pinned() { return root.getAttribute('data-wb') === 'partial' && !contest(); }
   function applyTheme(silent) {
@@ -81,8 +83,7 @@
   }
   applyTheme(true);   // ★첫 페인트 전(head 동기 실행) — 깜빡임 방지
   if (mql) {
-    var onSys = function () { if (!stored()) applyTheme(false); };
-    if (mql.addEventListener) mql.addEventListener('change', onSys); else if (mql.addListener) mql.addListener(onSys);
+    // 기본값이 시스템 설정과 무관해져 시스템 변경 감지는 쓰지 않음(system() 은 참고용으로만 남김)
   }
 
   // ── 아이콘 (자체 제작 SVG) ────────────────────────────────────────────
@@ -162,7 +163,7 @@
     var dark = root.getAttribute('data-theme') === 'dark';
     tg.innerHTML = dark ? ICON.sun : ICON.moon;
     var lbl = dark ? '밝은 테마로 전환' : '어두운 테마로 전환';
-    tg.setAttribute('aria-label', lbl); tg.title = lbl + (stored() ? '' : ' (현재: 시스템 설정 따름)');
+    tg.setAttribute('aria-label', lbl); tg.title = lbl + (stored() ? '' : ' (현재: 기본값)');
   }
   function setPage(pageId) {   // 같은 문서 안에서 화면 전환 시(예: quant-house 탭) 활성 표시 갱신
     curPage = pageId; curArea = areaOf(pageId) || curArea;
@@ -211,7 +212,7 @@
     if (!pinned()) {
       list.push({ kind: 'cmd', area: '테마', label: '밝은 테마', desc: '', run: function () { setTheme('light'); }, kw: 'light theme 라이트' });
       list.push({ kind: 'cmd', area: '테마', label: '어두운 테마', desc: '', run: function () { setTheme('dark'); }, kw: 'dark theme 다크' });
-      list.push({ kind: 'cmd', area: '테마', label: '시스템 설정 따름', desc: '', run: function () { setTheme('system'); }, kw: 'system auto theme 자동' });
+      list.push({ kind: 'cmd', area: '테마', label: '기본 테마(어두움)', desc: '', run: function () { setTheme('system'); }, kw: 'default reset theme 기본 초기화' });
     }
     return list;
   }
