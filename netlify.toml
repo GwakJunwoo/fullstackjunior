@@ -47,6 +47,15 @@
 #   [redirects.headers]
 #     ngrok-skip-browser-warning = "1"
 
+# ── 루트 = 주간 리뷰 (2026-10-21 사용자 지시: 홈 카드 화면 폐지) ──
+# 302(임시)+force: 루트 index.html(폴백 리다이렉트 페이지)이 있어도 서버 단에서 바로 이동 — 깜빡임 0.
+# 301 이 아니라 브라우저에 영구 캐시되지 않음 → 되돌리기 = 이 블록 삭제.
+[[redirects]]
+  from   = "/"
+  to     = "/tools/quant-house/"
+  status = 302
+  force  = true
+
 # ── 멀티페이지 라우팅 ─────────────────────────────────────────
 [[redirects]]
   from   = "/tools/cd91"

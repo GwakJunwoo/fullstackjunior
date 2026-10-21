@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<!-- redesign-wb — wb.css 컴포넌트 사용 예시(개발 참고용). 실제 데이터 없음 — 숫자는 모양 확인용 자리 표시. -->
+<html lang="ko" data-wb>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>wb 컴포넌트 · Bond Quant House</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%9B%EF%B8%8F%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/assets/css/wb.css?v=20261021">
+  <script src="/assets/js/wb-shell.js?v=20261021"></script>
+  <style>
+    .sw { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+    .sw div { border: 1px solid var(--wb-rule); border-radius: 4px; padding: 8px; font-size: 11px; color: var(--wb-muted); }
+    .sw i { display: block; height: 28px; border-radius: 2px; margin-bottom: 6px; border: 1px solid var(--wb-rule); }
+    pre { margin: 0; padding: 12px 16px; background: var(--wb-subtle); border-radius: 4px; font-size: 12px; line-height: 18px; overflow: auto; }
+    .row { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  </style>
+</head>
+<body>
+<header id="wb-shell" data-area="" data-page=""></header>
+<main class="wb-main">
+  <div class="wb-pagehead"><h1>wb 컴포넌트</h1><button type="button" class="wb-help" data-help="assets/css/wb.css · assets/js/wb-shell.js · assets/js/wb-chart.js 사용 예시. 명세 = docs/design-wb/WB_SPEC.md"></button></div>
+
+  <div class="wb-filterbar">
+    <div class="wb-field"><label class="wb-label" for="q">밑줄 입력</label><input id="q" class="wb-input" placeholder="검색어"></div>
+    <div class="wb-field"><span class="wb-label">세그먼트</span><div class="wb-seg"><button class="is-active">3M</button><button>6M</button><button>1Y</button></div></div>
+    <span class="wb-filterbar-status">상태 텍스트 · 09:10</span>
+    <div class="wb-filterbar-end"><button class="wb-btn wb-btn--text">취소</button><button class="wb-btn wb-btn--primary">조회</button></div>
+  </div>
+
+  <section class="wb-card wb-hero">
+    <div class="wb-hero-id"><span class="wb-hero-mark">KTB</span><div><div class="wb-hero-name">히어로 요약<button type="button" class="wb-help" data-help="설명 문장은 화면에 쓰지 말고 ? 툴팁으로."></button></div><div class="wb-hero-src">기준 2026-10-20</div></div></div>
+    <dl class="wb-kpis">
+      <div class="wb-kpi"><dt>항목 A · 10.20</dt><dd><span class="wb-kpi-val">0.000</span><span class="wb-kpi-sub wb-up">+0.0bp</span></dd></div>
+      <div class="wb-kpi"><dt>항목 B · 10.20</dt><dd><span class="wb-kpi-val">0.0</span><span class="wb-kpi-sub wb-down">−0.0bp</span></dd></div>
+      <div class="wb-kpi"><dt>로딩 중</dt><dd><span class="wb-skel wb-skel--fig"></span></dd></div>
+    </dl>
+  </section>
+
+  <div class="wb-section-head"><h2 class="wb-section-title">토큰</h2><span class="wb-section-meta">밝음/어두움 = 시스템 따름 + 헤더 토글</span></div>
+  <div class="sw">
+    <div><i style="background:var(--wb-bg)"></i>--wb-bg</div><div><i style="background:var(--wb-surface)"></i>--wb-surface</div>
+    <div><i style="background:var(--wb-subtle)"></i>--wb-subtle</div><div><i style="background:var(--wb-ink)"></i>--wb-ink</div>
+    <div><i style="background:var(--wb-muted)"></i>--wb-muted</div><div><i style="background:var(--wb-rule-strong)"></i>--wb-rule-strong</div>
+    <div><i style="background:var(--wb-up)"></i>--wb-up (상승·+)</div><div><i style="background:var(--wb-down)"></i>--wb-down (하락·−)</div>
+    <div><i style="background:var(--wb-warn)"></i>--wb-warn</div><div><i style="background:var(--wb-accent)"></i>--wb-accent</div>
+    <div><i style="background:var(--wb-series-1)"></i>--wb-series-1</div><div><i style="background:var(--wb-series-2)"></i>--wb-series-2</div>
+    <div><i style="background:var(--wb-series-3)"></i>--wb-series-3</div><div><i style="background:var(--wb-series-4)"></i>--wb-series-4</div>
+    <div><i style="background:var(--wb-action-face)"></i>--wb-action-face</div><div><i style="background:var(--wb-open)"></i>--wb-open</div>
+  </div>
+
+  <div class="wb-grid-2-1 wb-section">
+    <section class="wb-card">
+      <div class="wb-card-head"><span class="wb-card-title">카드 · 표<button type="button" class="wb-help" data-help="th 28 · td 32 · 숫자 .num 우측정렬 · 선택 행 .is-selected"></button></span><span class="wb-card-meta"><span class="wb-badge">기준 2026-10-20</span></span></div>
+      <div class="wb-table-wrap"><table class="wb-table"><thead><tr><th>구성</th><th class="num">현재</th><th class="num">z</th></tr></thead>
+        <tbody><tr class="is-selected"><td>예시 A</td><td class="num">0.0</td><td class="num wb-up">+0.00</td></tr><tr><td>예시 B</td><td class="num">0.0</td><td class="num wb-down">−0.00</td></tr></tbody></table></div>
+      <div class="wb-foot">각주는 11px muted — 단, 설명 문장은 각주 대신 ? 로.</div>
+    </section>
+    <section class="wb-card">
+      <div class="wb-card-head"><span class="wb-card-title">상태</span></div>
+      <div class="wb-empty"><div class="wb-empty-title">조회 전</div></div>
+      <div class="wb-card-body"><span class="wb-skel"></span> <span class="wb-loading">읽는 중</span><div class="wb-error">오류는 warn 색 한 줄</div></div>
+    </section>
+  </div>
+
+  <div class="wb-section-head"><h2 class="wb-section-title">버튼 · 배지 · 칩 · 범례</h2></div>
+  <div class="row">
+    <button class="wb-btn">기본</button><button class="wb-btn wb-btn--primary">주 버튼</button><button class="wb-btn wb-btn--sm">작은</button><button class="wb-btn" disabled>비활성</button>
+    <span class="wb-badge">배지</span><span class="wb-badge wb-badge--up">상승</span><span class="wb-badge wb-badge--down">하락</span><span class="wb-badge wb-badge--warn">경고</span>
+    <button class="wb-chip is-active"><span class="wb-swatch" style="color:var(--wb-series-1)"></span>칩(활성)</button><button class="wb-chip">칩</button>
+    <span class="wb-legend"><span class="wb-legend-item"><span class="wb-swatch" style="color:var(--wb-series-1)"></span>시리즈 <b>0.00%</b></span></span>
+  </div>
+
+  <div class="wb-section-head"><h2 class="wb-section-title">사용 규칙</h2></div>
+  <pre>1) 페이지: &lt;html data-wb&gt; + wb.css?v=… + wb-shell.js?v=…(head, 동기) + &lt;header id="wb-shell" data-area=".." data-page=".."&gt;
+2) 설명·해석 문장은 화면에 쓰지 않는다 → 제목/열 머리 끝 ? :
+   &lt;button type="button" class="wb-help" data-help="원문"&gt;&lt;/button&gt;  · 동적 원문 = data-help-ref="요소id" · HTML 원문 = 자식 &lt;template&gt;
+   JS 문자열 템플릿에선 WBShell.helpBtn('원문')
+3) 차트: Chart.js → wb-chart.js → 페이지 스크립트. 축·그리드·툴팁 색은 옵션에 쓰지 말 것(defaults 가 테마 따라감).
+   시리즈 색 = WBChart.tok('--wb-series-1') (함수라 테마 전환 시 재색칠) · 투명도 = WBChart.tok('--wb-up', .5)
+4) 부호색: + = --wb-up(적) · − = --wb-down(청) (시장 관례 — 대시보드·주간 리뷰 공통)
+5) ★캐시: netlify.toml 이 /assets/* 를 1년 immutable 캐시 → wb.css·wb-*.js 를 고치면 링크의 ?v= 를 반드시 올린다.
+6) 대회 모드(&lt;html data-contest&gt;)면 셸이 contest:true 화면만 노출. 속성을 지우면 전체 IA.</pre>
+</main>
+</body>
+</html>

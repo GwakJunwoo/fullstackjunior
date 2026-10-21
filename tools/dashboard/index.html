@@ -1,354 +1,316 @@
 <!DOCTYPE html>
 <!-- CONTEST_MODE (2026-09 사내대회) — 대회 후 원복: 아래 data-contest="1" 속성만 지우면 전부 원상복구 -->
-<html lang="ko" data-contest="1">
+<!-- 2026-10-21 사용자 결정: 대회 모드 = 영구 기본(보이는 화면만 남김). 플래그·숨김 규칙은 되돌리기용으로 유지.
+     redesign-wb 1단계: 표현층만 개편(wb.css·wb-shell.js·wb-chart.js). 데이터·API·계산·DOM id·JS 훅 무변경. -->
+<html lang="ko" data-contest="1" data-wb>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>금리 대시보드 — 금리 도구 모음</title>
-  <link rel="stylesheet" href="/assets/css/main.css">
+  <title>금리 대시보드 · Bond Quant House</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%9B%EF%B8%8F%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/assets/css/wb.css?v=20261021">
+  <script src="/assets/js/wb-shell.js?v=20261021"></script>
   <style>
-    /* ── 검색 ── */
-    .search-wrap { position: relative; max-width: 360px; }
-    .search-input {
-      width: 100%; background: var(--s2); border: .5px solid var(--bd2);
-      border-radius: var(--rs); color: var(--t1); font-size: 13px;
-      padding: 8px 12px; outline: none; transition: border-color .15s;
-    }
-    .search-input:focus { border-color: var(--blue); }
+    /* ── 필터 바: 종목 검색(밑줄 입력 + 드롭다운) ── */
+    .search-wrap { position: relative; width: min(360px, 100%); }
+    .search-input { width: 100%; }
     .search-dropdown {
-      position: absolute; top: calc(100% + 4px); left: 0; right: 0;
-      background: var(--s2); border: .5px solid var(--bd2); border-radius: var(--rs);
-      z-index: 100; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.4);
-      max-height: 260px; overflow-y: auto;
+      position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 60;
+      max-height: 280px; overflow-y: auto;
+      background: var(--wb-surface); border: 1px solid var(--wb-rule-strong); border-radius: var(--wb-r-ctl);
     }
-    .search-item {
-      padding: 7px 12px; cursor: pointer; font-size: 12px;
-      display: flex; justify-content: space-between; align-items: baseline; gap: 8px;
-      transition: background .1s;
-    }
-    .search-item:hover, .search-item.focused { background: var(--s3); }
-    .si-nick { font-weight: 600; color: var(--blue); font-size: 11px; flex-shrink: 0; }
-    .si-name { color: var(--t2); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .si-meta { font-size: 10px; color: var(--t3); flex-shrink: 0; }
+    .search-item { min-height: 32px; padding: 4px 12px; display: flex; align-items: center; gap: 8px; cursor: pointer; }
+    .search-item:hover, .search-item.focused { background: var(--wb-subtle); }
+    .si-nick { font-weight: 600; flex-shrink: 0; }
+    .si-name { color: var(--wb-muted); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .si-meta { font-size: var(--wb-fs-label); color: var(--wb-muted); flex-shrink: 0; }
+    .field-search { flex: 0 1 360px; }
 
-    /* ── 기간 버튼 ── */
-    .period-btn {
-      background: none; border: .5px solid var(--bd2); border-radius: var(--rs);
-      color: var(--t3); font-size: 11px; cursor: pointer; padding: 3px 9px;
-      transition: all .15s;
-    }
-    .period-btn:hover { color: var(--t1); }
-    .period-btn.active { border-color: var(--blue); color: var(--blue); background: rgba(74,158,255,.1); }
+    /* ── 연결 상태 ── */
+    .conn-dot { width: 6px; height: 6px; border-radius: 50%; flex: none; background: var(--wb-faint); }
+    .conn-dot.ok  { background: var(--wb-open); }
+    .conn-dot.err { background: var(--wb-warn); }
+    .conn-dot.err + .conn-status { color: var(--wb-warn); }
 
-    /* ── 토글 버튼 (카테고리, 비교일) ── */
-    .toggle-group { display: flex; gap: 4px; flex-wrap: wrap; }
-    .tgl-btn {
-      background: none; border: .5px solid var(--bd2); border-radius: var(--rs);
-      color: var(--t3); font-size: 10px; cursor: pointer; padding: 2px 8px;
-      transition: all .15s;
-    }
-    .tgl-btn:hover { color: var(--t1); }
-    .tgl-btn.active { background: rgba(74,158,255,.12); border-color: var(--blue); color: var(--blue); }
-    .tgl-btn.active.green  { background: rgba(52,211,153,.12); border-color: var(--green); color: var(--green); }
-    .tgl-btn.active.orange { background: rgba(251,146,60,.12);  border-color: #fb923c; color: #fb923c; }
-    .tgl-btn.active.purple { background: rgba(167,139,250,.12); border-color: var(--purple); color: var(--purple); }
+    /* ── 히어로 ── */
+    .wb-kpi-unit { font-size: 13px; font-weight: 400; color: var(--wb-muted); margin-left: 2px; }
+    .dash-row { margin-top: var(--wb-gap); }
 
-    /* ── 대형 검색 차트 ── */
-    .big-chart-card {
-      background: var(--s1); border: .5px solid var(--bd); border-radius: var(--r);
-      padding: 1rem 1.125rem; margin-bottom: 16px;
-    }
-    .big-chart-hdr {
-      display: flex; align-items: center; justify-content: space-between;
-      margin-bottom: 10px; flex-wrap: wrap; gap: 8px;
-    }
-    .big-chart-title { font-size: 13px; font-weight: 600; color: var(--t1); }
-    .big-chart-meta  { font-size: 10px; color: var(--t3); margin-left: 6px; }
+    /* ── 종목 검색 차트 / 상세 차트 머리 ── */
+    .big-chart-title { font-size: var(--wb-fs-title); line-height: var(--wb-lh-title); font-weight: 600; }
+    .big-chart-meta  { font-size: var(--wb-fs-label); color: var(--wb-muted); margin-left: 8px; }
+    .big-chart-val   { margin-left: auto; font-size: 18px; font-weight: 600; white-space: nowrap; }
+    .chart-box { position: relative; height: 280px; }
 
-    /* ── 수익률 곡선 카드 ── */
-    .curve-card {
-      background: var(--s1); border: .5px solid var(--bd); border-radius: var(--r);
-      padding: 1rem 1.125rem; margin-bottom: 16px;
-    }
-    .curve-toolbar {
-      display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-      margin-bottom: 10px;
-    }
-    .curve-label { font-size: 10px; color: var(--t3); white-space: nowrap; }
-
-    /* ── 미니 차트 그리드 ── */
-    .mini-section { margin-bottom: 20px; }
-    .mini-section-label {
-      font-size: 10px; font-weight: 600; letter-spacing: .7px;
-      color: var(--t3); text-transform: uppercase; margin-bottom: 8px;
-    }
-    .mini-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
-    .mini-card {
-      background: var(--s1); border: .5px solid var(--bd); border-radius: var(--r);
-      padding: .75rem .875rem .5rem;
-    }
-    .mini-card-hdr {
-      display: flex; align-items: baseline; justify-content: space-between;
-      margin-bottom: 6px;
-    }
-    .mini-title { font-size: 10px; font-weight: 600; color: var(--t3); letter-spacing: .3px; }
-    .mini-val   { font-size: 14px; font-weight: 600; letter-spacing: -.3px; }
-    .mini-chg   { font-size: 10px; margin-left: 4px; }
-    .empty-mini {
-      display: flex; align-items: center; justify-content: center;
-      height: 90px; font-size: 10px; color: var(--t3);
-    }
-
-    /* ── 연결 바 ── */
-    .conn-bar {
-      background: var(--s1); border: .5px solid var(--bd); border-radius: var(--r);
-      padding: .5rem 1rem; margin-bottom: 12px;
-      display: flex; align-items: center; gap: 8px;
-    }
-    .conn-dot {
-      width: 6px; height: 6px; border-radius: 50%;
-      background: var(--t3); flex-shrink: 0; transition: background .2s;
-    }
-    .conn-dot.ok  { background: var(--green); box-shadow: 0 0 5px rgba(52,211,153,.4); }
-    .conn-dot.err { background: var(--red); }
-    .conn-status  { font-size: 10px; color: var(--t3); }
-
-    /* ── 커브·플라이 이격 보드 ── */
-    .cb-card {
-      background: var(--s1); border: .5px solid var(--bd); border-radius: var(--r);
-      padding: 1rem 1.125rem; margin-bottom: 16px;
-    }
-    .cb-hdr {
-      display: flex; align-items: baseline; justify-content: space-between;
-      flex-wrap: wrap; gap: 8px; margin-bottom: 4px;
-    }
-    .cb-title { font-size: 13px; font-weight: 600; color: var(--t1); }
-    .cb-sub   { font-size: 10px; color: var(--t3); margin-left: 6px; }
-    .cb-asof  {
-      font-size: 10px; color: var(--t2); border: .5px solid var(--bd2);
-      border-radius: var(--rs); padding: 2px 8px; white-space: nowrap;
-    }
-    .cb-toolbar {
-      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-      margin: 10px 0 8px;
-    }
-    .cb-note {
-      font-size: 10px; color: var(--t3); line-height: 1.5;
-      margin-top: 10px; padding-top: 8px; border-top: .5px solid var(--bd);
-    }
-    .cb-legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: 10px; color: var(--t3); }
-    .cb-legend b { font-weight: 600; }
-    .cb-table-wrap { overflow-x: auto; }
-    .cb-table { width: 100%; border-collapse: collapse; font-size: 11px; }
-    .cb-table th {
-      text-align: left; font-weight: 600; color: var(--t3); font-size: 10px;
-      letter-spacing: .3px; padding: 5px 8px; border-bottom: .5px solid var(--bd);
-      white-space: nowrap;
-    }
-    .cb-table th.num, .cb-table td.num { text-align: right; }
-    .cb-table td {
-      padding: 6px 8px; border-bottom: .5px solid rgba(255,255,255,.04);
-      vertical-align: middle; white-space: nowrap;
-    }
-    .cb-row { cursor: pointer; transition: background .1s; }
-    .cb-row:hover { background: var(--s3); }
-    .cb-row.sel { background: rgba(74,158,255,.08); }
-    .cb-name { color: var(--t1); font-weight: 600; }
+    /* ── 지표 커브·플라이 이격 보드 (패턴 ⑤⑥: 표 + 스파크라인 열 + 각주) ── */
+    .cb-table-wrap { max-height: 560px; overflow: auto; }
+    .cb-row { cursor: pointer; }
+    .cb-row.sel { background: var(--wb-subtle); box-shadow: inset 2px 0 0 var(--wb-mark); }
+    .cb-name { font-weight: 600; }
     .cb-kind {
-      display: inline-block; font-size: 9px; font-weight: 600; letter-spacing: .3px;
-      padding: 1px 6px; border-radius: 6px; margin-right: 7px; vertical-align: middle;
+      display: inline-flex; align-items: center; height: 18px; padding: 0 5px; margin-right: 8px; vertical-align: middle;
+      font-size: var(--wb-fs-label); color: var(--wb-muted); border: 1px solid var(--wb-rule); border-radius: var(--wb-r-ctl);
     }
-    .cb-kind.slope { color: #38bdf8; background: rgba(56,189,248,.12); }
-    .cb-kind.fly   { color: #fbbf24; background: rgba(251,191,36,.12); }
-    .cb-z { font-size: 14px; font-weight: 700; letter-spacing: -.3px; }
-    .cb-z.strong { text-shadow: 0 0 8px currentColor; }
+    .cb-z { font-weight: 600; }
+    .cb-z.strong { padding: 1px 5px; border-radius: var(--wb-r-bar); background: color-mix(in srgb, currentColor 14%, transparent); }
     .cb-roll {
-      display: inline-block; font-size: 9px; color: var(--t3);
-      border: .5px solid var(--bd2); border-radius: 5px; padding: 0 5px;
-      margin-left: 6px; cursor: help;
+      display: inline-flex; align-items: center; height: 18px; padding: 0 5px; margin-left: 6px; vertical-align: middle; cursor: help;
+      font-size: var(--wb-fs-label); color: var(--wb-muted); border: 1px solid var(--wb-rule); border-radius: var(--wb-r-ctl);
     }
-    .cb-spark { width: 84px; height: 30px; }
-    .cb-empty {
-      display: flex; align-items: center; justify-content: center;
-      height: 80px; font-size: 11px; color: var(--t3);
-    }
+    .cb-spark { display: block; width: 84px; height: 24px; }
+    .cb-empty { padding: var(--wb-s5) var(--wb-s4); color: var(--wb-muted); }
+    .cb-bars { position: relative; height: 190px; margin: var(--wb-s3) var(--wb-inset) var(--wb-s2); }
+    #cbBody { border-top: 1px solid var(--wb-rule); }
+    .cb-foot { display: flex; flex-wrap: wrap; gap: 4px var(--wb-s4); }
 
-    @media (max-width: 640px) { .mini-grid { grid-template-columns: 1fr 1fr; } }
-    @media (max-width: 400px) { .mini-grid { grid-template-columns: 1fr; } }
+    /* ── 선택 구성 상세 (오른쪽 좁은 카드) ── */
+    .cbd { padding: var(--wb-inset); }
+    .cbd-val { margin: 4px 0 2px; font-size: var(--wb-fs-figure); line-height: var(--wb-lh-figure); font-weight: 600; }
+    .cbd .chart-box { height: 260px; margin-top: var(--wb-s3); }
+    #cbDetailCard[style*="block"] + .cb-detail-empty { display: none; }
+
+    /* ── 수익률 곡선 ── */
+    .curve-box { position: relative; height: 300px; margin: var(--wb-s3) var(--wb-inset) 0; }
+    .cmp-chips { display: inline-flex; flex-wrap: wrap; gap: 4px; }
+    .cmp-chips .tgl-btn::before { content: ''; display: inline-block; width: 12px; height: 2px; border-radius: 1px; background: var(--sw, var(--wb-muted)); }
+    .cmp-chips .tgl-btn[data-offset="0"]   { --sw: var(--wb-series-1); }
+    .cmp-chips .tgl-btn[data-offset="30"]  { --sw: var(--wb-series-6); }
+    .cmp-chips .tgl-btn[data-offset="91"]  { --sw: var(--wb-series-4); }
+    .cmp-chips .tgl-btn[data-offset="182"] { --sw: var(--wb-series-3); }
+    .cmp-chips .tgl-btn[data-offset="365"] { --sw: var(--wb-series-2); }
+    .cmp-chips .tgl-btn[data-offset="0"]   { cursor: default; }
+    /* 비교·바스켓 칩 활성 = 세그먼트와 같은 action-face 채움(사용자 지시) */
+    .cmp-chips .tgl-btn.active, #basketBtn.active {
+      background: var(--wb-action-face); border-color: var(--wb-action-face); color: var(--wb-action-ink); font-weight: 600;
+    }
+    .wb-curve-empty {
+      position: absolute; inset: 0; display: grid; place-items: center;
+      font-size: 13px; font-weight: 600; color: var(--wb-muted); background: var(--wb-surface);
+    }
+    .wb-curve-empty[hidden] { display: none; }
+
+    /* ── 미니 차트 (카드 안 행) ── */
+    .mini-list { display: block; }
+    .mini-card { padding: var(--wb-s3) var(--wb-inset) var(--wb-s2); border-top: 1px solid var(--wb-rule); }
+    .mini-card:first-child { border-top: 0; }
+    .mini-card-hdr { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 4px; }
+    .mini-title { font-size: 13px; color: var(--wb-muted); }
+    .mini-val { font-size: var(--wb-fs-title); font-weight: 600; }
+    .mini-chg { font-size: var(--wb-fs-label); margin-left: 6px; }
+    .empty-mini { height: 90px; display: flex; align-items: center; justify-content: center; font-size: var(--wb-fs-label); color: var(--wb-muted); }
+
+    .cb-table th:first-child { width: 36%; }
+    .cb-table th:last-child, .cb-table td:last-child { width: 136px; }
+
+    @media (max-width: 1080px) {
+      .dash-side { display: contents; }         /* 좁은 화면: 스택을 풀어 상세 카드만 표 위로(원래 배치와 같은 흐름) */
+      .dash-side > * { margin-top: 0 !important; }
+      .dash-detail { order: -1; }
+      .dash-detail .cb-detail-empty { display: none; }
+      .dash-detail:has(#cbDetailCard[style*="none"]) { display: none; }
+    }
+    @media (max-width: 720px) {
+      .field-search { flex: 1 1 100%; }
+      .search-wrap { width: 100%; }
+      .curve-box { height: 260px; }
+      .cb-table-wrap { max-height: 70vh; }
+    }
 
     /* CONTEST_MODE (2026-09 사내대회) — 대회 후 원복. html[data-contest] 일 때만 적용(이 페이지 한정).
-       상단 네비의 다른 도구 링크(CD91 전망·시장 수급·DB 탐색) 시각적 숨김(DOM 무수정·본문 무접촉). */
+       상단 네비의 다른 도구 링크(CD91 전망·시장 수급·DB 탐색) 시각적 숨김(DOM 무수정·본문 무접촉).
+       (redesign-wb: 상단 내비는 wb-shell.js 가 data-contest 를 존중해 그림 — 아래 규칙은 되돌리기 기록용으로 유지) */
     html[data-contest] .nav-links > .nav-link:not([href="/tools/dashboard/"]) { display: none !important; }
   </style>
 </head>
 <body>
-<div class="container">
+<header id="wb-shell" data-area="rates" data-page="dashboard"></header>
 
-  <nav class="nav">
-    <a href="/" class="nav-brand">금리 도구 모음</a>
-    <div class="nav-links">
-      <a href="/tools/cd91/"      class="nav-link">CD91 전망</a>
-      <a href="/tools/dashboard/" class="nav-link active">금리 대시보드</a>
-      <a href="/tools/supply/"    class="nav-link">시장 수급</a>
-      <a href="/tools/db/"        class="nav-link">DB 탐색</a>
+<main class="wb-main">
+
+  <div class="wb-pagehead">
+    <h1>금리 대시보드</h1><button type="button" class="wb-help" data-help="ktb 테이블 — 지표 커브·플라이 이격 · 수익률 곡선 · 스프레드 · 버터플라이 · IRS" aria-label="설명 보기"></button>
+  </div>
+
+  <!-- 필터 바 (sticky) — 검색·기간은 '종목 검색 차트 + 미니 차트'에 적용 -->
+  <div class="wb-filterbar">
+    <div class="wb-field field-search">
+      <label class="wb-label" for="searchInput">종목 검색</label>
+      <div class="search-wrap">
+        <input class="search-input wb-input" id="searchInput" type="text"
+               placeholder="nickname · 채권명 · 코드"
+               oninput="onSearch(this.value)"
+               onkeydown="onKeyDown(event)"
+               autocomplete="off">
+        <div class="search-dropdown" id="searchDropdown" style="display:none;"></div>
+      </div>
     </div>
-  </nav>
-
-  <div class="hdr" style="margin-bottom:1rem;">
-    <h1>금리 대시보드</h1>
-    <p>ktb 테이블 — 수익률 곡선 · 스프레드 · 버터플라이 · IRS</p>
+    <div class="wb-field">
+      <span class="wb-label">미니 차트 기간<button type="button" class="wb-help" data-help="레벨·스프레드·버터플라이·IRS 미니 차트와 종목 검색 차트의 표시 기간. 이격 보드(z 윈도 별도)·수익률 곡선(하루 단면)과는 무관합니다." aria-label="설명 보기"></button></span>
+      <div class="wb-seg" id="periodBtns">
+        <button class="period-btn" onclick="setPeriod(this,30)">1M</button>
+        <button class="period-btn" onclick="setPeriod(this,90)">3M</button>
+        <button class="period-btn" onclick="setPeriod(this,180)">6M</button>
+        <button class="period-btn active" onclick="setPeriod(this,365)">1Y</button>
+        <button class="period-btn" onclick="setPeriod(this,730)">2Y</button>
+        <button class="period-btn" onclick="setPeriod(this,1825)">5Y</button>
+        <button class="period-btn" onclick="setPeriod(this,0)">전체</button>
+      </div>
+    </div>
+    <div class="wb-filterbar-end">
+      <span class="wb-filterbar-status"><span class="conn-dot" id="connDot"></span><span class="conn-status" id="connStatus">연결 중...</span></span>
+    </div>
   </div>
 
-  <!-- 연결 상태 -->
-  <div class="conn-bar">
-    <div class="conn-dot" id="connDot"></div>
-    <span class="conn-status" id="connStatus">연결 중...</span>
-  </div>
-
-  <!-- 지표 커브·플라이 이격 보드 (6M z-score) -->
-  <div class="cb-card" id="cbCard">
-    <div class="cb-hdr">
+  <!-- 히어로 요약 (패턴 ④) — 미니 차트와 같은 응답·같은 산술(마지막 유효값 · 직전 유효값 대비) -->
+  <section class="wb-card wb-hero" aria-label="국고 지표 요약">
+    <div class="wb-hero-id">
+      <span class="wb-hero-mark">KTB</span>
       <div>
-        <span class="cb-title">지표 커브·플라이 이격 보드</span>
-        <span class="cb-sub" id="cbSub">6개월 롤링 z-score · |σ| 큰 순 · 롤보정</span>
+        <div class="wb-hero-name">국고채 지표 금리<button type="button" class="wb-help" data-help="ktb 테이블. 각 값 = 그 항목의 마지막 관측값, 옆 숫자 = 직전 관측일 대비 변화(bp). 항목 이름 옆 날짜 = 그 항목의 마지막 관측일. 미니 차트와 같은 응답·같은 산술." aria-label="설명 보기"></button></div>
+        <div class="wb-hero-src" id="wbHeroSrc">읽는 중</div>
       </div>
-      <span class="cb-asof" id="cbAsof">—</span>
     </div>
-    <div class="cb-toolbar">
-      <div class="toggle-group" id="cbWinTabs" title="z-score 산출 윈도 — 딸깍 즉시 전환(재계산 없음)">
-        <button class="tgl-btn"        data-win="63"  onclick="cb_setWindow(this)">3개월</button>
-        <button class="tgl-btn active"  data-win="126" onclick="cb_setWindow(this)">6개월</button>
-      </div>
-      <div style="width:10px;"></div>
-      <div class="toggle-group" id="cbTabs">
-        <button class="tgl-btn active" data-view="ranked" onclick="cb_setView(this)">전체</button>
-        <button class="tgl-btn"        data-view="slopes" onclick="cb_setView(this)">슬로프</button>
-        <button class="tgl-btn"        data-view="flies"  onclick="cb_setView(this)">플라이</button>
-      </div>
-      <div style="flex:1;"></div>
-      <button class="period-btn" id="cbRefresh" onclick="cb_load(true)" title="최신 지표일로 강제 새로고침">↻ 새로고침</button>
-    </div>
+    <dl class="wb-kpis" id="wbHeroKpis">
+      <div class="wb-kpi"><dt>국고 3년</dt><dd><span class="wb-skel wb-skel--fig"></span></dd></div>
+      <div class="wb-kpi"><dt>국고 10년</dt><dd><span class="wb-skel wb-skel--fig"></span></dd></div>
+      <div class="wb-kpi"><dt>10Y − 3Y</dt><dd><span class="wb-skel wb-skel--fig"></span></dd></div>
+      <div class="wb-kpi"><dt>30Y − 10Y</dt><dd><span class="wb-skel wb-skel--fig"></span></dd></div>
+      <div class="wb-kpi"><dt>CD − 기준금리</dt><dd><span class="wb-skel wb-skel--fig"></span></dd></div>
+    </dl>
+  </section>
 
-    <!-- 상세 차트 (행 선택 시 표시) -->
-    <div class="big-chart-card" id="cbDetailCard" style="display:none;margin-bottom:14px;">
-      <div class="big-chart-hdr">
-        <div>
-          <span class="big-chart-title" id="cbDetailTitle">—</span>
-          <span class="big-chart-meta"  id="cbDetailMeta"></span>
+  <!-- 종목 검색 차트 (선택 시 표시) -->
+  <section class="wb-card dash-row" id="bigChartCard" style="display:none;">
+    <div class="wb-card-head">
+      <span class="big-chart-title" id="bigTitle">—</span>
+      <span class="big-chart-meta"  id="bigMeta"></span>
+      <div class="big-chart-val" id="bigVal"></div>
+    </div>
+    <div class="wb-card-body">
+      <div class="chart-box"><canvas id="bigChart"></canvas></div>
+    </div>
+  </section>
+
+  <!-- 2:1 — 이격 보드(표) | 선택 구성 상세 -->
+  <div class="wb-grid-2-1 dash-row">
+    <section class="wb-card" id="cbCard">
+      <div class="wb-card-head">
+        <span class="wb-card-title">지표 커브·플라이 이격 보드<button type="button" class="wb-help" data-help-ref="wbCbHelp" aria-label="설명 보기"></button></span>
+        <span class="wb-card-meta"><span class="wb-badge" id="cbAsof">—</span></span>
+        <div class="wb-hidden-src" id="wbCbHelp">
+          <p id="cbSub">6개월 롤링 z-score · |σ| 큰 순 · 롤보정</p>
+          <p><b style="color:var(--wb-up);">+σ</b> 슬로프 가팔라짐 / 플라이 몸통 cheap<br><b style="color:var(--wb-down);">−σ</b> 슬로프 평평해짐 / 플라이 몸통 rich<br><b>|σ|≥2</b> 선택 윈도 분포 대비 극단</p>
+          <p id="cbNote"></p>
+          <p>막대 = 현재 표의 구성을 z 순으로 정렬(값 그대로) · 막대나 행을 누르면 오른쪽 상세가 그 구성으로 바뀝니다.</p>
         </div>
-        <div id="cbDetailVal" style="font-size:16px;font-weight:700;letter-spacing:-.4px;"></div>
       </div>
-      <div style="position:relative;height:240px;">
-        <canvas id="cbDetailChart"></canvas>
+      <div class="wb-card-toolbar">
+        <div class="wb-field">
+          <span class="wb-label">z 윈도</span>
+          <div class="wb-seg" id="cbWinTabs" title="z-score 산출 윈도 — 딸깍 즉시 전환(재계산 없음)">
+            <button class="tgl-btn"        data-win="63"  onclick="cb_setWindow(this)">3개월</button>
+            <button class="tgl-btn active" data-win="126" onclick="cb_setWindow(this)">6개월</button>
+          </div>
+        </div>
+        <div class="wb-field">
+          <span class="wb-label">구성</span>
+          <div class="wb-seg" id="cbTabs">
+            <button class="tgl-btn active" data-view="ranked" onclick="cb_setView(this)">전체</button>
+            <button class="tgl-btn"        data-view="slopes" onclick="cb_setView(this)">슬로프</button>
+            <button class="tgl-btn"        data-view="flies"  onclick="cb_setView(this)">플라이</button>
+          </div>
+        </div>
+        <button class="wb-btn wb-btn--sm" id="cbRefresh" onclick="cb_load(true)" title="최신 지표일로 강제 새로고침" style="margin-left:auto;">↻ 새로고침</button>
       </div>
-    </div>
-
-    <div id="cbBody">
-      <div class="cb-empty">불러오는 중…</div>
-    </div>
-
-    <div class="cb-note">
-      <div class="cb-legend" style="margin-bottom:5px;">
-        <span><b style="color:var(--red);">+σ</b> 슬로프 가팔라짐 / 플라이 몸통 cheap</span>
-        <span><b style="color:var(--blue);">−σ</b> 슬로프 평평해짐 / 플라이 몸통 rich</span>
-        <span><b>|σ|≥2</b> 선택 윈도 분포 대비 극단</span>
+      <div class="cb-bars"><canvas id="wbCbBars" aria-label="구성별 z-score 막대"></canvas></div>
+      <div id="cbBody">
+        <div class="cb-empty">불러오는 중…</div>
       </div>
-      <span id="cbNote"></span>
-    </div>
-  </div>
-
-  <!-- 검색 + 기간 -->
-  <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
-    <div class="search-wrap">
-      <input class="search-input" id="searchInput" type="text"
-             placeholder="종목 검색 (nickname · 채권명 · 코드)"
-             oninput="onSearch(this.value)"
-             onkeydown="onKeyDown(event)"
-             autocomplete="off">
-      <div class="search-dropdown" id="searchDropdown" style="display:none;"></div>
-    </div>
-    <div style="display:flex;gap:4px;" id="periodBtns">
-      <button class="period-btn" onclick="setPeriod(this,30)">1M</button>
-      <button class="period-btn" onclick="setPeriod(this,90)">3M</button>
-      <button class="period-btn" onclick="setPeriod(this,180)">6M</button>
-      <button class="period-btn active" onclick="setPeriod(this,365)">1Y</button>
-      <button class="period-btn" onclick="setPeriod(this,730)">2Y</button>
-      <button class="period-btn" onclick="setPeriod(this,1825)">5Y</button>
-      <button class="period-btn" onclick="setPeriod(this,0)">전체</button>
-    </div>
-  </div>
-
-  <!-- 대형 검색 차트 (선택 시 표시) -->
-  <div class="big-chart-card" id="bigChartCard" style="display:none;">
-    <div class="big-chart-hdr">
-      <div>
-        <span class="big-chart-title" id="bigTitle">—</span>
-        <span class="big-chart-meta"  id="bigMeta"></span>
+      <div class="wb-foot cb-foot">
+        <span class="wb-legend-item"><span class="wb-swatch" style="color:var(--wb-up)"></span>+σ</span>
+        <span class="wb-legend-item"><span class="wb-swatch" style="color:var(--wb-down)"></span>−σ</span>
+        <span class="wb-legend-item">진한 막대 |σ|≥2</span>
       </div>
-      <div id="bigVal" style="font-size:18px;font-weight:700;letter-spacing:-.5px;"></div>
-    </div>
-    <div style="position:relative;height:280px;">
-      <canvas id="bigChart"></canvas>
+    </section>
+
+    <div class="dash-side wb-stack">
+      <section class="wb-card dash-detail" aria-label="선택 구성 추이">
+        <div class="wb-card-head">
+          <span class="wb-card-title">선택 구성 추이</span>
+          <span class="wb-card-meta">평균 · ±1σ · ±2σ 밴드</span>
+        </div>
+        <div class="cbd" id="cbDetailCard" style="display:none;">
+          <div class="big-chart-title" id="cbDetailTitle">—</div>
+          <div class="cbd-val" id="cbDetailVal"></div>
+          <div class="big-chart-meta" id="cbDetailMeta" style="margin-left:0;"></div>
+          <div class="chart-box"><canvas id="cbDetailChart"></canvas></div>
+        </div>
+        <div class="wb-empty cb-detail-empty">
+          <div class="wb-empty-title">선택 전<button type="button" class="wb-help" data-help="왼쪽 표에서 구성을 고르면 선택 윈도의 시계열과 평균·±1σ·±2σ 밴드를 그립니다." aria-label="설명 보기"></button></div>
+        </div>
+      </section>
+      <section class="wb-card">
+        <div class="wb-card-head"><span class="wb-card-title">레벨 · CD 스프레드<button type="button" class="wb-help" data-help="값 옆 숫자 = 직전 관측일 대비 변화(bp). 차트 기간은 필터 바의 차트 기간을 따름." aria-label="설명 보기"></button></span></div>
+        <div class="mini-list" id="row-levels"></div>
+      </section>
     </div>
   </div>
 
-  <!-- 수익률 곡선 -->
-  <div class="stl">수익률 곡선</div>
-  <div class="curve-card">
-    <div class="curve-toolbar">
-      <span class="curve-label">카테고리</span>
-      <div class="toggle-group" id="catBtns">
-        <button class="tgl-btn active" data-cat="" onclick="setCat(this)">전체</button>
+  <!-- 수익률 곡선 (전체 폭) -->
+  <div class="dash-row">
+    <section class="wb-card">
+      <div class="wb-card-head">
+        <span class="wb-card-title">수익률 곡선</span>
+        <span class="wb-card-meta">잔존만기 × YTM</span>
       </div>
-      <div style="width:.5px;height:14px;background:var(--bd);flex-shrink:0;"></div>
-      <span class="curve-label">비교</span>
-      <div class="toggle-group">
-        <button class="tgl-btn active blue"   data-offset="0"   onclick="toggleCurveDate(this)">오늘</button>
-        <button class="tgl-btn"               data-offset="30"  onclick="toggleCurveDate(this)">1M전</button>
-        <button class="tgl-btn green"         data-offset="91"  onclick="toggleCurveDate(this)">3M전</button>
-        <button class="tgl-btn orange"        data-offset="182" onclick="toggleCurveDate(this)">6M전</button>
-        <button class="tgl-btn purple"        data-offset="365" onclick="toggleCurveDate(this)">1Y전</button>
+      <div class="wb-card-toolbar">
+        <div class="wb-field">
+          <span class="wb-label">카테고리</span>
+          <div class="wb-seg" id="catBtns">
+            <button class="tgl-btn" data-cat="" onclick="setCat(this)">전체</button>
+          </div>
+        </div>
+        <div class="wb-field">
+          <span class="wb-label">비교</span>
+          <div class="cmp-chips">
+            <button class="tgl-btn wb-chip active blue"   data-offset="0"   onclick="toggleCurveDate(this)" title="최신 종가일(이격 보드 기준일) — 항상 표시">최신</button>
+            <button class="tgl-btn wb-chip"               data-offset="30"  onclick="toggleCurveDate(this)">1M전</button>
+            <button class="tgl-btn wb-chip green"         data-offset="91"  onclick="toggleCurveDate(this)">3M전</button>
+            <button class="tgl-btn wb-chip orange"        data-offset="182" onclick="toggleCurveDate(this)">6M전</button>
+            <button class="tgl-btn wb-chip purple"        data-offset="365" onclick="toggleCurveDate(this)">1Y전</button>
+          </div>
+        </div>
+        <div class="wb-field">
+          <span class="wb-label">바스켓</span>
+          <div><button class="tgl-btn wb-chip" id="basketBtn" onclick="toggleBasket()">선물만</button></div>
+        </div>
       </div>
-      <div style="width:.5px;height:14px;background:var(--bd);flex-shrink:0;"></div>
-      <span class="curve-label">바스켓</span>
-      <div class="toggle-group">
-        <button class="tgl-btn" id="basketBtn" onclick="toggleBasket()">선물만</button>
-      </div>
-    </div>
-    <div style="position:relative;height:280px;">
-      <canvas id="curveChart"></canvas>
-    </div>
-    <div id="curveInfo" style="margin-top:6px;font-size:10px;color:var(--t3);text-align:center;"></div>
+      <div class="curve-box"><canvas id="curveChart"></canvas><div class="wb-curve-empty" id="wbCurveEmpty" hidden></div></div>
+      <div class="wb-foot" id="curveInfo"></div>
+    </section>
   </div>
 
-  <!-- 레벨 · CD스프레드 -->
-  <div class="mini-section">
-    <div class="mini-section-label">레벨 · CD 스프레드</div>
-    <div class="mini-grid" id="row-levels"></div>
+  <!-- 3열 — 커브 스프레드 | 버터플라이 | IRS 스프레드 -->
+  <div class="wb-grid-3 dash-row">
+    <section class="wb-card">
+      <div class="wb-card-head"><span class="wb-card-title">커브 스프레드</span><span class="wb-card-meta">bp</span></div>
+      <div class="mini-list" id="row-spreads"></div>
+    </section>
+    <section class="wb-card">
+      <div class="wb-card-head"><span class="wb-card-title">버터플라이<button type="button" class="wb-help" data-help="2×몸통 − 양 날개 (bp)" aria-label="설명 보기"></button></span><span class="wb-card-meta">bp</span></div>
+      <div class="mini-list" id="row-butterfly"></div>
+    </section>
+    <section class="wb-card">
+      <div class="wb-card-head"><span class="wb-card-title">IRS 스프레드</span><span class="wb-card-meta">bp</span></div>
+      <div class="mini-list" id="row-irs"></div>
+    </section>
   </div>
 
-  <!-- 커브 스프레드 -->
-  <div class="mini-section">
-    <div class="mini-section-label">커브 스프레드</div>
-    <div class="mini-grid" id="row-spreads"></div>
-  </div>
-
-  <!-- 버터플라이 -->
-  <div class="mini-section">
-    <div class="mini-section-label">버터플라이</div>
-    <div class="mini-grid" id="row-butterfly"></div>
-  </div>
-
-  <!-- IRS 스프레드 -->
-  <div class="mini-section">
-    <div class="mini-section-label">IRS 스프레드</div>
-    <div class="mini-grid" id="row-irs"></div>
-  </div>
-
-</div>
+</main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
+<script src="/assets/js/wb-chart.js?v=20261021"></script>
 <script>
 // ══════════════════════════════════════════════════════════════
 //  CONFIG  — ktb 테이블 label 기반
@@ -364,12 +326,13 @@ const ALL_LABELS = [
 ];
 
 // 수익률 곡선 비교일별 색상
+// 색 = wb 시리즈 토큰(테마 따라감 · redesign-wb 표현만). 비교 칩 견본색(.cmp-chips)과 같은 매핑.
 const CURVE_COLORS = {
-  0:   { line: '#4a9eff', label: '오늘' },
-  30:  { line: '#8b93a8', label: '1M전' },
-  91:  { line: '#34d399', label: '3M전' },
-  182: { line: '#fb923c', label: '6M전' },
-  365: { line: '#a78bfa', label: '1Y전' },
+  0:   { line: 'var(--wb-series-1)', label: '최신' },
+  30:  { line: 'var(--wb-series-6)', label: '1M전' },
+  91:  { line: 'var(--wb-series-4)', label: '3M전' },
+  182: { line: 'var(--wb-series-3)', label: '6M전' },
+  365: { line: 'var(--wb-series-2)', label: '1Y전' },
 };
 
 // 미니 차트 섹션 정의
@@ -378,44 +341,44 @@ const SECTIONS = [
   {
     rowId: 'row-levels',
     charts: [
-      { id: 'cd_sp',  title: 'CD − 기준금리', unit: 'bp', color: '#4a9eff',
+      { id: 'cd_sp',  title: 'CD − 기준금리', unit: 'bp', color: 'var(--wb-series-1)',
         formula: s => diff(s, 'CD', '한국기준금리', 100) },
-      { id: 'ktb3',   title: '국고 3년',       unit: '%',  color: '#34d399',
+      { id: 'ktb3',   title: '국고 3년',       unit: '%',  color: 'var(--wb-series-1)',
         formula: s => single(s, '3년지표') },
-      { id: 'ktb10',  title: '국고 10년',      unit: '%',  color: '#fbbf24',
+      { id: 'ktb10',  title: '국고 10년',      unit: '%',  color: 'var(--wb-series-1)',
         formula: s => single(s, '10년지표') },
     ],
   },
   {
     rowId: 'row-spreads',
     charts: [
-      { id: 'sp53',   title: '5Y − 3Y',   unit: 'bp', color: '#4a9eff',
+      { id: 'sp53',   title: '5Y − 3Y',   unit: 'bp', color: 'var(--wb-series-1)',
         formula: s => diff(s, '5년지표',  '3년지표',  100) },
-      { id: 'sp103',  title: '10Y − 3Y',  unit: 'bp', color: '#a78bfa',
+      { id: 'sp103',  title: '10Y − 3Y',  unit: 'bp', color: 'var(--wb-series-1)',
         formula: s => diff(s, '10년지표', '3년지표',  100) },
-      { id: 'sp3010', title: '30Y − 10Y', unit: 'bp', color: '#f87171',
+      { id: 'sp3010', title: '30Y − 10Y', unit: 'bp', color: 'var(--wb-series-1)',
         formula: s => diff(s, '30년지표', '10년지표', 100) },
     ],
   },
   {
     rowId: 'row-butterfly',
     charts: [
-      { id: 'bf3510',   title: '3-5-10 BF',  unit: 'bp', color: '#34d399',
+      { id: 'bf3510',   title: '3-5-10 BF',  unit: 'bp', color: 'var(--wb-series-1)',
         formula: s => butterfly(s, '3년지표',  '5년지표',  '10년지표') },
-      { id: 'bf2510',   title: '2-5-10 BF',  unit: 'bp', color: '#fbbf24',
+      { id: 'bf2510',   title: '2-5-10 BF',  unit: 'bp', color: 'var(--wb-series-1)',
         formula: s => butterfly(s, '2년지표',  '5년지표',  '10년지표') },
-      { id: 'bf102030', title: '10-20-30 BF', unit: 'bp', color: '#fb923c',
+      { id: 'bf102030', title: '10-20-30 BF', unit: 'bp', color: 'var(--wb-series-1)',
         formula: s => butterfly(s, '10년지표', '20년지표', '30년지표') },
     ],
   },
   {
     rowId: 'row-irs',
     charts: [
-      { id: 'irs31',  title: 'IRS 3Y − 1Y',  unit: 'bp', color: '#38bdf8',
+      { id: 'irs31',  title: 'IRS 3Y − 1Y',  unit: 'bp', color: 'var(--wb-series-1)',
         formula: s => diff(s, 'IRS3년', 'IRS1년', 100) },
-      { id: 'irs53',  title: 'IRS 5Y − 3Y',  unit: 'bp', color: '#e879f9',
+      { id: 'irs53',  title: 'IRS 5Y − 3Y',  unit: 'bp', color: 'var(--wb-series-1)',
         formula: s => diff(s, 'IRS5년', 'IRS3년', 100) },
-      { id: 'irs105', title: 'IRS 10Y − 5Y', unit: 'bp', color: '#4ade80',
+      { id: 'irs105', title: 'IRS 10Y − 5Y', unit: 'bp', color: 'var(--wb-series-1)',
         formula: s => diff(s, 'IRS10년', 'IRS5년', 100) },
     ],
   },
@@ -425,7 +388,7 @@ const SECTIONS = [
 //  상태
 // ══════════════════════════════════════════════════════════════
 let currentDays    = 365;
-let curveCategory  = '';          // '' = 전체
+let curveCategory  = '국고채';    // '' = 전체 · redesign-wb: 기본 = 국고채(2026-10-21 사용자 지시)
 let curveBasket    = null;        // null | 1
 let activeCurveOffsets = new Set([0]);  // 오늘만
 
@@ -504,7 +467,7 @@ async function loadCategories() {
     const wrap = document.getElementById('catBtns');
     (d.categories || []).forEach(cat => {
       const btn = document.createElement('button');
-      btn.className = 'tgl-btn';
+      btn.className = 'tgl-btn' + (cat === curveCategory ? ' active' : '');
       btn.dataset.cat = cat;
       btn.textContent = cat;
       btn.onclick = () => setCat(btn);
@@ -566,10 +529,15 @@ async function loadCurve() {
 
   // 각 날짜 데이터 병렬 fetch
   const catParam    = curveCategory ? `&category=${encodeURIComponent(curveCategory)}` : '';
-  const basketParam = curveBasket != null ? `&basket=${curveBasket}` : '';
+  // redesign-wb 수정(2026-10-21): 서버 basket=1 필터는 항상 0행(DB basket 열 = '3선1' 같은 문자열) →
+  //   basket 파라미터를 보내지 않고 drawCurve 에서 응답 행의 basket 값으로 거름(표현 필터·값 무변형).
+  const basketParam = '';
+  // '최신' = 최신 종가일(같은 화면 이격 보드 기준일 as_of). 날짜 없이 부르면 DB 최대일 = 아침 예비호가(수 행)라
+  //   국채선물 외 카테고리가 전부 0행 → 빈 차트였음(라이브 재현). 보드 실패 시 기존 방식(날짜 없음)으로 폴백.
+  const latest = await wb_latestClose();
 
   const fetches = offsets.map(offset => {
-    const dateParam = offset > 0 ? `?date=${offsetDate(offset)}` : '?';
+    const dateParam = offset > 0 ? `?date=${offsetDate(offset)}` : (latest ? `?date=${latest}` : '?');
     return apiGet(`/ktb/curve${dateParam}${catParam}${basketParam}`)
       .catch(() => null);
   });
@@ -579,30 +547,90 @@ async function loadCurve() {
 }
 
 function drawCurve(results, offsets) {
+  // redesign-wb 수정(2026-10-21) — 표현만, 값은 응답 그대로:
+  //  · 0 · 결측 금리 점 제외 · '…저평' 행(선물 저평가 지표 — 금리 아님) 곡선 제외
+  //  · 잔존만기 순 정렬 후 같은 묶음 안에서만 선을 이음(카테고리 간 연결 금지)
+  //  · '전체' = 카테고리별 별도 시리즈 · 비교 시점은 같은 색 점선(범례는 최신만)
+  //  · 한 묶음에 같은 만기 점이 겹치면(예: 해외 = 5개국) 라벨 접두(국가)별로 나눠 잇고, 그래도 겹치면 점만
+  //  · 보간 = monotone(급변 구간에서 곡선이 튀어 나가지 않게)
+  //  · 선물만 = 응답 행 중 basket 값이 있는 행(서버 basket=1 필터는 0행 — loadCurve 주석)
   const datasets = [];
-  let infoTexts = [];
+  const infoTexts = [];
+  const byCat = !curveCategory;
+  const keyOrder = [];
+  const TOK = ['--wb-series-1', '--wb-series-2', '--wb-series-3', '--wb-series-4',
+               '--wb-series-5', '--wb-series-6', '--wb-ramp-2', '--wb-ramp-8'];
+  const DASH = { 0: [], 30: [6, 3], 91: [3, 3], 182: [8, 3, 2, 3], 365: [1, 3] };
+  const NOT_YIELD = /저평$/;
+  // 겹침 = 같은 만기에 금리가 다른 점(같은 만기·같은 금리 = 지표 별칭 행 → 겹침 아님)
+  const conflict = arr => {
+    const m = new Map();
+    for (const r of arr) { const k = (+r.remain_year).toFixed(4); if (m.has(k) && Math.abs(m.get(k) - +r.ytm) > 1e-9) return true; m.set(k, +r.ytm); }
+    return false;
+  };
+  const prefixOf = lb => String(lb || '').replace(/(기준금리|\d+(\.\d+)?(년|개월))$/, '') || String(lb || '');
+  // 한 묶음 → [{key, rows, line}] : 겹침 없으면 그대로 선 · 있으면 라벨 접두(국가)별로 깔끔히 나뉠 때만 분할
+  //  (해외 = 5개국). 나뉘지 않는 겹침(국고채: 만기가 같은 서로 다른 종목 · 수 bp 차)은 그대로 한 선.
+  const split = (key, gr) => {
+    if (!conflict(gr)) return [{ key, rows: gr, line: true }];
+    const sub = new Map();
+    gr.forEach(r => { const k = prefixOf(r.label); if (!sub.has(k)) sub.set(k, []); sub.get(k).push(r); });
+    const parts = [...sub.entries()].map(([k, rs]) => ({ key: byCat ? `${key} ${k}` : k, rows: rs, line: rs.length >= 2 }));
+    const good = sub.size > 1 && parts.every(p => !conflict(p.rows)) && parts.filter(p => p.rows.length >= 2).length >= 2;
+    return good ? parts : [{ key, rows: gr, line: true }];
+  };
 
   results.forEach((res, i) => {
-    if (!res || !res.rows?.length) return;
     const offset = offsets[i];
-    const cfg    = CURVE_COLORS[offset] || { line: '#8b93a8', label: `${offset}일전` };
-    const rows   = res.rows.filter(r => r.remain_year != null && r.ytm != null);
+    const cfg    = CURVE_COLORS[offset] || { line: 'var(--wb-series-6)', label: `${offset}일전` };
+    const rows   = (res?.rows || [])
+      .filter(r => r.remain_year != null && r.ytm != null
+        && isFinite(+r.remain_year) && isFinite(+r.ytm) && +r.ytm !== 0 && !NOT_YIELD.test(r.label || '')
+        && (curveBasket !== 1 || (r.basket != null && r.basket !== '')))
+      .sort((a, b) => (+a.remain_year - +b.remain_year) || (+a.ytm - +b.ytm));
+    if (!rows.length) {   // 조용히 건너뛰지 않음 — 시점별 '데이터 없음' 정직 표시
+      infoTexts.push(`${cfg.label}: 데이터 없음${res?.date ? ' (' + res.date + ')' : ''}`);
+      return;
+    }
+    const groups = new Map();
+    if (byCat) rows.forEach(r => { const k = r.category || '기타'; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(r); });
+    else groups.set(curveCategory, rows);
 
-    datasets.push({
-      label:        cfg.label + ' (' + res.date + ')',
-      data:         rows.map(r => ({ x: +r.remain_year, y: +r.ytm })),
-      borderColor:  cfg.line,
-      borderWidth:  offset === 0 ? 2 : 1.2,
-      pointRadius:  offset === 0 ? 3 : 2,
-      pointHoverRadius: 5,
-      tension:      0.3,
-      spanGaps:     true,
-      fill:         false,
+    const series = [];
+    groups.forEach((gr, key) => split(key, gr).forEach(p => series.push(p)));
+    const multi = byCat || series.length > 1;   // 여러 묶음 = 묶음별 색 · 시점별 선 모양
+
+    series.forEach(p => {
+      if (multi && !keyOrder.includes(p.key)) keyOrder.push(p.key);
+      const color = multi ? TOK[keyOrder.indexOf(p.key) % TOK.length] : cfg.line;
+      datasets.push({
+        label:        multi ? (offset === 0 ? p.key : `${p.key} · ${cfg.label}`) : `${cfg.label} (${res.date})`,
+        wbName:       multi ? `${p.key} ${cfg.label}` : cfg.label,
+        wbLegend:     !multi || offset === 0,
+        data:         p.rows.map(r => ({ x: +r.remain_year, y: +r.ytm })),
+        borderColor:  WBChart.tok(color),
+        pointBackgroundColor: WBChart.tok(color),
+        borderDash:   multi ? (DASH[offset] || [4, 3]) : [],
+        showLine:     p.line,
+        borderWidth:  offset === 0 ? 2 : 1.2,
+        pointRadius:  offset === 0 ? 3 : 2,
+        pointHoverRadius: 5,
+        cubicInterpolationMode: 'monotone',
+        spanGaps:     true,
+        fill:         false,
+        wbRows:       p.rows,   // 툴팁 종목명 조회용
+      });
     });
-    infoTexts.push(`${cfg.label}: ${res.date}  n=${res.count}`);
+    infoTexts.push(`${cfg.label}: ${res.date}  n=${rows.length}` + (multi ? ` · 묶음 ${series.length}` : ''));
   });
+  if (datasets.some(d => d.borderDash && d.borderDash.length)) infoTexts.push('실선 = 최신 · 점선 = 비교 시점');
 
   document.getElementById('curveInfo').textContent = infoTexts.join('   |   ');
+  const wbEmpty = document.getElementById('wbCurveEmpty');
+  if (wbEmpty) {
+    wbEmpty.hidden = datasets.length > 0;
+    if (!datasets.length) wbEmpty.textContent = `데이터 없음 — ${curveCategory || '전체'}${curveBasket === 1 ? ' · 선물 바스켓' : ''}`;
+  }
 
   if (curveChartInst) {
     curveChartInst.data.datasets = datasets;
@@ -619,19 +647,17 @@ function drawCurve(results, offsets) {
       interaction: { mode: 'nearest', axis: 'x', intersect: false },
       plugins: {
         legend: {
-          display: true,
-          labels: { color: '#8b93a8', font: { size: 10 }, boxWidth: 20, padding: 10 },
+          display: true, align: 'start',
+          labels: { filter: (item, data) => data.datasets[item.datasetIndex]?.wbLegend !== false },
         },
         tooltip: {
-          backgroundColor: '#181c27', borderColor: 'rgba(255,255,255,.1)', borderWidth: 1,
-          titleColor: '#8b93a8', bodyColor: '#e8eaf0', padding: 8,
           callbacks: {
             title: items => `잔존 ${items[0]?.parsed.x?.toFixed(2)}년`,
             label: c => {
               const dp = c.dataset.data[c.dataIndex];
-              const nick = results[c.datasetIndex]?.rows
-                ?.find(r => Math.abs(+r.remain_year - dp.x) < 0.01)?.label ?? '';
-              return ` ${c.dataset.label.split(' ')[0]}: ${dp.y?.toFixed(4)}%  ${nick}`;
+              const nick = (c.dataset.wbRows || [])
+                .find(r => Math.abs(+r.remain_year - dp.x) < 0.01 && Math.abs(+r.ytm - dp.y) < 1e-9)?.label ?? '';
+              return ` ${c.dataset.wbName || c.dataset.label}: ${dp.y?.toFixed(4)}%  ${nick}`;
             },
           },
         },
@@ -639,14 +665,11 @@ function drawCurve(results, offsets) {
       scales: {
         x: {
           type: 'linear',
-          title: { display: true, text: '잔존만기 (년)', color: '#555e75', font: { size: 10 } },
-          grid: { color: 'rgba(255,255,255,.04)' },
-          ticks: { font: { size: 10 }, color: '#555e75' },
+          title: { display: true, text: '잔존만기 (년)' },
         },
         y: {
-          title: { display: true, text: 'YTM (%)', color: '#555e75', font: { size: 10 } },
-          grid: { color: 'rgba(255,255,255,.04)' },
-          ticks: { font: { size: 10 }, color: '#555e75', callback: v => v.toFixed(2) + '%' },
+          title: { display: true, text: 'YTM (%)' },
+          ticks: { callback: v => v.toFixed(2) + '%' },
         },
       },
     },
@@ -732,7 +755,7 @@ async function loadBigChart(label) {
     document.getElementById('bigVal').innerHTML = last != null
       ? `<span style="color:var(--t1);">${last.toFixed(4)}%</span>`
       + (chg != null
-          ? `<span style="font-size:11px;margin-left:6px;color:${chg > 0 ? 'var(--red)' : chg < 0 ? 'var(--blue)' : 'var(--t3)'};">`
+          ? `<span style="font-size:11px;margin-left:6px;color:${chg > 0 ? 'var(--wb-up)' : chg < 0 ? 'var(--wb-down)' : 'var(--wb-muted)'};">`
             + `${chg > 0 ? '+' : ''}${(chg * 100).toFixed(1)}bp</span>`
           : '')
       : '';
@@ -740,7 +763,7 @@ async function loadBigChart(label) {
     document.getElementById('bigChartCard').style.display = 'block';
 
     const ds = {
-      data: values, borderColor: '#4a9eff', borderWidth: 1.8,
+      data: values, borderColor: WBChart.tok('--wb-series-1'), borderWidth: 1.8,
       pointRadius: 0, pointHoverRadius: 3, tension: 0.1, spanGaps: true,
     };
     if (bigChartInst) {
@@ -757,14 +780,12 @@ async function loadBigChart(label) {
           plugins: {
             legend: { display: false },
             tooltip: {
-              backgroundColor: '#181c27', borderColor: 'rgba(255,255,255,.1)', borderWidth: 1,
-              titleColor: '#8b93a8', bodyColor: '#e8eaf0', padding: 9,
               callbacks: { label: c => `  ${label}: ${c.parsed.y?.toFixed(4) ?? '—'}%` },
             },
           },
           scales: {
-            x: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { font: { size: 10 }, color: '#555e75', maxTicksLimit: 10, maxRotation: 0 } },
-            y: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { font: { size: 10 }, color: '#555e75', callback: v => v.toFixed(2) + '%' } },
+            x: { ticks: { maxTicksLimit: 10, maxRotation: 0 } },
+            y: { ticks: { callback: v => v.toFixed(2) + '%' } },
           },
         },
       });
@@ -795,7 +816,9 @@ async function loadAllMini() {
         row.appendChild(buildMiniCard(cfg, cfg.formula(series)));
       });
     });
+    wb_renderHero(series);   // redesign-wb: 같은 응답으로 히어로 요약(표현만)
   } catch (e) {
+    wb_renderHero(null, e);
     SECTIONS.forEach(sec => {
       const row = document.getElementById(sec.rowId);
       row.innerHTML = '';
@@ -803,7 +826,7 @@ async function loadAllMini() {
         const card = document.createElement('div');
         card.className = 'mini-card';
         card.innerHTML = `<div class="mini-title">${cfg.title}</div>
-          <div class="empty-mini" style="color:var(--red);font-size:10px;">${e.message}</div>`;
+          <div class="empty-mini" style="color:var(--wb-warn);">${e.message}</div>`;
         row.appendChild(card);
       });
     });
@@ -825,13 +848,13 @@ function buildMiniCard(cfg, pts) {
     ? `${last.toFixed(isPct ? 3 : 1)}${isPct ? '%' : 'bp'}` : '—';
   const chgStr = chg != null
     ? `${chg > 0 ? '+' : ''}${(isPct ? chg * 100 : chg).toFixed(1)}bp` : '';
-  const chgCol = chg == null ? 'var(--t3)' : chg > 0 ? 'var(--red)' : 'var(--blue)';
+  const chgCol = chg == null ? 'var(--wb-muted)' : chg > 0 ? 'var(--wb-up)' : 'var(--wb-down)';
 
   card.innerHTML = `
     <div class="mini-card-hdr">
       <span class="mini-title">${cfg.title}</span>
       <div>
-        <span class="mini-val" style="color:${cfg.color};">${valStr}</span>
+        <span class="mini-val">${valStr}</span>
         <span class="mini-chg" style="color:${chgCol};">${chgStr}</span>
       </div>
     </div>
@@ -852,9 +875,9 @@ function drawMiniChart(cfg, pts) {
       labels: pts.map(p => p.date?.slice(0, 10) ?? ''),
       datasets: [{
         data: pts.map(p => p.value != null ? p.value : null),
-        borderColor: cfg.color, borderWidth: 1.2,
+        borderColor: WBChart.tok(cfg.color), borderWidth: 1.2,
         pointRadius: 0, tension: 0.15, spanGaps: true,
-        fill: true, backgroundColor: cfg.color + '12',
+        fill: false,
       }],
     },
     options: {
@@ -863,8 +886,6 @@ function drawMiniChart(cfg, pts) {
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: '#181c27', borderColor: 'rgba(255,255,255,.1)', borderWidth: 1,
-          titleColor: '#8b93a8', bodyColor: '#e8eaf0', padding: 7,
           callbacks: {
             title: items => items[0]?.label ?? '',
             label: c => ` ${cfg.title}: ${c.parsed.y != null ? c.parsed.y.toFixed(cfg.unit === '%' ? 3 : 1) + cfg.unit : '—'}`,
@@ -874,8 +895,8 @@ function drawMiniChart(cfg, pts) {
       scales: {
         x: { display: false },
         y: {
-          display: true, grid: { color: 'rgba(255,255,255,.03)' },
-          ticks: { font: { size: 9 }, color: '#555e75', maxTicksLimit: 3, callback: v => v.toFixed(1) },
+          display: true,
+          ticks: { font: { size: 10 }, maxTicksLimit: 3, callback: v => v.toFixed(1) },
           border: { display: false },
         },
       },
@@ -907,8 +928,8 @@ let _cbCol = null;
 function cb_cols() {
   if (!_cbCol) {
     const g = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
-    _cbCol = { pos: g('--red') || '#f87171', neg: g('--blue') || '#4a9eff',
-               zero: g('--t3') || '#8b93a8' };
+    _cbCol = { pos: g('--wb-up') || '#b0333a', neg: g('--wb-down') || '#2b5ca9',
+               zero: g('--wb-muted') || '#5c5f65' };
   }
   return _cbCol;
 }
@@ -943,6 +964,7 @@ async function cb_load(force) {
     const ok = d && ((d.windows && d.windows[cbWin]) || Array.isArray(d.ranked));
     if (!ok) throw new Error('형식 오류');
     cbData = d;
+    wb_setLatest(d.as_of);   // redesign-wb: 수익률 곡선 '최신' = 이 기준일
     // 응답이 지원하는 윈도가 현재 선택과 불일치하면 기본값으로 맞춤
     if (d.windows && !d.windows[cbWin]) cbWin = String(d.default_window || '126');
     document.getElementById('cbAsof').textContent  = d.as_of ? `기준 ${d.as_of}` : '—';
@@ -950,7 +972,8 @@ async function cb_load(force) {
     cb_renderTable();
   } catch (e) {
     cbData = null;
-    body.innerHTML = `<div class="cb-empty" style="color:var(--red);">이격 보드를 불러올 수 없습니다 — ${e.message}</div>`;
+    wb_setLatest(null);      // 보드 실패 → 곡선은 기존 방식(날짜 없음)으로 폴백
+    body.innerHTML = `<div class="cb-empty" style="color:var(--wb-warn);">이격 보드를 불러올 수 없습니다 — ${e.message}</div>`;
   }
 }
 
@@ -975,7 +998,7 @@ function cb_renderTable() {
   }
 
   const wl = cbWin === '63' ? '3M' : '6M';
-  let html = `<table class="cb-table"><thead><tr>
+  let html = `<table class="cb-table wb-table"><thead><tr>
     <th>구성</th>
     <th class="num">현재(bp)</th>
     <th class="num">z (σ)</th>
@@ -1036,7 +1059,7 @@ function cb_drawSpark(r) {
       labels: vals.map((_, i) => i),
       datasets: [{
         data: vals,
-        borderColor: col, borderWidth: 1.1,
+        borderColor: WBChart.css('--wb-muted'), borderWidth: 1.2,
         pointRadius: ptR, pointBackgroundColor: col, pointBorderWidth: 0,
         tension: 0.15, spanGaps: true, fill: false,
       }],
@@ -1097,21 +1120,21 @@ function cb_drawDetail(r) {
 
   const datasets = [
     // ±2σ 밴드 (바깥, 옅게)
-    { label: '+2σ', data: flat(b2[1]), borderColor: 'rgba(139,147,168,.25)', borderWidth: 0,
-      pointRadius: 0, fill: '+1', backgroundColor: 'rgba(139,147,168,.05)', tension: 0, spanGaps: true },
-    { label: '+1σ', data: flat(b1[1]), borderColor: 'rgba(139,147,168,.35)', borderWidth: 0,
-      pointRadius: 0, fill: '+1', backgroundColor: 'rgba(139,147,168,.10)', tension: 0, spanGaps: true },
-    { label: '평균', data: flat(mean), borderColor: 'rgba(139,147,168,.55)', borderWidth: 1,
+    { label: '+2σ', data: flat(b2[1]), borderColor: WBChart.tok('--wb-muted', .25), borderWidth: 0,
+      pointRadius: 0, fill: '+1', backgroundColor: WBChart.tok('--wb-muted', .07), tension: 0, spanGaps: true },
+    { label: '+1σ', data: flat(b1[1]), borderColor: WBChart.tok('--wb-muted', .35), borderWidth: 0,
+      pointRadius: 0, fill: '+1', backgroundColor: WBChart.tok('--wb-muted', .14), tension: 0, spanGaps: true },
+    { label: '평균', data: flat(mean), borderColor: WBChart.tok('--wb-muted', .7), borderWidth: 1,
       borderDash: [4, 4], pointRadius: 0, fill: false, tension: 0, spanGaps: true },
-    { label: '−1σ', data: flat(b1[0]), borderColor: 'rgba(139,147,168,.35)', borderWidth: 0,
-      pointRadius: 0, fill: '-1', backgroundColor: 'rgba(139,147,168,.10)', tension: 0, spanGaps: true },
-    { label: '−2σ', data: flat(b2[0]), borderColor: 'rgba(139,147,168,.25)', borderWidth: 0,
-      pointRadius: 0, fill: '-1', backgroundColor: 'rgba(139,147,168,.05)', tension: 0, spanGaps: true },
+    { label: '−1σ', data: flat(b1[0]), borderColor: WBChart.tok('--wb-muted', .35), borderWidth: 0,
+      pointRadius: 0, fill: '-1', backgroundColor: WBChart.tok('--wb-muted', .14), tension: 0, spanGaps: true },
+    { label: '−2σ', data: flat(b2[0]), borderColor: WBChart.tok('--wb-muted', .25), borderWidth: 0,
+      pointRadius: 0, fill: '-1', backgroundColor: WBChart.tok('--wb-muted', .07), tension: 0, spanGaps: true },
     // 실제 시계열 (맨 위, 현재점 강조)
     { label: r.name ?? r.id, data: vals,
       borderColor: zCol, borderWidth: 1.8,
       pointRadius: vals.map((_, i) => (i === n - 1 ? 4 : 0)),
-      pointBackgroundColor: zCol, pointBorderColor: '#fff', pointBorderWidth: 1,
+      pointBackgroundColor: zCol, pointBorderColor: WBChart.tok('--wb-surface'), pointBorderWidth: 1,
       pointHoverRadius: 4, tension: 0.12, spanGaps: true, fill: false, order: 0 },
   ];
 
@@ -1125,8 +1148,6 @@ function cb_drawDetail(r) {
       plugins: {
         legend: { display: false },
         tooltip: {
-          backgroundColor: '#181c27', borderColor: 'rgba(255,255,255,.1)', borderWidth: 1,
-          titleColor: '#8b93a8', bodyColor: '#e8eaf0', padding: 8,
           filter: item => item.datasetIndex === datasets.length - 1,  // 시계열만 툴팁
           callbacks: {
             title: items => items[0]?.label ?? '',
@@ -1135,14 +1156,156 @@ function cb_drawDetail(r) {
         },
       },
       scales: {
-        x: { grid: { color: 'rgba(255,255,255,.04)' },
-             ticks: { font: { size: 10 }, color: '#555e75', maxTicksLimit: 8, maxRotation: 0 } },
-        y: { grid: { color: 'rgba(255,255,255,.04)' },
-             ticks: { font: { size: 10 }, color: '#555e75', callback: v => v.toFixed(0) + 'bp' } },
+        x: { ticks: { maxTicksLimit: 4, maxRotation: 0, autoSkipPadding: 16 } },
+        y: { ticks: { callback: v => v.toFixed(0) + 'bp' } },
       },
     },
   });
 }
+
+// ══════════════════════════════════════════════════════════════
+//  redesign-wb — 히어로 요약(패턴 ④) · 테마 전환 재색칠 (표현만)
+//  히어로 값 = loadAllMini 가 받은 같은 응답 · SECTIONS 의 같은 formula ·
+//  미니 카드와 같은 산술(마지막 유효값, 직전 유효값과의 차) — 새 계산·새 호출 없음.
+// ══════════════════════════════════════════════════════════════
+const HERO_IDS = ['ktb3', 'ktb10', 'sp103', 'sp3010', 'cd_sp'];
+function wb_heroCfg(id) {
+  for (const s of SECTIONS) for (const c of s.charts) if (c.id === id) return c;
+  return null;
+}
+function wb_renderHero(series, err) {
+  const box = document.getElementById('wbHeroKpis');
+  const src = document.getElementById('wbHeroSrc');
+  if (!box) return;
+  if (err) {
+    box.innerHTML = `<div class="wb-error">요약을 불러올 수 없습니다 — ${err.message}</div>`;
+    if (src) src.textContent = 'ktb 테이블 · 조회 실패';
+    return;
+  }
+  let asof = null;
+  box.innerHTML = HERO_IDS.map(id => {
+    const cfg = wb_heroCfg(id);
+    if (!cfg) return '';
+    const valid = cfg.formula(series).filter(p => p.value != null);
+    const lastP = valid.at(-1), prevP = valid.at(-2);
+    const last = lastP?.value, prev = prevP?.value;
+    const chg = last != null && prev != null ? last - prev : null;
+    const isPct = cfg.unit === '%';
+    const d = lastP?.date ? String(lastP.date).slice(0, 10) : null;
+    if (d && (!asof || d > asof)) asof = d;
+    const val = last != null
+      ? `${last.toFixed(isPct ? 3 : 1)}<span class="wb-kpi-unit">${isPct ? '%' : 'bp'}</span>` : '—';
+    const chgBp = chg != null ? (isPct ? chg * 100 : chg) : null;
+    const cls = chgBp == null || chgBp === 0 ? 'wb-muted' : chgBp > 0 ? 'wb-up' : 'wb-down';
+    const chgStr = chgBp != null ? `${chgBp > 0 ? '+' : ''}${chgBp.toFixed(1)}bp` : '변화 —';
+    return `<div class="wb-kpi"><dt>${cfg.title}${d ? ' · ' + d.slice(5).replace('-', '.') : ''}</dt>`
+      + `<dd><span class="wb-kpi-val">${val}</span><span class="wb-kpi-sub ${cls}">${chgStr}</span></dd></div>`;
+  }).join('');
+  if (src) src.textContent = asof ? `기준 ${asof}` : '데이터 없음';
+}
+
+// ══════════════════════════════════════════════════════════════
+//  redesign-wb — 이격 보드 z 막대(참고 그래프) · 표 ↔ 막대 ↔ 상세 연계 (표현만)
+//  막대 = cb_list()(백엔드 응답 그대로)를 z 내림차순으로 정렬해 그대로 그림 — 새 수치 없음.
+//  막대 클릭 → 기존 cb_select(id) + 표의 그 행으로 스크롤 / 행 클릭(기존) → 막대 강조.
+// ══════════════════════════════════════════════════════════════
+let wbBarsInst = null;
+function wb_barRows() {
+  return cb_list().slice().sort((a, b) => (b.z ?? -Infinity) - (a.z ?? -Infinity));
+}
+function wb_drawBars() {
+  const cv = document.getElementById('wbCbBars');
+  if (!cv) return;
+  if (wbBarsInst) { wbBarsInst.destroy(); wbBarsInst = null; }
+  const rows = wb_barRows();
+  if (!rows.length) return;
+  const isSel = i => rows[i] && rows[i].id === cbSelId;
+  wbBarsInst = new Chart(cv.getContext('2d'), {
+    type: 'bar',
+    data: {
+      labels: rows.map(r => r.label ?? r.id),
+      datasets: [{
+        data: rows.map(r => r.z),
+        backgroundColor: ctx => {
+          const r = rows[ctx.dataIndex]; if (!r) return 'transparent';
+          const base = r.z > 0 ? '--wb-up' : r.z < 0 ? '--wb-down' : '--wb-muted';
+          return WBChart.alpha(base, (isSel(ctx.dataIndex) || (r.z != null && Math.abs(r.z) >= 2)) ? 1 : 0.5);
+        },
+        borderColor: ctx => isSel(ctx.dataIndex) ? WBChart.css('--wb-ink') : 'rgba(0,0,0,0)',
+        borderWidth: ctx => isSel(ctx.dataIndex) ? 1.5 : 0,
+        borderRadius: 2, categoryPercentage: 0.82, barPercentage: 0.9,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: {
+          title: items => { const r = rows[items[0].dataIndex]; return r ? (r.name ?? r.label ?? r.id) : ''; },
+          label: c => {
+            const r = rows[c.dataIndex];
+            return ` z ${r.z == null ? '—' : (r.z > 0 ? '+' : '') + r.z.toFixed(2)}σ · 현재 ${r.current_bp == null ? '—' : (+r.current_bp).toFixed(1)}bp`;
+          },
+        } },
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { autoSkip: false, maxRotation: 90, minRotation: 90, font: { size: 10 } } },
+        y: { title: { display: true, text: 'z (σ)' }, ticks: { maxTicksLimit: 5 } },
+      },
+      onClick: (evt, els) => {
+        if (!els.length) return;
+        const r = rows[els[0].index];
+        if (r) { cb_select(r.id); wb_scrollRow(r.id); }
+      },
+      onHover: (evt, els) => { if (evt.native) evt.native.target.style.cursor = els.length ? 'pointer' : 'default'; },
+    },
+  });
+}
+function wb_scrollRow(id) {
+  const wrap = document.querySelector('#cbBody .cb-table-wrap');
+  const row = wrap && [...wrap.querySelectorAll('tr.cb-row')].find(tr => tr.dataset.id === id);
+  if (!row) return;
+  wrap.scrollTo({ top: Math.max(0, row.offsetTop - wrap.clientHeight / 2 + row.offsetHeight / 2), behavior: 'smooth' });
+}
+// 표가 다시 그려지면(뷰·윈도·테마 전환) 막대도 다시 · 선택이 바뀌면 막대 강조만 갱신.
+// 첫 렌더에 선택이 없으면 백엔드 랭킹 1순위(|z| 최대) 행을 기존 cb_select 로 띄움 — 상세 카드가 비지 않게.
+(() => {
+  const body = document.getElementById('cbBody');
+  if (!body) return;
+  let pending = false, structural = false;
+  new MutationObserver(muts => {
+    if (muts.some(m => m.type === 'childList')) structural = true;
+    if (pending) return;
+    pending = true;
+    requestAnimationFrame(() => {
+      pending = false;
+      if (structural) {
+        structural = false;
+        wb_drawBars();
+        if (!cbSelId) { const first = document.querySelector('#cbBody tr.cb-row'); if (first) cb_select(first.dataset.id); }
+      } else if (wbBarsInst) wbBarsInst.update('none');
+    });
+  }).observe(body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class'] });
+})();
+
+// 수익률 곡선 '최신' 기준일 = 이격 보드 as_of(최신 종가일). cb_load 가 알려 줄 때까지(최대 12초) 기다림.
+let wbLatest = null, _wbAsofResolve = null;
+const wbAsofReady = new Promise(res => { _wbAsofResolve = res; });
+function wb_setLatest(d) {
+  if (d) wbLatest = String(d).slice(0, 10);
+  if (_wbAsofResolve) { _wbAsofResolve(); _wbAsofResolve = null; }
+}
+async function wb_latestClose() {
+  if (!wbLatest) await Promise.race([wbAsofReady, new Promise(res => setTimeout(res, 12000))]);
+  return wbLatest;
+}
+
+// 테마 전환 — z 색 메모를 비우고 이미 받은 데이터로 표·상세만 다시 그림(재호출·재계산 없음).
+// (미니·곡선·검색 차트는 색이 함수(WBChart.tok)라 wb-chart.js 의 update 로 재색칠)
+document.addEventListener('wb-themechange', () => {
+  _cbCol = null;
+  if (cbData) { cb_renderTable(); if (cbSelId) cb_select(cbSelId); }
+});
 
 // ══════════════════════════════════════════════════════════════
 //  Init
