@@ -5,7 +5,8 @@
    ■ 원칙(H1/H3): 문장·판정·숫자는 전부 엔진 snapshot.plain(연준 build_plain) 과
      review_scoreboard.plain 에서 온다. 이 파일은 그리기만 한다 — 번역·판정·재계산 0.
      · 큰 배열은 참조(*_ref)를 풀어 그린다: curve_ref → yield_curve.* ·
-       points_ref → bond_rv[] · spark_ref → spread_history / pick_history 끝 n 관측.
+       points_ref → bond_rv[] · spark_ref → spread_history / pick_history / curve_range_1y 끝 n 관측(끝 날짜 = to).
+     · 숫자 칸 = 엔진 표시 문자열(*_text · half-up) 그대로 · 없을 때만 원 값(웹 반올림 0).
      · 화면 좌표(막대 길이·점 위치)만 계산한다(표시용 · 숫자로 내보내지 않음).
    ■ 보이는 문장은 셋뿐: 결론 3줄(headline) · 그림 제목(charts.*.title) · 눈에 띄는 곳 카드의
      판단 한 줄(notable[].sentence). 설명·규약·용어는 전부 ? 툴팁(wb-shell 의 .wb-help).
@@ -43,6 +44,8 @@
   function f1(v) { return nfix(v, 1, false); }
   function s1(v) { return nfix(v, 1, true); }
   function str(v) { return (typeof v === 'string' && v.trim()) ? v : null; }   // 엔진 문자열 필드만(모르는 필드 = 무시)
+  // 숫자 칸 = 엔진 표시 문자열(*_text · half-up · 계약 a5e58a86) 그대로 · 문자열이 없을 때만 원 값(반올림 0)
+  function tx(o, key, v, d, signed) { var t = o ? o[key] : null; return (typeof t === 'string' && t.trim()) ? t : nfix(v, d, signed); }
   function cls(v) { var n = num(v); return n == null ? '' : n > 0 ? 'pp' : n < 0 ? 'pn' : ''; }      // #view-review .pp/.pn = up/down
   function mmdd(d) { return d ? String(d).slice(5, 10) : ''; }
   function get(o, path) {   // 'yield_curve.current' → o.yield_curve.current
@@ -205,7 +208,7 @@
 
   function ratesHtml(c) {
     c = c || {};
-    var help = helpHtml([c.ref_note, c.x_label && c.y_label ? '위 = ' + c.y_label + ' × ' + c.x_label + ' · 아래 = 테너별 변화(' + (c.unit || 'bp') + ')' : null]);
+    var help = helpHtml([c.ref_note, str(c.note20), c.x_label && c.y_label ? '위 = ' + c.y_label + ' × ' + c.x_label + ' · 아래 = 테너별 변화(' + (c.unit || 'bp') + ')' : null]);
     var body = c.available === false ? empty('자료 없음', '이 스냅샷에 금리 그림 재료가 없습니다.') :
       '<div class="rvp-chart rvp-chart--curve"><canvas id="rvpRatesCurve" aria-label="일드커브"></canvas></div>' +
       '<div class="rvp-chart rvp-chart--chg"><canvas id="rvpRatesChg" aria-label="테너별 변화"></canvas></div>';
@@ -217,8 +220,9 @@
     var rows = Array.isArray(c.rows) ? c.rows : [];
     var rl = c.range_label || '범위';
     var paras = rows.map(function (r) {
-      var bits = [r.pct_text, (num(r.lo) != null ? '최저 ' + f1(r.lo) + (r.lo_date ? '(' + r.lo_date + ')' : '') : null),
-        (num(r.hi) != null ? '최고 ' + f1(r.hi) + (r.hi_date ? '(' + r.hi_date + ')' : '') : null)].filter(Boolean);
+      var bits = [r.pct_text, (num(r.lo) != null ? '최저 ' + tx(r, 'lo_text', r.lo, 1) + (r.lo_date ? '(' + r.lo_date + ')' : '') : null),
+        (num(r.hi) != null ? '최고 ' + tx(r, 'hi_text', r.hi, 1) + (r.hi_date ? '(' + r.hi_date + ')' : '') : null),
+        (num(r.prev) != null ? '비교 ' + tx(r, 'prev_text', r.prev, 1) : null)].filter(Boolean);
       return { html: '<b>' + esc(r.name || r.key) + '</b>' + (bits.length ? ' — ' + esc(bits.join(' · ')) : '') };
     });
     var win = (S.snap && S.snap.plain && S.snap.plain.window) || {};
@@ -236,13 +240,13 @@
           var has = lo != null && hi != null && hi > lo && now != null;
           var pos = function (v) { return Math.max(0, Math.min(100, (v - lo) / (hi - lo) * 100)).toFixed(1); };
           var bar = has ?
-            '<span class="rvp-rng-lo">' + f1(lo) + '</span><span class="rvp-rng"><i class="rvp-rng-track"></i>' +
+            '<span class="rvp-rng-lo">' + esc(tx(r, 'lo_text', lo, 1)) + '</span><span class="rvp-rng"><i class="rvp-rng-track"></i>' +
               (prev != null ? '<i class="rvp-dot rvp-dot--prev" style="left:' + pos(prev) + '%"></i>' : '') +
-              '<i class="rvp-dot rvp-dot--now" style="left:' + pos(now) + '%"></i></span><span class="rvp-rng-hi">' + f1(hi) + '</span>' :
+              '<i class="rvp-dot rvp-dot--now" style="left:' + pos(now) + '%"></i></span><span class="rvp-rng-hi">' + esc(tx(r, 'hi_text', hi, 1)) + '</span>' :
             '<span class="rvp-rng-none">범위 없음</span>';
           return '<div class="rvp-crow' + (i === S.curveSel ? ' is-sel' : '') + '" data-i="' + i + '" role="button" tabindex="0" aria-pressed="' + (i === S.curveSel) + '" title="' + esc(r.name || '') + '">' +
             '<span class="rvp-crow-k">' + esc(r.key) + '</span><span class="rvp-crow-bar">' + bar + '</span>' +
-            '<span class="rvp-crow-v"><b>' + f1(now) + '</b><span class="' + cls(r.delta_bp) + '">' + s1(r.delta_bp) + '</span>' +
+            '<span class="rvp-crow-v"><b>' + esc(tx(r, 'now_text', now, 1)) + '</b><span class="' + cls(r.delta_bp) + '">' + esc(tx(r, 'delta_text', r.delta_bp, 1, true)) + '</span>' +
             (r.move ? '<span class="rvp-crow-m">' + esc(r.move) + '</span>' : '') + '</span></div>';
         }).join('') + '</div>' +
         '<div class="rvp-trend" id="rvpCurveTrendBox"' + (S.curveSel < 0 ? ' hidden' : '') + '><div class="rvp-trend-h" id="rvpCurveTrendH"></div><div class="rvp-chart rvp-chart--trend"><canvas id="rvpCurveTrend" aria-label="커브 구간 추이"></canvas></div></div>';
@@ -250,20 +254,23 @@
     return '<section class="wb-card rvp-fig" id="rvp-curve">' + cardHead('커브', c.title, helpHtml(paras), 'curve') + '<div class="rvp-body">' + body + '</div></section>';
   }
 
-  // 테너 축 하한 — 엔진 scale_note 의 '크게' 경계(±1.5)와 같은 값. 쏠림이 약한 주에 막대가 꽉 차 보여
-  //   '크게 쏠림' 으로 오독되지 않게 하는 표시 전용 상수(판정에 쓰지 않음). 엔진이 scale 필드를 주면 그 값으로 교체.
-  var TENOR_AXIS_MIN = 1.5;
+  // 테너 축 = 엔진 scale.axis_abs_max(값이 넘으면 그 값까지 넓힘) · 옅은 세로선 = scale.clear/strong 경계 — 웹 상수 0
   function tenorHtml(c) {
     c = c || {};
     var rows = Array.isArray(c.rows) ? c.rows : [];
-    var help = helpHtml([c.basis_label, c.scale_note, str(c.note), '막대 = 지금 · 세로 눈금 = 이전 · 막대를 누르면 기여 상위 구조']);
+    var sc = c.scale || {};
+    var help = helpHtml([c.basis_label, c.scale_note, str(c.note),
+      '막대 = 지금 · 진한 세로 눈금 = 이전 · 옅은 세로선 = ' + [sc.clear_label, sc.strong_label].filter(Boolean).join('·') + ' 경계 · 막대를 누르면 기여 상위 구조']
+      .concat(rows.filter(function (r) { return str(r.note20); }).map(function (r) { return r.tenor + '년: ' + r.note20; })));
     var body;
     if (c.available === false || !rows.length) body = empty('자료 없음', '이 스냅샷에 테너 재료가 없습니다.');
     else {
-      var m = TENOR_AXIS_MIN;
-      rows.forEach(function (r) { [r.value, r.prev].forEach(function (v) { var n = num(v); if (n != null) m = Math.max(m, Math.abs(n)); }); });
-      m *= 1.08;
+      var mx = 0;
+      rows.forEach(function (r) { [r.value, r.prev].forEach(function (v) { var n = num(v); if (n != null) mx = Math.max(mx, Math.abs(n)); }); });
+      var m = Math.max(num(sc.axis_abs_max) || 0, mx) || 1;
       var pos = function (v) { return 50 + Math.max(-50, Math.min(50, v / m * 50)); };
+      var guides = [num(sc.clear), num(sc.strong)].filter(function (g) { return g != null && g > 0 && g <= m; })
+        .map(function (g) { return '<i class="rvp-dguide" style="left:' + pos(-g).toFixed(1) + '%"></i><i class="rvp-dguide" style="left:' + pos(g).toFixed(1) + '%"></i>'; }).join('');
       body = '<div class="rvp-tenor">' +
         '<div class="rvp-trows" role="list"><div class="rvp-taxis" aria-hidden="true"><span></span><span class="rvp-taxis-t"><span>← 비쌈</span><span>쌈 →</span></span><span></span></div>' + rows.map(function (r, i) {
           var v = num(r.value), pv = num(r.prev), sg = num(r.sign);
@@ -271,7 +278,7 @@
           var bar = v == null ? '' : '<i class="rvp-dbar rvp-dbar--' + side + '" style="left:' + Math.min(50, pos(v)).toFixed(1) + '%;width:' + Math.abs(pos(v) - 50).toFixed(1) + '%"></i>';
           return '<div class="rvp-trow' + (r.ref ? ' is-ref' : '') + (i === S.tenorSel ? ' is-sel' : '') + '" data-i="' + i + '" role="button" tabindex="0" aria-pressed="' + (i === S.tenorSel) + '">' +
             '<span class="rvp-trow-k">' + esc(r.tenor) + '년</span>' +
-            '<span class="rvp-dtrack"><i class="rvp-dmid"></i>' + bar + (pv != null ? '<i class="rvp-dprev" style="left:' + pos(pv).toFixed(1) + '%"></i>' : '') + '</span>' +
+            '<span class="rvp-dtrack">' + guides + '<i class="rvp-dmid"></i>' + bar + (pv != null ? '<i class="rvp-dprev" style="left:' + pos(pv).toFixed(1) + '%"></i>' : '') + '</span>' +
             '<span class="rvp-trow-l">' + esc(r.label || '') + '</span></div>';
         }).join('') + '</div>' +
         '<div class="rvp-tdetail" id="rvpTenorDetail" aria-live="polite"></div></div>';
@@ -283,10 +290,15 @@
     var rows = (c && c.rows) || [], r = rows[S.tenorSel];
     if (!r) { el.innerHTML = '<div class="rvp-tdetail-empty">막대를 누르면 기여 상위 구조</div>'; return; }
     var top = Array.isArray(r.top) ? r.top : [];
-    el.innerHTML = '<div class="rvp-tdetail-h"><b>' + esc(r.tenor) + '년</b>' + (r.label ? '<span>' + esc(r.label) + '</span>' : '') + helpHtml([str(r.note), str(r.tooltip)]) + '</div>' +
-      '<div class="rvp-tdetail-sub">기여 상위' + helpHtml(['기여 = 엔진 값 그대로(상위 ' + top.length + '개만 제공 · 웹 반올림 없음)']) + '</div>' +
+    var pvAsof = S.snap && S.snap.tenor_netting_prev && S.snap.tenor_netting_prev.asof;
+    el.innerHTML = '<div class="rvp-tdetail-h"><b>' + esc(r.tenor) + '년</b>' + (r.label ? '<span>' + esc(r.label) + '</span>' : '') + helpHtml([str(r.note20)]) + '</div>' +
+      // 점수 칸 = 엔진 value_text / prev_text / with20_text 그대로
+      '<dl class="rvp-tdetail-kv"><div><dt>지금</dt><dd class="' + cls(r.value) + '">' + esc(tx(r, 'value_text', r.value, 2, true)) + '</dd></div>' +
+      '<div><dt>이전' + (pvAsof ? ' ' + esc(mmdd(pvAsof)) : '') + '</dt><dd class="' + cls(r.prev) + '">' + esc(tx(r, 'prev_text', r.prev, 2, true)) + '</dd></div>' +
+      (r.ref ? '' : '<div><dt>20년 포함</dt><dd class="' + cls(r.with20) + '">' + esc(tx(r, 'with20_text', r.with20, 2, true)) + '</dd></div>') + '</dl>' +
+      '<div class="rvp-tdetail-sub">기여 상위' + helpHtml(['기여 = 엔진 값(상위 ' + top.length + '개만 제공)']) + '</div>' +
       (top.length ? '<ol class="rvp-tdetail-list">' + top.map(function (t) {
-        return '<li><span>' + esc(t.name || t.key) + '</span><b class="' + cls(t.contrib) + '">' + nfix(t.contrib, 2, true) + '</b></li>';
+        return '<li><span>' + esc(t.name || t.key) + '</span><b class="' + cls(t.contrib) + '">' + esc(tx(t, 'contrib_text', t.contrib, 2, true)) + '</b></li>';
       }).join('') + '</ol>' : '<div class="rvp-tdetail-empty">기여 구조 목록 비어 있음</div>');
   }
 
@@ -347,8 +359,11 @@
       nc.caveat,
       order.length ? '묶음: ' + order.map(function (k) { return bl[k] || k; }).join(' · ') : null,
       lanes.length ? '줄: ' + lanes.map(function (k) { return ll[k] || k; }).join(' · ') : null,
-      nc.bond_pct_note, nc.other_pct_note, nc.level_now_note, nc.spark_note,
-      ex.length ? { html: '<b>표시 제외</b> — ' + ex.map(function (e) { return esc(e.name || e.key) + (e.reason ? '(' + esc(e.reason) + ')' : ''); }).join(' · ') } : null]);
+      nc.bond_badge_note, nc.bond_pct_note, nc.other_pct_note, nc.level_now_note, nc.stub_note, nc.spark_note,
+      ex.length ? { html: '<b>표시 제외</b> — ' + ex.map(function (e) {
+        var rk = e.ranks && typeof e.ranks === 'object' ? Object.keys(e.ranks).map(function (k) { return String(ll[k] || k).replace(/\s*상위\s*\d+$/, '') + ' ' + e.ranks[k] + '위'; }).join(' · ') : '';
+        return esc(e.name || e.key) + (e.reason ? '(' + esc(e.reason) + (rk ? ' · ' + esc(rk) : '') + ')' : (rk ? '(' + esc(rk) + ')' : ''));
+      }).join(' · ') } : null]);
     var h = '<section class="rvp-sec" id="rvp-notable" aria-label="' + esc(p.notable_title || '이번 주 눈에 띄는 곳') + '">' +
       '<div class="rvp-sec-head"><h2 class="rvp-sec-title">' + esc(p.notable_title || '이번 주 눈에 띄는 곳') + '</h2>' + help +
       (nc.caveat ? '<span class="wb-badge">' + esc(nc.caveat) + '</span>' : '') + jumpBtn('notable') + '</div>';
@@ -357,10 +372,9 @@
     order.forEach(function (bk) {
       var mine = items.filter(function (it) { return it.bucket === bk; });
       if (!mine.length) return;
-      // 종목 흐름 = 종목 금리 흐름 대용 — 엔진 수선 전까지 툴팁이 아니라 카드 위 작은 글자(민재 계약)
-      var bh = bk === 'bond_rv' ? helpHtml([nc.bond_pct_note]) : '';
-      var bnote = bk === 'bond_rv' && str(nc.bond_flow_note) ? '<div class="rvp-bucket-note">' + esc(nc.bond_flow_note) + '</div>' : '';
-      h += '<div class="wb-card rvp-bucket" data-bucket="' + esc(bk) + '"><div class="wb-card-head"><span class="wb-card-title">' + esc(bl[bk] || bk) + '</span>' + bh + '</div>' + bnote + '<div class="rvp-lanes">';
+      // 종목 주석(배지 규칙·금리 흐름 대용·당일 순위) = 툴팁. 화면 사실은 카드의 엔진 fact 가 맡는다(엔진 수선 후 임시 노출 정리)
+      var bh = bk === 'bond_rv' ? helpHtml([nc.bond_badge_note, nc.bond_flow_note, nc.bond_pct_note]) : '';
+      h += '<div class="wb-card rvp-bucket" data-bucket="' + esc(bk) + '"><div class="wb-card-head"><span class="wb-card-title">' + esc(bl[bk] || bk) + '</span>' + bh + '</div><div class="rvp-lanes">';
       lanes.forEach(function (ln) {
         var li = mine.map(function (it, k) { return [it, k]; }).filter(function (x) { return x[0].lane === ln; }).sort(function (a, b) {
           var ra = num(a[0].rank), rb = num(b[0].rank);
@@ -388,20 +402,20 @@
     else body = '<table class="rvp-ptable"><thead><tr><th></th>' + prods.map(function (p) { return '<th>' + esc(p) + '</th>'; }).join('') + '</tr></thead><tbody>' +
       tenors.map(function (t) {
         var r = rowOf(t) || {};
-        var lvl = str(r.level_note) || str(r.level_text) || str(r.ref_text) || str(r.tooltip) ||
-          (r.ref_label && num(r.ref_spread_bp) != null ? r.ref_label + ' ' + s1(r.ref_spread_bp) + 'bp' : null);
+        var lvl = str(r.level_text) ||
+          (r.ref_label && (str(r.ref_spread_text) || num(r.ref_spread_bp) != null) ? r.ref_label + ' ' + tx(r, 'ref_spread_text', r.ref_spread_bp, 1, true) + 'bp' : null);
         return '<tr><th scope="row">' + esc(t) + '년' + helpHtml([r.best ? null : r.sentence, r.leader_text, lvl]) + '</th>' +
           prods.map(function (pr) {
             var x = cellOf(t, pr);
             if (!x) return '<td class="rvp-pcell is-none">–</td>';
-            return '<td class="rvp-pcell' + (x.best ? ' is-best' : '') + '"><b>' + f1(x.level_bp) + '</b><span class="' + cls(x.d5_bp) + '">' + s1(x.d5_bp) + '</span>' +
+            return '<td class="rvp-pcell' + (x.best ? ' is-best' : '') + '"><b>' + esc(tx(x, 'rate_text', x.level_bp, 1)) + '</b><span class="' + cls(x.d5_bp) + '">' + esc(tx(x, 'd5_text', x.d5_bp, 1, true)) + '</span>' +
               (x.best ? '<span class="rvp-pbest">우위</span>' : '') + '</td>';
           }).join('') + '</tr>';
       }).join('') + '</tbody></table>' +
       // 우위가 있는 테너의 엔진 문장은 화면 글자로(‘평소보다’ 기준 · ‘(수준은 반대)’ 같은 단서가 툴팁에 묻히지 않게)
       (rows.some(function (r) { return r.best && str(r.sentence); }) ? '<ul class="rvp-claims">' + rows.filter(function (r) { return r.best && str(r.sentence); })
         .map(function (r) { return '<li>' + esc(r.sentence) + '</li>'; }).join('') + '</ul>' : '') +
-      '<div class="rvp-foot">칸 = 금리(bp) · 변화(bp) · 웹 반올림 없음</div>';
+      '<div class="rvp-foot">칸 = 금리 · 변화(bp)</div>';
     return '<section class="wb-card rvp-fig" id="rvp-product">' + cardHead('상품', c.title, helpHtml([c.note]), 'product') + '<div class="rvp-body">' + body + '</div></section>';
   }
 
@@ -415,14 +429,14 @@
     var body;
     if (c.available === false || !rows.length) body = empty('자료 없음', '이 스냅샷에 바스켓 재료가 없습니다.');
     else body = '<div class="rvp-baskets">' + rows.map(function (g) {
-      return '<div class="rvp-bgroup"><div class="rvp-bgroup-h"><b>' + esc(g.group) + '</b><span class="rvp-muted">선물</span><span class="' + cls(g.fut_d5_bp) + '">' + s1(g.fut_d5_bp) + 'bp</span>' +
-        helpHtml([g.state, str(g.note)]) + '</div>' +
+      return '<div class="rvp-bgroup"><div class="rvp-bgroup-h"><b>' + esc(g.group) + '</b><span class="rvp-muted">선물</span><span class="' + cls(g.fut_d5_bp) + '">' + esc(tx(g, 'fut_d5_text', g.fut_d5_bp, 1, true)) + 'bp</span>' +
+        helpHtml([g.state, str(g.basket_avg_d5_text) ? '바스켓 평균 ' + g.basket_avg_d5_text + 'bp' : null, str(g.note)]) + '</div>' +
         (g.members || []).map(function (x) {
           var v = num(x.rel_bp);
           var bar = v == null ? '' : '<i class="rvp-dbar rvp-dbar--' + (v > 0 ? 'up' : v < 0 ? 'down' : 'zero') + '" style="left:' + Math.min(50, pos(v)).toFixed(1) + '%;width:' + Math.abs(pos(v) - 50).toFixed(1) + '%"></i>';
-          return '<div class="rvp-brow" title="' + esc(x.code || '') + '"><span class="rvp-brow-k">' + esc(x.short || x.code) + '</span>' +
+          return '<div class="rvp-brow" title="' + esc((x.code || '') + (str(x.d5_text) ? ' · 주간 ' + x.d5_text + 'bp' : '')) + '"><span class="rvp-brow-k">' + esc(x.short || x.code) + '</span>' +
             '<span class="rvp-dtrack"><i class="rvp-dmid"></i>' + bar + '</span>' +
-            '<span class="rvp-brow-v ' + cls(x.rel_bp) + '">' + s1(x.rel_bp) + '</span><span class="rvp-brow-l">' + esc(x.label || '') + '</span></div>';
+            '<span class="rvp-brow-v ' + cls(x.rel_bp) + '">' + esc(tx(x, 'rel_text', x.rel_bp, 1, true)) + '</span><span class="rvp-brow-l">' + esc(x.label || '') + '</span></div>';
         }).join('') + '</div>';
     }).join('') + '</div><div class="rvp-foot">막대 = 선물 대비 상대(bp)</div>';
     return '<section class="wb-card rvp-fig" id="rvp-basket">' + cardHead('바스켓', c.title, helpHtml([c.rel_rule, c.note]), 'basket') + '<div class="rvp-body">' + body + '</div></section>';
@@ -463,13 +477,14 @@
         // 50% 기준선이 이 행에 타당한가 = 엔진 baseline_valid(있으면) · 없으면 baseline_caution 의 반대
         var caution = (r.baseline_valid != null) ? r.baseline_valid === false : r.baseline_caution === true, wy = why(r);
         var rh = helpHtml([r.factor === 'mr' ? df.mr : r.factor === 'momentum' ? df.momentum : null,
-          num(r.pct_2w) != null ? '2주 뒤 ' + r.pct_2w + '%' : null]);
+          str(r.pct_2w_text) ? '2주 뒤 ' + r.pct_2w_text + (num(r.n_judged_2w) != null ? '(' + r.n_judged_2w + '건)' : '') : null,
+          str(r.pnl_ref_text) ? '참고 손익 ' + r.pnl_ref_text + ' — ' + (lb.pnl || '단독판정 금지') : null]);
         var gap = i > 0 && rows[i - 1].bucket !== r.bucket ? ' is-gap' : '';
         return '<div class="rvp-trust-row' + gap + (caution ? ' is-caution' : '') + '" data-bucket="' + esc(r.bucket) + '" data-factor="' + esc(r.factor) + '">' +
           '<span class="rvp-trust-l">' + (caution ? '<span class="rvp-trust-mark" title="기준선 주의 행">※</span>' : '') + esc(r.label || ((r.bucket_label || '') + ' ' + (r.factor_label || ''))) + '</span>' +
           // 기준선 주의 행 = 50% 눈금을 긋지 않음(50% 기준 판정 금지 · 막대 흐림)
           '<span class="rvp-trust-bar"><i class="rvp-trust-fill" style="width:' + w.toFixed(1) + '%"></i>' + (base != null && !caution ? '<i class="rvp-trust-base" style="left:' + (base * 100).toFixed(1) + '%"></i>' : '') + '</span>' +
-          '<span class="rvp-trust-v"><b>' + (pct == null ? '–' : esc(pct) + '%') + '</b><span class="rvp-muted">' + (num(r.n_hit) != null && num(r.n_judged) != null ? esc(r.n_hit) + '/' + esc(r.n_judged) : '') + '</span></span>' +
+          '<span class="rvp-trust-v"><b>' + esc(str(r.pct_text) || (pct == null ? '–' : pct + '%')) + '</b><span class="rvp-muted">' + (num(r.n_hit) != null && num(r.n_judged) != null ? esc(r.n_hit) + '/' + esc(r.n_judged) : '') + '</span></span>' +
           '<span class="rvp-trust-verdict"><span class="rvp-trust-vt">' + esc(r.verdict || '') + rh + '</span>' + (wy ? '<span class="rvp-trust-why">' + esc(wy) + '</span>' : '') + '</span></div>';
       }).join('') + '</div>' : empty('행 없음', '스코어보드 일반 보기 재료에 행이 없습니다.');
     return '<section class="wb-card rvp-fig" id="rvp-trust">' + head(t.title, help, lb.page ? '<span class="wb-badge">' + esc(lb.page) + '</span>' : '') +
@@ -550,7 +565,7 @@
       meta.data.forEach(function (el, i) {
         var v = ch.data.datasets[0].data[i]; if (v == null) return;
         ctx.textBaseline = v >= 0 ? 'bottom' : 'top';
-        ctx.fillText(fmt(v), el.x, v >= 0 ? el.y - 2 : el.y + 2);
+        ctx.fillText(fmt(v, i), el.x, v >= 0 ? el.y - 2 : el.y + 2);
       });
       ctx.restore();
     } };
@@ -576,12 +591,13 @@
       track(new Chart(cb.getContext('2d'), { type: 'bar',
         data: { labels: tc.map(function (t) { return t.tenor + '년' + (t.ref ? '(참고)' : ''); }),
           datasets: [{ label: '변화(' + (c.unit || 'bp') + ')', data: tc.map(function (t) { return num(t.change_bp); }), borderRadius: 2, maxBarThickness: 28,
+            _texts: tc.map(function (t) { return tx(t, 'change_text', t.change_bp, 1, true); }),   // 막대 끝 글자 = 엔진 change_text
             backgroundColor: function (x) { var t = tc[x.dataIndex] || {}, v = num(t.change_bp); return t.ref ? alpha('--wb-muted', .45) : alpha(v > 0 ? '--wb-up' : v < 0 ? '--wb-down' : '--wb-muted', .85); } }] },
         options: { responsive: true, maintainAspectRatio: false, animation: false, layout: { padding: { top: 14, bottom: 2 } },
           plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (x) {
-            var t = tc[x.dataIndex] || {}; return ' ' + s1(t.change_bp) + (c.unit || 'bp') + ' (' + f1(t.prev_bp) + ' → ' + f1(t.now_bp) + ')' + (t.ref ? ' · ' + (c.ref_note || '참고') : ''); } } } },
+            var t = tc[x.dataIndex] || {}; return ' ' + tx(t, 'change_text', t.change_bp, 1, true) + (c.unit || 'bp') + ' · 지금 ' + tx(t, 'now_text', t.now_bp, 1) + (t.ref ? ' · ' + (c.ref_note || '참고') : ''); } } } },
           scales: { x: { grid: { display: false } }, y: { display: false, grace: '25%' } } },
-        plugins: [valueLabels(s1)] }));
+        plugins: [valueLabels(function (v, i) { return tx(tc[i], 'change_text', v, 1, true); })] }));
     }
   }
 
@@ -589,12 +605,12 @@
     var rows = (c && c.rows) || [], r = rows[S.curveSel];
     var hd = doc.getElementById('rvpCurveTrendH'), cv = doc.getElementById('rvpCurveTrend');
     if (!hd || !cv) return;
-    var s = r ? series(snap, { src: 'spread_history', key: r.series, to: snap && snap.asof }) : null;
+    var s = r ? series(snap, r.spark_ref) : null;   // 1년 추이 = 엔진 spark_ref(src curve_range_1y · 끝 날짜 ≠ to → 추이 없음)
     if (S.curveTrend) { try { S.curveTrend.destroy(); } catch (e) { /* noop */ } charts = charts.filter(function (x) { return x !== S.curveTrend; }); S.curveTrend = null; }
     if (!r) return;
     if (!r || !s) { hd.innerHTML = '<span>' + esc(r ? (r.name || r.key) : '') + '</span><span class="rvp-muted">추이 없음</span>'; cv.style.display = 'none'; return; }
     cv.style.display = '';
-    hd.innerHTML = '<span><b>' + esc(r.key) + '</b> ' + esc(r.name || '') + ' 추이</span><span class="rvp-muted">' + esc(mmdd(s.dates[0])) + '~' + esc(mmdd(s.dates[s.dates.length - 1])) + ' · ' + s.values.length + ' 관측</span>';
+    hd.innerHTML = '<span><b>' + esc(r.key) + '</b> ' + esc(r.name || '') + ' 추이</span><span class="rvp-muted">' + esc(s.dates[0]) + ' ~ ' + esc(s.dates[s.dates.length - 1]) + ' · ' + s.values.length + ' 관측</span>';
     S.curveTrend = track(new Chart(cv.getContext('2d'), { type: 'line',
       data: { labels: s.dates.map(mmdd), datasets: [{ label: r.key, data: s.values.map(num), borderColor: tok('--wb-series-1'), borderWidth: 1.5, pointRadius: function (x) { return x.dataIndex === s.values.length - 1 ? 3 : 0; }, pointBackgroundColor: tok('--wb-ink'), spanGaps: false, tension: .2 }] },
       options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
@@ -677,9 +693,11 @@
       }
     }
     var card = null;
-    Array.prototype.forEach.call(doc.querySelectorAll('#rvp-notable .rvp-note[data-kind="bond"]'), function (el) {
-      var on = !!p && el.getAttribute('data-key') === String(p.id);
-      el.classList.toggle('is-linked', on); el.setAttribute('aria-pressed', on ? 'true' : 'false');
+    Array.prototype.forEach.call(doc.querySelectorAll('#rvp-notable .rvp-note'), function (el) {   // 강조는 한 장만(스텁으로 켠 다른 카드 강조도 해제)
+      var bond = el.getAttribute('data-kind') === 'bond';
+      var on = bond && !!p && el.getAttribute('data-key') === String(p.id) && !card;
+      el.classList.toggle('is-linked', on);
+      if (bond) el.setAttribute('aria-pressed', on ? 'true' : 'false');
       if (on) card = el;
     });
     if (from === 'chart' && card) card.scrollIntoView({ behavior: 'smooth', block: 'nearest' });

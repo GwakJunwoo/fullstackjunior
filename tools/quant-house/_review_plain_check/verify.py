@@ -1,26 +1,34 @@
 # -*- coding: utf-8 -*-
-"""주간 리뷰 일반 보기 웹 검증(prep_fixtures.py 먼저 · devserver.py 8765 기동 후 실행) — 첫 화면 · 금지어 0 · 숫자 = snapshot(문장 원문 일치) · 정직 라벨 · 부호/색 · 연계 · 빈 상태 · 고급 회귀.
-정답은 snapshot 원 값에서 직접 읽어 비교(코드 출력 베끼기 0)."""
+"""주간 리뷰 '일반 | 고급' 웹 검증 — prep_fixtures.py 먼저 · devserver.py 8765 기동 후 실행.
+계약 = BQH fbc6cdff · a5e58a86 (plain schema 2 · *_text · curve_range_1y 추이 · tenor scale · badge_display).
+정답은 snapshot 원 값에서 직접 읽어 비교(코드 출력 베끼기 0). 시나리오:
+  A 일반(W43 실데이터) · B 고급 회귀(개편 전 커밋 대비) · C/X plain 없음 폴백 · D scoreboard plain 없음 ·
+  E 비표준 창 · F 스냅샷 없음 · H 경계 목업 · L 옛 계약(schema 1) · G 링크·저장 막힘
+"""
+import difflib
 import json
+import os
 import re
 import sys
 import urllib.request
 from pathlib import Path
 from playwright.sync_api import sync_playwright
-import os
 
-FX = Path(os.environ.get("RVP_FX", Path(__file__).resolve().parent / "_fx"))   # prep_fixtures.py 산출
+HERE = Path(__file__).resolve().parent
+FX = Path(os.environ.get("RVP_FX", HERE / "_fx"))   # prep_fixtures.py 산출
+REPO = HERE.parents[2]
 BASE = os.environ.get("VERIFY_BASE", "http://127.0.0.1:8765")
 BANNED = ("진앙", "넷팅", "z_wavg", "mom_wavg", "net_z", "cheap", "rich", "발산", "수렴", "axis_note", "TOP PICK",
           "conf=", "mr_score", "mom_score", "resid_z")
 FAB = ("본원통화", "M2", "한은RP", "한은 RP", "부가세", "부가가치세", "환율", "원/달러", "달러/원", "잔고", "여력",
        "P&L", "수익률 곡선 베팅", "매수 추천", "매도 추천")
+CONF = ("MR단독", "모멘텀단독", "★상충(발산중)", "정렬(되돌림 정황)", "관찰")   # 고급 확신 라벨(_RV_CONF_LBL)
 FAILS, PASSES = [], []
 
 
 def check(name, cond, detail=""):
     (PASSES if cond else FAILS).append(name)
-    print(("PASS  " if cond else "FAIL  ") + name + (("  | " + str(detail)) if detail else ""))
+    print(("PASS  " if cond else "FAIL  ") + name + (("  | " + str(detail)[:400]) if detail else ""))
 
 
 def mode(m):
@@ -43,310 +51,326 @@ def page(p, w=1440, h=900, hash_="#review", view=None, theme=None):
     return pg, errs
 
 
+def tips_of(pg, sel):
+    return pg.evaluate("(s => [...document.querySelectorAll(s + ' .wb-help template')].map(t => t.innerHTML).join('\\n'))", sel)
+
+
+def unesc(h):
+    return h.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&quot;", '"')
+
+
 snap = json.loads((FX / "snap_w43.json").read_text(encoding="utf-8"))
 sbd = json.loads((FX / "sb_dev.json").read_text(encoding="utf-8"))
 P = snap["plain"]
+CH = P["charts"]
+NOTE = [n for n in P["notable"] if not n.get("stub")]
+STUBS = [n for n in P["notable"] if n.get("stub")]
+T = sbd["plain"]
+
+ONLY = os.environ.get("VERIFY_ONLY", "")   # 카나리아 가속 — 섹션 글자만 실행(예 "AB") · 비우면 전부
+
+
+def run(sec):
+    return not ONLY or sec in ONLY
+
 
 with sync_playwright() as pw:
-    # ── A. W43 일반 보기 ─────────────────────────────────────────────
-    mode("w43")
-    pg, errs = page(pw)
-    check("A0 기본 보기 = 일반(저장값 없음)", pg.evaluate("document.getElementById('view-review').getAttribute('data-rv-view')") == "plain")
-    # 첫 화면: 결론 + 그림 4장 하단이 900 안
-    r = pg.evaluate("""(() => { const o = {}; ['rvp-head','rvp-rates','rvp-curve','rvp-tenor','rvp-bond'].forEach(id => {
-        const b = document.getElementById(id).getBoundingClientRect(); o[id] = [Math.round(b.top), Math.round(b.bottom)]; }); return o; })()""")
-    check("A1 첫 화면(1440x900)에 결론 + 그림 4장 전부", all(v[1] <= 900 for v in r.values()), r)
-    plain_txt = pg.evaluate("document.getElementById('revPlain').innerText")
-    plain_tc = pg.evaluate("document.getElementById('revPlain').textContent")
-    toc_txt = pg.evaluate("document.getElementById('wbRevTocPlain').innerText")
-    hit = [t for t in BANNED + FAB if t in plain_txt or t in plain_tc or t in toc_txt]
-    check("A2 일반 보기 DOM 텍스트 금지어·조작토큰 0", not hit, hit)
-    check("A2b '추천' 단어 0(일반 보기)", "추천" not in plain_tc, "")
-    # 결론 3줄 = headline 원문
-    lines = pg.evaluate("[...document.querySelectorAll('#rvp-head .rvp-l')].map(e => e.textContent)")
-    check("A3 결론 3줄 = plain.headline 원문", lines == P["headline"], lines)
-    # 그림 제목 = charts.*.title 원문
-    titles = pg.evaluate("Object.fromEntries(['rates','curve','tenor','bond','product','basket'].map(k => [k, (document.querySelector('#rvp-' + k + ' .rvp-title')||{}).textContent]))")
-    want = {"rates": P["charts"]["rates"]["title"], "curve": P["charts"]["curve_shape"]["title"], "tenor": P["charts"]["tenor_value"]["title"],
-            "bond": P["charts"]["bond_scatter"]["title"], "product": P["charts"]["product_map"]["title"], "basket": P["charts"]["basket"]["title"]}
-    check("A4 그림 제목 6 = charts.*.title 원문", titles == want, {k: (titles.get(k), want[k]) for k in want if titles.get(k) != want[k]})
-    # 눈에 띄는 곳 카드 = notable[].sentence 원문 · 순서 · 배지 텍스트
-    cards = pg.evaluate("[...document.querySelectorAll('#rvp-notable .rvp-note')].map(e => ({key: e.dataset.key, sent: e.querySelector('.rvp-sent').textContent, badge: (e.querySelector('.rvp-badge')||{}).textContent, tail: (e.querySelector('.rvp-tail')||{}).textContent, sign: e.dataset.sign}))")
-    nb = {(n["key"], n["bucket"], n["lane"]): n for n in P["notable"]}
-    LEG = {"conflict", "align", "mom_only", "mr_only", "neither"}   # 옛 계약 확신 배지 키 — 종목 카드에선 숨김(3-ter-1 · 사용자 10-21)
-    def _want(n, f):
-        return None if (n.get("kind") == "bond" and n.get("badge_key") in LEG) else n.get(f)
-    ok = len(cards) == len([n for n in P["notable"] if not n.get("stub")]) and all(any(
-        c["key"] == n["key"] and c["sent"] == n["sentence"] and c["badge"] == _want(n, "badge") and c["tail"] == _want(n, "tail")
-        for n in P["notable"]) for c in cards)
-    check("A5 카드 %d장 = notable 원문(문장 · 배지·꼬리 — 종목 확신 배지는 숨김)" % len(cards), ok)
-    # 부호: 22-5 = 비쌈(−) · 25-5 = 쌈(+) — 정의에서 도출(잔차 + = 쌈)
-    brv = {b["code"]: b for b in snap["bond_rv"]}
-    c225 = [c for c in cards if c["key"] == "KR103502GC65"][0]
-    c255 = [c for c in cards if c["key"] == "KR103502GF62"][0]
-    check("A6 부호 22-5 잔차<0 → 비쌈 · 파랑 테", brv["KR103502GC65"]["residual_bp"] < 0 and "비쌈" in c225["sent"] and c225["sign"] == "-1")
-    check("A6b 부호 25-5 잔차>0 → 쌈 · 빨강 테", brv["KR103502GF62"]["residual_bp"] > 0 and "쌈" in c255["sent"] and "비쌈" not in c255["sent"] and c255["sign"] == "1")
-    # 정직 라벨
-    check("A7 '관찰 전용' 페이지 머리", "관찰 전용" in pg.evaluate("document.querySelector('#view-review .wb-pagehead').innerText"))
-    check("A7b '실행은 재량' 보임(결론·눈에 띄는 곳)", plain_txt.count("실행은 재량") >= 2, plain_txt.count("실행은 재량"))
-    check("A7c '되돌림 미확인 → 확인 후 접근' 보임", P["labels"]["unconfirmed"] in plain_txt)
-    # 보이는 문장 = 결론·제목·카드 — 숨긴 설명은 template(?) 안
-    helps = pg.evaluate("document.querySelectorAll('#revPlain .wb-help').length")
-    check("A8 ? 툴팁 %d개(설명 숨김)" % helps, helps >= 15)
-    check("A8b bond_flow_note = 화면 글자(엔진 수선 전 계약) · bond_pct_note 는 ? 안", P["notable_common"]["bond_flow_note"] in plain_txt and P["notable_common"]["bond_pct_note"] not in plain_tc)
-    tips = pg.evaluate("[...document.querySelectorAll('#revPlain .wb-help template')].map(t => t.innerHTML).join('\\n')")
-    check("A8c bond_pct_note·other_pct_note ? 원문 존재", all(P["notable_common"][k] in tips for k in ("bond_pct_note", "other_pct_note")))
-    # 추이선: spark_ref 풀이 = 원 시계열 끝 63 · 마지막 값 = now
-    sp = pg.evaluate("""(() => { const s = _REV; const out = [];
-        (s.plain.notable||[]).forEach(n => { const r = WBRevPlain._series(s, n.spark_ref); out.push([n.key, r ? r.values.length : 0, r ? r.values[r.values.length-1] : null, n.now, r ? r.dates[0] : null, n.spark_ref.from]); });
-        return out; })()""")
-    check("A9 추이선 20개 = 63 관측 · 끝값 = now · 시작일 = from", all(x[1] == 63 and x[2] == x[3] and x[4] == x[5] for x in sp), [x for x in sp if not (x[1] == 63 and x[2] == x[3])][:3])
-    # 산점도 점 = bond_rv 전부(참조 풀이) · 이름표 5
-    npt = pg.evaluate("WBRevPlain._bondPoints(_REV, _REV.plain.charts.bond_scatter).length")
-    check("A10 산점도 점 수 = bond_rv 유효행", npt == sum(1 for b in snap["bond_rv"] if b.get("remain_year") is not None and b.get("residual_bp") is not None), npt)
-    # 일드커브 참조 = yield_curve.current
-    yc = pg.evaluate("WBRevPlain._get(_REV, _REV.plain.charts.rates.curve_ref.now).length")
-    check("A11 curve_ref.now 풀이 = yield_curve.current", yc == len(snap["yield_curve"]["current"]), yc)
-    # 테너 막대 색: sign → up/down · 20년 = ref 회색
-    tb = pg.evaluate("[...document.querySelectorAll('#rvp-tenor .rvp-trow')].map(e => [e.querySelector('.rvp-trow-k').textContent, (e.querySelector('.rvp-dbar')||{className:''}).className, e.querySelector('.rvp-trow-l').textContent])")
-    exp = []
-    for row in P["charts"]["tenor_value"]["rows"]:
-        side = "ref" if row["ref"] else ("up" if row["sign"] > 0 else "down")
-        exp.append([f"{row['tenor']}년", side, row["label"]])
-    got = [[t[0], t[1].split("--")[-1], t[2]] for t in tb]
-    check("A12 테너 막대 색 = 엔진 sign(+빨강/−파랑)·20년 회색 · 글자 = 엔진 label", got == exp, got)
-    # 믿어도 되나 = scoreboard plain 원문 · caution 행 ? 에 baseline_note
-    tt = pg.evaluate("(document.querySelector('#rvp-trust .rvp-title')||{}).textContent")
-    check("A13 믿어도 되나 제목 = scoreboard plain.title", tt == sbd["plain"]["title"], tt)
-    caut = pg.evaluate("[...document.querySelectorAll('#rvp-trust .rvp-trust-row.is-caution')].map(r => [r.dataset.bucket + ':' + r.dataset.factor, !!r.querySelector('.rvp-trust-base')])")
-    n_c = [r["bucket"] + ":" + r["factor"] for r in sbd["plain"]["rows"] if r.get("baseline_caution")]
-    trust_txt = pg.evaluate("document.getElementById('rvp-trust').innerText")
-    check("A14 기준선 주의 원문 = 화면 글자 · 주의 행 %d개 표식 · 50%% 눈금 없음" % len(n_c),
-          sbd["plain"]["baseline_note"] in trust_txt and [c[0] for c in caut] == n_c and not any(c[1] for c in caut), caut)
-    pcts = pg.evaluate("[...document.querySelectorAll('#rvp-trust .rvp-trust-v b')].map(b => b.textContent)")
-    check("A15 적중률 % = scoreboard pct 원 값", pcts == [f"{r['pct']}%" for r in sbd["plain"]["rows"]], pcts)
-    # 커브 줄: now/Δ = 엔진 값(소수 1자리 표시)
-    cv = pg.evaluate("[...document.querySelectorAll('#rvp-curve .rvp-crow')].map(e => e.querySelector('.rvp-crow-v').innerText.replace(/\\s+/g,' '))")
-    expc = [f"{r['now']:.1f} {('+' if r['delta_bp'] > 0 else '')}{r['delta_bp']:.1f} {r['move']}" for r in P["charts"]["curve_shape"]["rows"]]
-    check("A16 커브 줄 지금·변화·움직임 = 엔진 값", cv == expc, (cv, expc))
-    # 연계: 카드 클릭 → 점 선택 / 점 클릭 → 카드 강조
-    pg.evaluate("document.querySelector('#rvp-notable .rvp-note[data-key=\"KR103502GC65\"]').click()")
-    pg.wait_for_timeout(400)
-    sel = pg.evaluate("(() => { const c = document.querySelector('#rvp-notable .rvp-note.is-linked'); return c ? c.dataset.key : null; })()")
-    check("A17 카드 클릭 → 같은 종목 카드 강조 + 산점도 선택", sel == "KR103502GC65")
-    # 커브 줄 클릭 → 추이선 표시
-    pg.evaluate("document.querySelector('#rvp-curve .rvp-crow[data-i=\"1\"]').click()")
-    pg.wait_for_timeout(300)
-    trend = pg.evaluate("[!document.getElementById('rvpCurveTrendBox').hidden, document.getElementById('rvpCurveTrendH').textContent]")
-    check("A18 커브 줄 클릭 → 추이선", trend[0] and "3-5" in trend[1], trend)
-    # 테너 막대 클릭 → 기여 상위
-    pg.evaluate("document.querySelector('#rvp-tenor .rvp-trow[data-i=\"3\"]').click()")
-    pg.wait_for_timeout(200)
-    td = pg.evaluate("[...document.querySelectorAll('#rvpTenorDetail .rvp-tdetail-list li span')].map(s => s.textContent)")
-    check("A19 테너 클릭 → 기여 상위 = top[].name", td == [t["name"] for t in P["charts"]["tenor_value"]["rows"][3]["top"]], td)
-    check("A20 콘솔 오류·경고 0 (W43 일반)", not errs, errs)
-    check("A22 '해당 없음' 같은 웹 추정 문구 0", "해당 없음" not in plain_tc)
-    pc = pg.evaluate("[...document.querySelectorAll('#rvp-product .rvp-pcell')].map(c => c.innerText.replace(/\s+/g,' '))")
-    check("A23 웹 반올림 0 — 2자리 엔진 값은 그대로(394.75 · -9.75)", any("394.75" in c and "-9.75" in c for c in pc), pc)
-    st_txt = pg.evaluate("[...document.querySelectorAll('#revPlain .wb-help template')].map(t => t.innerHTML).join(' ')")
-    sc_tip = pg.evaluate("(() => { const ch = Chart.getChart(document.getElementById('rvpBondScatter')); const cb = ch.options.plugins.tooltip.callbacks; const i = ch.data.datasets[0].data.findIndex(p => p.id === 'KR103502GC65'); const raw = ch.data.datasets[0].data[i]; return cb.label({raw}) + ' | ' + cb.afterLabel({raw}); })()")
-    check("A24 산점도 툴팁에 잔차 bp 숫자 재출력 0(엔진 문장만)", "-6.5bp ·" not in sc_tip.split('|')[0] and "bp" not in sc_tip.split('|')[0], sc_tip)
-    # 토글 → 고급 · 기억 · 해시
-    pg.click("#revViewAdv")
-    pg.wait_for_timeout(400)
-    st = pg.evaluate("[document.getElementById('view-review').getAttribute('data-rv-view'), localStorage.getItem('wb-review-view'), location.hash, getComputedStyle(document.querySelector('.rv-doc')).display, getComputedStyle(document.getElementById('revPlain')).display, getComputedStyle(document.getElementById('wbRevToc')).display, getComputedStyle(document.getElementById('wbRevTocPlain')).display]")
-    check("A21 고급 토글 → 고급 보임·일반 숨김·저장·#review/adv", st[:3] == ["adv", "adv", "#review/adv"] and st[3] != "none" and st[4] == "none" and st[5] != "none" and st[6] == "none", st)
-    pg.context.browser.close()
-
-    # ── B. 고급 회귀 — 개편 전 텍스트와 비교(의도한 오표기 수선만 차이) ─────
-    pg, errs = page(pw, view="adv")
-    adv = pg.evaluate("document.getElementById('revBody').innerText")
-    before = (FX / "adv_before.txt").read_text(encoding="utf-8")
-    norm = lambda s: s.replace("cheap %1y", "당일 순위")
-    import difflib
-    bl, al = [x for x in before.splitlines() if not re.match(r"^track\b", x)], adv.splitlines()   # 'track – – –' 메타 행 = 의도한 제거
-    diff = [d for d in difflib.unified_diff(bl, al, lineterm="", n=0) if d[:1] in "+-" and not d.startswith(("+++", "---"))]
-    (FX / "adv_diff.txt").write_text("\n".join(diff), encoding="utf-8")
-    check("B1 고급 보기 줄 수 동일(사라진 줄 0 · 'track' 메타 행 제외)", len(bl) == len(al), (len(bl), len(al)))
-    trk = pg.evaluate("[...document.querySelectorAll('#revBody .rv-two tbody tr')].map(tr => tr.children[0].textContent.trim())")
-    cm_keys = [k for k, v in snap["curve_moves"].items() if isinstance(v, dict)]
-    check("B8 고급 일드커브 표 = 커브 구간 행만('track' 등 메타 행 0)", trk == cm_keys, trk)
-    CONF = ("MR단독", "모멘텀단독", "★상충(발산중)", "정렬(되돌림 정황)", "관찰")   # 고급 확신 라벨(_RV_CONF_LBL)
-    minus = [d[1:] for d in diff if d.startswith("-")]
-    def _ok_plus(line):   # '+' 줄 = 당일 순위 수선 줄 · 또는 '-' 줄에서 확신 라벨만 뺀 줄
-        return "당일 순위" in line or any(line == m.replace(c, "", 1) for m in minus for c in CONF if c in m)
-    allowed = all(("%ile1y" in m or "cheap%1y" in m or "cheap %1y" in m or any(c in m for c in CONF)) for m in minus) and \
-        all(_ok_plus(d[1:]) for d in diff if d.startswith("+"))
-    check("B2 고급 텍스트 차이 = 종목 행 수선만('당일 순위' · 확신 라벨 제거) (%d줄)" % len(diff), allowed, diff[:4])
-    check("B3 커브·스왑 등 진짜 1년 행은 %ile1y 유지", adv.count("%ile1y") > 0, adv.count("%ile1y"))
-    check("B4 콘솔 오류·경고 0 (고급)", not errs, errs)
-    # 종목 픽 패널(bond_rv · cheap_pct 보유 행) = '당일 순위' · 그 외 버킷 = %ile1y 유지 (DECISIONS 3-bis-1)
-    pan = pg.evaluate("[...document.querySelectorAll('#revBody .rv-cols > .panel-wrap')].map(p => p.innerText)")
-    bond_ok = bool(pan) and "당일 순위" in pan[0] and "%ile1y" not in pan[0] and "cheap%1y" not in pan[0]
-    others_ok = len(pan) > 1 and all("%ile1y" in t and "당일 순위" not in t for t in pan[1:])
-    check("B5 종목 픽 행 = '당일 순위'(1년 표기 0) · 커브/스왑/선물 = %ile1y 유지", bond_ok and others_ok, [t[:60] for t in pan])
-    confs = pg.evaluate("[...document.querySelectorAll('#revBody .rv-cols > .panel-wrap')].map(p => p.querySelectorAll('.rv-conf').length)")
-    n_bond_picks = sum(len(snap["picks"]["buckets"]["bond_rv"].get(f) or []) for f in ("mr", "momentum"))
-    check("B7 고급 종목 픽 %d행 확신 라벨 0 (badge_display 없음) · 다른 버킷은 그대로" % n_bond_picks, confs and confs[0] == 0 and all(c > 0 for c in confs[1:]), confs)
-    hdr = pg.evaluate("[...document.querySelectorAll('#rvBrv th')].map(t => t.textContent)")
-    check("B6 개별채권 RV 표 머리 cheap %1y → 당일 순위", "당일 순위" in hdr and not any("1y" in h for h in hdr), hdr)
-    pg.context.browser.close()
-
-    # ── C. 빈 상태(라이브 = plain 없음) ─────────────────────────────
-    mode("noplain")
-    pg, errs = page(pw)
-    st = pg.evaluate("[WB_REV_PLAIN_STATS.state, document.getElementById('view-review').getAttribute('data-rv-view'), localStorage.getItem('wb-review-view'), location.hash, WB_REV_PLAIN_STATS.fallback, document.querySelectorAll('#revBody .cat-title').length, getComputedStyle(document.querySelector('.rv-doc')).display]")
-    check("C0 plain 없음 + 기억값 없음 → 기본 = 고급(폴백) · 기억값 안 씀 · 해시 그대로", st[:5] == ["no-plain", "adv", None, "#review", True] and st[6] != "none", st)
-    check("C2 plain 없음 → 고급 정상 렌더", st[5] > 5, st[5])
-    pg.click("#revViewPlain"); pg.wait_for_timeout(400)
-    st = pg.evaluate("[document.getElementById('view-review').getAttribute('data-rv-view'), document.getElementById('revPlain').innerText, localStorage.getItem('wb-review-view')]")
-    check("C1 일반 버튼 살아 있음 → '준비 중' 빈 상태 (직접 선택이라 저장)", st[0] == "plain" and "준비 중" in st[1] and st[2] == "plain", st)
-    pg.click("#revPlain [data-rv-go='adv']")
-    pg.wait_for_timeout(300)
-    check("C3 빈 상태 '고급 보기로' 버튼 동작", pg.evaluate("document.getElementById('view-review').getAttribute('data-rv-view')") == "adv")
-    check("C4 콘솔 오류·경고 0 (빈 상태)", not errs, errs)
-    pg.context.browser.close()
-
-    # ── X. 폴백 × 기억값 · 링크 ───────────────────────────────────
-    def _open(m, view=None, hash_="#review"):
-        mode(m)
-        q, e = page(pw, view=view, hash_=hash_)
-        return q, e, q.evaluate("[document.getElementById('view-review').getAttribute('data-rv-view'), localStorage.getItem('wb-review-view'), WB_REV_PLAIN_STATS.state]")
-    q, e, r = _open("noplain", view="plain")
-    check("X1 기억값 '일반' + plain 없음 → 고급으로 열되 기억값은 '일반' 그대로", r[:2] == ["adv", "plain"], r)
-    q.context.browser.close()
-    q, e, r = _open("w43", view="plain")
-    check("X2 기억값 '일반' + plain 있음 → 일반(아침 갱신 뒤 바로 복귀)", r[:2] == ["plain", "plain"], r)
-    q.context.browser.close()
-    q, e, r = _open("noplain", hash_="#review/plain")
-    check("X3 링크 #review/plain(명시) + plain 없음 → 일반 '준비 중'", r[0] == "plain" and r[2] == "no-plain" and r[1] is None, r)
-    q.context.browser.close()
-    q, e, r = _open("w43", view="adv")
-    check("X4 기억값 '고급' + plain 있음 → 고급(기존 동작)", r[:2] == ["adv", "adv"], r)
-    check("X5 콘솔 오류·경고 0 (폴백 조합)", not e, e)
-    q.context.browser.close()
-    q, e, r = _open("noplain")
-    mode("w43")   # 같은 세션에서 아침 갱신(plain 실림) 뒤 새로고침 버튼
-    q.click("#view-review .wb-filterbar-end .wb-btn--primary")
-    q.wait_for_function("WB_REV_PLAIN_STATS.state === 'plain'", timeout=40000); q.wait_for_timeout(400)
-    r2 = q.evaluate("[document.getElementById('view-review').getAttribute('data-rv-view'), localStorage.getItem('wb-review-view'), WB_REV_PLAIN_STATS.fallback]")
-    check("X6 같은 세션 새로고침에 plain 실림 → 자동으로 일반 복귀(기억값 안 씀)", r[0] == "adv" and r2 == ["plain", None, False], (r, r2))
-    q.context.browser.close()
-
-    # ── D. 스코어보드 plain 없음 ──────────────────────────────────
-    mode("noscore")
-    pg, errs = page(pw)
-    tr = pg.evaluate("document.getElementById('rvp-trust').innerText")
-    check("D1 scoreboard plain 없음 → 믿어도 되나 '준비 중' · 나머지 정상", "준비 중" in tr and pg.evaluate("WB_REV_PLAIN_STATS.state") == "plain", tr[:80])
-    check("D2 콘솔 오류·경고 0", not errs, errs)
-    pg.context.browser.close()
-
-    # ── E. 비표준 창(09-23 · 3영업일) ─────────────────────────────
-    mode("nonstd")
-    pg, errs = page(pw)
-    ns = json.loads((FX / "snap_nonstd.json").read_text(encoding="utf-8"))["plain"]
-    wb = pg.evaluate("[document.getElementById('wbRevWindow').hidden, document.getElementById('wbRevWindow').textContent]")
-    check("E1 비표준 창 → 페이지 머리 window_label", (not wb[0]) and ns["window_label"] in wb[1], wb)
-    l1 = pg.evaluate("document.querySelector('#rvp-head .rvp-l').textContent")
-    check("E2 결론 1줄 = 엔진 접두 포함 원문", l1 == ns["headline"][0] and l1.startswith("(" + ns["window_label"] + ")"), l1)
-    rng = pg.evaluate("document.querySelectorAll('#rvp-curve .rvp-rng-none').length")
-    check("E3 1년 범위 없음(lo/hi null) → '범위 없음' 정직 표시", rng == len(ns["charts"]["curve_shape"]["rows"]), rng)
-    nosp = pg.evaluate("WB_REV_PLAIN_STATS.nospark")
-    nsd = json.loads((FX / "snap_nonstd.json").read_text(encoding="utf-8"))
-    def _res(r):   # 정답 = 계약에서 직접: 같은 snapshot 안 시계열 존재 · 날짜 축과 길이 같음 · 끝 날짜 = to
-        if not r: return False
-        src = nsd.get(r.get("src")) or {}
-        v, d = (src.get("series") or {}).get(r.get("key")), src.get("dates")
-        return isinstance(v, list) and isinstance(d, list) and len(v) == len(d) > 0 and (not r.get("to") or d[-1] == r["to"])
-    want_miss = sum(1 for x in ns["notable"] if not x.get("stub") and not _res(x.get("spark_ref")))   # 참조 스텁은 카드 아님
-    nodom = pg.evaluate("document.querySelectorAll('#rvp-notable .rvp-nospark').length")
-    check("E4 풀리지 않는 spark_ref → '추이 없음' (%d = 정답 %d · DOM %d)" % (nosp, want_miss, nodom), nosp == want_miss == nodom)
-    check("E5 콘솔 오류·경고 0 (비표준)", not errs, errs)
-    pg.context.browser.close()
-
-    # ── F. 스냅샷 없음(available:false) ─────────────────────────
-    mode("unavail")
-    pg, errs = page(pw)
-    check("F1 available:false → 일반 = 엔진 note 그대로", "미생성" in pg.evaluate("document.getElementById('revPlain').innerText"))
-    check("F2 콘솔 오류·경고 0", not errs, errs)
-    pg.context.browser.close()
-
-    # ── H. §3-ter 예고 계약 목업(mk_future.py) — 새 키·스텁·판정 보류가 와도 견디는가 ─────
-    mode("future")
-    pg, errs = page(pw)
-    fut = json.loads((FX / "snap_future.json").read_text(encoding="utf-8"))["plain"]
-    sbf = json.loads((FX / "sb_future.json").read_text(encoding="utf-8"))["plain"]
-    txt = pg.evaluate("document.getElementById('revPlain').innerText")
-    tc = pg.evaluate("document.getElementById('revPlain').textContent")
-    col = pg.evaluate("(() => { const m = getComputedStyle(document.querySelector('#revPlain .rvp-tail')).color; const q = s => [...document.querySelectorAll(s)].map(e => getComputedStyle(e).color); return {muted: m, skew: q('#rvp-notable .rvp-note[data-kind=bond] .rvp-badge'), unk: q('#rvp-notable .rvp-b-zzz_new')}; })()")
-    check("H1 bond_skew 배지 = 엔진 글자·중립색", txt.count("커브 대비 치우침") == sum(1 for x in fut["notable"] if x.get("badge_key") == "bond_skew") and col["skew"] and all(c == col["muted"] for c in col["skew"]), col)
-    check("H2 모르는 badge_key → 중립색", col["unk"] and all(c == col["muted"] for c in col["unk"]), col["unk"])
-    stubs = pg.evaluate("[...document.querySelectorAll('#rvp-notable .rvp-stub')].map(e => [e.dataset.bucket, e.dataset.refKey, e.innerText])")
-    want_stubs = [[x["bucket"], x["ref_key"]] for x in fut["notable"] if x.get("stub")]
-    check("H3 참조 스텁 %d칸 = 엔진 stub · '치우침 줄과 같은 카드'" % len(stubs), sorted([s_[:2] for s_ in stubs]) == sorted(want_stubs) and all("치우침 줄과 같은 카드" in s_[2] for s_ in stubs), stubs)
-    pg.evaluate("document.querySelector('#rvp-notable .rvp-stub[data-bucket=\"bond_rv\"]').click()")
-    pg.wait_for_timeout(700)
-    lk = pg.evaluate("[...document.querySelectorAll('#rvp-notable .rvp-note.is-linked')].map(e => e.dataset.key + ':' + e.dataset.lane)")
-    check("H3b 스텁 클릭 → 참조 카드(치우침 줄) 강조", lk == [want_stubs[0][1] + ":mr"], lk)
-    check("H4 줄 이름 = 엔진 라벨 그대로", "치우침 순 상위 3" in txt and "흐름 순 상위 3" in txt)
-    check("H5 판정 보류 + 사유 = 화면 글자", "판정 보류" in txt and all(r["verdict_reason"] in txt for r in sbf["rows"] if r.get("verdict_reason")))
-    check("H6 상품 '(수준은 반대)' = 화면 글자 · 수준 스프레드 = 툴팁", "(수준은 반대)" in txt and "본드스왑 스프레드 수준" not in tc and "본드스왑 스프레드 수준" in pg.evaluate("[...document.querySelectorAll('#rvp-product .wb-help template')].map(t=>t.innerHTML).join(' ')"))
-    bad = [x for x in fut["notable"] if not x.get("stub") and x.get("spark_ref") and x["spark_ref"].get("to") == "2026-10-19"][0]
-    ns_ = pg.evaluate("(k => { const c = [...document.querySelectorAll('#rvp-notable .rvp-note')].find(e => e.dataset.key === k); return c ? !!c.querySelector('.rvp-nospark') : null; })", bad["key"])
-    check("H7 spark_ref.to ≠ 시계열 끝 날짜 → '추이 없음'", ns_ is True, ns_)
-    check("H8 종목 사실 한 줄(fact) 화면 글자", txt.count("[목업] 잔차 주간") == sum(1 for x in fut["notable"] if x.get("fact")))
-    check("H9 '해당 없음' 0 · 스텁 계약이면 '흐름 줄에도 있음' 0", "해당 없음" not in tc and "흐름 줄에도 있음" not in tc)
-    hit = [t for t in BANNED + FAB if t in tc]
-    check("H10 금지어 0 · 콘솔 0 (목업)", not hit and not errs, (hit, errs))
-    pg.click("#revViewAdv"); pg.wait_for_timeout(500)
-    bp = pg.evaluate("(() => { const p = document.querySelector('#revBody .rv-cols > .panel-wrap'); return [[...p.querySelectorAll('.rv-conf')].map(e => e.textContent), [...p.querySelectorAll('.rv-resid')].map(e => e.textContent)]; })()")
-    fsn = json.loads((FX / "snap_future.json").read_text(encoding="utf-8"))
-    picks = [x for f in ("mr", "momentum") for x in (fsn["picks"]["buckets"]["bond_rv"].get(f) or [])]
-    check("H11 고급 종목 행 = badge_display + 잔차 주간 변화 문자열 그대로(확신 라벨 0)",
-          bp[0] == [x["badge_display"] for x in picks] and bp[1] == [x["resid_chg_bp"] for x in picks], bp)
-    pg.context.browser.close()
-
-    # ── W. (있을 때만) 엔진 작업 트리 산출 snap_wip/sb_wip — 실제 새 계약 그대로 그리는가 ─────
-    if (FX / "snap_wip.json").exists() and (FX / "sb_wip.json").exists():
-        mode("wip")
+    if run("A"):
+        # ── A. W43 일반 보기(확정 계약 실데이터) ───────────────────────────
+        mode("w43")
         pg, errs = page(pw)
-        wp = json.loads((FX / "snap_wip.json").read_text(encoding="utf-8"))["plain"]
-        ws = json.loads((FX / "sb_wip.json").read_text(encoding="utf-8"))["plain"]
+        check("A0 기본 보기 = 일반 · schema %s" % P.get("schema"), pg.evaluate("document.getElementById('view-review').getAttribute('data-rv-view')") == "plain")
+        r = pg.evaluate("Object.fromEntries(['rvp-head','rvp-rates','rvp-curve','rvp-tenor','rvp-bond'].map(id => [id, Math.round(document.getElementById(id).getBoundingClientRect().bottom)]))")
+        check("A1 첫 화면(1440x900)에 결론 + 그림 4장 · 경고 띠 없음", all(v <= 900 for v in r.values()) and not pg.evaluate("!!document.querySelector('#revPlain .rvp-warn')"), r)
         txt = pg.evaluate("document.getElementById('revPlain').innerText")
         tc = pg.evaluate("document.getElementById('revPlain').textContent")
-        r = pg.evaluate("Object.fromEntries(['rvp-head','rvp-rates','rvp-curve','rvp-tenor','rvp-bond'].map(id => [id, Math.round(document.getElementById(id).getBoundingClientRect().bottom)]))")
-        check("W1 첫 화면 결론 + 그림 4장 (WIP schema %s)" % wp.get("schema"), all(v <= 900 for v in r.values()) and not pg.evaluate("!!document.querySelector('#revPlain .rvp-warn')"), r)
-        check("W2 결론·제목 = 엔진 원문", pg.evaluate("[...document.querySelectorAll('#rvp-head .rvp-l')].map(e => e.textContent)") == wp["headline"])
-        nst = sum(1 for x in wp["notable"] if x.get("stub"))
-        check("W3 참조 스텁 %d칸 = 엔진 stub_text" % nst, pg.evaluate("document.querySelectorAll('#rvp-notable .rvp-stub').length") == nst
-              and all(x["stub_text"] in txt for x in wp["notable"] if x.get("stub") and x.get("stub_text")))
-        cards = [x for x in wp["notable"] if not x.get("stub")]
-        check("W4 카드 %d장 문장·배지·사실 = 엔진 원문" % len(cards), all(x["sentence"] in txt and (not x.get("badge") or x["badge"] in txt) and (not x.get("fact") or x["fact"] in txt) for x in cards))
-        check("W5 판정 보류 사유·subtitle = 화면 글자", all(rw["verdict_reason"] in txt for rw in ws["rows"] if rw.get("verdict_reason"))
-              and (not ws.get("subtitle") or ws["subtitle"] in txt) and pg.evaluate("(document.querySelector('#rvp-trust .rvp-title')||{}).textContent") == ws["title"])
-        nb = pg.evaluate("[...document.querySelectorAll('#rvp-trust .rvp-trust-row')].map(e => !!e.querySelector('.rvp-trust-base'))")
-        check("W6 50% 눈금 = baseline_valid 행만", nb == [rw.get("baseline_valid", not rw.get("baseline_caution")) is not False for rw in ws["rows"]], nb)
-        hit = [t for t in BANNED + FAB if t in tc]
-        check("W7 금지어 0 · '해당 없음' 0 · 콘솔 0 (WIP)", not hit and "해당 없음" not in tc and not errs, (hit, errs))
+        toc = pg.evaluate("document.getElementById('wbRevTocPlain').innerText")
+        hit = [t for t in BANNED + FAB if t in txt or t in tc or t in toc]
+        check("A2 일반 보기 DOM 텍스트 금지어·조작토큰 0", not hit, hit)
+        check("A2b '추천' 0 · '해당 없음' 0", "추천" not in tc and "해당 없음" not in tc)
+        check("A3 결론 3줄 = headline 원문", pg.evaluate("[...document.querySelectorAll('#rvp-head .rvp-l')].map(e => e.textContent)") == P["headline"])
+        titles = pg.evaluate("Object.fromEntries(['rates','curve','tenor','bond','product','basket','trust'].map(k => [k, (document.querySelector('#rvp-' + k + ' .rvp-title')||{}).textContent]))")
+        want = {"rates": CH["rates"]["title"], "curve": CH["curve_shape"]["title"], "tenor": CH["tenor_value"]["title"], "bond": CH["bond_scatter"]["title"],
+                "product": CH["product_map"]["title"], "basket": CH["basket"]["title"], "trust": T["title"]}
+        check("A4 그림 제목 7 = 엔진 title 원문(scoreboard 포함)", titles == want, {k: (titles.get(k), want[k]) for k in want if titles.get(k) != want[k]})
+        cards = pg.evaluate("[...document.querySelectorAll('#rvp-notable .rvp-note')].map(e => ({key: e.dataset.key, lane: e.dataset.lane, bucket: e.dataset.bucket, sent: e.querySelector('.rvp-sent').textContent, badge: (e.querySelector('.rvp-badge')||{}).textContent || null, tail: (e.querySelector('.rvp-tail')||{}).textContent || null, fact: (e.querySelector('.rvp-fact')||{}).textContent || null, sign: e.dataset.sign}))")
+        def _match(c, n):
+            return (c["key"], c["lane"], c["bucket"]) == (n["key"], n["lane"], n["bucket"]) and c["sent"] == n["sentence"] and \
+                c["badge"] == (n.get("badge") or None) and c["tail"] == (n.get("tail") or None) and c["fact"] == (n.get("fact") or None)
+        check("A5 카드 %d장 = 엔진 원문(문장·배지·꼬리·사실) · 순서" % len(cards), len(cards) == len(NOTE) and all(any(_match(c, n) for n in NOTE) for c in cards))
+        brv = {b["code"]: b for b in snap["bond_rv"]}
+        c225 = [c for c in cards if c["key"] == "KR103502GC65"][0]
+        c255 = [c for c in cards if c["key"] == "KR103502GF62"][0]
+        check("A6 부호 22-5 잔차<0 → 비쌈 · 파랑 테 / 25-5 잔차>0 → 쌈 · 빨강 테",
+              brv["KR103502GC65"]["residual_bp"] < 0 and "비쌈" in c225["sent"] and c225["sign"] == "-1" and
+              brv["KR103502GF62"]["residual_bp"] > 0 and "비쌈" not in c255["sent"] and c255["sign"] == "1")
+        check("A7 정직 라벨 — 관찰 전용 · 실행은 재량 · 되돌림 미확인", "관찰 전용" in pg.evaluate("document.querySelector('#view-review .wb-pagehead').innerText")
+              and txt.count("실행은 재량") >= 2 and P["labels"]["unconfirmed"] in txt)
+        tips = unesc(tips_of(pg, "#revPlain"))
+        nc = P["notable_common"]
+        moved = [k for k in ("bond_badge_note", "bond_pct_note", "stub_note", "other_pct_note") if nc.get(k)]
+        check("A8 종목 주석·스텁 주석 = 툴팁(화면 글자 아님) · 원문 그대로", all(nc[k] not in tc and nc[k] in tips for k in moved), moved)
+        sp = pg.evaluate("(() => (_REV.plain.notable||[]).filter(n => !n.stub).map(n => { const r = WBRevPlain._series(_REV, n.spark_ref); return [n.key, r ? r.values.length : 0, r ? r.values[r.values.length-1] : null, n.now, r ? r.dates[r.dates.length-1] : null, n.spark_ref && n.spark_ref.to]; }))()")
+        check("A9 카드 추이선 %d = 63 관측 · 끝값 = now · 끝 날짜 = to" % len(sp), all(x[1] == 63 and x[2] == x[3] and x[4] == x[5] for x in sp), [x for x in sp if not (x[1] == 63 and x[2] == x[3])][:3])
+        npt = pg.evaluate("WBRevPlain._bondPoints(_REV, _REV.plain.charts.bond_scatter).length")
+        check("A10 산점도 점 = bond_rv 유효행", npt == sum(1 for b in snap["bond_rv"] if b.get("remain_year") is not None and b.get("residual_bp") is not None), npt)
+        check("A11 curve_ref.now 풀이 = yield_curve.current", pg.evaluate("WBRevPlain._get(_REV, _REV.plain.charts.rates.curve_ref.now).length") == len(snap["yield_curve"]["current"]))
+        tb = pg.evaluate("[...document.querySelectorAll('#rvp-tenor .rvp-trow')].map(e => [e.querySelector('.rvp-trow-k').textContent, (e.querySelector('.rvp-dbar')||{className:''}).className.split('--').pop(), e.querySelector('.rvp-trow-l').textContent, parseFloat((e.querySelector('.rvp-dbar')||{style:{}}).style.width), e.querySelectorAll('.rvp-dguide').length])")
+        rows_t = CH["tenor_value"]["rows"]
+        exp = [[f"{x['tenor']}년", "ref" if x["ref"] else ("up" if x["sign"] > 0 else "down"), x["label"]] for x in rows_t]
+        check("A12 테너 막대 색 = 엔진 sign(+빨강/−파랑) · 20년 회색 · 글자 = 엔진 label", [t[:3] for t in tb] == exp, [t[:3] for t in tb])
+        sc = CH["tenor_value"]["scale"]
+        axis = max(sc["axis_abs_max"], max(abs(v) for x in rows_t for v in (x["value"], x["prev"]) if v is not None))
+        wexp = [abs(x["value"]) / axis * 50 for x in rows_t]
+        ng = sum(1 for g in (sc["clear"], sc["strong"]) if g <= axis) * 2
+        check("A13 테너 축 = 엔진 scale.axis_abs_max · 경계선 = clear/strong (웹 상수 0)",
+              all(abs(t[3] - w) < 0.11 for t, w in zip(tb, wexp)) and all(t[4] == ng for t in tb), [(t[0], t[3], round(w, 1)) for t, w in zip(tb, wexp)])
+        tt = unesc(tips_of(pg, "#rvp-tenor"))
+        check("A14 note20 = 툴팁(금리 · 테너 행)", (not CH["rates"].get("note20") or CH["rates"]["note20"] in unesc(tips_of(pg, "#rvp-rates")))
+              and all(x["note20"] in tt for x in rows_t if x.get("note20")))
+        # 믿어도 되나
+        trust_txt = pg.evaluate("document.getElementById('rvp-trust').innerText")
+        trow = pg.evaluate("[...document.querySelectorAll('#rvp-trust .rvp-trust-row')].map(r => [r.querySelector('.rvp-trust-v b').textContent, !!r.querySelector('.rvp-trust-base'), r.classList.contains('is-caution'), (r.querySelector('.rvp-trust-why')||{}).textContent || null, r.querySelector('.rvp-trust-vt').textContent])")
+        check("A15 적중률 = pct_text · 판정 = verdict · 사유 = verdict_reason(화면 글자)",
+              [x[0] for x in trow] == [rw["pct_text"] for rw in T["rows"]] and [x[4] for x in trow] == [rw["verdict"] for rw in T["rows"]]
+              and [x[3] for x in trow] == [rw.get("verdict_reason") or None for rw in T["rows"]], trow)
+        check("A16 50% 눈금 = baseline_valid 행만 · 보류 행 표식", [x[1] for x in trow] == [rw.get("baseline_valid") is not False for rw in T["rows"]]
+              and [x[2] for x in trow] == [rw.get("baseline_valid") is False for rw in T["rows"]])
+        ttip = unesc(tips_of(pg, "#rvp-trust"))
+        check("A17 subtitle = 화면 글자 · baseline_note = 툴팁 · 2주·참고 손익 = 엔진 문자열(툴팁)",
+              T["subtitle"] in trust_txt and T["baseline_note"] not in trust_txt and T["baseline_note"] in ttip
+              and all(("2주 뒤 " + rw["pct_2w_text"]) in ttip and ("참고 손익 " + rw["pnl_ref_text"]) in ttip for rw in T["rows"]))
+        # 커브: *_text · 1년 추이(curve_range_1y)
+        cv = pg.evaluate("[...document.querySelectorAll('#rvp-curve .rvp-crow')].map(e => [e.querySelector('.rvp-crow-v').innerText.replace(/\\s+/g,' '), (e.querySelector('.rvp-rng-lo')||{}).textContent, (e.querySelector('.rvp-rng-hi')||{}).textContent])")
+        rows_c = CH["curve_shape"]["rows"]
+        check("A18 커브 줄 = now_text·delta_text·move · lo_text/hi_text", cv == [[f"{x['now_text']} {x['delta_text']} {x['move']}", x["lo_text"], x["hi_text"]] for x in rows_c], cv)
+        pg.evaluate("document.querySelector('#rvp-curve .rvp-crow[data-i=\"0\"]').click()"); pg.wait_for_timeout(400)
+        tr = pg.evaluate("(() => { const ch = Chart.getChart(document.getElementById('rvpCurveTrend')); const d = ch ? ch.data.datasets[0].data : []; return [document.getElementById('rvpCurveTrendH').textContent, d.length, d[d.length-1]]; })()")
+        sr = rows_c[0]["spark_ref"]
+        check("A19 커브 줄 클릭 → 1년 추이(curve_range_1y · %d 관측 · %s~%s · 끝값 = now)" % (sr["n"], sr["from"], sr["to"]),
+              sr["src"] == "curve_range_1y" and tr[1] == sr["n"] and sr["from"] in tr[0] and sr["to"] in tr[0] and tr[2] == rows_c[0]["now"], tr)
+        # 테너 상세 = value/prev/with20/contrib _text
+        i3 = 5 if len(rows_t) > 5 else 0
+        pg.evaluate(f"document.querySelector('#rvp-tenor .rvp-trow[data-i=\"{i3}\"]').click()"); pg.wait_for_timeout(250)
+        td = pg.evaluate("[[...document.querySelectorAll('#rvpTenorDetail dd')].map(d => d.textContent), [...document.querySelectorAll('#rvpTenorDetail .rvp-tdetail-list li')].map(li => [li.children[0].textContent, li.children[1].textContent])]")
+        rr = rows_t[i3]
+        check("A20 테너 클릭 → 숫자 칸 = value_text·prev_text·with20_text · 기여 = contrib_text",
+              td[0] == [rr["value_text"], rr["prev_text"]] + ([] if rr["ref"] else [rr["with20_text"]]) and td[1] == [[t["name"], t["contrib_text"]] for t in rr["top"]], td)
+        # 금리 막대 글자 = change_text
+        ct = pg.evaluate("Chart.getChart(document.getElementById('rvpRatesChg')).data.datasets[0]._texts")
+        check("A21 금리 막대 숫자 = change_text", ct == [x["change_text"] for x in CH["rates"]["tenor_change"]], ct)
+        # 상품 · 바스켓
+        pc = pg.evaluate("[...document.querySelectorAll('#rvp-product .rvp-pcell:not(.is-none)')].map(c => [c.querySelector('b').textContent, c.querySelector('span').textContent])")
+        cells = CH["product_map"]["cells"]
+        tenors = [x["tenor"] for x in CH["product_map"]["rows"]]
+        order = [c for t in tenors for pr in ("현물", "선물", "스왑") for c in cells if c["tenor"] == t and c["product"] == pr]
+        check("A22 상품 칸 = rate_text · d5_text (웹 반올림 0)", pc == [[c["rate_text"], c["d5_text"]] for c in order], pc[:3])
+        claims = pg.evaluate("[...document.querySelectorAll('#rvp-product .rvp-claims li')].map(l => l.textContent)")
+        ptip = unesc(tips_of(pg, "#rvp-product"))
+        check("A23 우위 문장 = 화면 글자 · level_text = 툴팁(화면 아님)", claims == [x["sentence"] for x in CH["product_map"]["rows"] if x.get("best")]
+              and all(x["level_text"] in ptip and x["level_text"] not in tc for x in CH["product_map"]["rows"] if x.get("level_text")), claims)
+        bk = pg.evaluate("[...document.querySelectorAll('#rvp-basket .rvp-bgroup')].map(g => [g.querySelector('.rvp-bgroup-h').innerText.replace(/\\s+/g,' '), [...g.querySelectorAll('.rvp-brow-v')].map(v => v.textContent)])")
+        check("A24 바스켓 = fut_d5_text · rel_text", all(bk[i][1] == [m["rel_text"] for m in g["members"]] and (g["fut_d5_text"] + "bp") in bk[i][0] for i, g in enumerate(CH["basket"]["rows"])), bk)
+        # 스텁 · 배지 색
+        st = pg.evaluate("[...document.querySelectorAll('#rvp-notable .rvp-stub')].map(e => [e.dataset.bucket, e.dataset.refKey, e.innerText])")
+        check("A25 참조 스텁 %d칸 = 엔진 stub · stub_text 원문" % len(STUBS), sorted(s_[:2] for s_ in st) == sorted([x["bucket"], x["ref_key"]] for x in STUBS)
+              and all(any(x["stub_text"] in s_[2] for s_ in st) for x in STUBS if x.get("stub_text")), st)
+        if st:
+            pg.evaluate("document.querySelector('#rvp-notable .rvp-stub').click()"); pg.wait_for_timeout(700)
+            lk = pg.evaluate("[...document.querySelectorAll('#rvp-notable .rvp-note.is-linked')].map(e => [e.dataset.bucket, e.dataset.key, e.dataset.lane])")
+            check("A25b 스텁 클릭 → 같은 묶음 · 치우침 줄 원 카드 강조", lk == [[st[0][0], st[0][1], "mr"]], lk)
+        col = pg.evaluate("(() => { const m = getComputedStyle(document.querySelector('#revPlain .rvp-tail')).color; const q = s => [...document.querySelectorAll(s)].map(e => getComputedStyle(e).color); return {m: m, skew: q('#rvp-notable .rvp-b-bond_skew'), weak: q('#rvp-notable .rvp-b-mom_weak')}; })()")
+        check("A26 bond_skew · mom_weak 배지 = 중립색", col["skew"] and all(c == col["m"] for c in col["skew"] + col["weak"]), col)
+        # 이름 바뀐 키 회귀 — 엔진 산출(새 이름만)과 웹 코드(옛 이름 참조 0)
+        bonds = [n for n in NOTE if n["kind"] == "bond"]
+        eng_ok = all("resid_chg_bp" in n and "resid_prev_bp" in n and "resid_chg_text" in n and "resid_change_bp" not in n and "resid_prev" not in n for n in bonds)
+        srcs = (REPO / "assets/js/wb-review-plain.js").read_text(encoding="utf-8") + (REPO / "tools/quant-house/index.html").read_text(encoding="utf-8")
+        web_ok = "resid_change_bp" not in srcs and not re.search(r"resid_prev(?!_bp)", srcs)
+        check("A27 이름 변경 키 회귀 — 엔진 = resid_chg_bp·resid_prev_bp·resid_chg_text만 · 웹 코드 옛 이름 참조 0", eng_ok and web_ok, (eng_ok, web_ok))
+        check("A28 종목 카드 사실 줄 = 엔진 fact · fact 에 resid_chg_text 포함(같은 값)", all(n.get("fact") and n["resid_chg_text"] in n["fact"] or n["fact"].endswith("보합") for n in bonds)
+              and [c["fact"] for c in cards if c["key"] in {b["key"] for b in bonds}] == [n["fact"] for n in bonds])
+        sc_tip = pg.evaluate("(() => { const ch = Chart.getChart(document.getElementById('rvpBondScatter')); const cb = ch.options.plugins.tooltip.callbacks; const raw = ch.data.datasets[0].data.find(p => p.id === 'KR103502GC65'); return cb.label({raw}); })()")
+        check("A29 산점도 툴팁에 잔차 bp 숫자 재출력 0", "bp" not in sc_tip, sc_tip)
+        pg.evaluate("document.querySelector('#rvp-notable .rvp-note[data-key=\"KR103502GC65\"]').click()"); pg.wait_for_timeout(400)
+        check("A30 종목 카드 클릭 → 카드 강조 + 산점도 선택", pg.evaluate("[...document.querySelectorAll('#rvp-notable .rvp-note.is-linked')].map(e => e.dataset.key)") == ["KR103502GC65"])
+        check("A31 콘솔 오류·경고 0 (W43 일반)", not errs, errs)
+        pg.click("#revViewAdv"); pg.wait_for_timeout(400)
+        st2 = pg.evaluate("[document.getElementById('view-review').getAttribute('data-rv-view'), localStorage.getItem('wb-review-view'), location.hash, getComputedStyle(document.querySelector('.rv-doc')).display, getComputedStyle(document.getElementById('revPlain')).display]")
+        check("A32 고급 토글 → 고급 보임 · 저장 · #review/adv", st2[:3] == ["adv", "adv", "#review/adv"] and st2[3] != "none" and st2[4] == "none", st2)
         pg.context.browser.close()
-    else:
-        print("SKIP  W* (snap_wip/sb_wip 없음 — 엔진 작업 트리 미리보기 생략)")
 
-    # ── G. 링크 #review/adv · localStorage 막힘 ────────────────────
-    mode("w43")
-    pg, errs = page(pw, hash_="#review/adv")
-    check("G1 #review/adv 링크 → 고급으로 열림", pg.evaluate("document.getElementById('view-review').getAttribute('data-rv-view')") == "adv")
-    pg.context.browser.close()
-    b = pw.chromium.launch(channel="chrome")
-    ctx = b.new_context(viewport={"width": 1440, "height": 900})
-    ctx.add_init_script("Object.defineProperty(window,'localStorage',{get(){throw new Error('blocked')}});")
-    pg = ctx.new_page(); errs2 = []
-    pg.on("pageerror", lambda e: errs2.append(str(e)))
-    pg.goto(BASE + "/tools/quant-house/#review")
-    pg.wait_for_function("window.WB_REV_PLAIN_STATS && window.WB_REV_PLAIN_STATS.state !== 'init'", timeout=40000)
-    pg.click("#revViewAdv"); pg.wait_for_timeout(300)
-    check("G2 localStorage 막힘 → 기본 일반 · 토글 동작 · 예외 0", pg.evaluate("document.getElementById('view-review').getAttribute('data-rv-view')") == "adv" and not [e for e in errs2 if "wb-review" in e or "rvp" in e.lower()], errs2[:3])
-    b.close()
+    if run("B"):
+        # ── B. 고급 회귀 — 개편 전 커밋(adv_before.txt) 대비 의도한 수선만 ─────────────
+        pg, errs = page(pw, view="adv")
+        adv = pg.evaluate("document.getElementById('revBody').innerText")
+        before = (FX / "adv_before.txt").read_text(encoding="utf-8")
+        picks = [x for f in ("mr", "momentum") for x in (snap["picks"]["buckets"]["bond_rv"].get(f) or [])]
+        bd_text = sorted({x["badge_display"]["text"] for x in picks if x.get("badge_display")}, key=len, reverse=True)
+        facts = {x["badge_display"]["fact"] for x in picks if x.get("badge_display")}
+
+        def nb(line):   # 개편 전 줄 → 의도한 수선 적용(확신 라벨 제거 · 종목 행 당일 순위 · cheap%1y 중복 제거)
+            for c in CONF:
+                line = line.replace(c, "")
+            if "resid_z" in line:
+                line = re.sub(r" · cheap%1y [^ ]+%", "", line).replace("%ile1y", "당일 순위")
+            return line
+
+        def na(line):
+            for c in CONF + tuple(bd_text):
+                line = line.replace(c, "")
+            return line
+        bl = [nb(x) for x in before.splitlines() if not re.match(r"^track\b", x)]
+        al = [na(x) for x in adv.splitlines() if x not in facts]
+        diff = [d for d in difflib.unified_diff(before.splitlines(), adv.splitlines(), lineterm="", n=0) if d[:1] in "+-" and not d.startswith(("+++", "---"))]
+        (FX / "adv_diff.txt").write_text("\n".join(diff), encoding="utf-8")
+        check("B1 고급 텍스트 = 개편 전 + 의도한 수선만(확신 라벨→badge_display · 당일 순위 · 사실 줄 · track 행 제거) · 원 차이 %d줄" % len(diff),
+              bl == al, [d for d in difflib.unified_diff(bl, al, lineterm="", n=0)][:6])
+        check("B3 커브·스왑 등 진짜 1년 행은 %ile1y 유지", adv.count("%ile1y") > 0)
+        pan = pg.evaluate("[...document.querySelectorAll('#revBody .rv-cols > .panel-wrap')].map(p => [p.innerText, [...p.querySelectorAll('.rv-conf')].map(e => e.textContent), [...p.querySelectorAll('.rv-resid')].map(e => e.textContent)])")
+        check("B5 종목 픽 = '당일 순위'(1년 표기 0) · 다른 버킷 = %ile1y", "당일 순위" in pan[0][0] and "%ile1y" not in pan[0][0] and "cheap%1y" not in pan[0][0]
+              and all("%ile1y" in x[0] and "당일 순위" not in x[0] for x in pan[1:]))
+        check("B7 고급 종목 배지 = badge_display.text(확신 라벨 0) · 다른 버킷 확신 라벨 그대로",
+              pan[0][1] == [x["badge_display"]["text"] for x in picks] and not any(c in " ".join(pan[0][1]) for c in CONF) and all(len(x[1]) > 0 for x in pan[1:]), pan[0][1])
+        check("B9 고급 종목 잔차 주간 변화 = badge_display.fact(화면 글자)", pan[0][2] == [x["badge_display"]["fact"] for x in picks], pan[0][2])
+        btip = unesc(pg.evaluate("[...document.querySelectorAll('#revBody .rv-cols > .panel-wrap')[0].querySelectorAll('.wb-help template')].map(t => t.innerHTML).join(' ')"))
+        check("B10 picks.meta.bond_display_note = 종목 버킷 ? 원문", snap["picks"]["meta"]["bond_display_note"] in btip)
+        hdr = pg.evaluate("[...document.querySelectorAll('#rvBrv th')].map(t => t.textContent)")
+        check("B6 개별채권 RV 표 머리 cheap %1y → 당일 순위", "당일 순위" in hdr and not any("1y" in h for h in hdr), hdr)
+        trk = pg.evaluate("[...document.querySelectorAll('#revBody .rv-two tbody tr')].map(tr => tr.children[0].textContent.trim())")
+        check("B8 고급 일드커브 표 = 커브 구간 행만('track' 메타 행 0)", trk == [k for k, v in snap["curve_moves"].items() if isinstance(v, dict)], trk)
+        check("B4 콘솔 오류·경고 0 (고급)", not errs, errs)
+        pg.context.browser.close()
+
+    if run("C"):
+        # ── C. plain 없음 → 고급 폴백 ─────────────────────────────────
+        mode("noplain")
+        pg, errs = page(pw)
+        s0 = pg.evaluate("[WB_REV_PLAIN_STATS.state, document.getElementById('view-review').getAttribute('data-rv-view'), localStorage.getItem('wb-review-view'), location.hash, WB_REV_PLAIN_STATS.fallback, document.querySelectorAll('#revBody .cat-title').length]")
+        check("C0 plain 없음 + 기억값 없음 → 고급(폴백) · 기억값 안 씀 · 해시 그대로 · 고급 정상", s0[:5] == ["no-plain", "adv", None, "#review", True] and s0[5] > 5, s0)
+        pg.click("#revViewPlain"); pg.wait_for_timeout(400)
+        s1_ = pg.evaluate("[document.getElementById('view-review').getAttribute('data-rv-view'), document.getElementById('revPlain').innerText, localStorage.getItem('wb-review-view')]")
+        check("C1 일반 버튼 → '준비 중' 빈 상태(직접 선택 = 저장)", s1_[0] == "plain" and "준비 중" in s1_[1] and s1_[2] == "plain", s1_)
+        pg.click("#revPlain [data-rv-go='adv']"); pg.wait_for_timeout(300)
+        check("C3 빈 상태 '고급 보기로' 동작 · 콘솔 0", pg.evaluate("document.getElementById('view-review').getAttribute('data-rv-view')") == "adv" and not errs, errs)
+        pg.context.browser.close()
+
+    if run("X"):
+        # ── X. 폴백 × 기억값 · 링크 ───────────────────────────────────
+        def _open(m, view=None, hash_="#review"):
+            mode(m)
+            q, e = page(pw, view=view, hash_=hash_)
+            return q, e, q.evaluate("[document.getElementById('view-review').getAttribute('data-rv-view'), localStorage.getItem('wb-review-view'), WB_REV_PLAIN_STATS.state]")
+        q, e, r = _open("noplain", view="plain"); q.context.browser.close()
+        check("X1 기억값 '일반' + plain 없음 → 고급 · 기억값 '일반' 그대로", r[:2] == ["adv", "plain"], r)
+        q, e, r = _open("w43", view="plain"); q.context.browser.close()
+        check("X2 기억값 '일반' + plain 있음 → 일반", r[:2] == ["plain", "plain"], r)
+        q, e, r = _open("noplain", hash_="#review/plain"); q.context.browser.close()
+        check("X3 링크 #review/plain + plain 없음 → 일반 '준비 중'", r[0] == "plain" and r[2] == "no-plain" and r[1] is None, r)
+        q, e, r = _open("w43", view="adv")
+        check("X4 기억값 '고급' → 고급 · 콘솔 0", r[:2] == ["adv", "adv"] and not e, (r, e)); q.context.browser.close()
+        q, e, r = _open("noplain")
+        mode("w43")
+        q.click("#view-review .wb-filterbar-end .wb-btn--primary")
+        q.wait_for_function("WB_REV_PLAIN_STATS.state === 'plain'", timeout=40000); q.wait_for_timeout(400)
+        r2 = q.evaluate("[document.getElementById('view-review').getAttribute('data-rv-view'), localStorage.getItem('wb-review-view'), WB_REV_PLAIN_STATS.fallback]")
+        check("X6 같은 세션 새로고침에 plain 실림 → 일반 자동 복귀(기억값 안 씀)", r[0] == "adv" and r2 == ["plain", None, False], (r, r2))
+        q.context.browser.close()
+
+    if run("D"):
+        # ── D. scoreboard plain 없음 ─────────────────────────────────
+        mode("noscore")
+        pg, errs = page(pw)
+        trd = pg.evaluate("document.getElementById('rvp-trust').innerText")
+        check("D1 scoreboard plain 없음 → 믿어도 되나 '준비 중' · 나머지 정상 · 콘솔 0", "준비 중" in trd and pg.evaluate("WB_REV_PLAIN_STATS.state") == "plain" and not errs, errs)
+        pg.context.browser.close()
+
+    if run("E"):
+        # ── E. 비표준 창(09-23 · 3영업일 · 현 엔진 build_plain) ───────────
+        mode("nonstd")
+        pg, errs = page(pw)
+        nsd = json.loads((FX / "snap_nonstd.json").read_text(encoding="utf-8"))
+        ns = nsd["plain"]
+        wb = pg.evaluate("[document.getElementById('wbRevWindow').hidden, document.getElementById('wbRevWindow').textContent]")
+        check("E1 비표준 창 → 페이지 머리 window_label", (not wb[0]) and ns["window_label"] in wb[1], wb)
+        l1 = pg.evaluate("document.querySelector('#rvp-head .rvp-l').textContent")
+        check("E2 결론 1줄 = 엔진 접두 포함 원문", l1 == ns["headline"][0] and l1.startswith("(" + ns["window_label"] + ")"), l1)
+
+        def _res(rf):   # 계약: 같은 snapshot 안 · 날짜 축과 길이 같음 · 끝 날짜 = to
+            if not rf:
+                return False
+            src = nsd.get(rf.get("src")) or {}
+            v, d = (src.get("series") or {}).get(rf.get("key")), src.get("dates")
+            return isinstance(v, list) and isinstance(d, list) and len(v) == len(d) > 0 and (not rf.get("to") or d[-1] == rf["to"])
+        want_miss = sum(1 for x in ns["notable"] if not x.get("stub") and not _res(x.get("spark_ref")))
+        nodom = pg.evaluate("document.querySelectorAll('#rvp-notable .rvp-nospark').length")
+        check("E4 풀리지 않는 spark_ref → '추이 없음' (DOM %d = 정답 %d)" % (nodom, want_miss), nodom == want_miss)
+        rng = pg.evaluate("document.querySelectorAll('#rvp-curve .rvp-rng-none').length")
+        check("E3 1년 범위 없는 줄 → '범위 없음'", rng == sum(1 for x in ns["charts"]["curve_shape"]["rows"] if x.get("lo") is None or x.get("hi") is None), rng)
+        check("E5 콘솔 오류·경고 0 (비표준)", not errs, errs)
+        pg.context.browser.close()
+
+    if run("F"):
+        # ── F. 스냅샷 없음 ───────────────────────────────────────────
+        mode("unavail")
+        pg, errs = page(pw)
+        check("F1 available:false → 엔진 note 그대로 · 콘솔 0", "미생성" in pg.evaluate("document.getElementById('revPlain').innerText") and not errs, errs)
+        pg.context.browser.close()
+
+    if run("H"):
+        # ── H. 경계 목업(mk_edge.py) ─────────────────────────────────
+        mode("edge")
+        pg, errs = page(pw)
+        em = json.loads((FX / "edge_meta.json").read_text(encoding="utf-8"))
+        ed = json.loads((FX / "snap_edge.json").read_text(encoding="utf-8"))["plain"]
+        etx = pg.evaluate("document.getElementById('revPlain').innerText")
+        etc = pg.evaluate("document.getElementById('revPlain').textContent")
+        col = pg.evaluate("(k => { const m = getComputedStyle(document.querySelector('#revPlain .rvp-tail')).color; const b = [...document.querySelectorAll('#rvp-notable .rvp-note')].find(e => e.dataset.key === k).querySelector('.rvp-badge'); return [m, getComputedStyle(b).color]; })", em["zzz_key"])
+        check("H1 모르는 badge_key → 중립색", col[0] == col[1], col)
+        ns_ = pg.evaluate("(k => { const c = [...document.querySelectorAll('#rvp-notable .rvp-note')].find(e => e.dataset.key === k); return c ? !!c.querySelector('.rvp-nospark') : null; })", em["to_bad_key"])
+        check("H2 카드 spark_ref.to ≠ 시계열 끝 → '추이 없음'", ns_ is True, ns_)
+        pg.evaluate("document.querySelector('#rvp-curve .rvp-crow[data-i=\"1\"]').click()"); pg.wait_for_timeout(300)
+        check("H3 커브 줄 spark_ref.to 어긋남 → 추이 없음", "추이 없음" in pg.evaluate("document.getElementById('rvpCurveTrendH').textContent"))
+        v0 = pg.evaluate("document.querySelector('#rvp-curve .rvp-crow[data-i=\"0\"] .rvp-crow-v b').textContent")
+        check("H4 now_text 없음 → 원 값 그대로(34.05 · 웹 반올림 0)", v0 == "34.05", v0)
+        check("H5 상품 '(수준은 반대)' = 화면 글자", "(수준은 반대)" in etx)
+        if em.get("stub_no_text"):
+            check("H6 stub_text 없음 → 기본 문구 '치우침 줄과 같은 카드'", "치우침 줄과 같은 카드" in etx)
+        oc = pg.evaluate("(k => { const c = [...document.querySelectorAll('#rvp-notable .rvp-note')].find(e => e.dataset.key === k); return c ? [!!c.querySelector('.rvp-fact'), c.innerText] : null; })", em["old_name_key"])
+        check("H7 옛 이름(resid_change_bp·resid_prev)만 있는 카드 → 사실 줄 만들지 않음", oc is not None and oc[0] is False and "잔차 주간" not in oc[1], oc)
+        check("H8 pct_text 없음 → pct 원 값 + %", pg.evaluate("document.querySelector('#rvp-trust .rvp-trust-v b').textContent") == f"{sbd['plain']['rows'][0]['pct']}%")
+        hit = [t for t in BANNED + FAB if t in etc]
+        check("H9 금지어 0 · '해당 없음' 0 · 콘솔 0 (경계)", not hit and "해당 없음" not in etc and not errs, (hit, errs))
+        pg.context.browser.close()
+
+    if run("L"):
+        # ── L. 옛 계약(schema 1 · ae87f7dc) 하위 호환 ───────────────────
+        mode("legacy")
+        pg, errs = page(pw)
+        lg = json.loads((FX / "snap_legacy.json").read_text(encoding="utf-8"))["plain"]
+        lb = pg.evaluate("[...document.querySelectorAll('#rvp-notable .rvp-note[data-kind=\"bond\"]')].map(c => [!!c.querySelector('.rvp-badge'), !!c.querySelector('.rvp-tail')])")
+        check("L1 옛 계약 종목 카드 확신 배지·꼬리 숨김(%d장)" % len(lb), lb and all(x == [False, False] for x in lb), lb)
+        pg.evaluate("document.querySelector('#rvp-curve .rvp-crow[data-i=\"0\"]').click()"); pg.wait_for_timeout(300)
+        check("L2 옛 계약 커브 줄(spark_ref 없음) → 추이 없음 · 126일 대체 0", "추이 없음" in pg.evaluate("document.getElementById('rvpCurveTrendH').textContent"))
+        check("L3 옛 계약 렌더 · schema %s · '해당 없음' 0 · 콘솔 0" % lg.get("schema"), pg.evaluate("WB_REV_PLAIN_STATS.state") == "plain"
+              and "해당 없음" not in pg.evaluate("document.getElementById('revPlain').textContent") and not errs, errs)
+        pg.context.browser.close()
+
+    if run("G"):
+        # ── G. 링크 · 저장 막힘 ─────────────────────────────────────
+        mode("w43")
+        pg, errs = page(pw, hash_="#review/adv")
+        check("G1 #review/adv 링크 → 고급", pg.evaluate("document.getElementById('view-review').getAttribute('data-rv-view')") == "adv")
+        pg.context.browser.close()
+        b = pw.chromium.launch(channel="chrome")
+        ctx = b.new_context(viewport={"width": 1440, "height": 900})
+        ctx.add_init_script("Object.defineProperty(window,'localStorage',{get(){throw new Error('blocked')}});")
+        pg = ctx.new_page(); errs2 = []
+        pg.on("pageerror", lambda e: errs2.append(str(e)))
+        pg.goto(BASE + "/tools/quant-house/#review")
+        pg.wait_for_function("window.WB_REV_PLAIN_STATS && window.WB_REV_PLAIN_STATS.state !== 'init'", timeout=40000)
+        pg.click("#revViewAdv"); pg.wait_for_timeout(300)
+        check("G2 localStorage 막힘 → 토글 동작 · 예외 0", pg.evaluate("document.getElementById('view-review').getAttribute('data-rv-view')") == "adv" and not [e for e in errs2 if "wb-review" in e or "rvp" in e.lower()], errs2[:3])
+        b.close()
 
 print("\nPASS %d / FAIL %d" % (len(PASSES), len(FAILS)))
 sys.exit(1 if FAILS else 0)

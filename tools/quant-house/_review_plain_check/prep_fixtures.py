@@ -5,7 +5,8 @@
   snap_w43 / sb_dev      = BQH dated snapshot · scoreboard(plain 포함) 복사
   snap_noplain / sb_noplain = 위에서 plain 만 뺀 것(옛 snapshot·plain 미탑재 라이브와 같은 모양)
   snap_nonstd            = 09-23 dated snapshot + 엔진 build_plain(3영업일 비표준 창 · 범위/추이 없음)
-  snap_future / sb_future = §3-ter 예고 계약 목업(mk_future.py · [목업] 표식)
+  snap_edge / sb_edge   = 경계 목업(mk_edge.py · [목업] 표식)
+  snap_legacy           = 옛 계약 schema 1(BQH git ae87f7dc 의 같은 dated 파일)
   adv_before.txt         = 개편 전 커밋(--base-rev)의 고급 화면 텍스트(W43) — 고급 회귀 비교 기준
 usage:
   python prep_fixtures.py [--base-rev 08dd2a3]
@@ -47,7 +48,11 @@ code = ("import json,sys; sys.path.insert(0,'.'); from engine.research import re
         "d['plain']=RP.build_plain(d); open(sys.argv[1],'w',encoding='utf-8').write(json.dumps(d,ensure_ascii=False))")
 subprocess.run([os.environ.get("BQH_PY", "python"), "-B", "-c", code, str(FX / "snap_nonstd.json")], cwd=QH, check=True,
                env=dict(os.environ, PYTHONIOENCODING="utf-8"))
-subprocess.run([sys.executable, "-B", str(HERE / "mk_future.py")], check=True, env=dict(os.environ, RVP_FX=str(FX)))
+subprocess.run([sys.executable, "-B", str(HERE / "mk_edge.py")], check=True, env=dict(os.environ, RVP_FX=str(FX)))
+# 옛 계약(schema 1) — BQH 이력의 W43 dated(ae87f7dc) · 하위 호환 검사용
+LEGACY_REV = os.environ.get("RVP_LEGACY_REV", "ae87f7dc")
+old = subprocess.run(["git", "show", LEGACY_REV + ":05_registry/research/" + SNAP], cwd=QH, capture_output=True, check=True).stdout
+(FX / "snap_legacy.json").write_bytes(old)
 
 # 고급 기준선 — 개편 전 커밋의 페이지로 W43 고급 화면 텍스트
 tmp = Path(tempfile.mkdtemp(prefix="rvp_base_"))

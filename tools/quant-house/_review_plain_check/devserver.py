@@ -28,8 +28,8 @@ SCEN = {
     "nonstd": ("snap_nonstd.json", "sb_dev.json"),
     "noscore": ("snap_w43.json", "sb_noplain.json"),
     "unavail": (None, None),
-    "future": ("snap_future.json", "sb_future.json"),   # §3-ter 예고 계약 목업(mk_future.py)
-    "wip": ("snap_wip.json", "sb_wip.json"),            # 엔진 작업 트리 build_plain/trust_plain 미리보기(있을 때만 · 수동 생성)
+    "edge": ("snap_edge.json", "sb_edge.json"),        # 경계 목업(mk_edge.py)
+    "legacy": ("snap_legacy.json", "sb_dev.json"),      # 옛 계약 schema 1(BQH ae87f7dc dated) — 하위 호환
 }
 
 

@@ -10,8 +10,8 @@
   <title>주간 리뷰 · Bond Quant House</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%9B%EF%B8%8F%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="/assets/css/main.css">
-  <link rel="stylesheet" href="/assets/css/wb.css?v=20261021e">
-  <script src="/assets/js/wb-shell.js?v=20261021e"></script>
+  <link rel="stylesheet" href="/assets/css/wb.css?v=20261021f">
+  <script src="/assets/js/wb-shell.js?v=20261021f"></script>
   <style>
     /* CONTEST_MODE (2026-09 사내대회) — 대회 후 원복. html[data-contest] 일 때만 적용(이 페이지 한정).
        주간 리뷰 외 탭 버튼·뷰 + 상단 네비 링크 시각적 숨김(DOM·JS·API 무수정). */
@@ -483,6 +483,7 @@
     .rvp-trow.is-ref .rvp-trow-l { font-size: var(--wb-fs-label); }
     .rvp-dtrack { position: relative; height: 16px; }
     .rvp-dmid { position: absolute; left: 50%; top: -3px; bottom: -3px; width: 1px; background: var(--wb-rule-strong); }
+    .rvp-dguide { position: absolute; top: -1px; bottom: -1px; width: 0; border-left: 1px dashed var(--wb-rule-strong); }   /* 엔진 scale 경계(뚜렷·크게) */
     .rvp-dbar { position: absolute; top: 3px; height: 10px; border-radius: var(--wb-r-bar); }
     .rvp-dbar--up { background: color-mix(in srgb, var(--wb-up) 82%, transparent); }
     .rvp-dbar--down { background: color-mix(in srgb, var(--wb-down) 82%, transparent); }
@@ -518,7 +519,7 @@
     .rvp-stub { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 8px; padding: 6px 10px; border: 1px dashed var(--wb-rule-strong); border-radius: var(--wb-r-ctl); font-size: 12px; color: var(--wb-muted); cursor: pointer; }
     .rvp-stub:hover { color: var(--wb-ink); border-color: var(--wb-mark); }
     .rvp-stub-n { font-weight: 600; color: var(--wb-ink); }
-    .rvp-bucket-note { padding: 6px var(--wb-s4) 0; font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-warn); }
+    
     .rvp-note[data-kind="bond"] { cursor: pointer; }
     .rvp-note[data-kind="bond"]:hover { background: var(--wb-subtle); }
     .rvp-note.is-linked { background: var(--wb-subtle); outline: 1px solid var(--wb-mark); outline-offset: -1px; }
@@ -538,7 +539,7 @@
     .rvp-b-align { color: var(--wb-open); border-color: color-mix(in srgb, var(--wb-open) 45%, transparent); }
     .rvp-b-mom_only { color: var(--wb-accent); border-color: color-mix(in srgb, var(--wb-accent) 45%, transparent); }
     .rvp-b-mr_only { color: var(--wb-series-4); border-color: color-mix(in srgb, var(--wb-series-4) 45%, transparent); }
-    .rvp-b-neither, .rvp-b-bond_skew { color: var(--wb-muted); border-color: var(--wb-rule-strong); }   /* bond_skew '커브 대비 치우침' = 중립 */
+    .rvp-b-neither, .rvp-b-bond_skew, .rvp-b-mom_weak { color: var(--wb-muted); border-color: var(--wb-rule-strong); }   /* bond_skew '커브 대비 치우침' · mom_weak '흐름 약함' = 중립 */
     /* 상품 · 바스켓 */
     .rvp-ptable { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
     .rvp-ptable thead th { height: 26px; font-size: var(--wb-fs-label); font-weight: 400; text-align: center; color: var(--wb-muted); border-bottom: 1px solid var(--wb-rule-strong); }
@@ -762,9 +763,9 @@
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
-<script src="/assets/js/wb-chart.js?v=20261021e"></script>
+<script src="/assets/js/wb-chart.js?v=20261021f"></script>
 <!-- redesign-wb 4단계: 주간 리뷰 '일반 | 고급' 보기 — snapshot.plain 을 그리기만(번역·판정·재계산 0) · 고급 = 기존 renderReview 그대로 -->
-<script src="/assets/js/wb-review-plain.js?v=20261021e"></script>
+<script src="/assets/js/wb-review-plain.js?v=20261021f"></script>
 <script>
 let CACHE = {};
 
@@ -3297,10 +3298,9 @@ function _rvPickRow(p, i, bk){
   // ★종목 행 확신 라벨(되돌림 정황/발산중 등) 제거(사용자 10-21 · DECISIONS 3-ter-1) — 종목 confidence 는 종목 *금리* 흐름에서 나와
   //   잔차 움직임과 무관. 엔진 badge_display(화면용 배지)·resid_chg_bp(잔차 주간 변화)가 오면 그대로, 없으면 라벨을 그리지 않는다.
   //   엔진 키·값 무변경(표현만) · 종목 아닌 행은 기존 _rvConf 그대로.
-  const bDisp=isBond ? (p.badge_display!=null ? p.badge_display : st.badge_display) : null;
-  const rChg=isBond ? (p.resid_chg_bp!=null ? p.resid_chg_bp : st.resid_chg_bp) : null;
-  const rChgTxt=(rChg==null||rChg==='') ? '' : (typeof rChg==='string' ? rChg :
-    (isFinite(Number(rChg)) ? '잔차 주간 '+(Number(rChg)>0?'+':'')+String(Number(rChg))+'bp' : ''));   // 숫자면 원 값 그대로(반올림 0)
+  const bdRaw=isBond ? (p.badge_display!=null ? p.badge_display : st.badge_display) : null;   // 계약 a5e58a86 = {key,text,fact}
+  const bDisp=(bdRaw&&typeof bdRaw==='object') ? (bdRaw.text||null) : (typeof bdRaw==='string' ? bdRaw : null);
+  const rChgTxt=(bdRaw&&typeof bdRaw==='object'&&typeof bdRaw.fact==='string') ? bdRaw.fact : '';   // 잔차 주간 변화 = 엔진 문장 그대로
   let extra='';
   if (st.resid_z!=null || st.cheap_pct!=null || st.onoff_premium_bp!=null){
     // 종목 행에서 pctile_1y 와 cheap_pct 가 같은 값이면 '당일 순위' 한 번만(같은 수 중복 표기 제거) — 다르면 둘 다 표시
@@ -3488,6 +3488,7 @@ function renderReview(el, r, sb){
       '<div style="font-size:12.5px;font-weight:700;margin-bottom:2px">'+
       _esc(_RV_BUCKET_LBL[bk]||bk)+' <span class="status">(유니버스 '+(b.n_universe!=null?b.n_universe:'?')+')</span></div>'+
       (chg1?_rvChangeLine(chg1,bk):'')+
+      (bk==='bond_rv'&&pm.bond_display_note?('<div class="rv-axis">'+_esc(pm.bond_display_note)+'</div>'):'')+
       '<div class="rv-flabel">MR — |z| 극단 순</div>'+
       ((b.mr||[]).map(function(p,i){ return _rvPickRow(p,i,bk); }).join('')||'<div class="rv-axis">픽 없음</div>')+
       '<div class="rv-flabel" style="margin-top:10px">모멘텀 — |mom| 강도 순</div>'+
