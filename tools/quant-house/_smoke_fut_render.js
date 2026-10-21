@@ -5,9 +5,11 @@ const fs = require('fs');
 const path = require('path');
 
 const html = fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8');
-const m = html.match(/<script>\r?\n([\s\S]*?)<\/script>\r?\n<\/body>/);
+// 2026-10-21: 페이지 인라인 스크립트가 2개(본 스크립트 + redesign-wb 표현 보조)로 나뉜 뒤 옛 정규식이 둘을 이어 붙여
+//   SyntaxError(origin/main 에서도 재현) — 본 스크립트(let CACHE 로 시작)만 집고, 끝의 자동 실행(load() · 대회 모드 switchTab)은 제거.
+const m = html.match(/<script>\r?\n(let CACHE[\s\S]*?)<\/script>/);
 if (!m) { console.error('FAIL: inline script block not found'); process.exit(1); }
-let src = m[1].replace(/\nload\(\);\s*$/, '\n'); // 자동 load() 제거 (fetch 차단)
+let src = m[1].replace(/\nload\(\);[\s\S]*$/, '\n'); // 자동 load() 이후 제거 (fetch 차단)
 
 // ── 최소 DOM/브라우저 스텁 ──────────────────────────────────────────────────
 function fakeEl(id) {
@@ -23,6 +25,7 @@ function fakeEl(id) {
 }
 const ELS = {};
 const document = {
+  documentElement: { hasAttribute() { return false; }, getAttribute() { return null; } },   // CONTEST_MODE 판정용 스텁
   getElementById(id) { if (!ELS[id]) ELS[id] = fakeEl(id); return ELS[id]; },
   createElement(tag) { return fakeEl('_' + tag + Math.random()); },
   querySelectorAll() { return []; },

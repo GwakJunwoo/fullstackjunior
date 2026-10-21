@@ -25,7 +25,7 @@
         desc: '시장 동향 · 저평 계기판 · 오늘 판정 · b 감시', kw: 'arb arbitrage hets basis 차익 저평 판정 모니터' } ] },
     { id: 'review', label: '주간 리뷰', pages: [
       { id: 'review', label: '주간 리뷰', href: '/tools/quant-house/#review', contest: true,
-        desc: '일드커브 · 넷팅 · 팩터 손익 · TOP PICK · 상품/바스켓 비교', kw: 'weekly review market 리뷰 시장' } ] },
+        desc: '일반 | 고급 · 결론 · 금리·커브·테너·종목 그림 · 눈에 띄는 곳 · 믿어도 되나', kw: 'weekly review market 리뷰 시장 일반 고급 top pick 눈에 띄는 곳' } ] },
     { id: 'strategy', label: '전략', pages: [
       { id: 'strat', label: '전략 등록부', href: '/tools/quant-house/#strat', desc: '다전략 등록부 · 감사 · 성과', kw: 'strategy registry quant house' },
       { id: 'ops', label: '운용 콘솔', href: '/tools/quant-house/#ops', desc: '집행표 · 신호 인박스 · 보유 인벤토리', kw: 'ops operation console' },
