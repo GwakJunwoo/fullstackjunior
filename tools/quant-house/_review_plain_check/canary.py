@@ -14,6 +14,7 @@ TREE = Path(tempfile.mkdtemp(prefix="rvp_canary_")) / "tree"
 PY = sys.executable                                 # playwright 가 깔린 파이썬으로 실행
 
 JS, IX = "assets/js/wb-review-plain.js", "tools/quant-house/index.html"
+CSS = "assets/css/wb-review-plain.css"   # 일반 보기 CSS(2026-10-21 Overview 공유 위해 index.html 인라인에서 분리)
 MUT = [   # (이름, 파일, 원문, 고장, 잡아야 할 검사) — 검사 글자 첫 자 = verify 섹션(VERIFY_ONLY 로 그 섹션만)
     ("M1 테너 색 뒤집기(+파랑)", JS,
      "var side = r.ref ? 'ref' : sg > 0 ? 'up' : sg < 0 ? 'down' : 'zero';",
@@ -32,7 +33,7 @@ MUT = [   # (이름, 파일, 원문, 고장, 잡아야 할 검사) — 검사 �
     ("M7 빈 줄에 웹 추정 문구", JS, "'<div class=\"rvp-lane-empty\" aria-label=\"카드 없음\">—</div>'",
      "'<div class=\"rvp-lane-empty\">해당 없음</div>'", "L3"),
     ("M8 웹 반올림(toFixed) 복귀", JS, "var t = n.toFixed(d), s = (Number(t) === n) ? t : String(n);", "var t = n.toFixed(d), s = t;", "H4"),
-    ("M9 모르는 배지 = 빨강", IX,
+    ("M9 모르는 배지 = 빨강", CSS,
      "white-space: nowrap; color: var(--wb-muted); border: 1px solid var(--wb-rule-strong); border-radius: var(--wb-r-ctl); }   /* 기본 = 중립",
      "white-space: nowrap; color: var(--wb-up); border: 1px solid var(--wb-rule-strong); border-radius: var(--wb-r-ctl); }   /* 기본 = 중립", "H1"),
     ("M10 spark_ref.to 검사 제거", JS, "if (ref.to && dates[dates.length - 1] !== ref.to) return null;", "", "H2"),

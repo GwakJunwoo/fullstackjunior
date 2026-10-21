@@ -787,6 +787,36 @@
     buildToc(true);
   }
 
+  // ── Overview 요약(같은 그리기 함수 재사용 · 번역·재계산 0) ──────────────────────
+  //   host = #revPlain 컨테이너(다른 페이지). 결론 3줄 + 히어로 4장(금리 · 커브 1년 범위 · 테너 · 종목 산점도) + 믿어도 되나 제목 1줄.
+  //   plain(+schema) 이 없으면 false 를 돌려주고 아무것도 그리지 않는다 → 호출한 쪽이 폴백.
+  function renderMini(host, snap, sb) {
+    if (!host) return false;
+    destroyCharts();
+    S.snap = snap || null; S.sb = sb || null; S.bondSel = null; S.curveTrend = null;
+    STATS.charts = 0; STATS.cards = 0; STATS.stubs = 0; STATS.bondConfHidden = 0; STATS.sparks = 0; STATS.nospark = 0; STATS.gaps = [];
+    var p = snap && snap.available !== false ? snap.plain : null;
+    if (!p || typeof p !== 'object' || p.schema == null) { STATS.state = 'mini-no-plain'; return false; }
+    var ch = p.charts || {};
+    S.tenorSel = -1; S.curveSel = -1;
+    var tv = (ch.tenor_value && Array.isArray(ch.tenor_value.rows)) ? ch.tenor_value.rows : [], best = -1;
+    tv.forEach(function (r, i) { var a = Math.abs(num(r.value)); if (!r.ref && isFinite(a) && a > best) { best = a; S.tenorSel = i; } });
+    var t = sb && sb.available !== false && sb.plain && typeof sb.plain === 'object' ? sb.plain : null;
+    var trust = t ? '<div class="wb-card rvp-mini-trust" id="rvp-trust"><div class="wb-card-head rvp-head"><span class="rvp-kicker">믿어도 되나</span>' +
+        '<span class="wb-card-title rvp-title">' + esc(t.title || '') + '</span>' + helpHtml([str(t.subtitle), t.baseline_label]) +
+        ((t.labels || {}).page ? '<span class="wb-badge">' + esc(t.labels.page) + '</span>' : '') + '</div></div>' : '';
+    host.innerHTML = conclusionHtml(p) +
+      '<div class="rvp-grid">' + ratesHtml(ch.rates) + curveHtml(ch.curve_shape, snap) + tenorHtml(ch.tenor_value) + bondHtml(ch.bond_scatter) + '</div>' + trust;
+    var safe = function (name, fn) { try { fn(); } catch (e) { STATS.gaps.push(name + ': ' + (e && e.message)); if (window.console) console.warn('wb review mini', name, e); } };
+    if (window.Chart) {
+      if (ch.rates && ch.rates.available !== false) safe('rates', function () { mountRates(ch.rates, snap); });
+      if (ch.bond_scatter && ch.bond_scatter.available !== false) safe('scatter', function () { mountScatter(ch.bond_scatter, snap); });
+    }
+    safe('tenor', function () { tenorDetail(ch.tenor_value); });
+    STATS.state = 'mini';
+    return true;
+  }
+
   // ── 이벤트(위임) ────────────────────────────────────────────────────────
   function activate(el) {
     var ch = (S.snap && S.snap.plain && S.snap.plain.charts) || {};
@@ -840,6 +870,6 @@
   // ── 초기 보기 ── 링크(#review/adv · #review/plain) > 기억 > 일반
   setView(hashView() || storedView() || 'plain', { scrollTop: false });
 
-  window.WBRevPlain = { render: render, setView: setView, getView: function () { return S.view; },
+  window.WBRevPlain = { render: render, renderMini: renderMini, setView: setView, getView: function () { return S.view; },
     _series: series, _bondPoints: bondPoints, _get: get };
 })();

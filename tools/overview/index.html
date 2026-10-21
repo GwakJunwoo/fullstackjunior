@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<!-- 2026-10-21 사용자 지시: Overview 탭 = 들어가면 맨 먼저 보이는 화면(루트 '/' → 여기 · 헤더 첫 탭).
+     섹션 순서 고정: ① 지표 3일 움직임 + 전 국채 커브 ② 최신 금리 변동(D vs D−1) ③ 차익거래 모니터 요약 ④ 주간 리뷰 요약 ⑤ 금리 대시보드 핵심.
+     데이터 = 기존 읽기 전용 API 그대로(새 라우트 없음) · 엔진 산출물(모니터 json · 리뷰 plain) 재계산 0 ·
+     금리 변화(종가 차)만 웹 계산 — 금리 대시보드와 같은 반올림·부호 규칙. 로직 = /assets/js/wb-overview.js.
+     CONTEST_MODE 플래그(data-contest) = 다른 탭과 같은 규칙(보이는 화면만). -->
+<html lang="ko" data-contest="1" data-wb>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script>/* wb 기본 테마 선적용(첫 페인트 깜빡임 방지) — 저장값 없으면 어두움 · wb-shell.js 와 같은 규칙 */try{var t=localStorage.getItem('wb-theme');document.documentElement.setAttribute('data-theme',t==='light'||t==='dark'?t:'dark')}catch(e){document.documentElement.setAttribute('data-theme','dark')}</script>
+  <title>Overview · Bond Quant House</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%9B%EF%B8%8F%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/assets/css/wb.css?v=20261021h">
+  <link rel="stylesheet" href="/assets/css/wb-review-plain.css?v=20261021h">
+  <script src="/assets/js/wb-shell.js?v=20261021h"></script>
+  <style>
+    /* ═══ Overview — 표현만(wb 토큰 · 카드 · 표) ═══ */
+    .ov-head { align-items: center; }
+    .ov-basis { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; font-size: 12px; color: var(--wb-muted); }
+    .ov-basis b { color: var(--wb-ink); font-weight: 600; }
+    .ov-jump { margin-left: auto; display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: var(--wb-fs-label); }
+    .ov-jump a { color: var(--wb-muted); text-decoration: none; white-space: nowrap; }
+    .ov-jump a:hover { color: var(--wb-ink); text-decoration: underline; }
+    .ov-sec { margin-top: var(--wb-s5); scroll-margin-top: calc(var(--wb-shell-h) + 12px); }
+    .ov-sec:first-of-type { margin-top: var(--wb-s3); }
+    .ov-sec-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 10px; margin: 0 0 var(--wb-s3); }
+    .ov-sec-no { font-size: var(--wb-fs-label); color: var(--wb-faint); font-variant-numeric: tabular-nums; }
+    .ov-sec-title { font-size: var(--wb-fs-title); line-height: var(--wb-lh-title); font-weight: 600; }
+    .ov-sec-meta { font-size: var(--wb-fs-label); color: var(--wb-muted); }
+    .ov-more { margin-left: auto; font-size: var(--wb-fs-label); color: var(--wb-muted); text-decoration: none; white-space: nowrap; }
+    .ov-more:hover { color: var(--wb-ink); text-decoration: underline; }
+    .ov-grid2 { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: var(--wb-gap); align-items: stretch; }
+    .ov-grid2.even { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .ov-card { display: flex; flex-direction: column; min-width: 0; }
+    .ov-body { flex: 1; min-width: 0; padding: var(--wb-s2) var(--wb-s4) var(--wb-s3); }
+    .ov-chart { position: relative; }
+    .ov-chart--bars { height: 214px; }
+    .ov-chart--curve { height: 150px; }
+    .ov-chart--chg { height: 92px; margin-top: 4px; }
+    .ov-chart--c5 { height: 230px; }
+    .ov-legend { margin-bottom: 4px; }
+    .ov-foot { margin-top: 6px; font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-muted); }
+    .ov-err { padding: var(--wb-s3) var(--wb-s4); border: 1px solid var(--wb-rule); border-left: 2px solid var(--wb-warn); border-radius: var(--wb-r-ctl); background: var(--wb-subtle); font-size: 13px; }
+    .ov-err .wb-error { display: block; margin-bottom: 4px; }
+    .ov-err a { color: var(--wb-ink); }
+    .ov-skel { padding: var(--wb-s4); }
+    .ov-skel .wb-skel--line:nth-child(2) { width: 82%; } .ov-skel .wb-skel--line:nth-child(3) { width: 64%; }
+    .ov-warnbar { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-bottom: var(--wb-s2); }
+    /* ② 최신 금리 변동 타일 */
+    .ov-tgroups { display: flex; flex-wrap: wrap; gap: var(--wb-gap); }
+    .ov-tgroup { flex: 1 1 auto; min-width: 0; }
+    .ov-tgroup-h { margin: 0 0 4px; font-size: var(--wb-fs-label); color: var(--wb-muted); }
+    .ov-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(124px, 1fr)); gap: 8px; }
+    .ov-tgroup.w6 { flex-basis: 100%; } .ov-tgroup.w4 { flex: 4 1 520px; } .ov-tgroup.w2 { flex: 2 1 260px; }
+    .ov-tile { min-width: 0; padding: 8px 10px 6px; background: var(--wb-surface); border: 1px solid var(--wb-rule); border-radius: var(--wb-r-card); cursor: default; }
+    .ov-tile[data-tenor] { cursor: pointer; }
+    .ov-tile[data-tenor]:hover { border-color: var(--wb-rule-strong); }
+    .ov-tile.is-sel { border-color: var(--wb-mark); background: var(--wb-subtle); }
+    .ov-tile-h { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; font-size: var(--wb-fs-label); color: var(--wb-muted); white-space: nowrap; }
+    .ov-tile-h b { font-weight: 600; color: var(--wb-ink); font-size: 12px; overflow: hidden; text-overflow: ellipsis; }
+    .ov-tile-v { font-variant-numeric: tabular-nums; }
+    .ov-tile-c { margin-top: 2px; font-size: 22px; line-height: 28px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .ov-tile-c small { font-size: var(--wb-fs-label); font-weight: 400; margin-left: 2px; color: var(--wb-muted); }
+    .ov-tile-s { font-size: var(--wb-fs-label); color: var(--wb-muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .ov-tile-s span { margin-left: 2px; }
+    .ov-spark { display: block; width: 100%; height: 24px; margin-top: 2px; color: var(--wb-muted); }
+    .ov-spark path { fill: none; stroke: currentColor; stroke-width: 1.2; vector-effect: non-scaling-stroke; }
+    .ov-spark circle { fill: var(--wb-ink); }
+    /* ③ 차익거래 요약 — 게이지(차익거래 모니터 renderBasis 와 같은 규칙 · ov- 접두로 복사) */
+    .ov-arb-kpis { display: flex; flex-wrap: wrap; gap: 4px 20px; margin: 0 0 4px; }
+    .ov-kv dt { font-size: var(--wb-fs-label); color: var(--wb-muted); white-space: nowrap; }
+    .ov-kv dd { margin: 0; font-size: 18px; line-height: 24px; font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .ov-kv dd small { font-size: var(--wb-fs-label); font-weight: 400; color: var(--wb-muted); margin-left: 2px; }
+    .ov-gauge { position: relative; height: 86px; margin: var(--wb-s3) 6px var(--wb-s2); }
+    .ov-gauge-track { position: absolute; left: 0; right: 0; top: 26px; height: 8px; border-radius: 4px; background: var(--wb-subtle); border: 1px solid var(--wb-rule); }
+    .ov-gauge-zone { position: absolute; top: 26px; height: 8px; }
+    .ov-gauge-zone.sell { background: color-mix(in srgb, var(--wb-series-1) 16%, transparent); border-radius: 4px 0 0 4px; }
+    .ov-gauge-zone.buy { background: color-mix(in srgb, var(--wb-series-3) 16%, transparent); border-radius: 0 4px 4px 0; }
+    .ov-gauge-line { position: absolute; top: 18px; height: 24px; width: 1px; background: var(--wb-rule-strong); }
+    .ov-gauge-line.th { width: 2px; } .ov-gauge-line.th.u { background: var(--wb-series-1); } .ov-gauge-line.th.ub { background: var(--wb-series-3); }
+    .ov-gauge-line.exit { width: 0; background: none; border-left: 2px dashed; }
+    .ov-gauge-line.exit.u { border-color: var(--wb-series-1); } .ov-gauge-line.exit.ub { border-color: var(--wb-series-3); }
+    .ov-gauge-tick { position: absolute; top: 70px; transform: translateX(-50%); font-size: 10px; color: var(--wb-muted); white-space: nowrap; }
+    .ov-gauge-tick.u { color: var(--wb-series-1); } .ov-gauge-tick.ub { color: var(--wb-series-3); }
+    .ov-gauge-mk { position: absolute; top: 0; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; font-size: 11px; font-weight: 600; white-space: nowrap; }
+    .ov-gauge-mk::after { content: ''; width: 2px; height: 16px; margin-top: 2px; background: currentColor; }
+    .ov-gauge-mk.u { color: var(--wb-series-1); }
+    .ov-gauge-mk.ub { color: var(--wb-series-3); top: 34px; flex-direction: column-reverse; }
+    .ov-gauge-mk.ub::after { margin: 0 0 2px; }
+    .ov-judge td, .ov-judge th { white-space: nowrap; }
+    .ov-judge td:first-child { white-space: normal; }
+    .ov-jbadge.on { color: var(--wb-open); border-color: color-mix(in srgb, var(--wb-open) 45%, transparent); }
+    .ov-jbadge.off { color: var(--wb-muted); }
+    .ov-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 12px; padding: 6px 0; border-top: 1px solid var(--wb-rule); font-size: 13px; }
+    .ov-line:first-child { border-top: 0; }
+    .ov-line-k { flex: none; width: 112px; font-size: var(--wb-fs-label); color: var(--wb-muted); }
+    .ov-honesty { margin: var(--wb-s3) 0 0; padding: 8px 12px; list-style: none; border: 1px solid var(--wb-rule); border-radius: var(--wb-r-ctl); background: var(--wb-subtle); font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-muted); }
+    .ov-honesty li::before { content: '· '; }
+    /* ④ 주간 리뷰 요약 — wb-review-plain.css 를 그대로 쓰고 높이만 줄임(축소판) · 고급 보기 이동 버튼은 이 화면에선 숨김 */
+    .ov-review .rvp-more { display: none; }
+    .ov-review .rvp-chart--curve { height: 112px; }
+    .ov-review .rvp-chart--chg { height: 72px; }
+    .ov-review .rvp-chart--scatter { height: 150px; }
+    .ov-review .rvp-mini-trust .wb-card-head { border-bottom: 0; }
+    /* ⑤ 금리 대시보드 핵심 */
+    .ov-cb td, .ov-cb th { white-space: nowrap; }
+    .ov-cb .num { text-align: right; font-variant-numeric: tabular-nums; }
+    .ov-cb tr.strong td { font-weight: 600; }
+    .ov-cb svg { display: block; width: 96px; height: 22px; color: var(--wb-muted); }
+    .ov-cb svg path { fill: none; stroke: currentColor; stroke-width: 1.2; }
+    .ov-cb svg circle { fill: currentColor; }
+    .ov-tablewrap { overflow-x: auto; }
+    @media (max-width: 1080px) { .ov-grid2, .ov-grid2.even { grid-template-columns: minmax(0, 1fr); } }
+    @media (max-width: 720px) {
+      .ov-jump { margin-left: 0; width: 100%; }
+      .ov-more { margin-left: 0; }
+      .ov-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .ov-tile-c { font-size: 20px; }
+      .ov-line-k { width: 100%; }
+      .ov-chart--bars { height: 200px; }
+      .ov-review .rvp-chart--scatter { height: 200px; }
+    }
+  </style>
+</head>
+<body>
+<header id="wb-shell" data-area="overview" data-page="overview"></header>
+
+<main class="wb-main" id="ovMain">
+  <div class="wb-pagehead ov-head">
+    <h1>Overview</h1><button type="button" class="wb-help" data-help="들어가면 먼저 보는 요약. 위에서 아래로: ① 지표 3일 움직임 · 전 국채 커브 ② 최신 금리 변동(D vs D−1) ③ 차익거래 모니터 ④ 주간 리뷰 ⑤ 금리 대시보드. 각 섹션 오른쪽 '→ 전체 보기' = 그 탭. 엔진 산출물(모니터 · 리뷰)은 그대로 표시 · 금리 변화(종가 차)는 금리 대시보드와 같은 규칙으로 계산." aria-label="설명 보기"></button>
+    <span class="wb-badge">관찰 전용</span>
+    <span class="ov-basis" id="ovBasis"><span class="wb-skel"></span></span>
+    <nav class="ov-jump" aria-label="탭 바로가기">
+      <a href="/tools/arb-monitor/">차익거래 모니터 →</a><a href="/tools/quant-house/#review">주간 리뷰 →</a><a href="/tools/dashboard/">금리 대시보드 →</a>
+    </nav>
+  </div>
+
+  <!-- ① 지표국채 3일 움직임 + 전 국채 커브 변동 -->
+  <section class="ov-sec" id="ov-s1" aria-labelledby="ovS1H">
+    <div class="ov-sec-head"><span class="ov-sec-no">01</span><h2 class="ov-sec-title" id="ovS1H">지표 3일 움직임 · 전 국채 커브</h2><span class="ov-sec-meta" id="ovS1Meta"></span><a class="ov-more" href="/tools/dashboard/">→ 전체 보기</a></div>
+    <div id="ovS1"><div class="wb-card ov-skel"><span class="wb-skel wb-skel--line"></span><span class="wb-skel wb-skel--line"></span><span class="wb-skel wb-skel--line"></span></div></div>
+  </section>
+
+  <!-- ② 최신 금리 변동 (D vs D−1) -->
+  <section class="ov-sec" id="ov-s2" aria-labelledby="ovS2H">
+    <div class="ov-sec-head"><span class="ov-sec-no">02</span><h2 class="ov-sec-title" id="ovS2H">최신 금리 변동</h2><span class="ov-sec-meta" id="ovS2Meta"></span><a class="ov-more" href="/tools/dashboard/">→ 전체 보기</a></div>
+    <div id="ovS2"><div class="wb-card ov-skel"><span class="wb-skel wb-skel--line"></span><span class="wb-skel wb-skel--line"></span><span class="wb-skel wb-skel--line"></span></div></div>
+  </section>
+
+  <!-- ③ 차익거래 모니터 요약 -->
+  <section class="ov-sec" id="ov-s3" aria-labelledby="ovS3H">
+    <div class="ov-sec-head"><span class="ov-sec-no">03</span><h2 class="ov-sec-title" id="ovS3H">차익거래 모니터</h2><span class="ov-sec-meta" id="ovS3Meta"></span><a class="ov-more" href="/tools/arb-monitor/">→ 전체 보기</a></div>
+    <div id="ovS3"><div class="wb-card ov-skel"><span class="wb-skel wb-skel--line"></span><span class="wb-skel wb-skel--line"></span><span class="wb-skel wb-skel--line"></span></div></div>
+  </section>
+
+  <!-- ④ 주간 리뷰 요약 — snapshot plain 그대로(WBRevPlain.renderMini) · 컨테이너 id = revPlain(같은 스타일·연계 재사용) -->
+  <section class="ov-sec" id="ov-s4" aria-labelledby="ovS4H">
+    <div class="ov-sec-head"><span class="ov-sec-no">04</span><h2 class="ov-sec-title" id="ovS4H">주간 리뷰</h2><span class="ov-sec-meta" id="ovS4Meta"></span><a class="ov-more" href="/tools/quant-house/#review">→ 전체 보기</a></div>
+    <div id="revPlain" class="ov-review"><div class="wb-card ov-skel"><span class="wb-skel wb-skel--line"></span><span class="wb-skel wb-skel--line"></span><span class="wb-skel wb-skel--line"></span></div></div>
+  </section>
+
+  <!-- ⑤ 금리 대시보드 핵심 -->
+  <section class="ov-sec" id="ov-s5" aria-labelledby="ovS5H">
+    <div class="ov-sec-head"><span class="ov-sec-no">05</span><h2 class="ov-sec-title" id="ovS5H">금리 대시보드</h2><span class="ov-sec-meta" id="ovS5Meta"></span><a class="ov-more" href="/tools/dashboard/">→ 전체 보기</a></div>
+    <div id="ovS5"><div class="wb-card ov-skel"><span class="wb-skel wb-skel--line"></span><span class="wb-skel wb-skel--line"></span><span class="wb-skel wb-skel--line"></span></div></div>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/wb-chart.js?v=20261021h"></script>
+<script src="/assets/js/wb-review-plain.js?v=20261021h"></script>
+<script src="/assets/js/wb-overview.js?v=20261021h"></script>
+</body>
+</html>
