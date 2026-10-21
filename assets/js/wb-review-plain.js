@@ -24,7 +24,8 @@
   var PLAIN_SCHEMA_MAX = 2;
   var VIEWS = { plain: 1, adv: 1 };
   var charts = [];
-  var S = { snap: null, sb: null, view: null, scatter: null, bondPts: [], bondSel: null, curveSel: 0, tenorSel: -1 };
+  var S = { snap: null, sb: null, view: null, scatter: null, bondPts: [], bondSel: null, curveSel: 0, tenorSel: -1,
+            explicit: false, autoFb: false };   // explicit = 이번 세션에 사용자가 보기를 직접 고름 · autoFb = plain 없어 고급으로 자동 전환 중
   var STATS = window.WB_REV_PLAIN_STATS = { state: 'init', charts: 0, cards: 0, stubs: 0, sparks: 0, nospark: 0, gaps: [] };
 
   // ── 작은 도구 ───────────────────────────────────────────────────────────
@@ -151,7 +152,7 @@
       var on = b.getAttribute('data-rv-set') === v;
       b.classList.toggle('is-active', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
     });
-    if (opt.store) storeView(v);
+    if (opt.store) { storeView(v); S.explicit = true; }   // 저장 = 사용자 조작(토글·빈 상태 버튼·숫자 보기)뿐
     if (opt.hash && reviewActive() && window.history && history.replaceState) {
       var want = '#review' + (v === 'adv' ? '/adv' : '');
       if (location.hash !== want) { try { history.replaceState(null, '', want); } catch (e) { /* file:// 등 */ } }
@@ -696,12 +697,26 @@
     el.hidden = !nonstd;
     el.innerHTML = nonstd ? esc(p.window_label) + helpHtml([wwNote(), '결론·그림 제목 앞 기간 = 엔진 문장 그대로']) : '';
   }
+  // ★plain 없을 때 고급으로 폴백(사용자 10-21 배포 승인 조건 — 아침 daily-refresh 6c 전 첫 화면이 '준비 중'이 되지 않게).
+  //   조건: 일반 보기 재료(plain + schema)가 없고 · 이번 세션에 사용자가 보기를 직접 고르지 않았고 · 링크가 #review/plain 이 아님.
+  //   기억값(localStorage)은 읽기만 · 쓰지 않는다 → plain 이 실리는 로드부터 원래대로(기억값 또는 기본 일반).
+  //   일반 버튼은 살아 있음(누르면 '준비 중' 빈 상태 · 그때부터는 사용자 선택이라 저장).
+  function fallback(usable) {
+    var bp = doc.getElementById('revViewPlain');
+    if (bp) { if (usable) bp.removeAttribute('title'); else bp.title = '일반 보기 재료가 아직 없음 — 누르면 준비 중 화면'; }
+    if (!S.explicit && hashView() !== 'plain') {
+      if (!usable && S.view === 'plain') { setView('adv', { scrollTop: false }); S.autoFb = true; }
+      else if (usable && S.autoFb) { S.autoFb = false; setView(hashView() || storedView() || 'plain', { scrollTop: false }); }
+    }
+    STATS.fallback = S.autoFb && S.view === 'adv';
+  }
   function render(snap, sb, err) {
     var host = doc.getElementById('revPlain'); if (!host) return;
     destroyCharts();
     S.snap = snap || null; S.sb = sb || null; S.bondSel = null; S.curveTrend = null;
     STATS.charts = 0; STATS.cards = 0; STATS.stubs = 0; STATS.bondConfHidden = 0; STATS.sparks = 0; STATS.nospark = 0; STATS.gaps = [];
     var p = snap && snap.available !== false ? snap.plain : null;
+    fallback(!err && !!(p && typeof p === 'object' && p.schema != null));
     windowBadge(p && typeof p === 'object' ? p : null);
     fillGlossary(p && typeof p === 'object' ? p : null);
     var go = '<div class="rvp-empty-act"><button type="button" class="wb-btn wb-btn--sm" data-rv-go="adv">고급 보기로</button></div>';

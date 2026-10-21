@@ -3372,7 +3372,7 @@ function renderReview(el, r, sb){
 
   // (2) 일드커브 + 커브 1w 변화 — yield_curve/curve_moves 그대로
   const yc=r.yield_curve||{}, cm=r.curve_moves||{};
-  const cmKeys=Object.keys(cm).filter(function(k){return k!=='asof'&&k!=='week_ago_date';});
+  const cmKeys=Object.keys(cm).filter(function(k){return k!=='asof'&&k!=='week_ago_date'&&cm[k]&&typeof cm[k]==='object';});   // 커브 구간(객체)만 — 메타 키(track 등) 행 제외
   h+='<div class="cat-title">일드커브 (KTB 현물·유동) — 실선=현재 '+_esc(yc.asof||'')+' · 점선=1w전 '+_esc(yc.week_ago_date||'')+'</div>'+
     '<div class="rv-two">'+
     '<div class="qchart" style="height:260px"><canvas id="cRvYc"></canvas></div>'+

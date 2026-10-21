@@ -164,10 +164,13 @@ with sync_playwright() as pw:
     before = (FX / "adv_before.txt").read_text(encoding="utf-8")
     norm = lambda s: s.replace("cheap %1y", "당일 순위")
     import difflib
-    bl, al = before.splitlines(), adv.splitlines()
+    bl, al = [x for x in before.splitlines() if not re.match(r"^track\b", x)], adv.splitlines()   # 'track – – –' 메타 행 = 의도한 제거
     diff = [d for d in difflib.unified_diff(bl, al, lineterm="", n=0) if d[:1] in "+-" and not d.startswith(("+++", "---"))]
     (FX / "adv_diff.txt").write_text("\n".join(diff), encoding="utf-8")
-    check("B1 고급 보기 줄 수 동일(사라진 줄 0)", len(bl) == len(al), (len(bl), len(al)))
+    check("B1 고급 보기 줄 수 동일(사라진 줄 0 · 'track' 메타 행 제외)", len(bl) == len(al), (len(bl), len(al)))
+    trk = pg.evaluate("[...document.querySelectorAll('#revBody .rv-two tbody tr')].map(tr => tr.children[0].textContent.trim())")
+    cm_keys = [k for k, v in snap["curve_moves"].items() if isinstance(v, dict)]
+    check("B8 고급 일드커브 표 = 커브 구간 행만('track' 등 메타 행 0)", trk == cm_keys, trk)
     CONF = ("MR단독", "모멘텀단독", "★상충(발산중)", "정렬(되돌림 정황)", "관찰")   # 고급 확신 라벨(_RV_CONF_LBL)
     minus = [d[1:] for d in diff if d.startswith("-")]
     def _ok_plus(line):   # '+' 줄 = 당일 순위 수선 줄 · 또는 '-' 줄에서 확신 라벨만 뺀 줄
@@ -192,14 +195,43 @@ with sync_playwright() as pw:
     # ── C. 빈 상태(라이브 = plain 없음) ─────────────────────────────
     mode("noplain")
     pg, errs = page(pw)
-    st = pg.evaluate("[WB_REV_PLAIN_STATS.state, document.getElementById('revPlain').innerText, document.getElementById('wbRevTocPlain').innerText, document.querySelectorAll('#revBody .cat-title').length]")
-    check("C1 plain 없음 → 일반 = '준비 중' 빈 상태", st[0] == "no-plain" and "준비 중" in st[1], st[:2])
-    check("C2 plain 없음 → 고급은 정상 렌더", st[3] > 5, st[3])
+    st = pg.evaluate("[WB_REV_PLAIN_STATS.state, document.getElementById('view-review').getAttribute('data-rv-view'), localStorage.getItem('wb-review-view'), location.hash, WB_REV_PLAIN_STATS.fallback, document.querySelectorAll('#revBody .cat-title').length, getComputedStyle(document.querySelector('.rv-doc')).display]")
+    check("C0 plain 없음 + 기억값 없음 → 기본 = 고급(폴백) · 기억값 안 씀 · 해시 그대로", st[:5] == ["no-plain", "adv", None, "#review", True] and st[6] != "none", st)
+    check("C2 plain 없음 → 고급 정상 렌더", st[5] > 5, st[5])
+    pg.click("#revViewPlain"); pg.wait_for_timeout(400)
+    st = pg.evaluate("[document.getElementById('view-review').getAttribute('data-rv-view'), document.getElementById('revPlain').innerText, localStorage.getItem('wb-review-view')]")
+    check("C1 일반 버튼 살아 있음 → '준비 중' 빈 상태 (직접 선택이라 저장)", st[0] == "plain" and "준비 중" in st[1] and st[2] == "plain", st)
     pg.click("#revPlain [data-rv-go='adv']")
     pg.wait_for_timeout(300)
     check("C3 빈 상태 '고급 보기로' 버튼 동작", pg.evaluate("document.getElementById('view-review').getAttribute('data-rv-view')") == "adv")
     check("C4 콘솔 오류·경고 0 (빈 상태)", not errs, errs)
     pg.context.browser.close()
+
+    # ── X. 폴백 × 기억값 · 링크 ───────────────────────────────────
+    def _open(m, view=None, hash_="#review"):
+        mode(m)
+        q, e = page(pw, view=view, hash_=hash_)
+        return q, e, q.evaluate("[document.getElementById('view-review').getAttribute('data-rv-view'), localStorage.getItem('wb-review-view'), WB_REV_PLAIN_STATS.state]")
+    q, e, r = _open("noplain", view="plain")
+    check("X1 기억값 '일반' + plain 없음 → 고급으로 열되 기억값은 '일반' 그대로", r[:2] == ["adv", "plain"], r)
+    q.context.browser.close()
+    q, e, r = _open("w43", view="plain")
+    check("X2 기억값 '일반' + plain 있음 → 일반(아침 갱신 뒤 바로 복귀)", r[:2] == ["plain", "plain"], r)
+    q.context.browser.close()
+    q, e, r = _open("noplain", hash_="#review/plain")
+    check("X3 링크 #review/plain(명시) + plain 없음 → 일반 '준비 중'", r[0] == "plain" and r[2] == "no-plain" and r[1] is None, r)
+    q.context.browser.close()
+    q, e, r = _open("w43", view="adv")
+    check("X4 기억값 '고급' + plain 있음 → 고급(기존 동작)", r[:2] == ["adv", "adv"], r)
+    check("X5 콘솔 오류·경고 0 (폴백 조합)", not e, e)
+    q.context.browser.close()
+    q, e, r = _open("noplain")
+    mode("w43")   # 같은 세션에서 아침 갱신(plain 실림) 뒤 새로고침 버튼
+    q.click("#view-review .wb-filterbar-end .wb-btn--primary")
+    q.wait_for_function("WB_REV_PLAIN_STATS.state === 'plain'", timeout=40000); q.wait_for_timeout(400)
+    r2 = q.evaluate("[document.getElementById('view-review').getAttribute('data-rv-view'), localStorage.getItem('wb-review-view'), WB_REV_PLAIN_STATS.fallback]")
+    check("X6 같은 세션 새로고침에 plain 실림 → 자동으로 일반 복귀(기억값 안 씀)", r[0] == "adv" and r2 == ["plain", None, False], (r, r2))
+    q.context.browser.close()
 
     # ── D. 스코어보드 plain 없음 ──────────────────────────────────
     mode("noscore")
