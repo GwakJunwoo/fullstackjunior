@@ -65,21 +65,41 @@
     return c[kind];
   }
 
+  // ══ DSR 기준(게이트 시점 · N) — 엔진·등록부가 DSR 값과 짝으로 기록한 필드만(추정 0 · 2026-10-22 정직 표기) ══
+  //   ① registry tier_eval.dsr_gate_eval {dsr, n_effective, at}                                  (uni_irs_v3)
+  //   ② artifact portfolio.dsr_hac.dsr {dsr_programN, n_trials_programN} + gate_evidence.gate_run_at (cta_delta)
+  //   짝의 dsr 이 tier_eval.dsr 와 같을 때만 붙임(다른 시점의 N 을 섞지 않음) · 없으면 표기 없음(of)
+  function dsrBasis(reg, art) {
+    var te = (reg && reg.tier_eval) || {};
+    if (!isNum(te.dsr)) return null;
+    var ge = te.dsr_gate_eval;
+    if (ge && isNum(ge.dsr) && +ge.dsr === +te.dsr && (ge.at || isNum(ge.n_effective)))
+      return { at: ge.at || null, n: isNum(ge.n_effective) ? +ge.n_effective : null, src: 'registry tier_eval.dsr_gate_eval' };
+    var ad = get(art, 'portfolio.dsr_hac.dsr');
+    if (ad && isNum(ad.dsr_programN) && +ad.dsr_programN === +te.dsr && (isNum(ad.n_trials_programN) || get(art, 'gate_evidence.gate_run_at')))
+      return { at: get(art, 'gate_evidence.gate_run_at') || null, n: isNum(ad.n_trials_programN) ? +ad.n_trials_programN : null, src: 'artifact portfolio.dsr_hac.dsr.n_trials_programN · gate_evidence.gate_run_at' };
+    return null;
+  }
+  function basisTxt(b) {   // '게이트 07-14 · N 9,578' — 날짜 = 엔진 문자열 월-일 · N = 천 단위 쉼표(표기만)
+    if (!b) return '';
+    return [b.at ? '게이트 ' + String(b.at).slice(5, 10) : '', b.n != null ? 'N ' + b.n.toLocaleString('en-US') : ''].filter(Boolean).join(' · ');
+  }
+
   // ══ 상태 칩 + 설명 토글(registry · forward) ═════════════════════════════
   // 칩 = 늘 보임: 페이퍼(실탄 아님) · status · tier · 판정(gate_verdict 그대로 — FAIL 도 그대로 · 없음 = –)
-  function chipsOf(reg, fwd) {
-    var out = [];
+  function chipsOf(reg, fwd, art) {
+    var out = [], bt = basisTxt(dsrBasis(reg, art)), bsuf = bt ? ' · 기준 = ' + bt + '(재게이트 전 값)' : '';
     var paper = reg.capital_state === 'paper' || (fwd && fwd.live_capital === false);
     out.push(paper ? { t: '페이퍼(실탄 아님)', c: 'wb-badge--warn', k: 'paper',
       tip: reg.capital_state === 'paper' ? 'registry capital_state = paper' : 'registry capital_state 미기재 · forward live_capital = false(' + ((fwd && fwd.sizing && fwd.sizing.policy) || '') + ')' }
       : { t: '자본 ' + (reg.capital_state || '–'), c: '', k: 'paper', tip: 'registry capital_state' });
     out.push({ t: reg.status || '–', c: reg.status === 'proposed' ? 'wb-badge--warn' : '', k: 'status',
       tip: reg.status === 'proposed' ? (reg.web_visible_note || 'proposed — 배포 아님') : (get(reg, 'tier_eval.deploy_basis') ? 'deploy_basis = ' + get(reg, 'tier_eval.deploy_basis') : 'registry status') });
-    out.push({ t: reg.tier || '–', c: '', k: 'tier', tip: get(reg, 'tier_eval.reason') || 'registry tier' });
+    out.push({ t: reg.tier || '–', c: '', k: 'tier', tip: (get(reg, 'tier_eval.reason') || 'registry tier') + bsuf });
     var gv = reg.gate_verdict;
     out.push({ t: '판정 ' + (gv || '–'), c: gv === 'FAIL' ? 'wb-badge--up' : gv === 'WARN' ? 'wb-badge--warn' : '', k: 'verdict',
       tip: gv ? ('registry gate_verdict = ' + gv + (get(reg, 'adoption_basis.reason') ? ' · ' + get(reg, 'adoption_basis.reason') : ''))
-        : ('registry gate_verdict 미기재(최종 판정 없음)' + (get(reg, 'tier_eval.gate_verdict_train') ? ' · 기계 TRAIN 게이트 = ' + get(reg, 'tier_eval.gate_verdict_train') + '(최종 판정 아님)' : '')) });
+        : ('registry gate_verdict 미기재(최종 판정 없음)' + (get(reg, 'tier_eval.gate_verdict_train') ? ' · 기계 TRAIN 게이트 = ' + get(reg, 'tier_eval.gate_verdict_train') + '(최종 판정 아님)' : '')) + bsuf });
     return out;
   }
   var TEXTS = [   // [표시 이름, 출처] — 엔진·등록부 원문 그대로(접기 안)
@@ -97,9 +117,9 @@
     if (typeof v === 'object') return Object.keys(v).map(function (k) { var x = v[k]; return k + ': ' + (typeof x === 'object' && x ? JSON.stringify(x) : String(x)); }).join('\n');
     return String(v);
   }
-  function renderHead(id, reg, fwd) {
+  function renderHead(id, reg, fwd, art) {
     var s = STRATS.filter(function (x) { return x.id === id; })[0];
-    var chips = chipsOf(reg, fwd);
+    var chips = chipsOf(reg, fwd, art);
     STATS.chips = chips.map(function (c) { return c.t; });
     $('alStrat').innerHTML = '<span class="al-strat-name">' + esc(s.label) + '</span>' +
       '<span class="al-strat-id">' + esc(reg.name || id) + (reg.variant ? ' · ' + esc(reg.variant) : '') + (reg.version ? ' · ' + esc(reg.version) : '') + '</span>' +
@@ -141,7 +161,11 @@
       '. forward 이후 구간 = 엔진이 일별 누적 손익 시계열을 내지 않아 곡선에 잇지 않음(웹 합산 안 함) — 원장 현황은 보유 포지션 · 오늘 신호 블록' +
       (get(fwd, 'ledger.inception') ? ' · 원장 시작 ' + get(fwd, 'ledger.inception') : '') + '.' +
       (get(art, 'stats.metric') ? ' 단위: ' + get(art, 'stats.metric') + '.' : '') + (get(art, 'stats.cost_model') ? ' 비용: ' + get(art, 'stats.cost_model') + '.' : '') +
-      (get(art, 'stats.note') ? ' ' + get(art, 'stats.note') : '');
+      (get(art, 'stats.note') ? ' ' + get(art, 'stats.note') : '') +
+      (get(art, 'perf_extension.data_end') ? ' 성과 연장(perf_extension): 데이터 끝 ' + get(art, 'perf_extension.previous_data_end') + ' → ' + get(art, 'perf_extension.data_end') +
+        ' (' + (get(art, 'perf_extension.extended_at') || '') + ') — ' + (get(art, 'perf_extension.pit_unchanged') || '') : '') +
+      (get(art, 'regen_drift') ? ' regen_drift: drift ' + get(art, 'regen_drift.drift') + ' (경계 ' + get(art, 'regen_drift.boundary_entry') + ' · 과거 제거 ' + get(art, 'regen_drift.past_removed_n') + ' · 추가 ' + get(art, 'regen_drift.past_added_n') +
+        (get(art, 'regen_drift.matches_g7_removal') != null ? ' · G7 관통 제거와 일치 ' + get(art, 'regen_drift.matches_g7_removal') : '') + ')' : '');
     host.innerHTML = cardHead('백테스트', tip, esc(first) + ' → ' + esc(last) + ' · ' + esc(cv.basis) + ' · bp') +
       '<div class="al-body"><div class="al-chart"><canvas id="alBtC" aria-label="누적 손익"></canvas></div>' +
       (dd ? '<div class="al-chart al-chart--dd"><canvas id="alDdC" aria-label="낙폭"></canvas></div>' : '') + '</div>';
@@ -182,7 +206,9 @@
       : { v: st.sharpe_per_trade, s: '거래당', src: 'stats.sharpe_per_trade', tip: (isNum(st.sharpe_annualized) ? 'stats.sharpe_annualized ' + st.sharpe_annualized + ' = ' + (st.sharpe_note || '') + ' — 헤드라인에 쓰지 않음' : '') };
     var mdd = isNum(st.mdd_daily_mtm_bp) ? { v: st.mdd_daily_mtm_bp, s: '일별 MtM', src: 'stats.mdd_daily_mtm_bp', tip: st.mdd_note || '' }
       : { v: st.max_drawdown_bp, s: daily ? '일별 MtM' : '청산 누적', src: 'stats.max_drawdown_bp', tip: daily ? '' : '청산일 누적 곡선 기준(보유 중 평가손익 미반영) · 엔진 표기 그대로' };
-    var dsrTip = ['registry tier_eval.dsr', te.dsr_verdict, get(te, 'dsr_at_current_N.dsr') != null ? '현 N 기준 ' + get(te, 'dsr_at_current_N.dsr') + ' (N ' + get(te, 'dsr_at_current_N.n_effective') + ')' : '',
+    var dsrB = dsrBasis(reg, art), cur = get(art, 'perf_extension.dsr_at_current_N_info');
+    var dsrTip = ['registry tier_eval.dsr', dsrB ? '기준 = ' + basisTxt(dsrB) + '(' + dsrB.src + ')' : '', te.dsr_verdict,
+      cur && cur.n_trials != null ? '정보(등록부·게이트 무반영): 현 N ' + cur.n_trials + ' · ' + Object.keys(cur).filter(function (k) { return /^dsr_data_/.test(k); }).map(function (k) { return k.replace('dsr_data_', '데이터 ') + ' ' + cur[k]; }).join(' / ') : '', get(te, 'dsr_at_current_N.dsr') != null ? '현 N 기준 ' + get(te, 'dsr_at_current_N.dsr') + ' (N ' + get(te, 'dsr_at_current_N.n_effective') + ')' : '',
       get(te, 'dsr_economic.dsr') != null ? '경제 P&L 대용 DSR ' + get(te, 'dsr_economic.dsr') : '', get(art, 'portfolio.dsr_hac.dsr.verdict') ? 'artifact verdict: ' + get(art, 'portfolio.dsr_hac.dsr.verdict') : ''].filter(Boolean).join(' · ');
     return [
       { k: 'ann', l: '연 손익', v: rawD(st.bp_per_year, 1), u: 'bp/년', c: cls(st.bp_per_year), src: 'stats.bp_per_year', tip: st.metric || '' },
@@ -192,7 +218,7 @@
       { k: 'n', l: art.track === 'delta' ? '에피소드 수' : '거래 수', v: raw(st.n_trades), u: '', src: 'stats.n_trades', tip: '' },
       { k: 'hit', l: '승률', v: pct(st.hit_rate), u: '', src: 'stats.hit_rate', tip: '' },
       { k: 'hold', l: '평균 보유', v: raw(st.mean_hold), u: isNum(st.mean_hold) ? (st.hold_unit || '일') : '', src: 'stats.mean_hold', tip: isNum(st.mean_hold) ? '' : '엔진 artifact 에 평균 보유 값 없음' },
-      { k: 'dsr', l: 'DSR', v: raw(te.dsr), u: '', src: 'registry tier_eval.dsr', tip: dsrTip }
+      { k: 'dsr', l: 'DSR', v: raw(te.dsr), u: '', s: basisTxt(dsrB), src: 'registry tier_eval.dsr', tip: dsrTip }
     ];
   }
   function renderSt(id, reg, art, regErr) {
@@ -202,7 +228,7 @@
     STATS.kpi = {};
     ks.forEach(function (k) { STATS.kpi[k.k] = k.v + (k.u ? ' ' + k.u : ''); });
     host.innerHTML = cardHead('기초 통계량', '엔진 산출 값 그대로(웹 재계산 0). 칸마다 ? = 출처 필드. 값이 없으면 –.' + (regErr ? ' DSR: 등록부를 불러오지 못함(' + regErr + ').' : ''),
-      esc(get(art, 'stats.at') ? '산출 ' + get(art, 'stats.at') : '')) +
+      esc([(curveOf(art) ? '데이터 끝 ' + curveOf(art).pts[curveOf(art).pts.length - 1].d : ''), (get(art, 'stats.at') ? '산출 ' + get(art, 'stats.at') : '')].filter(Boolean).join(' · '))) +
       '<div class="al-body"><dl class="al-kpis" id="alKpis">' + ks.map(function (k) {
         return '<div class="al-kpi" data-k="' + k.k + '"><dt>' + esc(k.l) + help('출처: ' + k.src + (k.tip ? ' · ' + k.tip : '')) + '</dt><dd><span class="al-kpi-v ' + (k.c || '') + '">' + k.v + '</span>' +
           (k.u ? '<span class="al-kpi-u">' + esc(k.u) + '</span>' : '') + (k.s ? '<span class="al-kpi-s">' + esc(k.s) + '</span>' : '') + '</dd></div>';
@@ -343,10 +369,10 @@
     var pReg = load(id, 'reg'), pArt = load(id, 'art'), pFwd = load(id, 'fwd');
     var live = function () { return seq === AL.seq; };
     var settle = function (p) { return p.then(function (v) { return { ok: true, v: v }; }, function (e) { return { ok: false, e: emsg(e) }; }); };
-    var head = Promise.all([settle(pReg), settle(pFwd)]).then(function (r) {
+    var head = Promise.all([settle(pReg), settle(pFwd), settle(pArt)]).then(function (r) {   // art = 칩 tip 의 DSR 기준(게이트 시점 · N) · 실패해도 칩은 그림
       if (!live()) return;
       if (!r[0].ok) { $('alStrat').innerHTML = '<span class="al-strat-name">' + esc(STRATS.filter(function (s) { return s.id === id; })[0].label) + '</span><span class="wb-error" id="alHeadErr">등록부를 불러오지 못함 — ' + esc(r[0].e) + '</span>'; STATS.sec.head = 'err'; return; }
-      try { renderHead(id, r[0].v, r[1].ok ? r[1].v : null); STATS.sec.head = 'ok'; } catch (e) { STATS.sec.head = 'err'; if (window.console) console.warn('al head', e); }
+      try { renderHead(id, r[0].v, r[1].ok ? r[1].v : null, r[2].ok ? r[2].v : null); STATS.sec.head = 'ok'; } catch (e) { STATS.sec.head = 'err'; if (window.console) console.warn('al head', e); }
     });
     var bt = Promise.all([settle(pArt), settle(pFwd)]).then(function (r) {
       if (!live()) return;
