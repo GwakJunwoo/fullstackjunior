@@ -34,6 +34,7 @@
   --wb-series-4: #1b968d;
   --wb-series-5: #b18e15;
   --wb-series-6: #7e8387;
+  --wb-basket: #a07c00;   /* 선물 바스켓 종목 표식(노랑) — 면 대비 라이트 3.3:1 · 다크 9.6:1 (2026-10-22 Overview ①) */
   --wb-ramp-1: #34558c; --wb-ramp-2: #4a6ba0; --wb-ramp-3: #6583b2;
   --wb-ramp-4: #869cbd; --wb-ramp-5: #9c9aa3; --wb-ramp-6: #bb9186;
   --wb-ramp-7: #b6735f; --wb-ramp-8: #a85843; --wb-ramp-9: #913f2e;
@@ -76,6 +77,7 @@ html[data-wb="partial"]:not([data-contest]) {
   --wb-series-4: #25aba6;
   --wb-series-5: #d0b035;
   --wb-series-6: #b9bec3;
+  --wb-basket: #e8c33a;   /* 선물 바스켓 종목 표식(노랑) — 면 대비 라이트 3.3:1 · 다크 9.6:1 (2026-10-22 Overview ①) */
   --wb-ramp-1: #4a68a0; --wb-ramp-2: #5c7cb2; --wb-ramp-3: #7590bd;
   --wb-ramp-4: #94a5c4; --wb-ramp-5: #aeabb3; --wb-ramp-6: #c9a095;
   --wb-ramp-7: #c9836f; --wb-ramp-8: #c26953; --wb-ramp-9: #b0503c;
@@ -112,6 +114,7 @@ html[data-wb="partial"]:not([data-contest]) {
     --wb-series-4: #25aba6;
     --wb-series-5: #d0b035;
     --wb-series-6: #b9bec3;
+    --wb-basket: #e8c33a;   /* 선물 바스켓 종목 표식(노랑) — 면 대비 라이트 3.3:1 · 다크 9.6:1 (2026-10-22 Overview ①) */
     --wb-ramp-1: #4a68a0; --wb-ramp-2: #5c7cb2; --wb-ramp-3: #7590bd;
     --wb-ramp-4: #94a5c4; --wb-ramp-5: #aeabb3; --wb-ramp-6: #c9a095;
     --wb-ramp-7: #c9836f; --wb-ramp-8: #c26953; --wb-ramp-9: #b0503c;
