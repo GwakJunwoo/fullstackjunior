@@ -235,6 +235,10 @@
     .ns-FLAT { background:rgba(251,191,36,.14); color:#fbbf24; border:.5px solid rgba(251,191,36,.42); }
     tr.bkrow.flat td { opacity:.75; }
     .bk-flatnote { font-size:10px; font-weight:700; color:#fbbf24; }
+    tr.bkrow.paperonly td { opacity:.8; }
+    .ns-PAPER { background:rgba(148,163,184,.14); color:var(--text2,#94a3b8); border:.5px dashed rgba(148,163,184,.5); }
+    .bk-papernote { font-size:10px; color:var(--text2,#94a3b8); }
+    .bk-paperref { font-size:11px; color:var(--text2,#94a3b8); }
     .bk-saved { color:var(--green); font-weight:700; }
     .bk-contrib { background:var(--s2); border:.5px solid var(--bd); border-radius:var(--rs); padding:8px 10px; margin:4px 0; font-size:11px; }
     .bk-paper { font-size:9px; font-weight:700; padding:1px 6px; border-radius:3px; background:rgba(251,191,36,.16); color:#fbbf24; border:.5px solid rgba(251,191,36,.4); margin-left:5px; }
@@ -3644,10 +3648,15 @@ function renderOpsBook(){
   if (bk.stale_vs_request) h+='<div class="vbanner v-fail">⚠ <b>stale</b> — 요청일 '+_esc(bk.date)+
     ' ≠ forward as_of '+_esc(bk.as_of)+'. 집행표가 요청일보다 묵음 — cli.py forward 재실행 권장.</div>';
   const tt=bk.totals||{};
+  // 2026-10-22 engine.book(45ca2c3d): 레그 집계·절감·totals = 실집행(paper=False) 기여만 · 페이퍼 = paper_* · paper_totals(절감 0) 따로.
+  // paper_totals 키가 있는 응답 = '실집행' 라벨 + 페이퍼 참고 줄 분리(섞지 않음) · 키 없는 옛 응답 = 종전 그대로.
+  const pt=bk.paper_totals, hasPT=!!(pt && typeof pt==='object');
   h+='<div class="status" style="margin-bottom:8px">기준일 <b>'+_esc(bk.date||'–')+'</b> · forward as_of <b>'+_esc(bk.as_of||'–')+'</b>'+
-    ' · 오늘 gross 비용 <b>'+_krw(tt.gross_cost_krw)+'원</b> → net <b>'+_krw(tt.net_cost_krw)+'원</b>'+
+    ' · 오늘 '+(hasPT?'실집행 ':'')+'gross 비용 <b>'+_krw(tt.gross_cost_krw)+'원</b> → net <b>'+_krw(tt.net_cost_krw)+'원</b>'+
     ' (절감 <span class="bk-saved">'+_krw(tt.saved_krw)+'원'+
-    (tt.saved_pct!=null?(', '+(Math.round(Number(tt.saved_pct)*10)/10)+'%'):'')+'</span>)</div>';
+    (tt.saved_pct!=null?(', '+(Math.round(Number(tt.saved_pct)*10)/10)+'%'):'')+'</span>)'+
+    (hasPT?('<br><span class="bk-paperref" id="opsBookPaperTot" title="'+_esc(pt.note||'')+'">페이퍼 참고(절감 '+_krw(pt.saved_krw)+'원) — gross 비용 '+
+      _krw(pt.gross_cost_krw)+'원 · 실집행 아님(위 합계에 미포함)</span>'):'')+'</div>';
   // dedup 알림 — 엔진 판정 그대로(curve2 중복 → cv2n_fp로 집행, 사용자 규칙)
   (bk.dedup||[]).forEach(function(d){
     h+='<div class="vbanner v-warn">중복(dedup) — <b>'+_esc(d.struct||'')+'</b>'+
@@ -3670,14 +3679,26 @@ function renderOpsBook(){
     '<th>net DV01 (만원/bp)</th><th>gross→net DV01 (만원/bp)</th><th>비용 (원)</th><th>절감 (원)</th><th class="lt">기여</th>'+
     '</tr></thead><tbody>';
   bk.legs.forEach(function(l,i){
-    const flat = l.net_side==='FLAT';
+    // paper_* 키 있음 = 새 엔진 응답. 실집행 기여 0(gross_dv01 0)인데 페이퍼 기여가 있으면 = '페이퍼만 · 실집행 0'(상쇄 아님).
+    // 진짜 상쇄 = 실집행 기여가 있고(gross>0) net FLAT. 키 없는 옛 응답 = 종전 규칙(net FLAT = 상쇄).
+    const hasP = ('paper_gross_dv01' in l);
+    const realG = Number(l.gross_dv01)||0, papG = Number(l.paper_gross_dv01)||0;
+    const pSide = l.paper_net_side||l.paper_side||'';
+    const paperOnly = hasP && papG>0 && realG===0;
+    const noReal = hasP && realG===0 && !paperOnly;   // 실집행·페이퍼 둘 다 0(엔진이 낸 빈 레그) — 상쇄 아님
+    const flat = l.net_side==='FLAT' && !paperOnly && !noReal;
+    const pRef = (hasP && papG>0) ? ('페이퍼 참고 '+_esc(pSide||'–')+' net '+_man(l.paper_net_dv01)+' · gross '+_man(l.paper_gross_dv01)+'만원/bp') : '';
     const open = _OPS_BOOK_OPEN.has(l.key);
-    h+='<tr class="trow bkrow'+(flat?' flat':'')+(open?' open':'')+'" onclick="opsBookToggle(\''+_esc(l.key)+'\')">'+
+    h+='<tr class="trow bkrow'+(flat?' flat':'')+(paperOnly?' paperonly':'')+(open?' open':'')+'" data-key="'+_esc(l.key)+'" onclick="opsBookToggle(\''+_esc(l.key)+'\')">'+
       '<td class="lt"><b>'+_esc(l.key)+'</b></td>'+
       '<td class="lt">'+_esc(l.kind==='fut'?'선물':l.kind==='cash'?'현물':l.kind)+'</td>'+
       '<td>'+(l.tenor!=null?(_esc(l.tenor)+'y'):'–')+'</td>'+
-      '<td class="lt"><span class="nside ns-'+_esc(l.net_side)+'">'+_esc(l.net_side)+'</span>'+
-        (flat?' <span class="bk-flatnote">집행 불필요 — 상쇄</span>':'')+'</td>'+
+      '<td class="lt">'+(paperOnly
+        ? ('<span class="nside ns-PAPER" title="엔진 net_side = '+_esc(l.net_side)+' (실집행 기여 0)">페이퍼만</span> <span class="bk-papernote">실집행 0 · '+pRef+'</span>')
+        : ('<span class="nside ns-'+_esc(l.net_side)+'">'+_esc(l.net_side)+'</span>'+
+          (flat?' <span class="bk-flatnote">집행 불필요 — 상쇄</span>':'')+
+          (noReal?' <span class="bk-papernote">실집행 0</span>':'')+
+          (pRef?'<br><span class="bk-papernote">+ '+pRef+'(실집행 아님)</span>':'')))+'</td>'+
       '<td><b>'+_man(l.net_dv01)+'</b></td>'+
       '<td>'+_man(l.gross_dv01)+' → '+_man(l.net_dv01)+'</td>'+
       '<td>'+_krw(l.gross_cost_krw)+'</td>'+
