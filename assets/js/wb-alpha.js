@@ -212,6 +212,27 @@
 
   // ══ ③ 보유 포지션 · ④ 오늘 진입 시그널 — forward 그대로 ══════════════════════
   //   연속북(cta_delta: targets[]) = 목표 포지션 트래킹 · 개별 진입(of · uni_irs_v3: open_positions[] · entries_today[] · exits[])
+  // ── 종목 약칭(OF 페어 종목코드 → '26-1' 등) — 리뷰 스냅샷(/quant-house/market-review)의 instrument[] · bond_rv[] {code, name} 그대로.
+  //    약칭 = name 끝 괄호 안('국고03000-2803(26-1)' → '26-1') · 매핑 없는 코드 = 원 코드 그대로 · 원문은 마우스 올림(title).
+  var CODE_RE = /^KR[0-9A-Z]{10}$/;
+  function loadNames() {
+    if (AL.names) return AL.names;
+    AL.names = apiGet('/quant-house/market-review').then(function (snap) {
+      var m = {};
+      ['instrument', 'bond_rv'].forEach(function (k) {
+        (Array.isArray(snap && snap[k]) ? snap[k] : []).forEach(function (x) {
+          if (x && typeof x.code === 'string' && typeof x.name === 'string' && !m[x.code]) { var mm = /\(([^()]+)\)\s*$/.exec(x.name); m[x.code] = mm ? mm[1] : x.name; }
+        });
+      });
+      return m;
+    }, function () { AL.names = null; return {}; });
+    return AL.names;
+  }
+  function nm(c) { var t = String(c == null ? '' : c).trim(); return (CODE_RE.test(t) && AL.nameMap && AL.nameMap[t]) || t; }
+  function codesTxt(s) { return String(s == null ? '' : s).split('/').map(nm).join('/'); }
+  var SIDE = { 'SHORT_nonbench/LONG_bench': '비지표 매도 · 지표 매수', 'LONG_nonbench/SHORT_bench': '비지표 매수 · 지표 매도' };   // 고정 사전 · 없는 라벨 = 원문
+  function sideTxt(s) { return s == null || s === '' ? '–' : (SIDE[s] || s); }
+  function hasCodes(fwd) { return /KR[0-9A-Z]{10}/.test(JSON.stringify([fwd.open_positions, fwd.entries_today, fwd.exits])); }
   function exitTxt(p) {
     var ep = p.exit_policy || {};
     return esc(ep.name || '–') + (p.exit_eta ? '<span class="al-sub">시간청산 ' + esc(p.exit_eta) + (isNum(p.days_to_time_exit) ? ' · ' + p.days_to_time_exit + '일 남음' : '') + '</span>' : '');
@@ -244,8 +265,8 @@
       (P.length ? '<div class="al-tablewrap"><table class="wb-table al-table" id="alPosT"><thead><tr><th class="lt">구조</th><th class="lt">방향</th><th class="num">크기</th><th class="lt">진입일</th><th class="num">보유</th><th class="num">손익 bp</th><th class="lt">청산 조건</th></tr></thead><tbody>' +
         P.map(function (p) {
           var pn = p.pnl_net_bp_if_exit;
-          return '<tr><td class="lt"><span class="mono">' + esc(p.signal || p.sleeve) + '</span>' + (p.sleeve && p.sleeve !== p.signal && p.family !== 'of_pair' ? '<span class="al-sub">' + esc(p.sleeve) + '</span>' : '') + '</td>' +
-            '<td class="lt ' + (p.sign > 0 ? 'wb-up' : p.sign < 0 ? 'wb-down' : '') + '">' + esc(p.side || '–') + '</td><td class="num">' + raw(p.size) + '</td><td class="lt">' + esc(p.entry_date || '–') + '</td>' +
+          return '<tr><td class="lt"><span class="mono" title="' + esc(p.signal || p.sleeve) + '">' + esc(codesTxt(p.signal || p.sleeve)) + '</span>' + (p.sleeve && p.sleeve !== p.signal && p.family !== 'of_pair' ? '<span class="al-sub">' + esc(p.sleeve) + '</span>' : '') + '</td>' +
+            '<td class="lt ' + (p.sign > 0 ? 'wb-up' : p.sign < 0 ? 'wb-down' : '') + '" title="' + esc(p.side || '') + '">' + esc(sideTxt(p.side)) + '</td><td class="num">' + raw(p.size) + '</td><td class="lt">' + esc(p.entry_date || '–') + '</td>' +
             '<td class="num">' + raw(p.days_held) + '/' + raw(p.max_hold) + '</td><td class="num ' + cls(pn) + '" title="gross ' + esc(raw(p.pnl_gross_bp)) + '">' + raw(pn) + ' <span class="al-sub" style="display:inline">(' + raw(p.pnl_gross_bp) + ')</span></td>' +
             '<td class="lt" title="' + esc(epTip(p)) + '">' + exitTxt(p) + '</td></tr>';
         }).join('') + '</tbody></table></div>' : '<div class="al-empty" id="alPosEmpty">보유 없음</div>') + '</div>';
@@ -274,13 +295,13 @@
     var h = '';
     if (E.length) h += '<div class="al-sigh">진입 ' + E.length + '</div><div class="al-tablewrap"><table class="wb-table al-table" id="alSigT"><thead><tr><th class="lt">구조 · 레그</th><th class="lt">방향 · 조건</th></tr></thead><tbody>' +
       E.map(function (e) {
-        var legs = Array.isArray(e.legs) ? e.legs.map(function (l) { return esc(l.leg) + ' ' + esc(l.dir); }).join(' · ') : '';
+        var legs = Array.isArray(e.legs) ? e.legs.map(function (l) { return esc(nm(l.leg)) + ' ' + esc(l.dir); }).join(' · ') : '';
         var cond = [isNum(e.z) ? 'z ' + raw(e.z) : '', '크기 ' + raw(e.size), get(e, 'exit_policy.name') ? esc(get(e, 'exit_policy.name')) : ''].filter(Boolean).join(' · ');
-        return '<tr><td class="lt"><span class="mono">' + esc(e.signal || e.sleeve) + '</span>' + (legs ? '<span class="al-sub">' + legs + '</span>' : '') + '</td>' +
-          '<td class="lt" title="' + esc(epTip(e)) + '"><span class="' + (e.sign > 0 ? 'wb-up' : e.sign < 0 ? 'wb-down' : '') + '">' + esc(e.side || '–') + '</span><span class="al-sub">' + cond + '</span></td></tr>';
+        return '<tr><td class="lt"><span class="mono" title="' + esc((e.signal || e.sleeve) + (Array.isArray(e.legs) ? ' · ' + e.legs.map(function (l) { return l.leg + ' ' + l.dir; }).join(' · ') : '')) + '">' + esc(codesTxt(e.signal || e.sleeve)) + '</span>' + (legs ? '<span class="al-sub">' + legs + '</span>' : '') + '</td>' +
+          '<td class="lt" title="' + esc(epTip(e)) + '"><span class="' + (e.sign > 0 ? 'wb-up' : e.sign < 0 ? 'wb-down' : '') + '" title="' + esc(e.side || '') + '">' + esc(sideTxt(e.side)) + '</span><span class="al-sub">' + cond + '</span></td></tr>';
       }).join('') + '</tbody></table></div>';
     if (X.length) h += '<div class="al-sigh">청산 ' + X.length + '</div><div class="al-tablewrap"><table class="wb-table al-table" id="alSigX"><thead><tr><th class="lt">구조</th><th class="lt">사유</th><th class="num">보유</th><th class="num">손익 bp</th></tr></thead><tbody>' +
-      X.map(function (x) { return '<tr><td class="lt mono">' + esc(x.signal || x.sleeve) + '</td><td class="lt">' + esc(x.reason || '–') + '</td><td class="num">' + raw(x.days_held) + '</td><td class="num ' + cls(x.pnl_net_bp) + '">' + raw(x.pnl_net_bp) + '</td></tr>'; }).join('') + '</tbody></table></div>';
+      X.map(function (x) { return '<tr><td class="lt mono" title="' + esc(x.signal || x.sleeve) + '">' + esc(codesTxt(x.signal || x.sleeve)) + '</td><td class="lt">' + esc(x.reason || '–') + '</td><td class="num">' + raw(x.days_held) + '</td><td class="num ' + cls(x.pnl_net_bp) + '">' + raw(x.pnl_net_bp) + '</td></tr>'; }).join('') + '</tbody></table></div>';
     host.innerHTML = cardHead('오늘 진입 시그널', tip, meta + ' · 진입 ' + E.length + ' · 청산 ' + X.length) +
       '<div class="al-body">' + (h || '<div class="al-empty" id="alSigEmpty">오늘 신호 없음</div>') + '</div>';
     STATS.sec.sig = 'ok';
@@ -318,12 +339,16 @@
       if (!r[1].ok) { $('alSt').innerHTML = cardHead('기초 통계량', '') + errBox('통계를 불러오지 못함 — ', r[1].e); STATS.sec.st = 'err'; return; }
       try { renderSt(id, r[0].ok ? r[0].v : null, r[1].v, r[0].ok ? null : r[0].e); } catch (e) { $('alSt').innerHTML = cardHead('기초 통계량', '') + errBox('그리기 실패 — ', emsg(e)); STATS.sec.st = 'err'; if (window.console) console.warn('al st', e); }
     });
-    var pos = settle(pFwd).then(function (r) {
+    var pFwdN = pFwd.then(function (f) {   // 종목코드가 있는 forward(OF)만 약칭 사전을 받음 · 사전 실패 = 원 코드 그대로(블록 격리 유지)
+      if (!f || !hasCodes(f)) return f;
+      return loadNames().then(function (m) { AL.nameMap = m; STATS.names = Object.keys(m).length; return f; });
+    });
+    var pos = settle(pFwdN).then(function (r) {
       if (!live()) return;
       if (!r.ok) { $('alPos').innerHTML = cardHead('보유 포지션', '') + errBox('forward 를 불러오지 못함 — ', r.e); STATS.sec.pos = 'err'; return; }
       try { renderPos(id, r.v); } catch (e) { $('alPos').innerHTML = cardHead('보유 포지션', '') + errBox('그리기 실패 — ', emsg(e)); STATS.sec.pos = 'err'; if (window.console) console.warn('al pos', e); }
     });
-    var sig = settle(pFwd).then(function (r) {
+    var sig = settle(pFwdN).then(function (r) {
       if (!live()) return;
       if (!r.ok) { $('alSig').innerHTML = cardHead('오늘 진입 시그널', '') + errBox('forward 를 불러오지 못함 — ', r.e); STATS.sec.sig = 'err'; return; }
       try { renderSig(id, r.v); } catch (e) { $('alSig').innerHTML = cardHead('오늘 진입 시그널', '') + errBox('그리기 실패 — ', emsg(e)); STATS.sec.sig = 'err'; if (window.console) console.warn('al sig', e); }
