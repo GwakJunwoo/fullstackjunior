@@ -45,7 +45,11 @@
       { id: 'beta-trading', label: 'Beta Trading', href: '/tools/beta-trading/', desc: '3팩터 RV · MOM · CURVE', kw: 'beta trading' },
       { id: 'supply', label: '시장 수급', href: '/tools/supply/', group: 2, desc: '채권별 수급 흐름', kw: 'supply flow 수급' } ] },
     { id: 'data', label: '데이터', pages: [
-      { id: 'db', label: 'DB 탐색', href: '/tools/db/', desc: '시장 데이터 테이블 조회', kw: 'db database table' } ] }
+      { id: 'db', label: 'DB 탐색', href: '/tools/db/', desc: '시장 데이터 테이블 조회', kw: 'db database table' } ] },
+    // 2026-10-22 사용자 지시: 알파 전략 탭(헤더 맨 끝) — OF · CTA 델타 · UNI IRS v3.1 · 백테스트 · 기초 통계량 · 보유 포지션 · 오늘 신호
+    { id: 'alpha', label: '알파 전략', pages: [
+      { id: 'alpha', label: '알파 전략', href: '/tools/alpha/', contest: true,
+        desc: 'OF · CTA 델타 · UNI IRS v3.1 — 백테스트 · 기초 통계량 · 보유 포지션 · 오늘 진입 시그널', kw: 'alpha strategy 알파 전략 of cta delta uni irs 백테스트 포지션 시그널 신호' } ] }
   ];
 
   function contest() { return root.hasAttribute('data-contest'); }

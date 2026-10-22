@@ -21,6 +21,7 @@
   var doc = document;
   var $ = function (id) { return doc.getElementById(id); };
   var MINUS = '−';
+  var MAX_REMAIN = 30.5;              // ① 전 국채 커브 · 잔존만기별 변화: 잔존 30년 이하만 그림(2026-10-22 사용자 지시 "테너 ~30년까지만" · 30년 지표물 포함 여유 0.5)
   var MIN_CURVE_ROWS = 20;            // 확정 종가 판정: 그날 국고채 커브 최소 종목 수(평소 ≈ 120 · 예비호가 날 = 0~수 개)
   var SPARK_N = 20;                   // 타일 추이선 = D 까지 끝 20 관측
   var KTB_CAT = '국고채';
@@ -93,6 +94,7 @@
     return out;
   }
   // 금리 대시보드 수익률 곡선과 같은 점 규칙: 잔존·금리 있음 · 금리 0 제외 · '…저평' 행(금리 아님) 제외
+  function curveRows30(res) { return curveRows(res).filter(function (r) { return +r.remain_year <= MAX_REMAIN; }); }   // ① 오른쪽 카드 전용(데이터에서 거름 — 축만 자르면 선이 축 밖으로 이어짐)
   function curveRows(res) {
     return ((res && res.rows) || []).filter(function (r) {
       return r.remain_year != null && r.ytm != null && isFinite(+r.remain_year) && isFinite(+r.ytm) && +r.ytm !== 0 && !/저평$/.test(r.label || '');
@@ -207,24 +209,24 @@
     var ds = [];
     [3, 2, 1, 0].forEach(function (k) {
       if (!R.days[k]) return;
-      var rows = curveRows(R.days[k].curve), st = sty[k];
+      var rows = curveRows30(R.days[k].curve), st = sty[k];
       ds.push({ label: (k ? 'D−' + k + ' ' : 'D ') + mmdd(dl[k]), data: rows.map(function (r) { return { x: +r.remain_year, y: +r.ytm, lb: r.label }; }),
         borderColor: st.muted ? tok('--wb-muted', st.a) : tok('--wb-series-1', st.a), pointBackgroundColor: tok('--wb-series-1', st.a),
         borderWidth: st.w, borderDash: st.dash, pointRadius: st.r, pointHoverRadius: 4, cubicInterpolationMode: 'monotone', spanGaps: true, fill: false });
     });
-    $('ovCurveMeta').textContent = KTB_CAT + ' · ' + curveRows(R.days[0].curve).length + '종목';
+    $('ovCurveMeta').innerHTML = esc(KTB_CAT) + ' · ' + curveRows30(R.days[0].curve).length + '종목' + help('그린 종목 수(D) · 잔존 30년 이하만(≤ ' + MAX_REMAIN + '년 — 40·50년물 제외 · 30년 지표물 포함). 아래 산점도도 같은 범위.');
     mk('curve', $('ovCurve'), { type: 'line', data: { datasets: ds },
       options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'nearest', axis: 'x', intersect: false },
         plugins: { legend: { display: false }, tooltip: { callbacks: { title: function (it) { return '잔존 ' + (it[0] ? it[0].parsed.x.toFixed(2) : '') + '년'; },
           label: function (c) { var p = c.raw || {}; return ' ' + c.dataset.label + ': ' + (+c.parsed.y).toFixed(3) + '% ' + (p.lb || ''); } } } },
-        scales: { x: { type: 'linear', title: { display: true, text: '잔존만기 (년)' } }, y: { ticks: { callback: function (v) { return v.toFixed(2) + '%'; } } } } } });
+        scales: { x: { type: 'linear', min: 0, suggestedMax: 30, bounds: 'data', title: { display: true, text: '잔존만기 (년)' } }, y: { ticks: { callback: function (v) { return v.toFixed(2) + '%'; } } } } } });
   }
   function drawCurveChg(R) {
     if (!R.days[1]) { $('ovCurveChg').parentElement.innerHTML = '<div class="ov-foot">D−1 커브 없음</div>'; return; }
     var prev = new Map();
-    curveRows(R.days[1].curve).forEach(function (r) { if (!/지표|기준금리/.test(r.label || '')) prev.set(r.label, +r.ytm); });
+    curveRows30(R.days[1].curve).forEach(function (r) { if (!/지표|기준금리/.test(r.label || '')) prev.set(r.label, +r.ytm); });
     var pts = [], bpts = [];
-    curveRows(R.days[0].curve).forEach(function (r) {
+    curveRows30(R.days[0].curve).forEach(function (r) {
       if (/지표|기준금리/.test(r.label || '') || !prev.has(r.label)) return;
       var p = { x: +r.remain_year, y: bpChg(+r.ytm, prev.get(r.label)), lb: r.label };
       // 선물 바스켓 = /ktb/curve 응답 행 basket 값 그대로(금리 대시보드 '선물만' · 서버 basket=1 과 같은 기준: 값 있음 = 편입)
@@ -245,7 +247,7 @@
       options: { responsive: true, maintainAspectRatio: false, animation: false,
         plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { var p = c.raw;
           return ' ' + p.lb + (p.bk ? ' · ' + p.fut + ' 바스켓(' + p.bk + ')' : '') + ' · 잔존 ' + p.x.toFixed(2) + '년 · ' + fmtBp(p.y) + 'bp'; } } } },
-        scales: { x: { type: 'linear', ticks: { maxTicksLimit: 8 } }, y: { ticks: { maxTicksLimit: 4 }, grid: { color: function (c) { return c.tick && c.tick.value === 0 ? WBChart.css('--wb-rule-strong') : WBChart.css('--wb-rule'); } } } } } });
+        scales: { x: { type: 'linear', min: 0, suggestedMax: 30, bounds: 'data', ticks: { maxTicksLimit: 8 } }, y: { ticks: { maxTicksLimit: 4 }, grid: { color: function (c) { return c.tick && c.tick.value === 0 ? WBChart.css('--wb-rule-strong') : WBChart.css('--wb-rule'); } } } } } });
   }
   function isBasket(r) { return r.basket != null && r.basket !== ''; }               // 금리 대시보드 drawCurve '선물만' 행 확인과 같은 조건
   function futOf(bk) { var m = /^(\d+선)/.exec(String(bk || '')); return m ? m[1] : String(bk || ''); }   // '3선1' → '3선'

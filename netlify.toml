@@ -62,6 +62,11 @@
   status = 301
 
 [[redirects]]
+  from   = "/tools/alpha"
+  to     = "/tools/alpha/"
+  status = 301
+
+[[redirects]]
   from   = "/tools/arb-monitor"
   to     = "/tools/arb-monitor/"
   status = 301
