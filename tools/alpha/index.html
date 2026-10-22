@@ -11,8 +11,8 @@
   <script>/* wb 기본 테마 선적용(첫 페인트 깜빡임 방지) — 저장값 없으면 어두움 · wb-shell.js 와 같은 규칙 */try{var t=localStorage.getItem('wb-theme');document.documentElement.setAttribute('data-theme',t==='light'||t==='dark'?t:'dark')}catch(e){document.documentElement.setAttribute('data-theme','dark')}</script>
   <title>알파 전략 · Bond Quant House</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%9B%EF%B8%8F%3C/text%3E%3C/svg%3E">
-  <link rel="stylesheet" href="/assets/css/wb.css?v=20261022b">
-  <script src="/assets/js/wb-shell.js?v=20261022b"></script>
+  <link rel="stylesheet" href="/assets/css/wb.css?v=20261022c">
+  <script src="/assets/js/wb-shell.js?v=20261022c"></script>
   <style>
     /* ═══ 알파 전략 — 표현만(wb 토큰 · 카드 · 표) ═══ */
     .al-head { align-items: center; }
@@ -53,6 +53,13 @@
     .al-sub { display: block; font-size: 11px; line-height: 14px; color: var(--wb-muted); }
     .al-sigh { margin: var(--wb-s2) 0 4px; font-size: var(--wb-fs-label); color: var(--wb-muted); }
     .al-sigh:first-child { margin-top: 0; }
+    .al-sigh b { color: var(--wb-ink); font-weight: 600; }
+    .al-cnt { display: inline-block; min-width: 18px; margin-left: 4px; padding: 0 5px; border: 1px solid var(--wb-rule); border-radius: var(--wb-r-ctl); font-size: 11px; line-height: 16px; text-align: center; color: var(--wb-ink); font-variant-numeric: tabular-nums; }
+    .al-sigsplit { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+    .al-half { flex: 1 1 0; min-height: 132px; display: flex; flex-direction: column; padding: var(--wb-s2) var(--wb-s4) var(--wb-s3); }
+    .al-half + .al-half { border-top: 1px solid var(--wb-rule); }
+    .al-half .al-tablewrap { flex: 1 1 auto; max-height: none; min-height: 0; }
+    .al-half .al-empty { padding: var(--wb-s2) 0; }
     .al-err { padding: var(--wb-s3) var(--wb-s4); border: 1px solid var(--wb-rule); border-left: 2px solid var(--wb-warn); border-radius: var(--wb-r-ctl); background: var(--wb-subtle); font-size: 13px; }
     .al-err .wb-error { display: block; margin-bottom: 4px; }
     .al-skel { padding: var(--wb-s4); }
@@ -86,13 +93,13 @@
   </div>
   <div class="al-grid">
     <section class="wb-card al-card" id="alPos" aria-label="보유 포지션"><div class="al-skel"><span class="wb-skel wb-skel--line"></span><span class="wb-skel wb-skel--line"></span><span class="wb-skel wb-skel--line"></span></div></section>
-    <section class="wb-card al-card" id="alSig" aria-label="오늘 진입 시그널"><div class="al-skel"><span class="wb-skel wb-skel--line"></span><span class="wb-skel wb-skel--line"></span><span class="wb-skel wb-skel--line"></span></div></section>
+    <section class="wb-card al-card" id="alSig" aria-label="오늘 시그널"><div class="al-skel"><span class="wb-skel wb-skel--line"></span><span class="wb-skel wb-skel--line"></span><span class="wb-skel wb-skel--line"></span></div></section>
   </div>
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
-<script src="/assets/js/wb-chart.js?v=20261022b"></script>
-<script src="/assets/js/wb-alpha.js?v=20261022b"></script>
+<script src="/assets/js/wb-chart.js?v=20261022c"></script>
+<script src="/assets/js/wb-alpha.js?v=20261022c"></script>
 </body>
 </html>

@@ -2,7 +2,7 @@
    wb-alpha.js — 알파 전략 탭(2026-10-22 사용자 지시)
    ───────────────────────────────────────────────────────────────────────────
    대상 셋(등록부 id): of · cta_delta · uni_irs_v3(variant v3.1_mirror · 화면 이름 UNI IRS v3.1).
-   블록 넷(전략마다): ① 백테스트 ② 기초 통계량 ③ 보유 포지션 ④ 오늘 진입 시그널. 블록마다 독립 로딩·실패 격리.
+   블록 넷(전략마다): ① 백테스트 ② 기초 통계량 ③ 보유 포지션 ④ 오늘 시그널(위 진입 · 아래 청산). 블록마다 독립 로딩·실패 격리.
    ■ 데이터 = 기존 읽기 전용 API 그대로(새 라우트 없음):
        /quant-house/strategy/{id}          → registry.json 항목 그대로(상태 칩 · 설명 토글 · DSR)
        /quant-house/backtest/{id}          → 04_strategies/{id}/backtest_artifact.json 그대로(곡선 · 통계)
@@ -210,7 +210,7 @@
     STATS.sec.st = 'ok';
   }
 
-  // ══ ③ 보유 포지션 · ④ 오늘 진입 시그널 — forward 그대로 ══════════════════════
+  // ══ ③ 보유 포지션 · ④ 오늘 시그널 — forward 그대로 ══════════════════════
   //   연속북(cta_delta: targets[]) = 목표 포지션 트래킹 · 개별 진입(of · uni_irs_v3: open_positions[] · entries_today[] · exits[])
   // ── 종목 약칭(OF 페어 종목코드 → '26-1' 등) — 리뷰 스냅샷(/quant-house/market-review)의 instrument[] · bond_rv[] {code, name} 그대로.
   //    약칭 = name 끝 괄호 안('국고03000-2803(26-1)' → '26-1') · 매핑 없는 코드 = 원 코드 그대로 · 원문은 마우스 올림(title).
@@ -272,38 +272,57 @@
         }).join('') + '</tbody></table></div>' : '<div class="al-empty" id="alPosEmpty">보유 없음</div>') + '</div>';
     STATS.sec.pos = 'ok';
   }
+  // ④ 오늘 시그널 — 위 = 진입 · 아래 = 청산(2026-10-22 사용자 지시 "분할해서 진입 시그널, 청산 시그널 아래 위로")
+  //   진입 = forward entries_today 그대로 · 청산 = forward exits 중 봉인일 = 기준일(엔진 counts.exits_sealed_today 와 같은 규칙).
+  //   '오늘 체결 예정 시간청산' 같은 별도 목록은 엔진 forward 에 없음 → 만들지 않음(웹 계산 0).
+  //   연속북(cta_delta) = 진입·청산 개념 없음: 위 = 체결일 목표 포지션 · 아래 = 고정 안내(엔진 근거 없는 청산 행 생성 0).
+  function half(key, title, n, inner, tip) {
+    return '<div class="al-half" id="alSig' + key + '"><div class="al-sigh"><b>' + esc(title) + '</b> <span class="al-cnt" id="alSig' + key + 'N">' + n + '</span>' + help(tip) + '</div>' + inner + '</div>';
+  }
   function renderSig(id, fwd) {
     var host = $('alSig');
-    if (!fwd || fwd.available === false) { host.innerHTML = cardHead('오늘 진입 시그널', '') + errBox('forward 없음 — ', (fwd && fwd.note) || ''); STATS.sec.sig = 'none'; return; }
+    if (!fwd || fwd.available === false) { host.innerHTML = cardHead('오늘 시그널', '') + errBox('forward 없음 — ', (fwd && fwd.note) || ''); STATS.sec.sig = 'none'; return; }
     var meta = '기준 ' + esc(fwd.asof || '–') + ' · 체결 ' + esc(fwd.execution_date || '–');
     var pitTip = [get(fwd, 'pit.convention'), get(fwd, 'pit.execution_note')].filter(Boolean).join(' · ');
+    var sgn = function (v) { return v > 0 ? 'wb-up' : v < 0 ? 'wb-down' : ''; };
     if (Array.isArray(fwd.targets)) {
       var T = fwd.targets;
-      STATS.sig = { kind: 'targets', n: T.length, asof: fwd.asof, exec: fwd.execution_date };
-      host.innerHTML = cardHead('오늘 진입 시그널', '체결일 목표 포지션(연속북 — 진입·청산 대신 목표 조정) · forward targets 그대로: 원신호(raw_signal) × vol 레버 = 목표 단위. ' + pitTip, meta) +
-        '<div class="al-body">' + (T.length ? '<div class="al-tablewrap"><table class="wb-table al-table" id="alSigT"><thead><tr><th class="lt">슬리브</th><th class="lt">방향</th><th class="num">원신호</th><th class="num">vol 레버</th><th class="num">목표 단위</th><th class="lt">신호일</th></tr></thead><tbody>' +
-          T.map(function (t) {
-            return '<tr><td class="lt wb-strong">' + esc(t.sleeve) + '</td><td class="lt ' + (t.sign > 0 ? 'wb-up' : t.sign < 0 ? 'wb-down' : '') + '">' + esc(t.side || '–') + '</td><td class="num">' + raw(t.raw_signal) + '</td>' +
-              '<td class="num">' + raw(t.vol_lever) + '</td><td class="num">' + raw(t.target_unit) + '</td><td class="lt">' + esc(t.signal_date || '–') + '</td></tr>';
-          }).join('') + '</tbody></table></div>' : '<div class="al-empty" id="alSigEmpty">오늘 신호 없음</div>') + '</div>';
+      STATS.sig = { kind: 'targets', n: T.length, x: null, asof: fwd.asof, exec: fwd.execution_date };
+      var tin = T.length ? '<div class="al-tablewrap"><table class="wb-table al-table" id="alSigT"><thead><tr><th class="lt">슬리브</th><th class="lt">방향</th><th class="num">원신호</th><th class="num">vol 레버</th><th class="num">목표 단위</th><th class="lt">신호일</th></tr></thead><tbody>' +
+        T.map(function (t) {
+          return '<tr><td class="lt wb-strong">' + esc(t.sleeve) + '</td><td class="lt ' + sgn(t.sign) + '">' + esc(t.side || '–') + '</td><td class="num">' + raw(t.raw_signal) + '</td>' +
+            '<td class="num">' + raw(t.vol_lever) + '</td><td class="num">' + raw(t.target_unit) + '</td><td class="lt">' + esc(t.signal_date || '–') + '</td></tr>';
+        }).join('') + '</tbody></table></div>' : '<div class="al-empty" id="alSigInEmpty">오늘 진입 신호 없음</div>';
+      host.innerHTML = cardHead('오늘 시그널', '연속북 — forward targets 그대로. ' + pitTip, meta) +
+        '<div class="al-sigsplit">' +
+        half('In', '진입 시그널', T.length, tin, '체결일 목표 포지션(연속북은 진입·청산 대신 목표 조정): 원신호(raw_signal) × vol 레버 = 목표 단위') +
+        half('Out', '청산 시그널', '–', '<div class="al-empty" id="alSigOutNote">연속북 — 별도 청산 신호 없음(목표 포지션 변경으로 표시)</div>',
+          'forward 에 목표 감소·0 전환 같은 청산 정보가 따로 없음 — 청산 행을 만들지 않음') +
+        '</div>';
       STATS.sec.sig = 'ok'; return;
     }
     var E = Array.isArray(fwd.entries_today) ? fwd.entries_today : [];
     var X = (Array.isArray(fwd.exits) ? fwd.exits : []).filter(function (x) { return x.exit_seal_date === fwd.asof; });   // 오늘(기준일) 봉인 청산만 — forward exits 는 최근 14일 창
     STATS.sig = { kind: 'entries', n: E.length, x: X.length, asof: fwd.asof, exec: fwd.execution_date };
-    var tip = 'forward entries_today(진입) · exits 중 봉인일 = 기준일(청산) 그대로. ' + pitTip + (fwd.exits_note ? ' · ' + fwd.exits_note : '');
-    var h = '';
-    if (E.length) h += '<div class="al-sigh">진입 ' + E.length + '</div><div class="al-tablewrap"><table class="wb-table al-table" id="alSigT"><thead><tr><th class="lt">구조 · 레그</th><th class="lt">방향 · 조건</th></tr></thead><tbody>' +
+    var ein = E.length ? '<div class="al-tablewrap"><table class="wb-table al-table" id="alSigT"><thead><tr><th class="lt">구조 · 레그</th><th class="lt">방향 · 조건</th></tr></thead><tbody>' +
       E.map(function (e) {
         var legs = Array.isArray(e.legs) ? e.legs.map(function (l) { return esc(nm(l.leg)) + ' ' + esc(l.dir); }).join(' · ') : '';
         var cond = [isNum(e.z) ? 'z ' + raw(e.z) : '', '크기 ' + raw(e.size), get(e, 'exit_policy.name') ? esc(get(e, 'exit_policy.name')) : ''].filter(Boolean).join(' · ');
         return '<tr><td class="lt"><span class="mono" title="' + esc((e.signal || e.sleeve) + (Array.isArray(e.legs) ? ' · ' + e.legs.map(function (l) { return l.leg + ' ' + l.dir; }).join(' · ') : '')) + '">' + esc(codesTxt(e.signal || e.sleeve)) + '</span>' + (legs ? '<span class="al-sub">' + legs + '</span>' : '') + '</td>' +
-          '<td class="lt" title="' + esc(epTip(e)) + '"><span class="' + (e.sign > 0 ? 'wb-up' : e.sign < 0 ? 'wb-down' : '') + '" title="' + esc(e.side || '') + '">' + esc(sideTxt(e.side)) + '</span><span class="al-sub">' + cond + '</span></td></tr>';
-      }).join('') + '</tbody></table></div>';
-    if (X.length) h += '<div class="al-sigh">청산 ' + X.length + '</div><div class="al-tablewrap"><table class="wb-table al-table" id="alSigX"><thead><tr><th class="lt">구조</th><th class="lt">사유</th><th class="num">보유</th><th class="num">손익 bp</th></tr></thead><tbody>' +
-      X.map(function (x) { return '<tr><td class="lt mono" title="' + esc(x.signal || x.sleeve) + '">' + esc(codesTxt(x.signal || x.sleeve)) + '</td><td class="lt">' + esc(x.reason || '–') + '</td><td class="num">' + raw(x.days_held) + '</td><td class="num ' + cls(x.pnl_net_bp) + '">' + raw(x.pnl_net_bp) + '</td></tr>'; }).join('') + '</tbody></table></div>';
-    host.innerHTML = cardHead('오늘 진입 시그널', tip, meta + ' · 진입 ' + E.length + ' · 청산 ' + X.length) +
-      '<div class="al-body">' + (h || '<div class="al-empty" id="alSigEmpty">오늘 신호 없음</div>') + '</div>';
+          '<td class="lt" title="' + esc(epTip(e)) + '"><span class="' + sgn(e.sign) + '" title="' + esc(e.side || '') + '">' + esc(sideTxt(e.side)) + '</span><span class="al-sub">' + cond + '</span></td></tr>';
+      }).join('') + '</tbody></table></div>' : '<div class="al-empty" id="alSigInEmpty">오늘 진입 신호 없음</div>';
+    var xin = X.length ? '<div class="al-tablewrap"><table class="wb-table al-table" id="alSigX"><thead><tr><th class="lt">구조</th><th class="lt">방향</th><th class="lt">진입일</th><th class="num">보유</th><th class="lt">사유</th><th class="num">손익 bp</th></tr></thead><tbody>' +
+      X.map(function (x) {
+        return '<tr><td class="lt mono" title="' + esc(x.signal || x.sleeve) + '">' + esc(codesTxt(x.signal || x.sleeve)) + '</td><td class="lt ' + sgn(x.sign) + '" title="' + esc(x.side || '') + '">' + esc(sideTxt(x.side)) + '</td>' +
+          '<td class="lt">' + esc(x.entry_date || '–') + '</td><td class="num">' + raw(x.days_held) + '</td><td class="lt">' + esc(x.reason || '–') + '</td>' +
+          '<td class="num ' + cls(x.pnl_net_bp) + '" title="gross ' + esc(raw(x.pnl_gross_bp)) + '">' + raw(x.pnl_net_bp) + '</td></tr>';
+      }).join('') + '</tbody></table></div>' : '<div class="al-empty" id="alSigOutEmpty">오늘 청산 신호 없음</div>';
+    host.innerHTML = cardHead('오늘 시그널', 'forward 그대로. ' + pitTip, meta) +
+      '<div class="al-sigsplit">' +
+      half('In', '진입 시그널', E.length, ein, 'forward entries_today 그대로 · 방향 = 고정 사전(원문은 마우스 올림) · 종목 = 약칭') +
+      half('Out', '청산 시그널', X.length, xin, 'forward exits 중 봉인일 = 기준일(' + esc(fwd.asof || '–') + ') 그대로 · 사유 = 엔진 값(TP/SL/TIME 등) · 손익 = pnl_net_bp(마우스 올림 = gross)' +
+        (fwd.exits_note ? ' · ' + fwd.exits_note : '') + ' · 오늘 체결 예정 시간청산의 별도 목록은 엔진 forward 에 없음(보유 포지션의 시간청산 날짜 참고)') +
+      '</div>';
     STATS.sec.sig = 'ok';
   }
 
@@ -350,8 +369,8 @@
     });
     var sig = settle(pFwdN).then(function (r) {
       if (!live()) return;
-      if (!r.ok) { $('alSig').innerHTML = cardHead('오늘 진입 시그널', '') + errBox('forward 를 불러오지 못함 — ', r.e); STATS.sec.sig = 'err'; return; }
-      try { renderSig(id, r.v); } catch (e) { $('alSig').innerHTML = cardHead('오늘 진입 시그널', '') + errBox('그리기 실패 — ', emsg(e)); STATS.sec.sig = 'err'; if (window.console) console.warn('al sig', e); }
+      if (!r.ok) { $('alSig').innerHTML = cardHead('오늘 시그널', '') + errBox('forward 를 불러오지 못함 — ', r.e); STATS.sec.sig = 'err'; return; }
+      try { renderSig(id, r.v); } catch (e) { $('alSig').innerHTML = cardHead('오늘 시그널', '') + errBox('그리기 실패 — ', emsg(e)); STATS.sec.sig = 'err'; if (window.console) console.warn('al sig', e); }
     });
     await Promise.allSettled([head, bt, st, pos, sig]);
     if (live()) STATS.done = true;
