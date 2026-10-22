@@ -56,6 +56,22 @@
     .am-path-head b { font-size: 13px; }
     .am-path-read { margin-left: auto; font-size: var(--wb-fs-label); color: var(--wb-muted); white-space: nowrap; }
     .am-path-read b { color: var(--wb-ink); font-weight: 600; font-size: 12px; }
+    .am-path-row3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--wb-rule); }
+    .am-path-row3 > .am-path { border-top: 0; min-width: 0; }
+    .am-path-row3 > .am-path + .am-path { border-left: 1px solid var(--wb-rule); }
+    .am-path-row3 .am-path-head { flex-wrap: wrap; }
+    .am-path-row3 .am-path-read { margin-left: 0; width: 100%; }
+    .am-path-legend { padding: 4px var(--wb-inset) 0; }
+    .am-path-legend .am-lg-u { display: inline-block; width: 16px; height: 0; border-top: 3px solid var(--wb-series-1); vertical-align: middle; }
+    .am-path-legend .am-lg-bar { display: inline-block; width: 10px; height: 10px; background: color-mix(in srgb, var(--wb-muted) 30%, transparent); vertical-align: middle; }
+    .am-path-legend .am-lg-roll { display: inline-block; width: 0; height: 12px; border-left: 1px dashed var(--wb-mark); vertical-align: middle; }
+    #amPathB .am-path-read { white-space: normal; text-align: right; }
+    .am-lg-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--wb-series-1); vertical-align: middle; }
+    .am-lg-dia { display: inline-block; width: 7px; height: 7px; margin: 0 1px; background: var(--wb-basket); transform: rotate(45deg); vertical-align: middle; }
+    .am-lg-chg { display: inline-block; width: 0; height: 10px; border-left: 2px solid var(--wb-muted); vertical-align: middle; }
+    .am-lg-note { color: var(--wb-faint); }
+    #amReadPair { margin-left: 0; white-space: normal; }
+    .am-nodata { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 13px; color: var(--wb-muted); border: 1px dashed var(--wb-rule); border-radius: var(--wb-r-ctl); }
 
     /* 변화 표 · 셀 안 미니 바 */
     .am-chg td.num { min-width: 92px; }
@@ -157,6 +173,11 @@
     @media (max-width: 720px) {
       .am-chart { height: 220px; }
       .am-chart--sm { height: 130px; }
+      .am-path-row3 { grid-template-columns: minmax(0, 1fr); }
+      #amPathB .am-path-head { flex-wrap: wrap; }
+      #amPathB .am-path-head b { white-space: nowrap; }
+      #amPathB .am-path-read { width: 100%; margin-left: 0; text-align: left; }
+      .am-path-row3 > .am-path + .am-path { border-left: 0; border-top: 1px solid var(--wb-rule); }
       .am-kpis .wb-kpi { min-width: 0; }
       .am-spark { width: 100%; }
       .am-cal .k { width: 90px; }
@@ -189,6 +210,7 @@
       <li class="lv2"><a href="#am-m-chg">변화 표</a></li>
       <li><a href="#am-basis"><span class="wb-toc-num">02</span>저평 계기판</a></li>
       <li class="lv2"><a href="#am-b-gauge">U · Ub 위치 · 지표 RV</a></li>
+      <li class="lv2"><a href="#am-b-pair">지표–바스켓 페어 sp</a></li>
       <li class="lv2"><a href="#am-b-slots">바스켓 슬롯</a></li>
       <li><a href="#am-judge"><span class="wb-toc-num">03</span>오늘 판정</a></li>
       <li class="lv2"><a href="#am-j-consts">트리별 상수</a></li>
@@ -217,7 +239,8 @@
 
     <div class="wb-grid-2-1 am-row am-anchor" id="am-m-curve">
       <section class="wb-card">
-        <div class="wb-card-head"><span class="wb-card-title">커브 · 4시점<button type="button" class="wb-help" data-help="curves = 1개월 전 · 1주 전 · 전전일 · 전일의 2·3·5·10년 지표 민평(%). 최신(전일)이 굵은 선. 아래 표 행을 누르면 그 시점 선을 켜고 끕니다." aria-label="설명 보기"></button></span><span class="wb-card-meta"><span class="wb-badge am-asof" data-p="market">기준 —</span></span></div>
+        <div class="wb-card-head"><span class="wb-card-title">커브 · 4시점<span id="amHelpCurve"><button type="button" class="wb-help" data-help="curves = 1개월 전 · 1주 전 · 전전일 · 전일의 2·3·5·10년 지표 민평(%). 최신(전일)이 굵은 선. 아래 표 행을 누르면 그 시점 선을 켜고 끕니다." aria-label="설명 보기"></button></span></span><span class="wb-card-meta"><span class="wb-badge am-asof" data-p="market">기준 —</span></span></div>
+        <div class="wb-legend am-path-legend" id="amCurveLg"></div>
         <div class="am-chart"><canvas id="amCurve"></canvas></div>
         <table class="am-curve-legend" id="amCurveLegend"></table>
       </section>
@@ -231,10 +254,14 @@
     </div>
 
     <section class="wb-card am-row am-anchor" id="am-m-path">
-      <div class="wb-card-head"><span class="wb-card-title">경로 · 61거래일<button type="button" class="wb-help" data-help="paths 그대로. 위 = 바스켓 U(매도 좌표)·Ub(매수 좌표) — 점선 ±8 = 1권 북 문턱(U ≤ −8 매도차익 · Ub ≥ +8 매수차익, 음영 = 그 구역). 가운데 = 3−2 · 5−3 커브(bp). 아래 = 3년 지표 민평. 마우스를 올리면 세 그림에 같은 날짜 십자선. 아래 변화 표의 행을 누르면 해당 그림이 강조됩니다." aria-label="설명 보기"></button></span><span class="wb-card-meta"><span class="wb-badge am-asof" data-p="market">기준 —</span></span></div>
+      <div class="wb-card-head"><span class="wb-card-title">경로 · 61거래일<button type="button" class="wb-help" data-help="paths 그대로. 위 = 바스켓 U(매도 좌표)·Ub(매수 좌표) — 점선 ±8 = 1권 북 문턱(U ≤ −8 매도차익 · Ub ≥ +8 매수차익, 음영 = 그 구역). 가운데 = 3−2 · 5−3 · 3선−3년(바스켓) 커브(bp). 아래 = 바스켓 종목별 저평(우리 조달 · 전) + 바스켓 커브 3선3−3선1(bp · 옅은 막대 · 오른쪽 축). 마우스를 올리면 모든 그림에 같은 날짜 십자선. 아래 변화 표의 행을 누르면 해당 그림이 강조됩니다." aria-label="설명 보기"></button></span><span class="wb-card-meta"><span class="wb-badge am-asof" data-p="market">기준 —</span></span></div>
       <div class="am-path" id="amPathU" data-grp="U"><div class="am-path-head"><b>U · Ub</b><span class="wb-muted">전</span><span class="am-path-read" id="amReadU"></span></div><div class="am-chart am-chart--md"><canvas id="amCvU"></canvas></div></div>
-      <div class="am-path" id="amPathC" data-grp="C"><div class="am-path-head"><b>3−2 · 5−3</b><span class="wb-muted">bp</span><span class="am-path-read" id="amReadC"></span></div><div class="am-chart am-chart--sm"><canvas id="amCvC"></canvas></div></div>
-      <div class="am-path" id="amPathY" data-grp="Y"><div class="am-path-head"><b>3년 지표</b><span class="wb-muted">%</span><span class="am-path-read" id="amReadY"></span></div><div class="am-chart am-chart--sm"><canvas id="amCvY"></canvas></div></div>
+      <div class="am-path-row3" id="amPathRow3">
+        <div class="am-path" id="amPathC32" data-grp="C32"><div class="am-path-head"><b>3−2</b><span class="wb-muted">bp</span><span class="am-path-read" id="amReadC32"></span></div><div class="am-chart am-chart--sm"><canvas id="amCvC32"></canvas></div></div>
+        <div class="am-path" id="amPathC53" data-grp="C53"><div class="am-path-head"><b>5−3</b><span class="wb-muted">bp</span><span class="am-path-read" id="amReadC53"></span></div><div class="am-chart am-chart--sm"><canvas id="amCvC53"></canvas></div></div>
+        <div class="am-path" id="amPathCF" data-grp="CF"><div class="am-path-head"><b>3선−3년(바스켓)</b><span class="wb-muted">bp</span><span id="amHelpCF"></span><span class="am-path-read" id="amReadCF"></span></div><div class="am-chart am-chart--sm" id="amBoxCF"></div></div>
+      </div>
+      <div class="am-path" id="amPathB" data-grp="B"><div class="am-path-head"><b>바스켓 종목별 저평 · 우리 조달</b><span class="wb-muted">전</span><span id="amHelpB"></span><span class="am-path-read" id="amReadB"></span></div><div class="wb-legend am-path-legend" id="amLegB"></div><div class="am-chart am-chart--md" id="amBoxB"></div></div>
     </section>
 
     <section class="wb-card am-row am-anchor" id="am-m-chg">
@@ -258,6 +285,11 @@
         <div class="am-tbl-wrap"><table class="wb-table" id="amIdxRv"></table></div>
       </section>
     </div>
+    <section class="wb-card am-row am-anchor" id="am-b-pair">
+      <div class="wb-card-head"><span class="wb-card-title">지표–바스켓 페어 스프레드<span id="amHelpPair"></span></span><span class="wb-card-meta"><span class="am-path-read" id="amReadPair"></span> <span class="wb-badge am-asof" data-p="market">기준 —</span></span></div>
+      <div class="wb-legend am-path-legend" id="amPairLg"></div>
+      <div class="am-chart am-chart--md" id="amBoxPair"></div>
+    </section>
     <section class="wb-card am-row am-anchor" id="am-b-slots">
       <div class="wb-card-head"><span class="wb-card-title">바스켓 슬롯</span><span class="wb-card-meta" id="amSlotsMeta"></span></div>
       <div class="am-tbl-wrap"><table class="wb-table" id="amSlots"></table></div>
@@ -424,7 +456,7 @@ function renderAll() {
     const a = p && (p.asof || p.last);
     b.textContent = `기준 ${a || L.asof || '—'}`;
   });
-  const steps = [renderAlerts, renderMarket, renderBasis, renderJudge, renderLedger, renderExpo, renderCal, renderBias, renderHonesty];
+  const steps = [renderAlerts, renderMarket, renderBasis, renderPair, renderJudge, renderLedger, renderExpo, renderCal, renderBias, renderHonesty];
   steps.forEach(fn => { try { fn(); } catch (e) { console.error('arb-monitor render', fn.name, e); } });
 }
 function renderStale(L) {
@@ -468,9 +500,32 @@ function renderAlerts() {
 }
 
 // ── 0. 시장 동향 ─────────────────────────────────────────────
-const GROUPS = [['지표 금리', ['y2', 'y3', 'y5', 'y10']], ['선물', ['f3', 'fy3', 'f10', 'fy10']], ['커브', ['c32', 'c53', 'c103']], ['저평 · RV', ['U', 'Ub', 'rv2', 'rv3', 'rv5']]];
-const PATH_GRP = { U: 'U', Ub: 'U', c32: 'C', c53: 'C', y3: 'Y' };
+const GROUPS = [['지표 금리', ['y2', 'y3', 'y5', 'y10']], ['선물', ['f3', 'fy3', 'f10', 'fy10']], ['커브', ['c32', 'c53', 'c103', 'cf3b']], ['저평 · RV', ['U', 'Ub', 'rv2', 'rv3', 'rv5']]];
+// 경로 그림 묶음(행 클릭 → 그 그림 강조). 3년 지표 그림은 2026-10-22 사용자 지시로 '바스켓 종목별 저평'으로 교체 → y3 행 = 경로 없음.
+const PATH_GRP = { U: 'U', Ub: 'U', c32: 'C32', c53: 'C53', cf3b: 'CF' };
+const PATH_KEYS = ['pU', 'pC32', 'pC53', 'pCF', 'pB'];
+function arrOk(a, n) { return Array.isArray(a) && a.length === n; }
 function rowOf(key) { const m = P('market'); return ok(m) ? (m.rows || []).find(r => r.key === key) : null; }
+// ── 차트 제목·툴팁 값 표기(2026-10-22 같은 화면 표기 통일) ──
+// 행이 있는 시리즈(U·Ub·c32·c53·cf3b) 마지막 날 = 그 행 now_display 그대로(변화 표와 같은 글자).
+// 다른 날 · 행 없는 시리즈(슬롯 저평·bc31·페어 sp) = 같은 단위 행 now_display 의 자릿수(전 = U · bp 수준 = c32 · 없으면 2)
+// + 십진 반올림(엔진 now_display 와 같은 규약 — 5.115 → 5.12 · JS toFixed 는 5.11 이라 쓰지 않음).
+function hu(v, d) {
+  if (!isNum(v)) return '—';
+  const n = +v, a = Math.abs(n), s = String(a);
+  const body = /e/i.test(s) ? a.toFixed(d) : Number(Math.round(+(s + 'e' + d)) + 'e-' + d).toFixed(d);
+  return (n > 0 ? '+' : n < 0 ? MINUS : '') + body;
+}
+const ndOf = key => { const r = rowOf(key); return r && r.now_display != null ? String(r.now_display) : null; };
+const ndDec = (key, fb) => { const m = /\.(\d+)/.exec(ndOf(key) || ''); return m ? m[1].length : fb; };
+const ndSuf = key => { const x = ndOf(key); return x ? x.replace(/^[+\-\u2212]?[\d.,]+/, '') : ''; };
+const DEC_JEON = () => ndDec('U', 2), DEC_BP = () => ndDec('c32', 2);
+// 행 있는 시리즈 값: 마지막 날 = now_display 그대로 · 아니면 같은 자릿수·단위(글자 = 화면용 · 이스케이프 전)
+function rv(key, arr, i) {
+  const a = arr || [], x = ndOf(key);
+  if (x != null && i === a.length - 1) return dispMinus(x);
+  return hu(a[i], ndDec(key, 2)) + ndSuf(key);
+}
 function renderMarket() {
   const m = P('market');
   if (!ok(m)) { $('amKpis').innerHTML = emptyBox('시장 동향 데이터 없음', m && m.note); return; }
@@ -495,23 +550,65 @@ function renderMarket() {
     `<span class="am-chip-grp"><span class="am-chip-lbl">달력</span>${c.mpc_next ? chip(`금통위 ${mmdd(c.mpc_next)} ${ddayTxt(dday(c.mpc_next, td))}`) : ''}${auc}${c.fut_expiry ? chip(`만기 ${mmdd(c.fut_expiry)} D-${c.days_to_expiry ?? '?'}`) : ''}</span>`;
   drawCurve(m); drawTenorBars(m); drawPaths(m); renderChgTable(m);
 }
+// 시점별 키 = 배열(curves.dates 순서) 또는 날짜 키 객체 — 둘 다 받음
+const atPt = (obj, i, d) => obj == null ? null : Array.isArray(obj) ? obj[i] : obj[d];
+const tenLbl = t => isNum(t) ? `${t}년` : String(t == null ? '' : t);
 function drawCurve(m) {
-  const cv = m.curves || {}, dates = cv.dates || [], ten = cv.tenors || [], Y = cv.y || [];
+  const cv = m.curves || {}, dates = cv.dates || [], ten = cv.tenors || [], Y = cv.y || [], N = dates.length;
   const names = ['1개월 전', '1주 전', '전전일', '전일'];
-  const style = i => i === dates.length - 1 ? { c: WBChart.tok('--wb-series-1'), w: 2.4, dash: [] }
-    : i === dates.length - 2 ? { c: WBChart.tok('--wb-series-1', .45), w: 1.4, dash: [] }
-    : i === dates.length - 3 ? { c: WBChart.tok('--wb-muted', .7), w: 1.2, dash: [] }
+  const style = i => i === N - 1 ? { c: WBChart.tok('--wb-series-1'), w: 2.4, dash: [] }
+    : i === N - 2 ? { c: WBChart.tok('--wb-series-1', .45), w: 1.4, dash: [] }
+    : i === N - 3 ? { c: WBChart.tok('--wb-muted', .7), w: 1.2, dash: [] }
     : { c: WBChart.tok('--wb-muted', .45), w: 1.2, dash: [5, 3] };
-  const ds = dates.map((d, i) => { const st = style(i); return {
-    label: `${names[i] || ''} ${mmdd(d)}`, data: ten.map((t, k) => ({ x: +t, y: (Y[i] || [])[k] })),
-    borderColor: st.c, pointBackgroundColor: st.c, borderWidth: st.w, borderDash: st.dash,
-    pointRadius: i === dates.length - 1 ? 3.5 : 2, tension: 0, hidden: AM.curveOff.has(i), wbI: i }; });
+  // 엔진 idx_pts(지표) · basket_pts(3선 바스켓) — 있으면 x = 잔존(년) · 없으면 명목 테너 x 로 지표만(폴백 허용)
+  const arrAt = (o, i) => { const v = atPt(o, i, dates[i]); return Array.isArray(v) ? v : null; };
+  const idxOk = N > 0 && cv.idx_pts != null && dates.every((d, i) => (arrAt(cv.idx_pts, i) || []).length > 0);
+  const bkOk = idxOk && cv.basket_pts != null && dates.every((d, i) => arrAt(cv.basket_pts, i) !== null);
+  // 바스켓 진하기 = 지표 선과 같은 순서(최신 가장 진함 → 오래될수록 옅게)
+  const bkA = i => i === N - 1 ? 1 : i === N - 2 ? .45 : i === N - 3 ? .35 : .25;
+  let ds, xScale, tip;
+  if (idxOk) {
+    ds = dates.map((d, i) => { const st = style(i);
+      const pts = arrAt(cv.idx_pts, i).map(r => ({ x: +r.remain, y: +r.ytm, k: 'idx', t: r.tenor, a: r.alias, rm: r.remain, yt: r.ytm })).sort((p, q) => p.x - q.x);
+      return { label: `${names[i] || ''} ${mmdd(d)}`, data: pts, borderColor: st.c, pointBackgroundColor: st.c, borderWidth: st.w, borderDash: st.dash, pointStyle: 'circle',
+        pointRadius: i === N - 1 ? 3.5 : 2, tension: 0, hidden: AM.curveOff.has(i), wbI: i, wbKind: 'idx', order: 2 }; });
+    if (bkOk) dates.forEach((d, i) => {
+      const pts = arrAt(cv.basket_pts, i).map(r => ({ x: +r.remain, y: +r.ytm, k: 'bk', s: r.slot, a: r.alias, rm: r.remain, yt: r.ytm })).sort((p, q) => p.x - q.x);
+      ds.push({ label: `3선 바스켓 ${names[i] || ''} ${mmdd(d)}`, data: pts, showLine: false, pointStyle: 'rectRot',
+        pointRadius: i === N - 1 ? 5 : 3.5, pointHoverRadius: i === N - 1 ? 7 : 5, pointBackgroundColor: WBChart.tok('--wb-basket', bkA(i)),
+        pointBorderColor: WBChart.tok('--wb-surface'), pointBorderWidth: i === N - 1 ? 1 : 0, borderColor: WBChart.tok('--wb-basket', bkA(i)),
+        hidden: AM.curveOff.has(i), wbI: i, wbKind: 'bk', order: 1 });
+    });
+    const xs = ds.flatMap(x => x.data.map(p => p.x)).filter(v => isFinite(v));
+    // 표시 범위만: 반년 단위로 붙임 · 눈금 0.5년 · 글자·격자 = 정수 년만
+    const lo = Math.max(0, Math.floor((Math.min(...xs) - .2) * 2) / 2), hi = Math.ceil((Math.max(...xs) + .2) * 2) / 2;
+    xScale = { type: 'linear', min: lo, max: hi, title: { display: true, text: '잔존 (년)' },
+      ticks: { stepSize: .5, autoSkip: false, maxRotation: 0, callback: v => Number.isInteger(v) ? v + 'y' : '' },
+      grid: { color: c => c.tick && Number.isInteger(c.tick.value) ? WBChart.css('--wb-rule') : 'transparent' } };
+    // 툴팁 표기 = 이 페이지 커브 규칙(금리 % 소수 3 · 잔존 년 소수 2)
+    tip = { mode: 'nearest', intersect: false, axis: 'xy', callbacks: {
+      title: it => it.length ? (it[0].raw.k === 'bk' ? '3선 바스켓' : '지표') : '',
+      label: c => { const r = c.raw, i = c.dataset.wbI;
+        return ` ${r.k === 'bk' ? (r.s || '') : tenLbl(r.t)} ${r.a || ''} · 잔존 ${fix(r.rm, 2)}년 · ${fix(r.yt, 3)}% · ${names[i] || ''} ${dates[i]}`; } } };
+    $('amCurveLg').innerHTML = `<span class="wb-legend-item"><span style="color:var(--wb-series-1)">●</span>지표</span>` +
+      (bkOk ? `<span class="wb-legend-item"><span style="color:var(--wb-basket)">◆</span>3선 바스켓</span>` : '<span class="wb-legend-item am-lg-note">◆ 3선 바스켓 재료 없음</span>') +
+      '<span class="wb-legend-item am-lg-note">x = 잔존(년)</span>';
+    $('amHelpCurve').innerHTML = help('curves.idx_pts(● 지표) · curves.basket_pts(◆ 3선 바스켓 3종) 그대로 — x = 잔존(년) · y = 민평(%). 1개월 전 · 1주 전 · 전전일 · 전일 · 최신이 가장 진함(바스켓 점도 같은 규칙). 아래 표 = 명목 테너별 지표 값(curves.y) · 행을 누르면 그 시점의 지표 선·바스켓 점을 함께 켜고 끕니다.');
+  } else {
+    ds = dates.map((d, i) => { const st = style(i); return {
+      label: `${names[i] || ''} ${mmdd(d)}`, data: ten.map((t, k) => ({ x: +t, y: (Y[i] || [])[k] })),
+      borderColor: st.c, pointBackgroundColor: st.c, borderWidth: st.w, borderDash: st.dash,
+      pointRadius: i === N - 1 ? 3.5 : 2, tension: 0, hidden: AM.curveOff.has(i), wbI: i, wbKind: 'idx' }; });
+    xScale = { type: 'linear', min: 1.5, max: 10.5, title: { display: true, text: '만기 (년)' }, ticks: { callback: v => [2, 3, 5, 10].includes(v) ? v + 'y' : '' , stepSize: 0.5, autoSkip: false } };
+    tip = { callbacks: { title: it => `${it[0].parsed.x}년`, label: c => ` ${c.dataset.label}: ${(+c.parsed.y).toFixed(3)}%` } };
+    $('amCurveLg').innerHTML = `<span class="wb-legend-item"><span style="color:var(--wb-series-1)">●</span>지표</span><span class="wb-legend-item am-lg-note">x = 명목 테너 · ◆ 3선 바스켓 재료 없음</span>`;
+    $('amHelpCurve').innerHTML = help('curves = 1개월 전 · 1주 전 · 전전일 · 전일의 2·3·5·10년 지표 민평(%). 최신(전일)이 굵은 선. 아래 표 행을 누르면 그 시점 선을 켜고 끕니다. 엔진 curves.idx_pts · basket_pts 없음 → 명목 테너 x · 지표만.');
+  }
   mk('curve', $('amCurve'), {
     type: 'line', data: { datasets: ds },
     options: { responsive: true, maintainAspectRatio: false, animation: false,
-      plugins: { legend: { display: false }, tooltip: { callbacks: { title: it => `${it[0].parsed.x}년`, label: c => ` ${c.dataset.label}: ${(+c.parsed.y).toFixed(3)}%` } } },
-      scales: { x: { type: 'linear', min: 1.5, max: 10.5, title: { display: true, text: '만기 (년)' }, ticks: { callback: v => [2, 3, 5, 10].includes(v) ? v + 'y' : '' , stepSize: 0.5, autoSkip: false } },
-                y: { title: { display: true, text: '%' }, ticks: { callback: v => v.toFixed(2) } } } } });
+      plugins: { legend: { display: false }, tooltip: tip },
+      scales: { x: xScale, y: { title: { display: true, text: '%' }, ticks: { callback: v => v.toFixed(2) } } } } });
   // 값 붙은 범례(표) — 행 클릭 = 그 시점 켜기/끄기
   const head = `<thead><tr><th>시점</th>${ten.map(t => `<th>${t}년</th>`).join('')}</tr></thead>`;
   const body = dates.map((d, i) => { const st = i === dates.length - 1 ? 'var(--wb-series-1)' : 'var(--wb-muted)';
@@ -546,26 +643,41 @@ const amCross = { id: 'amCross', afterDraw(ch) {
   ctx.beginPath(); ctx.moveTo(el.x, top); ctx.lineTo(el.x, bottom); ctx.stroke(); ctx.restore(); } };
 function setHover(i) {
   if (AM.hover === i) return; AM.hover = i;
-  ['pU', 'pC', 'pY'].forEach(k => AM.charts[k] && AM.charts[k].draw());
+  PATH_KEYS.forEach(k => AM.charts[k] && AM.charts[k].draw());
   readouts();
 }
 function readouts() {
   const p = (P('market') || {}).paths || {}, n = (p.dates || []).length; if (!n) return;
   const i = AM.hover == null ? n - 1 : AM.hover, d = mmdd((p.dates || [])[i]);
   const sw = t => `<span class="wb-swatch" style="color:var(${t})"></span>`;
-  $('amReadU').innerHTML = `${d} · ${sw('--wb-series-1')} U <b>${sgn((p.U || [])[i], 2)}</b> · ${sw('--wb-series-3')} Ub <b>${sgn((p.Ub || [])[i], 2)}</b>`;
-  $('amReadC').innerHTML = `${d} · ${sw('--wb-series-4')} 3−2 <b>${sgn((p.c32 || [])[i], 1)}</b> · ${sw('--wb-series-2')} 5−3 <b>${sgn((p.c53 || [])[i], 1)}</b>`;
-  const y3 = (p.y3 || [])[i];
-  $('amReadY').innerHTML = `${d} · <b>${isNum(y3) ? (+y3 / 100).toFixed(3) + '%' : '—'}</b>`;
+  $('amReadU').innerHTML = `${d} · ${sw('--wb-series-1')} U <b>${esc(rv('U', p.U, i))}</b> · ${sw('--wb-series-3')} Ub <b>${esc(rv('Ub', p.Ub, i))}</b>`;
+  $('amReadC32').innerHTML = `${d} · <b>${esc(rv('c32', p.c32, i))}</b>`;
+  $('amReadC53').innerHTML = `${d} · <b>${esc(rv('c53', p.c53, i))}</b>`;
+  $('amReadCF').innerHTML = arrOk(p.cf3b, n) ? `${d} · <b>${esc(rv('cf3b', p.cf3b, i))}</b>` : '';
+  const bu = p.basket_u;
+  if (bu && Array.isArray(bu.slots) && bu.series) {
+    const roll = (bu.roll_dates || []).indexOf((p.dates || [])[i]) >= 0;
+    $('amReadB').innerHTML = `${d}${roll ? ' · <span class="wb-badge">롤</span>' : ''} · ${sw('--wb-series-1')} U <b>${esc(rv('U', p.U, i))}</b> · ` +
+      bu.slots.map((sl, k) => `${sw(SLOT_TOK[k] || '--wb-series-6')} ${esc(sl)} ${esc(((bu.alias || {})[sl] || [])[i] || '')} <b>${hu(((bu.series || {})[sl] || [])[i], DEC_JEON())}${esc(bu.unit || '전')}</b>`).join(' · ') +
+      (arrOk(p.bc31, n) ? ` · 커브 <b>${hu(p.bc31[i], DEC_BP())}bp</b>` : '');
+  } else $('amReadB').innerHTML = '';
 }
-function pathChart(key, cv, labels, datasets, yOpt) {
+const SLOT_TOK = ['--wb-series-2', '--wb-series-3', '--wb-series-4'];
+// 롤일 세로 점선(엔진 basket_u.roll_dates 위치 그대로)
+const amRoll = { id: 'amRoll', beforeDatasetsDraw(ch) {
+  const idx = ch.$amRoll || []; if (!idx.length) return;
+  const { top, bottom } = ch.chartArea, ctx = ch.ctx, x = ch.scales.x;
+  ctx.save(); ctx.strokeStyle = WBChart.css('--wb-mark'); ctx.globalAlpha = .7; ctx.setLineDash([2, 3]); ctx.lineWidth = 1;
+  idx.forEach(i => { const px = x.getPixelForValue(i); ctx.beginPath(); ctx.moveTo(px, top); ctx.lineTo(px, bottom); ctx.stroke(); });
+  ctx.restore(); } };
+function pathChart(key, cv, labels, datasets, yOpt, extra) {
   const ch = mk(key, cv, {
-    type: 'line', data: { labels, datasets }, plugins: [amCross],
+    type: 'line', data: { labels, datasets }, plugins: [amCross].concat((extra && extra.plugins) || []),
     options: { responsive: true, maintainAspectRatio: false, animation: false,
       interaction: { mode: 'index', intersect: false },
       onHover: (e, els, c) => { const x = c.scales.x.getValueForPixel(e.x); if (x != null && isFinite(x)) setHover(Math.max(0, Math.min(labels.length - 1, Math.round(x)))); },
-      plugins: { legend: { display: false }, tooltip: { enabled: false } },
-      scales: { x: { ticks: { maxTicksLimit: 6, maxRotation: 0, callback: function (v) { return mmdd(this.getLabelForValue(v)); } }, grid: { display: false } }, y: yOpt || {} } } });
+      plugins: { legend: { display: false }, tooltip: Object.assign({ enabled: false }, (extra && extra.tooltip) || {}) },
+      scales: Object.assign({ x: { ticks: { maxTicksLimit: 6, maxRotation: 0, callback: function (v) { return mmdd(this.getLabelForValue(v)); } }, grid: { display: false } }, y: yOpt || {} }, (extra && extra.scales) || {}) } });
   if (!cv.dataset.wbLeave) { cv.addEventListener('mouseleave', () => setHover(null)); cv.dataset.wbLeave = '1'; }
   return ch;
 }
@@ -579,9 +691,52 @@ function drawPaths(m) {
   pathChart('pU', $('amCvU'), L, [
     line(p.U, '--wb-series-1', focusW('U')), line(p.Ub, '--wb-series-3', focusW('U')),
     thr(-8, 'start', '--wb-down'), thr(8, 'end', '--wb-up') ], { suggestedMin: -10, suggestedMax: 10 });
-  pathChart('pC', $('amCvC'), L, [line(p.c32, '--wb-series-4'), line(p.c53, '--wb-series-2')]);
-  pathChart('pY', $('amCvY'), L, [line(p.y3, '--wb-series-1')], { ticks: { callback: v => (v / 100).toFixed(2) } });
+  pathChart('pC32', $('amCvC32'), L, [line(p.c32, '--wb-series-4', focusW('C32'))]);
+  pathChart('pC53', $('amCvC53'), L, [line(p.c53, '--wb-series-2', focusW('C53'))]);
+  // 3선−3년(바스켓) = paths.cf3b 그대로(bp) · 없으면 '재료 없음' · 점선 = 3선 롤(basket_u.roll_dates — 롤 날 점프 = 계약·바스켓 교체)
+  const n = L.length, rollCF = (p.basket_u && Array.isArray(p.basket_u.roll_dates)) ? p.basket_u.roll_dates.map(d => L.indexOf(d)).filter(i => i >= 0) : [];
+  $('amHelpCF').innerHTML = help('paths.cf3b 그대로 — 3선 내재 수익률 − 바스켓 3종목 ytm 평균(bp). 표의 같은 행(rows cf3b)과 같은 값.' + (rollCF.length ? ' 점선 = 3선 롤일(basket_u.roll_dates) — 그날 점프는 계약·바스켓 교체.' : ''));
+  if (arrOk(p.cf3b, n)) { $('amBoxCF').innerHTML = '<canvas id="amCvCF"></canvas>'; const cfc = pathChart('pCF', $('amCvCF'), L, [line(p.cf3b, '--wb-series-5', focusW('CF'))], {}, { plugins: [amRoll] }); cfc.$amRoll = rollCF; cfc.update('none'); }
+  else { if (AM.charts.pCF) { try { AM.charts.pCF.destroy(); } catch (e) {} delete AM.charts.pCF; } $('amBoxCF').innerHTML = '<div class="am-nodata" id="amNoCF">재료 없음' + help('엔진 market.paths.cf3b 없음(또는 길이 ≠ 날짜 수) — 그리지 않음') + '</div>'; }
+  drawBasketU(p, L);
   readouts(); markFocus();
+}
+// 바스켓 종목별 저평(우리 조달) — paths.basket_u 그대로(슬롯 3선1·3선2·3선3 · 전) + U 굵게(paths.U) + bc31 옅은 막대(오른쪽 축 · bp) + 롤 점선.
+// 키 없음 = '재료 없음'(3년 지표로 폴백하지 않음 — 사용자 지시로 뺀 그림).
+function drawBasketU(p, L) {
+  const n = L.length, bu = p.basket_u;
+  const okB = bu && Array.isArray(bu.slots) && bu.slots.length && bu.series && bu.slots.every(sl => arrOk(bu.series[sl], n)) && arrOk(p.U, n);
+  if (!okB) {
+    if (AM.charts.pB) { try { AM.charts.pB.destroy(); } catch (e) {} delete AM.charts.pB; }
+    $('amBoxB').innerHTML = '<div class="am-nodata" id="amNoB">재료 없음' + help('엔진 market.paths.basket_u 없음(또는 길이 ≠ 날짜 수) — 그리지 않음. 3년 지표 그림은 사용자 지시로 뺐음.') + '</div>';
+    $('amLegB').innerHTML = ''; $('amHelpB').innerHTML = help('market.paths.basket_u 대기');
+    AM.rollIdx = []; return;
+  }
+  const last = n - 1, bars = arrOk(p.bc31, n), unit = bu.unit || '전';
+  const aliasAt = (sl, i) => ((bu.alias || {})[sl] || [])[i] || '';
+  const isRoll = i => (bu.roll_dates || []).indexOf(L[i]) >= 0;
+  $('amHelpB').innerHTML = help('paths.basket_u 그대로 — 바스켓 종목별 저평(' + unit + ') · 조달 = ' + (bu.funding || '—') + '. 굵은 선 U = paths.U(선물 저평). 막대 = paths.bc31(오른쪽 축 bp · 0 기준). 점선 = roll_dates.');
+  $('amLegB').innerHTML =
+    `<span class="wb-legend-item"><i class="am-lg-u"></i>U = 선물 저평(바스켓 평균)${help(bu.note || '')}</span>` +
+    bu.slots.map((sl, k) => `<span class="wb-legend-item"><i class="wb-swatch" style="color:var(${SLOT_TOK[k] || '--wb-series-6'})"></i>${esc(sl)} ${esc(aliasAt(sl, last))}</span>`).join('') +
+    (bars ? '<span class="wb-legend-item"><i class="am-lg-bar"></i>바스켓 커브 3선3−3선1(bp, 막대)</span>' : '') +
+    ((bu.roll_dates || []).length ? '<span class="wb-legend-item"><i class="am-lg-roll"></i>롤</span>' : '');
+  $('amBoxB').innerHTML = '<canvas id="amCvB"></canvas>';
+  const ds = [Object.assign({ label: 'U', data: p.U, borderColor: WBChart.tok('--wb-series-1'), borderWidth: AM.focus === 'B' ? 3.2 : 2.6, pointRadius: 0, tension: 0, spanGaps: true, order: 0 })]
+    .concat(bu.slots.map((sl, k) => ({ label: sl, data: bu.series[sl], borderColor: WBChart.tok(SLOT_TOK[k] || '--wb-series-6'), borderWidth: 1.3, pointRadius: 0, tension: 0, spanGaps: true, order: 1 })));
+  if (bars) ds.push({ type: 'bar', label: 'bc31', data: p.bc31, yAxisID: 'y2', backgroundColor: WBChart.tok('--wb-muted', .11), borderWidth: 0, barPercentage: 1, categoryPercentage: .9, order: 9 });
+  AM.rollIdx = (bu.roll_dates || []).map(d => L.indexOf(d)).filter(i => i >= 0);
+  // 툴팁 = 그날 약칭·값(U 마지막 날 = now_display · 나머지 = 같은 자릿수 십진 반올림) + 롤일이면 '롤'
+  const tooltip = { enabled: true, itemSort: (a, b) => a.datasetIndex - b.datasetIndex, callbacks: {
+    title: it => it.length ? L[it[0].dataIndex] + (isRoll(it[0].dataIndex) ? ' · 롤' : '') : '',
+    label: c => { const i = c.dataIndex, lb = c.dataset.label;
+      if (lb === 'U') return ` U 선물 저평 ${rv('U', p.U, i)}`;
+      if (lb === 'bc31') return ` 커브 3선3−3선1 ${hu(p.bc31[i], DEC_BP())}bp`;
+      return ` ${lb} ${aliasAt(lb, i)} ${hu(bu.series[lb][i], DEC_JEON())}${unit}`; } } };
+  // bc31 막대 = 0 기준(beginAtZero · 잘린 축 막대 금지) · 오른쪽 보조 축
+  const ch = pathChart('pB', $('amCvB'), L, ds, {}, { plugins: [amRoll], tooltip,
+    scales: bars ? { y2: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { maxTicksLimit: 4, callback: v => v + 'bp' }, title: { display: false } } } : {} });
+  ch.$amRoll = AM.rollIdx; ch.update('none');
 }
 function markFocus() { document.querySelectorAll('.am-path').forEach(el => el.classList.toggle('is-focus', el.dataset.grp === AM.focus)); }
 function renderChgTable(m) {
@@ -591,7 +746,7 @@ function renderChgTable(m) {
   const hz = [['d1', '1일'], ['w1', '1주'], ['w2', '2주'], ['m1', '1개월']];
   let html = `<thead><tr><th>항목</th><th class="num">현재</th>${hz.map(([k, l]) => `<th class="num">${l} <span class="wb-muted">${mmdd(H[k])}</span></th>`).join('')}</tr></thead><tbody>`;
   groups.forEach(([gname, keys]) => {
-    const gr = keys.map(k => rows.find(r => r.key === k)).filter(Boolean); if (!gr.length) return;
+    const gr = rows.filter(r => keys.indexOf(r.key) >= 0); if (!gr.length) return;   // 묶음 안 순서 = 엔진 rows 순서 그대로
     html += `<tr class="am-grp"><td colspan="6">${esc(gname)}</td></tr>`;
     gr.forEach(r => {
       const mx = Math.max(...hz.map(([k]) => isNum(r[k]) ? Math.abs(+r[k]) : 0)) || 1;
@@ -607,6 +762,50 @@ function renderChgTable(m) {
     const g = PATH_GRP[tr.dataset.key];
     if (g) { AM.focus = g; drawPaths(P('market')); const el = document.querySelector(`.am-path[data-grp="${g}"]`); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
   }));
+}
+
+// ── 2-b. 지표–바스켓 페어 스프레드 — market.paths.idx_basket_sp 그대로(지표 − 바스켓 · bp) ──
+// 짝 = 지표마다 잔존이 가장 가까운 3선 바스켓 종목 1개(엔진 rule) · 선 색 = 테너(부호 색 아님) · change_dates = 그 선 색 세로 표식
+const PAIR_TOK = { '2': '--wb-series-4', '3': '--wb-series-3', '5': '--wb-series-1' };
+const PAIR_FB = ['--wb-series-4', '--wb-series-3', '--wb-series-1', '--wb-series-5', '--wb-series-6'];
+const amPairMk = { id: 'amPairMk', afterDatasetsDraw(ch) {
+  const mkIdx = ch.$pairChg || {}, ctx = ch.ctx;
+  ch.data.datasets.forEach((d, k) => { const meta = ch.getDatasetMeta(k); if (meta.hidden) return;
+    (mkIdx[d.wbT] || []).forEach(i => { const el = meta.data[i]; if (!el || el.skip || !isFinite(el.y)) return;
+      ctx.save(); ctx.strokeStyle = WBChart.css(d.wbTok); ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(el.x, el.y - 7); ctx.lineTo(el.x, el.y + 7); ctx.stroke(); ctx.restore(); }); }); } };
+function renderPair() {
+  const m = P('market'), p = (ok(m) && m.paths) || {}, L = p.dates || [], n = L.length, s = p.idx_basket_sp;
+  const tk = s && Array.isArray(s.tenors) ? s.tenors.map(String) : [];
+  const okP = n > 0 && s && s.sp && tk.length && tk.every(t => arrOk(s.sp[t], n));
+  if (!okP) {
+    if (AM.charts.pair) { try { AM.charts.pair.destroy(); } catch (e) {} delete AM.charts.pair; }
+    $('amBoxPair').innerHTML = '<div class="am-nodata" id="amNoPair">재료 없음' + help('엔진 market.paths.idx_basket_sp 없음(또는 길이 ≠ 날짜 수) — 그리지 않음') + '</div>';
+    $('amPairLg').innerHTML = ''; $('amReadPair').innerHTML = ''; $('amHelpPair').innerHTML = help('market.paths.idx_basket_sp 대기');
+    AM.pairChg = {}; return;
+  }
+  const unit = s.unit || 'bp', last = n - 1;
+  const at = (o, t, i) => { const v = (o || {})[t]; return Array.isArray(v) ? v[i] : v; };
+  const tokOf = (t, k) => PAIR_TOK[t] || PAIR_FB[k] || '--wb-series-6';
+  AM.pairChg = {}; tk.forEach(t => { AM.pairChg[t] = ((s.change_dates || {})[t] || []).map(d => L.indexOf(d)).filter(i => i >= 0); });
+  const anyChg = tk.some(t => AM.pairChg[t].length);
+  const isChg = (t, i) => (AM.pairChg[t] || []).indexOf(i) >= 0;
+  const sw = t => `<span class="wb-swatch" style="color:var(${t})"></span>`;
+  $('amHelpPair').innerHTML = help((s.rule ? s.rule + ' · ' : '') + '부호 = 지표 − 바스켓(' + unit + ') · 선 색 = 테너(부호 색 아님) · 세로 표식 = 짝 변경(change_dates). paths.idx_basket_sp 그대로.');
+  $('amPairLg').innerHTML = tk.map((t, k) => `<span class="wb-legend-item">${sw(tokOf(t, k))}${esc(tenLbl(+t))} ${esc(at(s.idx_alias, t, last) || '—')} ↔ ${esc(at(s.basket_alias, t, last) || '—')}${at(s.basket_slot, t, last) ? ` <span class="wb-muted">${esc(at(s.basket_slot, t, last))}</span>` : ''}</span>`).join('') +
+    (anyChg ? '<span class="wb-legend-item"><i class="am-lg-chg"></i>짝 변경</span>' : '');
+  $('amReadPair').innerHTML = `${mmdd(L[last])} · ` + tk.map((t, k) => `${sw(tokOf(t, k))} ${esc(tenLbl(+t))} <b>${hu(s.sp[t][last], DEC_BP())}</b>`).join(' · ') + ` ${esc(unit)}`;
+  $('amBoxPair').innerHTML = '<canvas id="amCvPair"></canvas>';
+  const ds = tk.map((t, k) => ({ label: t, data: s.sp[t], borderColor: WBChart.tok(tokOf(t, k)), borderWidth: 1.6, pointRadius: 0, tension: 0, spanGaps: true, wbT: t, wbTok: tokOf(t, k) }));
+  const ch = mk('pair', $('amCvPair'), {
+    type: 'line', data: { labels: L, datasets: ds }, plugins: [amPairMk],
+    options: { responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: false }, tooltip: { itemSort: (a, b) => a.datasetIndex - b.datasetIndex, callbacks: {
+        title: it => it.length ? L[it[0].dataIndex] + (tk.some(t => isChg(t, it[0].dataIndex)) ? ' · 짝 변경' : '') : '',
+        label: c => { const t = c.dataset.wbT, i = c.dataIndex, sl = at(s.basket_slot, t, i);
+          return ` ${tenLbl(+t)} ${at(s.idx_alias, t, i) || '—'} ↔ ${at(s.basket_alias, t, i) || '—'}${sl ? '(' + sl + ')' : ''} ${hu(s.sp[t][i], DEC_BP())}${unit}${isChg(t, i) ? ' · 짝 변경' : ''}`; } } } },
+      scales: { x: { ticks: { maxTicksLimit: 6, maxRotation: 0, callback: function (v) { return mmdd(this.getLabelForValue(v)); } }, grid: { display: false } },
+        y: { title: { display: true, text: unit }, grid: { color: c => c.tick && c.tick.value === 0 ? WBChart.css('--wb-rule-strong') : WBChart.css('--wb-rule') } } } } });
+  ch.$pairChg = AM.pairChg; ch.update('none');
 }
 
 // ── 2. 저평 계기판 ───────────────────────────────────────────
