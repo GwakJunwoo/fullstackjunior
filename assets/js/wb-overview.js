@@ -156,12 +156,12 @@
           '<div class="ov-chart ov-chart--bars"><canvas id="ovBars" aria-label="지표 일별 변화 막대"></canvas></div></div>' +
         '</section>' +
         '<section class="wb-card ov-card" aria-label="전 국채 커브">' +
-          '<div class="wb-card-head"><span class="wb-card-title">전 국채 커브' + help('국고채 전 종목(금리 대시보드 수익률 곡선과 같은 소스 /ktb/curve · 같은 점 규칙). 진한 선 = D · 점선 = D−3 · 옅은 선 = D−1·D−2. 아래 = 잔존만기별 D vs D−1 변화(같은 종목끼리 · 지표 별칭·기준금리 행 제외).') + '</span><span class="wb-card-meta" id="ovCurveMeta"></span></div>' +
+          '<div class="wb-card-head"><span class="wb-card-title">전 국채 커브' + help('국고채 전 종목(금리 대시보드 수익률 곡선과 같은 소스 /ktb/curve · 같은 점 규칙). 진한 선 = D · 점선 = D−3 · 옅은 선 = D−1·D−2. 아래 = 잔존만기별 D vs D−1 변화(같은 종목끼리 · 지표 별칭·기준금리 행 제외). 노란 점 = 선물 바스켓 편입 종목(/ktb/curve 의 basket 값 그대로 · 금리 대시보드 ‘선물만’과 같은 기준) · 부호 무관.') + '</span><span class="wb-card-meta" id="ovCurveMeta"></span></div>' +
           '<div class="ov-body"><div class="wb-legend ov-legend"><span class="wb-legend-item"><i class="wb-swatch" style="color:var(--wb-series-1)"></i>D ' + esc(mmdd(D)) + '</span>' +
             (dl[1] ? '<span class="wb-legend-item"><i class="wb-swatch" style="color:var(--wb-series-1);opacity:.35"></i>D−1·D−2</span>' : '') +
             (dl[3] ? '<span class="wb-legend-item"><i class="wb-swatch" style="color:var(--wb-muted);border-top:1px dashed;background:none"></i>D−3 ' + esc(mmdd(dl[3])) + '</span>' : '') + '</div>' +
           '<div class="ov-chart ov-chart--curve"><canvas id="ovCurve" aria-label="전 국채 커브"></canvas></div>' +
-          '<div class="ov-foot">잔존만기별 변화 D vs D−1 (bp)</div>' +
+          '<div class="ov-foot ov-chg-head"><span>잔존만기별 변화 D vs D−1 (bp)</span><span class="wb-legend" id="ovChgLegend"></span></div>' +
           '<div class="ov-chart ov-chart--chg"><canvas id="ovCurveChg" aria-label="잔존만기별 변화"></canvas></div></div>' +
         '</section>' +
       '</div>';
@@ -223,19 +223,32 @@
     if (!R.days[1]) { $('ovCurveChg').parentElement.innerHTML = '<div class="ov-foot">D−1 커브 없음</div>'; return; }
     var prev = new Map();
     curveRows(R.days[1].curve).forEach(function (r) { if (!/지표|기준금리/.test(r.label || '')) prev.set(r.label, +r.ytm); });
-    var pts = [];
+    var pts = [], bpts = [];
     curveRows(R.days[0].curve).forEach(function (r) {
       if (/지표|기준금리/.test(r.label || '') || !prev.has(r.label)) return;
-      pts.push({ x: +r.remain_year, y: bpChg(+r.ytm, prev.get(r.label)), lb: r.label });
+      var p = { x: +r.remain_year, y: bpChg(+r.ytm, prev.get(r.label)), lb: r.label };
+      // 선물 바스켓 = /ktb/curve 응답 행 basket 값 그대로(금리 대시보드 '선물만' · 서버 basket=1 과 같은 기준: 값 있음 = 편입)
+      if (isBasket(r)) { p.bk = String(r.basket); p.fut = futOf(r.basket); bpts.push(p); } else pts.push(p);
     });
-    STATS.curveChgN = pts.length;
+    STATS.curveChgN = pts.length + bpts.length;
+    STATS.basketPts = bpts.map(function (p) { return p.lb + ':' + p.bk; });
+    var kinds = bpts.map(function (p) { return p.fut; }).filter(function (k, i, a) { return k && a.indexOf(k) === i; })
+      .sort(function (a, b) { return parseInt(a, 10) - parseInt(b, 10); });
+    var lg = $('ovChgLegend');
+    if (lg) lg.innerHTML = bpts.length ? '<span class="wb-legend-item"><i class="ov-dot-bk"></i>바스켓(' + esc(kinds.join('·')) + ')</span>' : '';
     mk('curveChg', $('ovCurveChg'), { type: 'scatter',
-      data: { datasets: [{ data: pts, pointRadius: 2.6, pointHoverRadius: 5,
-        pointBackgroundColor: function (c) { return WBChart.alpha(signTok(c.raw && c.raw.y), .85); }, pointBorderWidth: 0 }] },
+      data: { datasets: [
+        { data: pts, order: 2, pointRadius: 2.6, pointHoverRadius: 5,
+          pointBackgroundColor: function (c) { return WBChart.alpha(signTok(c.raw && c.raw.y), .85); }, pointBorderWidth: 0 },
+        { data: bpts, order: 1, pointRadius: 3.4, pointHoverRadius: 6, pointBackgroundColor: WBChart.css('--wb-basket'),
+          pointBorderColor: WBChart.css('--wb-surface'), pointBorderWidth: 1 }] },   // 바스켓 = 부호 무관 노랑 · 위에(order 작을수록 위)
       options: { responsive: true, maintainAspectRatio: false, animation: false,
-        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { var p = c.raw; return ' ' + p.lb + ' · 잔존 ' + p.x.toFixed(2) + '년 · ' + fmtBp(p.y) + 'bp'; } } } },
+        plugins: { legend: { display: false }, tooltip: { callbacks: { label: function (c) { var p = c.raw;
+          return ' ' + p.lb + (p.bk ? ' · ' + p.fut + ' 바스켓(' + p.bk + ')' : '') + ' · 잔존 ' + p.x.toFixed(2) + '년 · ' + fmtBp(p.y) + 'bp'; } } } },
         scales: { x: { type: 'linear', ticks: { maxTicksLimit: 8 } }, y: { ticks: { maxTicksLimit: 4 }, grid: { color: function (c) { return c.tick && c.tick.value === 0 ? WBChart.css('--wb-rule-strong') : WBChart.css('--wb-rule'); } } } } } });
   }
+  function isBasket(r) { return r.basket != null && r.basket !== ''; }               // 금리 대시보드 drawCurve '선물만' 행 확인과 같은 조건
+  function futOf(bk) { var m = /^(\d+선)/.exec(String(bk || '')); return m ? m[1] : String(bk || ''); }   // '3선1' → '3선'
   function setFocus(key) {
     OV.focus = OV.focus === key ? null : key;
     if (OV.charts.bars) OV.charts.bars.update('none');
