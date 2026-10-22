@@ -504,14 +504,28 @@ const GROUPS = [['지표 금리', ['y2', 'y3', 'y5', 'y10']], ['선물', ['f3', 
 // 경로 그림 묶음(행 클릭 → 그 그림 강조). 3년 지표 그림은 2026-10-22 사용자 지시로 '바스켓 종목별 저평'으로 교체 → y3 행 = 경로 없음.
 const PATH_GRP = { U: 'U', Ub: 'U', c32: 'C32', c53: 'C53', cf3b: 'CF' };
 const PATH_KEYS = ['pU', 'pC32', 'pC53', 'pCF', 'pB'];
-// 엔진 값 그대로 + 소수 자리 '채우기'만(반올림 없음) — 바스켓 저평·cf3b 표기(사용자: "웹은 반올림하지 않는다")
-function padRaw(v, d) {
-  if (!isNum(v)) return '—';
-  const n = +v, s0 = String(Math.abs(n)), dec = (s0.split('.')[1] || '').length;
-  return (n > 0 ? '+' : n < 0 ? MINUS : '') + (dec >= d ? s0 : Math.abs(n).toFixed(d));
-}
 function arrOk(a, n) { return Array.isArray(a) && a.length === n; }
 function rowOf(key) { const m = P('market'); return ok(m) ? (m.rows || []).find(r => r.key === key) : null; }
+// ── 차트 제목·툴팁 값 표기(2026-10-22 같은 화면 표기 통일) ──
+// 행이 있는 시리즈(U·Ub·c32·c53·cf3b) 마지막 날 = 그 행 now_display 그대로(변화 표와 같은 글자).
+// 다른 날 · 행 없는 시리즈(슬롯 저평·bc31·페어 sp) = 같은 단위 행 now_display 의 자릿수(전 = U · bp 수준 = c32 · 없으면 2)
+// + 십진 반올림(엔진 now_display 와 같은 규약 — 5.115 → 5.12 · JS toFixed 는 5.11 이라 쓰지 않음).
+function hu(v, d) {
+  if (!isNum(v)) return '—';
+  const n = +v, a = Math.abs(n), s = String(a);
+  const body = /e/i.test(s) ? a.toFixed(d) : Number(Math.round(+(s + 'e' + d)) + 'e-' + d).toFixed(d);
+  return (n > 0 ? '+' : n < 0 ? MINUS : '') + body;
+}
+const ndOf = key => { const r = rowOf(key); return r && r.now_display != null ? String(r.now_display) : null; };
+const ndDec = (key, fb) => { const m = /\.(\d+)/.exec(ndOf(key) || ''); return m ? m[1].length : fb; };
+const ndSuf = key => { const x = ndOf(key); return x ? x.replace(/^[+\-\u2212]?[\d.,]+/, '') : ''; };
+const DEC_JEON = () => ndDec('U', 2), DEC_BP = () => ndDec('c32', 2);
+// 행 있는 시리즈 값: 마지막 날 = now_display 그대로 · 아니면 같은 자릿수·단위(글자 = 화면용 · 이스케이프 전)
+function rv(key, arr, i) {
+  const a = arr || [], x = ndOf(key);
+  if (x != null && i === a.length - 1) return dispMinus(x);
+  return hu(a[i], ndDec(key, 2)) + ndSuf(key);
+}
 function renderMarket() {
   const m = P('market');
   if (!ok(m)) { $('amKpis').innerHTML = emptyBox('시장 동향 데이터 없음', m && m.note); return; }
@@ -571,10 +585,11 @@ function drawCurve(m) {
     xScale = { type: 'linear', min: lo, max: hi, title: { display: true, text: '잔존 (년)' },
       ticks: { stepSize: .5, autoSkip: false, maxRotation: 0, callback: v => Number.isInteger(v) ? v + 'y' : '' },
       grid: { color: c => c.tick && Number.isInteger(c.tick.value) ? WBChart.css('--wb-rule') : 'transparent' } };
+    // 툴팁 표기 = 이 페이지 커브 규칙(금리 % 소수 3 · 잔존 년 소수 2)
     tip = { mode: 'nearest', intersect: false, axis: 'xy', callbacks: {
       title: it => it.length ? (it[0].raw.k === 'bk' ? '3선 바스켓' : '지표') : '',
       label: c => { const r = c.raw, i = c.dataset.wbI;
-        return ` ${r.k === 'bk' ? (r.s || '') : tenLbl(r.t)} ${r.a || ''} · 잔존 ${raw(r.rm)}년 · ${raw(r.yt)}% · ${names[i] || ''} ${dates[i]}`; } } };
+        return ` ${r.k === 'bk' ? (r.s || '') : tenLbl(r.t)} ${r.a || ''} · 잔존 ${fix(r.rm, 2)}년 · ${fix(r.yt, 3)}% · ${names[i] || ''} ${dates[i]}`; } } };
     $('amCurveLg').innerHTML = `<span class="wb-legend-item"><span style="color:var(--wb-series-1)">●</span>지표</span>` +
       (bkOk ? `<span class="wb-legend-item"><span style="color:var(--wb-basket)">◆</span>3선 바스켓</span>` : '<span class="wb-legend-item am-lg-note">◆ 3선 바스켓 재료 없음</span>') +
       '<span class="wb-legend-item am-lg-note">x = 잔존(년)</span>';
@@ -635,16 +650,16 @@ function readouts() {
   const p = (P('market') || {}).paths || {}, n = (p.dates || []).length; if (!n) return;
   const i = AM.hover == null ? n - 1 : AM.hover, d = mmdd((p.dates || [])[i]);
   const sw = t => `<span class="wb-swatch" style="color:var(${t})"></span>`;
-  $('amReadU').innerHTML = `${d} · ${sw('--wb-series-1')} U <b>${sgn((p.U || [])[i], 2)}</b> · ${sw('--wb-series-3')} Ub <b>${sgn((p.Ub || [])[i], 2)}</b>`;
-  $('amReadC32').innerHTML = `${d} · <b>${sgn((p.c32 || [])[i], 1)}</b>`;
-  $('amReadC53').innerHTML = `${d} · <b>${sgn((p.c53 || [])[i], 1)}</b>`;
-  $('amReadCF').innerHTML = arrOk(p.cf3b, n) ? `${d} · <b>${padRaw(p.cf3b[i], 1)}</b>` : '';
+  $('amReadU').innerHTML = `${d} · ${sw('--wb-series-1')} U <b>${esc(rv('U', p.U, i))}</b> · ${sw('--wb-series-3')} Ub <b>${esc(rv('Ub', p.Ub, i))}</b>`;
+  $('amReadC32').innerHTML = `${d} · <b>${esc(rv('c32', p.c32, i))}</b>`;
+  $('amReadC53').innerHTML = `${d} · <b>${esc(rv('c53', p.c53, i))}</b>`;
+  $('amReadCF').innerHTML = arrOk(p.cf3b, n) ? `${d} · <b>${esc(rv('cf3b', p.cf3b, i))}</b>` : '';
   const bu = p.basket_u;
   if (bu && Array.isArray(bu.slots) && bu.series) {
     const roll = (bu.roll_dates || []).indexOf((p.dates || [])[i]) >= 0;
-    $('amReadB').innerHTML = `${d}${roll ? ' · <span class="wb-badge">롤</span>' : ''} · ${sw('--wb-series-1')} U <b>${padRaw((p.U || [])[i], 2)}</b> · ` +
-      bu.slots.map((sl, k) => `${sw(SLOT_TOK[k] || '--wb-series-6')} ${esc(sl)} ${esc(((bu.alias || {})[sl] || [])[i] || '')} <b>${padRaw(((bu.series || {})[sl] || [])[i], 2)}</b>`).join(' · ') +
-      (arrOk(p.bc31, n) ? ` · 커브 <b>${padRaw(p.bc31[i], 1)}</b>bp` : '');
+    $('amReadB').innerHTML = `${d}${roll ? ' · <span class="wb-badge">롤</span>' : ''} · ${sw('--wb-series-1')} U <b>${esc(rv('U', p.U, i))}</b> · ` +
+      bu.slots.map((sl, k) => `${sw(SLOT_TOK[k] || '--wb-series-6')} ${esc(sl)} ${esc(((bu.alias || {})[sl] || [])[i] || '')} <b>${hu(((bu.series || {})[sl] || [])[i], DEC_JEON())}${esc(bu.unit || '전')}</b>`).join(' · ') +
+      (arrOk(p.bc31, n) ? ` · 커브 <b>${hu(p.bc31[i], DEC_BP())}bp</b>` : '');
   } else $('amReadB').innerHTML = '';
 }
 const SLOT_TOK = ['--wb-series-2', '--wb-series-3', '--wb-series-4'];
@@ -711,13 +726,13 @@ function drawBasketU(p, L) {
     .concat(bu.slots.map((sl, k) => ({ label: sl, data: bu.series[sl], borderColor: WBChart.tok(SLOT_TOK[k] || '--wb-series-6'), borderWidth: 1.3, pointRadius: 0, tension: 0, spanGaps: true, order: 1 })));
   if (bars) ds.push({ type: 'bar', label: 'bc31', data: p.bc31, yAxisID: 'y2', backgroundColor: WBChart.tok('--wb-muted', .11), borderWidth: 0, barPercentage: 1, categoryPercentage: .9, order: 9 });
   AM.rollIdx = (bu.roll_dates || []).map(d => L.indexOf(d)).filter(i => i >= 0);
-  // 툴팁 = 그날 약칭·값(엔진 값 그대로 · 자리 채움만) + 롤일이면 '롤'
+  // 툴팁 = 그날 약칭·값(U 마지막 날 = now_display · 나머지 = 같은 자릿수 십진 반올림) + 롤일이면 '롤'
   const tooltip = { enabled: true, itemSort: (a, b) => a.datasetIndex - b.datasetIndex, callbacks: {
     title: it => it.length ? L[it[0].dataIndex] + (isRoll(it[0].dataIndex) ? ' · 롤' : '') : '',
     label: c => { const i = c.dataIndex, lb = c.dataset.label;
-      if (lb === 'U') return ` U 선물 저평 ${padRaw(p.U[i], 2)}${unit}`;
-      if (lb === 'bc31') return ` 커브 3선3−3선1 ${padRaw(p.bc31[i], 1)}bp`;
-      return ` ${lb} ${aliasAt(lb, i)} ${padRaw(bu.series[lb][i], 2)}${unit}`; } } };
+      if (lb === 'U') return ` U 선물 저평 ${rv('U', p.U, i)}`;
+      if (lb === 'bc31') return ` 커브 3선3−3선1 ${hu(p.bc31[i], DEC_BP())}bp`;
+      return ` ${lb} ${aliasAt(lb, i)} ${hu(bu.series[lb][i], DEC_JEON())}${unit}`; } } };
   // bc31 막대 = 0 기준(beginAtZero · 잘린 축 막대 금지) · 오른쪽 보조 축
   const ch = pathChart('pB', $('amCvB'), L, ds, {}, { plugins: [amRoll], tooltip,
     scales: bars ? { y2: { position: 'right', beginAtZero: true, grid: { display: false }, ticks: { maxTicksLimit: 4, callback: v => v + 'bp' }, title: { display: false } } } : {} });
@@ -778,7 +793,7 @@ function renderPair() {
   $('amHelpPair').innerHTML = help((s.rule ? s.rule + ' · ' : '') + '부호 = 지표 − 바스켓(' + unit + ') · 선 색 = 테너(부호 색 아님) · 세로 표식 = 짝 변경(change_dates). paths.idx_basket_sp 그대로.');
   $('amPairLg').innerHTML = tk.map((t, k) => `<span class="wb-legend-item">${sw(tokOf(t, k))}${esc(tenLbl(+t))} ${esc(at(s.idx_alias, t, last) || '—')} ↔ ${esc(at(s.basket_alias, t, last) || '—')}${at(s.basket_slot, t, last) ? ` <span class="wb-muted">${esc(at(s.basket_slot, t, last))}</span>` : ''}</span>`).join('') +
     (anyChg ? '<span class="wb-legend-item"><i class="am-lg-chg"></i>짝 변경</span>' : '');
-  $('amReadPair').innerHTML = `${mmdd(L[last])} · ` + tk.map((t, k) => `${sw(tokOf(t, k))} ${esc(tenLbl(+t))} <b>${padRaw(s.sp[t][last], 1)}</b>`).join(' · ') + ` ${esc(unit)}`;
+  $('amReadPair').innerHTML = `${mmdd(L[last])} · ` + tk.map((t, k) => `${sw(tokOf(t, k))} ${esc(tenLbl(+t))} <b>${hu(s.sp[t][last], DEC_BP())}</b>`).join(' · ') + ` ${esc(unit)}`;
   $('amBoxPair').innerHTML = '<canvas id="amCvPair"></canvas>';
   const ds = tk.map((t, k) => ({ label: t, data: s.sp[t], borderColor: WBChart.tok(tokOf(t, k)), borderWidth: 1.6, pointRadius: 0, tension: 0, spanGaps: true, wbT: t, wbTok: tokOf(t, k) }));
   const ch = mk('pair', $('amCvPair'), {
@@ -787,7 +802,7 @@ function renderPair() {
       plugins: { legend: { display: false }, tooltip: { itemSort: (a, b) => a.datasetIndex - b.datasetIndex, callbacks: {
         title: it => it.length ? L[it[0].dataIndex] + (tk.some(t => isChg(t, it[0].dataIndex)) ? ' · 짝 변경' : '') : '',
         label: c => { const t = c.dataset.wbT, i = c.dataIndex, sl = at(s.basket_slot, t, i);
-          return ` ${tenLbl(+t)} ${at(s.idx_alias, t, i) || '—'} ↔ ${at(s.basket_alias, t, i) || '—'}${sl ? '(' + sl + ')' : ''} ${padRaw(s.sp[t][i], 1)}${unit}${isChg(t, i) ? ' · 짝 변경' : ''}`; } } } },
+          return ` ${tenLbl(+t)} ${at(s.idx_alias, t, i) || '—'} ↔ ${at(s.basket_alias, t, i) || '—'}${sl ? '(' + sl + ')' : ''} ${hu(s.sp[t][i], DEC_BP())}${unit}${isChg(t, i) ? ' · 짝 변경' : ''}`; } } } },
       scales: { x: { ticks: { maxTicksLimit: 6, maxRotation: 0, callback: function (v) { return mmdd(this.getLabelForValue(v)); } }, grid: { display: false } },
         y: { title: { display: true, text: unit }, grid: { color: c => c.tick && c.tick.value === 0 ? WBChart.css('--wb-rule-strong') : WBChart.css('--wb-rule') } } } } });
   ch.$pairChg = AM.pairChg; ch.update('none');
