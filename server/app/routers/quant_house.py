@@ -1107,14 +1107,38 @@ def daily_output(name: str):
 #   정본 = BQH engine/research/game_board/ (해동) 가 만드는 스냅샷·원장. 라우터는 전달자(H3 · 재계산 0).
 #     GET  /quant-house/game-board          → 05_registry/research/game_board_snapshot.json *그대로*(+available)
 #     GET  /quant-house/game-board/ledger   → game_board_ledger.jsonl → 이벤트 배열(원문 그대로 · 파싱 실패 줄은 건수로 정직 표기)
-#     POST /quant-house/game-board/game     → 계약 §7 이벤트(open/close/amend/note) → engine.research.game_board.ledger 의
-#                                             append → snapshot 재빌드 → {ok, appended, snapshot}. X-QH-KEY 필수(원장 쓰기 = qh_ops 와 같은 키).
+#     POST /quant-house/game-board/game     → 계약 §7 이벤트(open/close/amend/note/delete) → engine.research.game_board.ledger 의
+#                                             전용 진입점 → snapshot 재빌드 → {ok, appended, snapshot}. X-QH-KEY 필수(원장 쓰기 = qh_ops 와 같은 키).
+#   ★비공개(2026-10-27): 내 게임(개인 포지션)이 실리므로 GET 둘도 X-QH-KEY(POST 와 같은 키) 또는 로컬 호스트(터널 경유 아님)만.
 #   엔진 패키지가 아직 없으면 503 + 안내(가짜 응답 0). 엔진 함수 이름은 얇은 어댑터(_gb_call)가 후보 이름을 순서대로 찾는다.
+from fastapi import Request
+
 _GB_DIR = QH_ROOT / "05_registry" / "research"
 _GB_SNAP = _GB_DIR / "game_board_snapshot.json"
 _GB_LEDGER = _GB_DIR / "game_board_ledger.jsonl"
 _GB_HINT = "cli.py board snapshot 실행 필요(해동 엔진 engine/research/game_board)"
 _GB_EVENTS = ("open", "close", "amend", "note", "delete")   # delete = 사용자 §3 2026-10-27(원장 삭제 가능 · 사유 필수)
+_LOOPBACK = ("127.0.0.1", "::1", "localhost")
+_PROXY_HEADERS = ("x-forwarded-for", "cf-connecting-ip", "x-real-ip")   # cloudflared/ngrok 경유 = 소켓은 loopback 이어도 원격
+
+
+def _gb_is_local(request: Request) -> bool:
+    """로컬 호스트 판정 — 소켓 peer 가 loopback 이고 프록시 헤더(터널 경유)가 없을 때만. 터널은 localhost 로 들어오므로 헤더로 구분."""
+    host = (request.client.host if request and request.client else "") or ""
+    if host not in _LOOPBACK:
+        return False
+    return not any(request.headers.get(h) for h in _PROXY_HEADERS)
+
+
+def _gb_read_guard(request: Request, x_qh_key: str | None):
+    """GET 비공개 가드 — 로컬 호스트면 통과 · 아니면 POST 와 같은 X-QH-KEY(qh_ops._require_key) 필수."""
+    if _gb_is_local(request):
+        return
+    from .qh_ops import _require_key
+    try:
+        _require_key(x_qh_key)
+    except HTTPException as e:
+        raise HTTPException(403, f"부트스트랩 읽기 거부(비공개 · X-QH-KEY 또는 로컬 호스트) — {e.detail}")
 
 
 def _gb():
@@ -1184,20 +1208,24 @@ def _gb_json(obj):
 
 
 @router.get("/game-board")
-def game_board():
+def game_board(request: Request, x_qh_key: str | None = Header(default=None, alias="X-QH-KEY")):
     """★판 실행 계층 스냅샷 — game_board_snapshot.json *그대로*(H3 전달자 · 숫자 재계산 0).
 
     판 추천·방향 제안 0(계약 §0). 부재 시 available:false + 재생성 안내(가짜 데이터 금지·H2).
+    비공개: X-QH-KEY(POST 와 같은 키) 또는 로컬 호스트(터널 경유 아님)만 — 내 게임이 터널로 새지 않게.
     """
+    _gb_read_guard(request, x_qh_key)
     return _gb_json(_review_passthrough(_GB_SNAP, _GB_HINT))
 
 
 @router.get("/game-board/ledger")
-def game_board_ledger(limit: int = Query(500, ge=1, le=10000)):
-    """게임 원장(append-only jsonl) → 이벤트 배열(원문 그대로 · 최신 limit 건).
+def game_board_ledger(request: Request, limit: int = Query(500, ge=1, le=10000), x_qh_key: str | None = Header(default=None, alias="X-QH-KEY")):
+    """게임 원장(append-only jsonl · delete 도 이벤트로 남음) → 이벤트 배열(원문 그대로 · 최신 limit 건).
 
     파싱 실패 줄은 버리지 않고 parse_errors 로 건수 표기(정직). 부재 시 available:false.
+    비공개: X-QH-KEY 또는 로컬 호스트만(game_board 와 동일 가드).
     """
+    _gb_read_guard(request, x_qh_key)
     if not _GB_LEDGER.exists():
         return {"available": False, "events": [], "n": 0,
                 "note": f"{_GB_LEDGER.name} 미생성 — 첫 open 이벤트(웹 폼 또는 cli.py board open)가 만든다."}
@@ -1219,10 +1247,12 @@ def game_board_ledger(limit: int = Query(500, ge=1, le=10000)):
 def game_board_game(body: dict = Body(...), x_qh_key: str | None = Header(default=None, alias="X-QH-KEY")):
     """계약 §7 이벤트를 게임 원장에 append → 스냅샷 재빌드 → 결과 반환.
 
-    body = {"event": "open"|"close"|"amend"|"note", "game_id"?, "board_id", "dir"(±1), "date",
-            "size_R"|"dv01_won_per_bp"|"one_R_won", "memo", "by": "web"}  (close: result?·R?·cum_bp? · amend: fields? · delete: reason 필수)
+    body = {"event": "open"|"close"|"amend"|"note"|"delete", "game_id"?, "board_id", "dir"(±1), "date",
+            "size_R"|"dv01_won_per_bp"|"one_R_won", "bond"?, "memo", "by": "web"}  (close: result?·R?·cum_bp? · amend: fields? · delete: reason 필수)
     · 라우터는 검증 최소(이벤트 종류·필수 키)만 — X_bp·레그·DV01·lot 반올림·R 재계산은 전부 엔진(§7 · 재계산 0).
-    · 쓰기 = X-QH-KEY(server/.env QH_OPS_KEY · qh_ops 와 동일 키). 원장은 append-only — 삭제 엔드포인트 없음.
+    · 쓰기 = X-QH-KEY(server/.env QH_OPS_KEY · qh_ops 와 동일 키). 원장은 append-only — 삭제도 delete 이벤트로 append
+      (사용자 §3 2026-10-27 · 사유 필수 · 엔진 ledger.delete_game · 물리 삭제 0). 별도 DELETE 엔드포인트 없음.
+    · amend 허용 필드·거부 사유는 엔진(ledger.amend)이 정한다 — 웹 폼은 크기·종목·메모만 보낸다.
     """
     from .qh_ops import _require_key          # 같은 쓰기 키(별도 키 체계 만들지 않음)
     _require_key(x_qh_key)

@@ -32,7 +32,22 @@ SAMPLE = json.loads((Path(__file__).resolve().parents[1] / "tools" / "quant-hous
 tmp = Path(tempfile.mkdtemp(prefix="gb_smoke_"))
 QH._GB_SNAP = tmp / "game_board_snapshot.json"
 QH._GB_LEDGER = tmp / "game_board_ledger.jsonl"
-c = TestClient(create_app())
+_APP = create_app()
+
+
+class _PeerAs:
+    """ASGI scope.client 을 바꿔 소켓 peer 를 흉내낸다(starlette 0.38 TestClient 는 client= 인자 없음)."""
+    def __init__(self, app, host):
+        self.app, self.host = app, host
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http":
+            scope = dict(scope, client=(self.host, 50000))
+        await self.app(scope, receive, send)
+
+
+c = TestClient(_PeerAs(_APP, "127.0.0.1"))                 # 로컬 호스트(터널 경유 아님) = GET 가드 통과
+c_remote = TestClient(_PeerAs(_APP, "198.51.100.7"))         # 원격 peer → GET 도 X-QH-KEY 필수
 KEY = {"X-QH-KEY": "smoketest-key"}
 OPEN = {"event": "open", "board_id": "S.slope.2_5", "dir": 1, "date": "2026-10-27", "size_R": 1.0, "memo": "smoke", "by": "web"}
 
@@ -41,6 +56,33 @@ r = c.get("/quant-house/game-board")
 check("GET game-board absent -> available:false + hint", r.status_code == 200 and r.json().get("available") is False and "board snapshot" in r.json().get("note", ""), r.json().get("note"))
 r = c.get("/quant-house/game-board/ledger")
 check("GET ledger absent -> available:false events[]", r.status_code == 200 and r.json()["available"] is False and r.json()["events"] == [])
+
+# -- 1b. GET 비공개 가드(2026-10-27 저녁): 원격은 X-QH-KEY(POST 와 같은 키) 필수 · 로컬 호스트는 통과 · 터널(프록시 헤더) 경유 loopback 은 원격 취급 --
+r = c_remote.get("/quant-house/game-board")
+check("GET game-board remote without key -> 403 (private)", r.status_code == 403 and "X-QH-KEY" in r.json()["detail"], r.status_code)
+r = c_remote.get("/quant-house/game-board/ledger")
+check("GET ledger remote without key -> 403 (private)", r.status_code == 403)
+r = c_remote.get("/quant-house/game-board", headers={"X-QH-KEY": "wrong"})
+check("GET game-board remote wrong key -> 403 (mismatch)", r.status_code == 403 and "불일치" in r.json()["detail"])
+r = c_remote.get("/quant-house/game-board", headers=KEY)
+check("GET game-board remote with key -> 200", r.status_code == 200 and r.json().get("available") is False)
+r = c_remote.get("/quant-house/game-board/ledger", headers=KEY)
+check("GET ledger remote with key -> 200", r.status_code == 200 and r.json()["available"] is False)
+for h in ("X-Forwarded-For", "Cf-Connecting-Ip"):
+    r = c.get("/quant-house/game-board", headers={h: "203.0.113.9"})
+    check("GET via tunnel (loopback peer + %s) without key -> 403" % h, r.status_code == 403)
+r = c.get("/quant-house/game-board", headers={"Cf-Connecting-Ip": "203.0.113.9", **KEY})
+check("GET via tunnel with key -> 200", r.status_code == 200)
+r = c.get("/quant-house/game-board")
+check("GET local (loopback peer, no proxy header) without key -> 200", r.status_code == 200)
+_saved_key = os.environ.pop("QH_OPS_KEY")
+try:
+    r = c_remote.get("/quant-house/game-board", headers=KEY)
+    check("GET remote when QH_OPS_KEY unset -> 403 (no key = fully private)", r.status_code == 403 and "미설정" in r.json()["detail"])
+    r = c.get("/quant-house/game-board")
+    check("GET local when QH_OPS_KEY unset -> still 200 (local host guard)", r.status_code == 200)
+finally:
+    os.environ["QH_OPS_KEY"] = _saved_key
 
 # -- 2. passthrough = 파일 그대로 -------------------------------------------------------------
 QH._GB_SNAP.write_text(json.dumps(SAMPLE, ensure_ascii=False), encoding="utf-8")
@@ -107,7 +149,7 @@ def build_snapshot():
 
 
 def open_game(board_id, direction, date, size_R=None, dv01_won_per_bp=None, one_R_won=None, bond=None, memo="", by="cli", k=None, regime_at_entry=None, path=None, **kw):
-    calls["open_game"] = dict(board_id=board_id, direction=direction, date=date, size_R=size_R, dv01_won_per_bp=dv01_won_per_bp, one_R_won=one_R_won, memo=memo, by=by, **kw)
+    calls["open_game"] = dict(board_id=board_id, direction=direction, date=date, size_R=size_R, dv01_won_per_bp=dv01_won_per_bp, one_R_won=one_R_won, memo=memo, by=by, **({"bond": bond} if bond else {}), **kw)
     return append_event(dict(event="open", game_id="G-FAKE", board_id=board_id, dir=direction, date=str(date), X_bp=8.9, by=by, memo=memo))
 
 
@@ -164,6 +206,10 @@ try:
     check("POST note -> ledger.note(game_id, memo, by)", r.status_code == 200 and calls["note"] == dict(game_id="G-FAKE", memo="n", by="web"))
     r = c.post("/quant-house/game-board/game", json={"event": "amend", "game_id": "G-FAKE", "size_R": 1.5, "memo": "m"}, headers=KEY)
     check("POST amend -> ledger.amend(game_id, fields={size_R}, ...)", r.status_code == 200 and calls["amend"]["fields"] == {"size_R": 1.5})
+    r = c.post("/quant-house/game-board/game", json={"event": "amend", "game_id": "G-FAKE", "size_R": 2, "bond": "KR1035", "memo": "m2"}, headers=KEY)
+    check("POST amend (web form: size/bond/memo only) -> fields={size_R,bond} memo passed", r.status_code == 200 and calls["amend"]["fields"] == {"size_R": 2, "bond": "KR1035"} and calls["amend"]["by"] == "web")
+    r = c.post("/quant-house/game-board/game", json=dict(OPEN, bond="KR1035"), headers=KEY)
+    check("POST open with bond -> open_game(..., bond=)", r.status_code == 200 and calls["open_game"].get("bond") == "KR1035")
     r = c.post("/quant-house/game-board/game", json={"event": "close", "game_id": "G-NOPE", "date": "2026-10-28"}, headers=KEY)
     check("POST close unknown game -> 400 (engine KeyError passthrough)", r.status_code == 400 and "G-NOPE" in r.json()["detail"], r.json().get("detail"))
     r = c.post("/quant-house/game-board/game", json={"event": "close", "game_id": "G-FAKE", "date": "2026-10-28", "memo": "bye"}, headers=KEY)
