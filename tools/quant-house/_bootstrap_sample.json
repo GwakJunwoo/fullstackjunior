@@ -812,7 +812,51 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 177620429.67392373,
+    "X_bp": 18.252652044748643,
+    "basis": "measured",
+    "basis_detail": {
+     "basis": "measured",
+     "D_R": 11.259966005439846,
+     "source": "nonoverlap_worst_rolling_1y(+1)",
+     "k": 1.0,
+     "board_id": "L.cash.2y",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": 9731212.167879231,
+    "legs": [
+     {
+      "tenor": "2y",
+      "kind": "cash",
+      "side": 1,
+      "weight": 1.0,
+      "code": "KR103501GG96",
+      "dv01_won": 9681927.35199973,
+      "target_dv01_won": 9731212.167879231,
+      "dv01_per_10억": 179294.95096295796,
+      "face_억": 540.0,
+      "lots": 54
+     }
+    ],
+    "one_side_delta_won": 9681927.35199973,
+    "one_R_actual_won": 176720851.07858568,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "1R 1.78억 ÷ X 18.25bp = 델타 973만원/bp(넷팅 전 이 판 단독 한쪽 델타 968만) · 반올림 후 실제 1R 1.77억 · D_R 은 k=1.0 기본값 실측",
+    "long_dv01_won": 9681927.35199973,
+    "short_dv01_won": 0,
+    "leg_dv01_mismatch_won": 0.0,
+    "warnings": []
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "L.cash.3y",
@@ -893,7 +937,51 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 154353259.41835505,
+    "X_bp": 20.419372827456442,
+    "basis": "measured",
+    "basis_detail": {
+     "basis": "measured",
+     "D_R": 12.957290358082119,
+     "source": "nonoverlap_worst_rolling_1y(-1)",
+     "k": 1.0,
+     "board_id": "L.cash.3y",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": 7559157.703943163,
+    "legs": [
+     {
+      "tenor": "3y",
+      "kind": "cash",
+      "side": 1,
+      "weight": 1.0,
+      "code": "KR103501GG62",
+      "dv01_won": 7645770.254039962,
+      "target_dv01_won": 7559157.703943163,
+      "dv01_per_10억": 246637.75013032136,
+      "face_억": 310.0,
+      "lots": 31
+     }
+    ],
+    "one_side_delta_won": 7645770.254039962,
+    "one_R_actual_won": 156121833.37031832,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "1R 1.54억 ÷ X 20.42bp = 델타 756만원/bp(넷팅 전 이 판 단독 한쪽 델타 765만) · 반올림 후 실제 1R 1.56억 · D_R 은 k=1.0 기본값 실측",
+    "long_dv01_won": 7645770.254039962,
+    "short_dv01_won": 0,
+    "leg_dv01_mismatch_won": 0.0,
+    "warnings": []
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "L.cash.5y",
@@ -974,7 +1062,51 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 174453133.39169782,
+    "X_bp": 22.474338848265756,
+    "basis": "measured",
+    "basis_detail": {
+     "basis": "measured",
+     "D_R": 11.464397119823698,
+     "source": "nonoverlap_worst_rolling_1y(+1)",
+     "k": 1.0,
+     "board_id": "L.cash.5y",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": 7762325.493510996,
+    "legs": [
+     {
+      "tenor": "5y",
+      "kind": "cash",
+      "side": 1,
+      "weight": 1.0,
+      "code": "KR103503GG94",
+      "dv01_won": 7955638.506678224,
+      "target_dv01_won": 7762325.493510996,
+      "dv01_per_10억": 441979.9170376791,
+      "face_억": 180.0,
+      "lots": 18
+     }
+    ],
+    "one_side_delta_won": 7955638.506678224,
+    "one_R_actual_won": 178797715.55339736,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "1R 1.74억 ÷ X 22.47bp = 델타 776만원/bp(넷팅 전 이 판 단독 한쪽 델타 796만) · 반올림 후 실제 1R 1.79억 · D_R 은 k=1.0 기본값 실측",
+    "long_dv01_won": 7955638.506678224,
+    "short_dv01_won": 0,
+    "leg_dv01_mismatch_won": 0.0,
+    "warnings": []
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "L.cash.10y",
@@ -1055,7 +1187,51 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 74661985.39298157,
+    "X_bp": 12.280027687265198,
+    "basis": "measured",
+    "basis_detail": {
+     "basis": "measured",
+     "D_R": 26.787393738233025,
+     "source": "nonoverlap_worst_rolling_1y(-1)",
+     "k": 0.5,
+     "board_id": "L.cash.10y",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "k_status": "pass_k"
+    },
+    "dv01_won_per_bp": 6079952.528967713,
+    "legs": [
+     {
+      "tenor": "10y",
+      "kind": "cash",
+      "side": 1,
+      "weight": 1.0,
+      "code": "KR103503GG60",
+      "dv01_won": 6374217.9172528265,
+      "target_dv01_won": 6079952.528967713,
+      "dv01_per_10억": 796777.2396566033,
+      "face_억": 80.0,
+      "lots": 8
+     }
+    ],
+    "one_side_delta_won": 6374217.9172528265,
+    "one_R_actual_won": 78275572.50852661,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "1R 0.75억 ÷ X 12.28bp = 델타 608만원/bp(넷팅 전 이 판 단독 한쪽 델타 637만) · 반올림 후 실제 1R 0.78억",
+    "long_dv01_won": 6374217.9172528265,
+    "short_dv01_won": 0,
+    "leg_dv01_mismatch_won": 0.0,
+    "warnings": []
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "L.cash.30y",
@@ -1136,7 +1312,51 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 69017634.58005646,
+    "X_bp": 11.604088359999102,
+    "basis": "measured",
+    "basis_detail": {
+     "basis": "measured",
+     "D_R": 28.978101208034243,
+     "source": "nonoverlap_worst_rolling_1y(-1)",
+     "k": 0.5,
+     "board_id": "L.cash.30y",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "k_status": "pass_k"
+    },
+    "dv01_won_per_bp": 5947699.848440468,
+    "legs": [
+     {
+      "tenor": "30y",
+      "kind": "cash",
+      "side": 1,
+      "weight": 1.0,
+      "code": "KR103502GG95",
+      "dv01_won": 5299126.957609496,
+      "target_dv01_won": 5947699.848440468,
+      "dv01_per_10억": 1766375.6525364986,
+      "face_억": 30.0,
+      "lots": 3
+     }
+    ],
+    "one_side_delta_won": 5299126.957609496,
+    "one_R_actual_won": 61491537.4469538,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "1R 0.69억 ÷ X 11.60bp = 델타 595만원/bp(넷팅 전 이 판 단독 한쪽 델타 530만) · 반올림 후 실제 1R 0.61억",
+    "long_dv01_won": 5299126.957609496,
+    "short_dv01_won": 0,
+    "leg_dv01_mismatch_won": 0.0,
+    "warnings": []
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "L.fut.3F",
@@ -1218,7 +1438,50 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 93050247.2753851,
+    "X_bp": 11.397309326160643,
+    "basis": "measured",
+    "basis_detail": {
+     "basis": "measured",
+     "D_R": 21.493763408074972,
+     "source": "nonoverlap_worst_rolling_1y(+1)",
+     "k": 0.5,
+     "board_id": "L.fut.3F",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "k_status": "pass_k"
+    },
+    "dv01_won_per_bp": 8164229.346816411,
+    "legs": [
+     {
+      "tenor": "3F",
+      "kind": "fut",
+      "side": 1,
+      "weight": 1.0,
+      "code": "A656C000",
+      "dv01_won": 8159604.862500001,
+      "target_dv01_won": 8164229.346816411,
+      "dv01_per_contract": 28630.1925,
+      "contracts": 285
+     }
+    ],
+    "one_side_delta_won": 8159604.862500001,
+    "one_R_actual_won": 92997540.59715699,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "1R 0.93억 ÷ X 11.40bp = 델타 816만원/bp(넷팅 전 이 판 단독 한쪽 델타 816만) · 반올림 후 실제 1R 0.93억",
+    "long_dv01_won": 8159604.862500001,
+    "short_dv01_won": 0,
+    "leg_dv01_mismatch_won": 0.0,
+    "warnings": []
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "L.fut.10F",
@@ -1280,7 +1543,50 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 84964996.8162062,
+    "X_bp": 12.622380049537131,
+    "basis": "measured",
+    "basis_detail": {
+     "basis": "measured",
+     "D_R": 23.53910521913326,
+     "source": "nonoverlap_worst_rolling_1y(-1)",
+     "k": 0.5,
+     "board_id": "L.fut.10F",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "k_status": "pass_k"
+    },
+    "dv01_won_per_bp": 6731297.6223784285,
+    "legs": [
+     {
+      "tenor": "10F",
+      "kind": "fut",
+      "side": 1,
+      "weight": 1.0,
+      "code": "A676C000",
+      "dv01_won": 6719605.7,
+      "target_dv01_won": 6731297.6223784285,
+      "dv01_per_contract": 85058.3,
+      "contracts": 79
+     }
+    ],
+    "one_side_delta_won": 6719605.7,
+    "one_R_actual_won": 84817416.928436,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "1R 0.85억 ÷ X 12.62bp = 델타 673만원/bp(넷팅 전 이 판 단독 한쪽 델타 672만) · 반올림 후 실제 1R 0.85억",
+    "long_dv01_won": 6719605.7,
+    "short_dv01_won": 0,
+    "leg_dv01_mismatch_won": 0.0,
+    "warnings": []
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "L.irs.2y",
@@ -1342,7 +1648,34 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": null,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · L.irs.2y 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": null,
+    "legs": [],
+    "one_side_delta_won": null,
+    "one_R_actual_won": null,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "X 또는 1R 없음(blocked/σ 미달/감내선 아래) — 환산 불가"
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "L.irs.3y",
@@ -1404,7 +1737,34 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": null,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · L.irs.3y 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": null,
+    "legs": [],
+    "one_side_delta_won": null,
+    "one_R_actual_won": null,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "X 또는 1R 없음(blocked/σ 미달/감내선 아래) — 환산 불가"
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "L.irs.5y",
@@ -1466,7 +1826,34 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": null,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · L.irs.5y 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": null,
+    "legs": [],
+    "one_side_delta_won": null,
+    "one_R_actual_won": null,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "X 또는 1R 없음(blocked/σ 미달/감내선 아래) — 환산 불가"
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "L.irs.10y",
@@ -1528,7 +1915,34 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": null,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · L.irs.10y 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": null,
+    "legs": [],
+    "one_side_delta_won": null,
+    "one_R_actual_won": null,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "X 또는 1R 없음(blocked/σ 미달/감내선 아래) — 환산 불가"
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "S.slope.2_3",
@@ -2448,7 +2862,63 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 127045681.3690627,
+    "X_bp": 5.983938502357787,
+    "basis": "measured",
+    "basis_detail": {
+     "basis": "measured",
+     "D_R": 15.742369031734961,
+     "source": "nonoverlap_worst_rolling_1y(-1)",
+     "k": 1.0,
+     "board_id": "S.slope.2_3",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": 21231114.143135708,
+    "legs": [
+     {
+      "tenor": "2y",
+      "kind": "cash",
+      "side": 1,
+      "weight": 1.0,
+      "code": "KR103501GG96",
+      "dv01_won": 21156804.213629037,
+      "target_dv01_won": 21231114.143135708,
+      "dv01_per_10억": 179294.95096295796,
+      "face_억": 1180.0,
+      "lots": 118
+     },
+     {
+      "tenor": "3y",
+      "kind": "cash",
+      "side": -1,
+      "weight": 1.0,
+      "code": "KR103501GG62",
+      "dv01_won": 21210846.511207636,
+      "target_dv01_won": 21231114.143135708,
+      "dv01_per_10억": 246637.75013032136,
+      "face_억": 860.0,
+      "lots": 86
+     }
+    ],
+    "one_side_delta_won": 21210846.511207636,
+    "one_R_actual_won": 126762708.21339849,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "1R 1.27억 ÷ X 5.98bp = 델타 2,123만원/bp(넷팅 전 이 판 단독 한쪽 델타 2,121만) · 반올림 후 실제 1R 1.27억 · D_R 은 k=1.0 기본값 실측",
+    "long_dv01_won": 21156804.213629037,
+    "short_dv01_won": 21210846.511207636,
+    "leg_dv01_mismatch_won": 54042.297578599304,
+    "warnings": []
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "S.slope.3_5",
@@ -3515,7 +3985,63 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 193036620.49959508,
+    "X_bp": 5.912379103767512,
+    "basis": "measured",
+    "basis_detail": {
+     "basis": "measured",
+     "D_R": 10.360728419425449,
+     "source": "nonoverlap_worst_rolling_1y(-1)",
+     "k": 1.0,
+     "board_id": "S.slope.3_5",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": 32649567.477259267,
+    "legs": [
+     {
+      "tenor": "3y",
+      "kind": "cash",
+      "side": 1,
+      "weight": 1.0,
+      "code": "KR103501GG62",
+      "dv01_won": 32556183.017202422,
+      "target_dv01_won": 32649567.477259267,
+      "dv01_per_10억": 246637.75013032136,
+      "face_억": 1320.0,
+      "lots": 132
+     },
+     {
+      "tenor": "5y",
+      "kind": "cash",
+      "side": -1,
+      "weight": 1.0,
+      "code": "KR103503GG94",
+      "dv01_won": 32706513.860788256,
+      "target_dv01_won": 32649567.477259267,
+      "dv01_per_10억": 441979.9170376791,
+      "face_억": 740.0,
+      "lots": 74
+     }
+    ],
+    "one_side_delta_won": 32706513.860788256,
+    "one_R_actual_won": 192928902.63847268,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "1R 1.93억 ÷ X 5.91bp = 델타 3,265만원/bp(넷팅 전 이 판 단독 한쪽 델타 3,271만) · 반올림 후 실제 1R 1.93억 · D_R 은 k=1.0 기본값 실측",
+    "long_dv01_won": 32556183.017202422,
+    "short_dv01_won": 32706513.860788256,
+    "leg_dv01_mismatch_won": 150330.8435858339,
+    "warnings": []
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "S.slope.2_5",
@@ -4380,14 +4906,19 @@
     "decision_id": "2026-10-27.open.comovement_rule"
    },
    "factor_loading": {
-    "level": 0.0,
-    "curve": 1.0,
-    "residual": 0.0,
-    "provisional": true,
-    "source": "계열 기반 잠정(동행표 미실측)",
-    "decision_id": "2026-10-27.open.comovement_rule",
+    "level": 0.45806546225363143,
+    "curve": 0.47403904044079015,
+    "residual": 0.06789549730557842,
+    "provisional": false,
+    "source": "_board_comovement_20261027_loadings.json::factor_loading",
+    "main": "curve",
+    "main_share": 0.47403904044079015,
+    "mini_share": 0.45806546225363143,
+    "sign_level": -1.0,
+    "sign_curve": 1.0,
+    "period": "2021-09-10~2026-10-26",
     "dominant": "curve",
-    "common_share": 1.0
+    "common_share": 0.9321045026944216
    },
    "D_R": {
     "D_R": 10.955126802539445,
@@ -4452,180 +4983,258 @@
     "capped": false
    },
    "conditional": {
-    "after_win": {
-     "same_dir": {
-      "win_rate": 0.71,
-      "n": 222,
-      "ci": [
-       0.65,
-       0.77
-      ]
+    "+1": {
+     "after_win": {
+      "same_dir": {
+       "win_rate": 0.6334946237,
+       "n": 31.1,
+       "ci_diff": [
+        -0.5333976678,
+        0.0199757802
+       ],
+       "lift_vs_baseline": -0.1000503989
+      },
+      "flip_dir": {
+       "win_rate": 0.4954545455,
+       "n": 33.1,
+       "ci_diff": null,
+       "lift_vs_baseline": 0.1465073513
+      },
+      "diff_same_minus_flip": -0.2465577502,
+      "baseline_adj": "연 층화 무작위 기준선 차감(lift)"
      },
-     "flip_dir": {
-      "win_rate": 0.32,
-      "n": 219,
-      "ci": [
-       0.25,
-       0.39
-      ]
+     "after_loss": {
+      "same_dir": {
+       "win_rate": 0.6210784314,
+       "n": 48.5,
+       "ci_diff": null,
+       "lift_vs_baseline": null
+      },
+      "flip_dir": {
+       "win_rate": 0.3777692308,
+       "n": 25.4,
+       "ci_diff": null,
+       "lift_vs_baseline": -0.0120937042
+      },
+      "note": "진 뒤 뒤집기 = 거울 셀의 이긴 뒤 같은 방향"
      },
-     "R_hist": [
-      [
-       -2.0,
-       3
-      ],
-      [
-       -1.5,
-       9
-      ],
-      [
-       -1.0,
-       41
-      ],
-      [
-       -0.5,
-       22
-      ],
-      [
-       0.0,
-       18
-      ],
-      [
-       0.5,
-       25
-      ],
-      [
-       1.0,
-       88
-      ],
-      [
-       1.5,
-       12
-      ],
-      [
-       2.0,
-       4
-      ]
-     ],
-     "baseline_adj": 0.01,
+     "unconditional_p": 0.629019524,
+     "pWW": 0.6334946237,
+     "pWL": 0.6210784314,
+     "D_raw": 0.0124161923,
+     "D_strat": -0.0728890972,
+     "n_pairs": 48.5,
+     "n_unique_chains": 10,
+     "period": "2021-09-09~2026-10-08",
+     "R_hist": null,
+     "R_hist_note": "원장 json 에 히스토그램 없음(xlsx) — 미표시",
      "by_year": [
       {
+       "year": 2021,
+       "same": 0.6363636364,
+       "flip": 0.3636363636,
+       "n": 1.1,
+       "diff": -0.0035885167
+      },
+      {
        "year": 2022,
-       "same": 0.71,
-       "flip": 0.31,
-       "n": 58
+       "same": 0.625,
+       "flip": 0.5,
+       "n": 8.0,
+       "diff": -0.2764277316
       },
       {
        "year": 2023,
-       "same": 0.68,
-       "flip": 0.36,
-       "n": 61
+       "same": 0.8,
+       "flip": 0.3333333333,
+       "n": 5.0,
+       "diff": 0.0661074868
       },
       {
        "year": 2024,
-       "same": 0.73,
-       "flip": 0.29,
-       "n": 55
+       "same": 0.3333333333,
+       "flip": 1.0,
+       "n": 3.0,
+       "diff": -0.5407999081
       },
       {
        "year": 2025,
-       "same": 0.69,
-       "flip": 0.33,
-       "n": 48
+       "same": 0.625,
+       "flip": 0.375,
+       "n": 8.0,
+       "diff": -0.4013285437
+      },
+      {
+       "year": 2026,
+       "same": 0.6666666667,
+       "flip": 0.5,
+       "n": 6.0,
+       "diff": -0.1588296761
       }
      ],
      "streak_type": "none",
-     "verdict_note": "양 기간 성립 0 · 몰림 0"
+     "train_type": "표본 부족",
+     "test_type": "none",
+     "year_signs": "−−+−−−",
+     "verdict_note": "양 기간(TRAIN·TEST) 성립 셀 0 · 추세 지속 판 0 · 번갈이 판 2(S 3-5 · L cash.5y · 한 기간만) — 운용 참고 · 추천 아님 · 과거 분포",
+     "source": "_streak_paroli_20261027.json flip/cells/flip_years(k=1 비겹침 체인 · 시드 20261027 · 정직-N 0)"
     },
-    "after_loss": {
-     "same_dir": {
-      "win_rate": 0.68,
-      "n": 203,
-      "ci": [
-       0.62,
-       0.74
-      ]
+    "-1": {
+     "after_win": {
+      "same_dir": {
+       "win_rate": 0.3777692308,
+       "n": 25.4,
+       "ci_diff": [
+        -0.4496956534,
+        0.3404075224
+       ],
+       "lift_vs_baseline": -0.0120937042
+      },
+      "flip_dir": {
+       "win_rate": 0.7404615385,
+       "n": 25.4,
+       "ci_diff": null,
+       "lift_vs_baseline": 0.0347458214
+      },
+      "diff_same_minus_flip": -0.0468395256,
+      "baseline_adj": "연 층화 무작위 기준선 차감(lift)"
      },
-     "flip_dir": {
-      "win_rate": 0.35,
-      "n": 200,
-      "ci": [
-       0.28,
-       0.42
-      ]
+     "after_loss": {
+      "same_dir": {
+       "win_rate": 0.5273252688,
+       "n": 56.5,
+       "ci_diff": null,
+       "lift_vs_baseline": null
+      },
+      "flip_dir": {
+       "win_rate": 0.6334946237,
+       "n": 31.1,
+       "ci_diff": null,
+       "lift_vs_baseline": -0.1000503989
+      },
+      "note": "진 뒤 뒤집기 = 거울 셀의 이긴 뒤 같은 방향"
      },
-     "R_hist": [
-      [
-       -2.0,
-       5
-      ],
-      [
-       -1.5,
-       11
-      ],
-      [
-       -1.0,
-       48
-      ],
-      [
-       -0.5,
-       19
-      ],
-      [
-       0.0,
-       16
-      ],
-      [
-       0.5,
-       21
-      ],
-      [
-       1.0,
-       71
-      ],
-      [
-       1.5,
-       9
-      ],
-      [
-       2.0,
-       3
-      ]
-     ],
-     "baseline_adj": -0.02,
+     "unconditional_p": 0.4601049166,
+     "pWW": 0.3777692308,
+     "pWL": 0.5273252688,
+     "D_raw": -0.149556038,
+     "D_strat": -0.2249299271,
+     "n_pairs": 56.5,
+     "n_unique_chains": 10,
+     "period": "2021-09-09~2026-10-08",
+     "R_hist": null,
+     "R_hist_note": "원장 json 에 히스토그램 없음(xlsx) — 미표시",
      "by_year": [
       {
+       "year": 2021,
+       "same": 0.4285714286,
+       "flip": 0.5714285714,
+       "n": 1.4,
+       "diff": 0.1334586466
+      },
+      {
        "year": 2022,
-       "same": 0.71,
-       "flip": 0.31,
-       "n": 58
+       "same": 0.5,
+       "flip": 0.6666666667,
+       "n": 6.0,
+       "diff": 0.2347610649
       },
       {
        "year": 2023,
-       "same": 0.68,
-       "flip": 0.36,
-       "n": 61
+       "same": 0.6,
+       "flip": 0.6666666667,
+       "n": 5.0,
+       "diff": 0.3338925132
       },
       {
        "year": 2024,
-       "same": 0.73,
-       "flip": 0.29,
-       "n": 55
+       "same": 0.5,
+       "flip": 0.5,
+       "n": 4.0,
+       "diff": -0.1258667586
       },
       {
        "year": 2025,
-       "same": 0.69,
-       "flip": 0.33,
-       "n": 48
+       "same": 0.0,
+       "flip": 1.0,
+       "n": 2.0,
+       "diff": -0.3486714563
+      },
+      {
+       "year": 2026,
+       "same": 0.1428571429,
+       "flip": 1.0,
+       "n": 7.0,
+       "diff": -0.5316465144
       }
      ],
-     "streak_type": "alternation",
-     "verdict_note": "번갈이 2판(양 기간 성립 0)"
+     "streak_type": "none",
+     "train_type": "표본 부족",
+     "test_type": "none",
+     "year_signs": "+++−−−",
+     "verdict_note": "양 기간(TRAIN·TEST) 성립 셀 0 · 추세 지속 판 0 · 번갈이 판 2(S 3-5 · L cash.5y · 한 기간만) — 운용 참고 · 추천 아님 · 과거 분포",
+     "source": "_streak_paroli_20261027.json flip/cells/flip_years(k=1 비겹침 체인 · 시드 20261027 · 정직-N 0)"
     },
-    "source": "(더미) _streak_paroli_20261027_result.json · k=1 비겹침 체인",
-    "note": "조건부 승률 − 기준선 = 승패 몰림 크기 · 0 근처면 규칙이 기대값을 못 바꾼다"
+    "board_id": "S.slope.2_5",
+    "label": "운용 참고 · 추천 아님 · 과거 분포"
    },
-   "paroli_allowed": true
+   "paroli_allowed": true,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152997003.9489585,
+    "X_bp": 9.243018987322284,
+    "basis": "measured",
+    "basis_detail": {
+     "basis": "measured",
+     "D_R": 13.072151404136138,
+     "source": "nonoverlap_worst_rolling_1y(-1)",
+     "k": 1.0,
+     "board_id": "S.slope.2_5",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "k_status": "pass_k"
+    },
+    "dv01_won_per_bp": 16552709.040066782,
+    "legs": [
+     {
+      "tenor": "2y",
+      "kind": "cash",
+      "side": 1,
+      "weight": 1.0,
+      "code": "KR103501GG96",
+      "dv01_won": 16495135.488592131,
+      "target_dv01_won": 16552709.040066782,
+      "dv01_per_10억": 179294.95096295796,
+      "face_억": 920.0,
+      "lots": 92
+     },
+     {
+      "tenor": "5y",
+      "kind": "cash",
+      "side": -1,
+      "weight": 1.0,
+      "code": "KR103503GG94",
+      "dv01_won": 16353256.930394128,
+      "target_dv01_won": 16552709.040066782,
+      "dv01_per_10억": 441979.9170376791,
+      "face_억": 370.0,
+      "lots": 37
+     }
+    ],
+    "one_side_delta_won": 16495135.488592131,
+    "one_R_actual_won": 151809157.41585168,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "1R 1.53억 ÷ X 9.24bp = 델타 1,655만원/bp(넷팅 전 이 판 단독 한쪽 델타 1,650만) · 반올림 후 실제 1R 1.52억",
+    "long_dv01_won": 16495135.488592131,
+    "short_dv01_won": 16353256.930394128,
+    "leg_dv01_mismatch_won": 141878.5581980031,
+    "warnings": []
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "S.slope.3_10",
@@ -4721,7 +5330,63 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": 9.690419323572458,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · S.slope.3_10 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": 15754917.370170837,
+    "legs": [
+     {
+      "tenor": "3y",
+      "kind": "cash",
+      "side": 1,
+      "weight": 1.0,
+      "code": "KR103501GG62",
+      "dv01_won": 15784816.008340567,
+      "target_dv01_won": 15754917.370170837,
+      "dv01_per_10억": 246637.75013032136,
+      "face_억": 640.0,
+      "lots": 64
+     },
+     {
+      "tenor": "10y",
+      "kind": "cash",
+      "side": -1,
+      "weight": 1.0,
+      "code": "KR103503GG60",
+      "dv01_won": 15935544.793132067,
+      "target_dv01_won": 15754917.370170837,
+      "dv01_per_10억": 796777.2396566033,
+      "face_억": 200.0,
+      "lots": 20
+     }
+    ],
+    "one_side_delta_won": 15935544.793132067,
+    "one_R_actual_won": 153691798.6306404,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "1R 1.53억 ÷ X 9.69bp = 델타 1,575만원/bp(넷팅 전 이 판 단독 한쪽 델타 1,594만) · 반올림 후 실제 1R 1.54억 · default_D_R",
+    "long_dv01_won": 15784816.008340567,
+    "short_dv01_won": 15935544.793132067,
+    "leg_dv01_mismatch_won": 150728.78479149938,
+    "warnings": []
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "S.slope.5_10",
@@ -4817,7 +5482,63 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": 7.898159279224512,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · S.slope.5_10 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": 19330042.650163047,
+    "legs": [
+     {
+      "tenor": "5y",
+      "kind": "cash",
+      "side": 1,
+      "weight": 1.0,
+      "code": "KR103503GG94",
+      "dv01_won": 19447116.349657882,
+      "target_dv01_won": 19330042.650163047,
+      "dv01_per_10억": 441979.9170376791,
+      "face_억": 440.0,
+      "lots": 44
+     },
+     {
+      "tenor": "10y",
+      "kind": "cash",
+      "side": -1,
+      "weight": 1.0,
+      "code": "KR103503GG60",
+      "dv01_won": 19122653.75175848,
+      "target_dv01_won": 19330042.650163047,
+      "dv01_per_10억": 796777.2396566033,
+      "face_억": 240.0,
+      "lots": 24
+     }
+    ],
+    "one_side_delta_won": 19447116.349657882,
+    "one_R_actual_won": 152315093.81202888,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "1R 1.53억 ÷ X 7.90bp = 델타 1,933만원/bp(넷팅 전 이 판 단독 한쪽 델타 1,945만) · 반올림 후 실제 1R 1.52억 · default_D_R",
+    "long_dv01_won": 19447116.349657882,
+    "short_dv01_won": 19122653.75175848,
+    "leg_dv01_mismatch_won": 324462.5978994034,
+    "warnings": []
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "S.slope.10_30",
@@ -4913,7 +5634,63 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": 12.015426195797868,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · S.slope.10_30 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": 12706312.13885567,
+    "legs": [
+     {
+      "tenor": "10y",
+      "kind": "cash",
+      "side": 1,
+      "weight": 1.0,
+      "code": "KR103503GG60",
+      "dv01_won": 12748435.834505653,
+      "target_dv01_won": 12706312.13885567,
+      "dv01_per_10억": 796777.2396566033,
+      "face_억": 160.0,
+      "lots": 16
+     },
+     {
+      "tenor": "30y",
+      "kind": "cash",
+      "side": -1,
+      "weight": 1.0,
+      "code": "KR103502GG95",
+      "dv01_won": 12364629.56775549,
+      "target_dv01_won": 12706312.13885567,
+      "dv01_per_10억": 1766375.6525364986,
+      "face_억": 70.0,
+      "lots": 7
+     }
+    ],
+    "one_side_delta_won": 12748435.834505653,
+    "one_R_actual_won": 150872091.94555685,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "1R 1.53억 ÷ X 12.02bp = 델타 1,271만원/bp(넷팅 전 이 판 단독 한쪽 델타 1,275만) · 반올림 후 실제 1R 1.51억 · default_D_R",
+    "long_dv01_won": 12748435.834505653,
+    "short_dv01_won": 12364629.56775549,
+    "leg_dv01_mismatch_won": 383806.26675016247,
+    "warnings": []
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "S.irs.2_3",
@@ -4981,7 +5758,34 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": null,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · S.irs.2_3 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": null,
+    "legs": [],
+    "one_side_delta_won": null,
+    "one_R_actual_won": null,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "X 또는 1R 없음(blocked/σ 미달/감내선 아래) — 환산 불가"
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "S.irs.2_5",
@@ -5049,7 +5853,34 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": null,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · S.irs.2_5 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": null,
+    "legs": [],
+    "one_side_delta_won": null,
+    "one_R_actual_won": null,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "X 또는 1R 없음(blocked/σ 미달/감내선 아래) — 환산 불가"
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "S.irs.3_5",
@@ -5117,7 +5948,34 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": null,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · S.irs.3_5 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": null,
+    "legs": [],
+    "one_side_delta_won": null,
+    "one_R_actual_won": null,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "X 또는 1R 없음(blocked/σ 미달/감내선 아래) — 환산 불가"
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "S.irs.3_10",
@@ -5185,7 +6043,34 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": null,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · S.irs.3_10 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": null,
+    "legs": [],
+    "one_side_delta_won": null,
+    "one_R_actual_won": null,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "X 또는 1R 없음(blocked/σ 미달/감내선 아래) — 환산 불가"
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "S.irs.5_10",
@@ -5253,7 +6138,34 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": null,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · S.irs.5_10 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": null,
+    "legs": [],
+    "one_side_delta_won": null,
+    "one_R_actual_won": null,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "X 또는 1R 없음(blocked/σ 미달/감내선 아래) — 환산 불가"
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "S.irs.2_10",
@@ -5321,7 +6233,34 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": null,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · S.irs.2_10 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": null,
+    "legs": [],
+    "one_side_delta_won": null,
+    "one_R_actual_won": null,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "X 또는 1R 없음(blocked/σ 미달/감내선 아래) — 환산 불가"
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "C.fly.2_3_5",
@@ -5404,6 +6343,12 @@
     "p_star_over_100": true,
     "limit_won_per_bp": 100000000.0,
     "formula": "r* = 50억/(한도×X) × L/250 · p* = (1+r*+c)/2 · 한도 늘 다 쓸 때",
+    "one_R_won": 152671755.72519085,
+    "dv01_per_game_won": 41032053.41740366,
+    "max_concurrent": 2.437119073294665,
+    "games_per_year": 24.006295048213804,
+    "need_R_per_year": 32.75,
+    "sharpe_needed": 6.684189203543335,
     "inputs": "오늘 X + 길이 25.4일(본전 표 추정 · 실측 없음) + std_R 1 가정",
     "estimated": true
    },
@@ -5432,7 +6377,75 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": 3.7207924783124655,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · C.fly.2_3_5 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": 41032053.41740366,
+    "legs": [
+     {
+      "tenor": "2y",
+      "kind": "cash",
+      "side": -1,
+      "weight": 0.5,
+      "code": "KR103501GG96",
+      "dv01_won": 20439624.409777205,
+      "target_dv01_won": 20516026.70870183,
+      "dv01_per_10억": 179294.95096295796,
+      "face_억": 1140.0,
+      "lots": 114
+     },
+     {
+      "tenor": "3y",
+      "kind": "cash",
+      "side": 1,
+      "weight": 1.0,
+      "code": "KR103501GG62",
+      "dv01_won": 40941866.52163335,
+      "target_dv01_won": 41032053.41740366,
+      "dv01_per_10억": 246637.75013032136,
+      "face_억": 1660.0,
+      "lots": 166
+     },
+     {
+      "tenor": "5y",
+      "kind": "cash",
+      "side": -1,
+      "weight": 0.5,
+      "code": "KR103503GG94",
+      "dv01_won": 20331076.18373324,
+      "target_dv01_won": 20516026.70870183,
+      "dv01_per_10억": 441979.9170376791,
+      "face_억": 460.0,
+      "lots": 46
+     }
+    ],
+    "one_side_delta_won": 40941866.52163335,
+    "one_R_actual_won": 151911607.06983092,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "1R 1.53억 ÷ X 3.72bp = 델타 4,103만원/bp(넷팅 전 이 판 단독 한쪽 델타 4,094만) · 반올림 후 실제 1R 1.52억 · default_D_R",
+    "long_dv01_won": 40941866.52163335,
+    "short_dv01_won": 40770700.59351045,
+    "leg_dv01_mismatch_won": 279714.1541668698,
+    "warnings": []
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "C.fly.3_5_10",
@@ -5543,7 +6556,75 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": 5.072993856360055,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · C.fly.3_5_10 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": 30095001.107439738,
+    "legs": [
+     {
+      "tenor": "3y",
+      "kind": "cash",
+      "side": -1,
+      "weight": 0.5,
+      "code": "KR103501GG62",
+      "dv01_won": 15044902.757949604,
+      "target_dv01_won": 15047500.553719869,
+      "dv01_per_10억": 246637.75013032136,
+      "face_억": 610.0,
+      "lots": 61
+     },
+     {
+      "tenor": "5y",
+      "kind": "cash",
+      "side": 1,
+      "weight": 1.0,
+      "code": "KR103503GG94",
+      "dv01_won": 30054634.35856218,
+      "target_dv01_won": 30095001.107439738,
+      "dv01_per_10억": 441979.9170376791,
+      "face_억": 680.0,
+      "lots": 68
+     },
+     {
+      "tenor": "10y",
+      "kind": "cash",
+      "side": -1,
+      "weight": 0.5,
+      "code": "KR103503GG60",
+      "dv01_won": 15138767.553475464,
+      "target_dv01_won": 15047500.553719869,
+      "dv01_per_10억": 796777.2396566033,
+      "face_억": 190.0,
+      "lots": 19
+     }
+    ],
+    "one_side_delta_won": 30183670.311425067,
+    "one_R_actual_won": 152903374.52021578,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "1R 1.53억 ÷ X 5.07bp = 델타 3,010만원/bp(넷팅 전 이 판 단독 한쪽 델타 3,018만) · 반올림 후 실제 1R 1.53억 · default_D_R",
+    "long_dv01_won": 30054634.35856218,
+    "short_dv01_won": 30183670.311425067,
+    "leg_dv01_mismatch_won": 222900.74838874862,
+    "warnings": []
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "C.fly.5_10_30",
@@ -5654,7 +6735,75 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": 7.732367468419122,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · C.fly.5_10_30 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": 19744503.39417256,
+    "legs": [
+     {
+      "tenor": "5y",
+      "kind": "cash",
+      "side": -1,
+      "weight": 0.5,
+      "code": "KR103503GG94",
+      "dv01_won": 9723558.174828941,
+      "target_dv01_won": 9872251.69708628,
+      "dv01_per_10억": 441979.9170376791,
+      "face_억": 220.0,
+      "lots": 22
+     },
+     {
+      "tenor": "10y",
+      "kind": "cash",
+      "side": 1,
+      "weight": 1.0,
+      "code": "KR103503GG60",
+      "dv01_won": 19919430.991415083,
+      "target_dv01_won": 19744503.39417256,
+      "dv01_per_10억": 796777.2396566033,
+      "face_억": 250.0,
+      "lots": 25
+     },
+     {
+      "tenor": "30y",
+      "kind": "cash",
+      "side": -1,
+      "weight": 0.5,
+      "code": "KR103502GG95",
+      "dv01_won": 10598253.915218992,
+      "target_dv01_won": 9872251.69708628,
+      "dv01_per_10억": 1766375.6525364986,
+      "face_억": 60.0,
+      "lots": 6
+     }
+    ],
+    "one_side_delta_won": 20321812.090047933,
+    "one_R_actual_won": 156098599.19875458,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "1R 1.53억 ÷ X 7.73bp = 델타 1,974만원/bp(넷팅 전 이 판 단독 한쪽 델타 2,032만) · 반올림 후 실제 1R 1.56억 · default_D_R",
+    "long_dv01_won": 19919430.991415083,
+    "short_dv01_won": 20321812.090047933,
+    "leg_dv01_mismatch_won": 1749391.4807801023,
+    "warnings": []
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "C.fly.3_10_30",
@@ -5765,7 +6914,75 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": 7.959667706631956,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · C.fly.3_10_30 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": 19180669.51438004,
+    "legs": [
+     {
+      "tenor": "3y",
+      "kind": "cash",
+      "side": -1,
+      "weight": 0.5,
+      "code": "KR103501GG62",
+      "dv01_won": 9618872.255082533,
+      "target_dv01_won": 9590334.75719002,
+      "dv01_per_10억": 246637.75013032136,
+      "face_억": 390.0,
+      "lots": 39
+     },
+     {
+      "tenor": "10y",
+      "kind": "cash",
+      "side": 1,
+      "weight": 1.0,
+      "code": "KR103503GG60",
+      "dv01_won": 19122653.75175848,
+      "target_dv01_won": 19180669.51438004,
+      "dv01_per_10억": 796777.2396566033,
+      "face_억": 240.0,
+      "lots": 24
+     },
+     {
+      "tenor": "30y",
+      "kind": "cash",
+      "side": -1,
+      "weight": 0.5,
+      "code": "KR103502GG95",
+      "dv01_won": 8831878.262682494,
+      "target_dv01_won": 9590334.75719002,
+      "dv01_per_10억": 1766375.6525364986,
+      "face_억": 50.0,
+      "lots": 5
+     }
+    ],
+    "one_side_delta_won": 19122653.75175848,
+    "one_R_actual_won": 148644551.8839102,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "1R 1.53억 ÷ X 7.96bp = 델타 1,918만원/bp(넷팅 전 이 판 단독 한쪽 델타 1,912만) · 반올림 후 실제 1R 1.49억 · default_D_R",
+    "long_dv01_won": 19122653.75175848,
+    "short_dv01_won": 18450750.517765027,
+    "leg_dv01_mismatch_won": 1573987.984800078,
+    "warnings": []
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "B.basket.3F",
@@ -6849,7 +8066,50 @@
     "evidence": {},
     "source": "(더미) 측정 전 → flat 잠정"
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 176952953.46191657,
+    "X_bp": 2.792640276376933,
+    "basis": "measured",
+    "basis_detail": {
+     "basis": "measured",
+     "D_R": 11.302439212637587,
+     "source": "nonoverlap_worst_rolling_1y(+1)",
+     "k": 1.0,
+     "board_id": "B.basket.3F",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": 63364034.014251456,
+    "legs": [
+     {
+      "tenor": "3F",
+      "kind": "fut",
+      "side": 1,
+      "weight": 1.0,
+      "code": "A656C000",
+      "dv01_won": 63358616.002500005,
+      "target_dv01_won": 63364034.014251456,
+      "dv01_per_contract": 28630.1925,
+      "contracts": 2213
+     }
+    ],
+    "one_side_delta_won": 63358616.002500005,
+    "one_R_actual_won": 176937822.90408158,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "바스켓 종목(bond) 지정 전 — 현물 레그는 open 미리보기에서 환산(시스템이 종목을 고르지 않는다) · 선물 레그만 표시",
+    "long_dv01_won": 63358616.002500005,
+    "short_dv01_won": 0,
+    "leg_dv01_mismatch_won": 0.0,
+    "warnings": []
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "B.basket.10F",
@@ -6917,7 +8177,34 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": null,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · B.basket.10F 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": null,
+    "legs": [],
+    "one_side_delta_won": null,
+    "one_R_actual_won": null,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "X 또는 1R 없음(blocked/σ 미달/감내선 아래) — 환산 불가"
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "B.idx.3y_3F",
@@ -7014,7 +8301,62 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": 2.792640276376933,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · B.idx.3y_3F 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": 54669323.87126546,
+    "legs": [
+     {
+      "tenor": "3y",
+      "kind": "cash",
+      "side": -1,
+      "weight": 1.0,
+      "code": "KR103501GG62",
+      "dv01_won": 54753580.52893134,
+      "target_dv01_won": 54669323.87126546,
+      "dv01_per_10억": 246637.75013032136,
+      "face_억": 2220.0,
+      "lots": 222
+     },
+     {
+      "tenor": "3F",
+      "kind": "fut",
+      "side": 1,
+      "weight": 1.0,
+      "code": "A656C000",
+      "dv01_won": 54655037.4825,
+      "target_dv01_won": 54669323.87126546,
+      "dv01_per_contract": 28630.1925,
+      "contracts": 1909
+     }
+    ],
+    "one_side_delta_won": 54753580.52893134,
+    "one_R_actual_won": 152769456.62073094,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "1R 1.53억 ÷ X 2.79bp = 델타 5,467만원/bp(넷팅 전 이 판 단독 한쪽 델타 5,475만) · 반올림 후 실제 1R 1.53억 · default_D_R",
+    "long_dv01_won": 54655037.4825,
+    "short_dv01_won": 54753580.52893134,
+    "leg_dv01_mismatch_won": 98543.04643134028,
+    "warnings": []
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "B.idx.10y_10F",
@@ -7082,7 +8424,34 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": null,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · B.idx.10y_10F 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": null,
+    "legs": [],
+    "one_side_delta_won": null,
+    "one_R_actual_won": null,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "X 또는 1R 없음(blocked/σ 미달/감내선 아래) — 환산 불가"
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "W.bondswap.2y",
@@ -7150,7 +8519,34 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": null,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · W.bondswap.2y 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": null,
+    "legs": [],
+    "one_side_delta_won": null,
+    "one_R_actual_won": null,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "X 또는 1R 없음(blocked/σ 미달/감내선 아래) — 환산 불가"
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "W.bondswap.3y",
@@ -7218,7 +8614,34 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": null,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · W.bondswap.3y 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": null,
+    "legs": [],
+    "one_side_delta_won": null,
+    "one_R_actual_won": null,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "X 또는 1R 없음(blocked/σ 미달/감내선 아래) — 환산 불가"
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "W.bondswap.5y",
@@ -7286,7 +8709,34 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": null,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · W.bondswap.5y 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": null,
+    "legs": [],
+    "one_side_delta_won": null,
+    "one_R_actual_won": null,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "X 또는 1R 없음(blocked/σ 미달/감내선 아래) — 환산 불가"
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "W.bondswap.10y",
@@ -7354,7 +8804,34 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": null,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · W.bondswap.10y 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": null,
+    "legs": [],
+    "one_side_delta_won": null,
+    "one_R_actual_won": null,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "X 또는 1R 없음(blocked/σ 미달/감내선 아래) — 환산 불가"
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   },
   {
    "id": "I.resid.nonbench",
@@ -7416,7 +8893,34 @@
     "basis": "provisional",
     "evidence": {}
    },
-   "conditional": null
+   "conditional": null,
+   "order_preview": {
+    "direction": 1,
+    "one_R_won": 152671755.72519085,
+    "X_bp": null,
+    "basis": "default_D_R",
+    "basis_detail": {
+     "basis": "default_D_R",
+     "D_R": 13.1,
+     "source": "fallback(config.D_R_fallback · I.resid.nonbench 성적표 없음)",
+     "decision_id": "2026-10-27.open.risk_ruler_S_vs_DR",
+     "config_key": "D_R_fallback",
+     "note": "미실측 판 — 1R = D0 20억 ÷ 기본 D_R 13.1R(성적표가 없을 때 쓰는 폴백 D_R(S 2-5 k1 비겹침 열 최악 1년 창 13.07R 근사)) · 실측 D_R 아님",
+     "k_status": "default_k(k=1.0 기본값 · 통과 k 아님 — fail/open 판은 그 k 에서 census 실측된 D_R)"
+    },
+    "dv01_won_per_bp": null,
+    "legs": [],
+    "one_side_delta_won": null,
+    "one_R_actual_won": null,
+    "lot": {
+     "cash_face_won": 1000000000.0,
+     "fut": "1계약"
+    },
+    "note": "X 또는 1R 없음(blocked/σ 미달/감내선 아래) — 환산 불가"
+   },
+   "help": {
+    "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   }
   }
  ],
  "my_games": {

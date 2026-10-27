@@ -415,9 +415,12 @@
     #view-bootstrap .bs-sec-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px var(--wb-s3); margin: 0 0 var(--wb-s3); }
     #view-bootstrap .bs-sec-head h2 { font-size: var(--wb-fs-title); line-height: var(--wb-lh-title); font-weight: 600; margin: 0; }
     #view-bootstrap .bs-sec-head .bs-meta { font-size: 12px; color: var(--wb-muted); }
-    #view-bootstrap .wb-card + .wb-card { margin-top: var(--wb-gap); }
+    /* 세로 쌓임 카드 간격 = 섹션 직계 자식만(2026-10-27 사용자 피드백 ② 정렬: 옛 `.wb-card + .wb-card` 가 그리드 안 오른쪽 카드에도 걸려 오른쪽 박스가 gap 만큼 처졌음) */
+    #view-bootstrap .bs-sec > .wb-card + .wb-card { margin-top: var(--wb-gap); }
+    /* 목차 레일 상단 = 본문 첫 카드 상단(섹션 제목 줄 높이만큼 내림 · 이 탭 안에서만 · 공용 .wb-toc 무변경) */
+    #view-bootstrap .wb-toc { margin-top: calc(var(--wb-lh-title) + var(--wb-s3)); }
     .bs-grid-2 { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--wb-gap); align-items: start; }
-    .bs-grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--wb-gap); }
+    .bs-grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--wb-gap); align-items: start; }
     .bs-grid-4 .wb-card-body { padding: var(--wb-s3) var(--wb-s3) var(--wb-s2); }
     .bs-chart { position: relative; height: 210px; }
     .bs-chart--sm { height: 170px; }
@@ -453,9 +456,11 @@
     .bs-st-blocked, .bs-legend i.bs-st-blocked { background: repeating-linear-gradient(45deg, var(--wb-subtle) 0 4px, var(--wb-surface) 4px 8px); border-style: dotted; color: var(--wb-muted); }
     .bs-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; padding: 0 var(--wb-inset) var(--wb-s3); font-size: 11px; color: var(--wb-muted); }
     .bs-legend i { display: inline-block; width: 12px; height: 12px; border-radius: 2px; vertical-align: -2px; margin-right: 4px; border: 1px solid var(--wb-rule-strong); }
-    /* 판 카드 · 키-값 */
-    .bs-kv { display: grid; grid-template-columns: 110px minmax(0, 1fr); gap: 3px 10px; font-size: 12px; line-height: 18px; }
-    .bs-kv dt { color: var(--wb-muted); } .bs-kv dd { margin: 0; }
+    /* 판 카드 · 한 줄 항목(.bs-kpis 재사용 · 라벨 = i) · 레그 표 */
+    .bs-line { margin-top: 6px; }
+    .bs-line i { font-style: normal; color: var(--wb-muted); margin-right: 4px; }
+    .bs-legs { margin-top: 0; }
+    .bs-legs td.code { text-align: left; }
     .bs-sc { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: var(--wb-s3); }
     .bs-sc th { font-weight: 400; color: var(--wb-muted); text-align: right; padding: 3px 6px; border-bottom: 1px solid var(--wb-rule-strong); font-size: 11px; }
     .bs-sc th:first-child, .bs-sc td:first-child { text-align: left; }
@@ -494,18 +499,7 @@
     .bs-season .p { position: absolute; top: 50%; width: 12px; height: 12px; border-radius: 50%; background: var(--wb-ink); border: 2px solid var(--wb-surface); transform: translate(-6px, -6px); }
     .bs-big { font-size: var(--wb-fs-figure); line-height: var(--wb-lh-figure); font-weight: 600; font-variant-numeric: tabular-nums; }
     #view-bootstrap .bs-sec-head .wb-help, #view-bootstrap .wb-pagehead .wb-help { align-self: center; }
-    /* §8e 조건부 분포: 두 열 표 · R 히스토그램 · 다음 결정 한 줄 */
-    .bs-cond { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--wb-s3); margin-top: var(--wb-s3); }
-    .bs-cond-col { border: 1px solid var(--wb-rule); border-radius: var(--wb-r-card); padding: var(--wb-s2) var(--wb-s3); }
-    .bs-cond-col h5 { margin: 0 0 4px; font-size: 12px; font-weight: 600; }
-    .bs-cond-col table { width: 100%; border-collapse: collapse; font-size: 11px; }
-    .bs-cond-col td { padding: 2px 4px; border-bottom: 1px solid var(--wb-rule); }
-    .bs-cond-col td:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
-    .bs-hist { display: flex; align-items: flex-end; gap: 1px; height: 36px; margin: 6px 0 2px; }
-    .bs-hist i { flex: 1 1 0; background: var(--wb-series-1); opacity: .75; min-height: 1px; }
-    .bs-hist i.neg { background: var(--wb-up); }
-    .bs-hist-lbl { display: flex; justify-content: space-between; font-size: 9px; color: var(--wb-muted); }
-    .bs-cond-note { font-size: 10px; color: var(--wb-muted); margin-top: 4px; }
+    /* §8e 조건부 분포: 판 카드 = 작은 표 하나(.bs-sc.bs-condtbl) · 게임 카드 = 다음 결정 한 줄 */
     .bs-next { padding: var(--wb-s2) var(--wb-inset); font-size: 12px; border-bottom: 1px solid var(--wb-rule); }
     .bs-next:last-child { border-bottom: 0; }
     /* 판 간 상관 히트맵 · 메인 게임 카드 */
@@ -4556,42 +4550,10 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
   }
   // §8d 판별 사이즈 규칙(계약: boards[].size_rule {kind flat|paroli|martingale, steps, cap_R, basis measured|provisional, evidence{p_w_given_w, p_w_given_l, baseline_adj, years_stable}})
   var RULE_KO = { flat: '고정', paroli: '역마팅게일(파롤리 · 이기면 키움)', martingale: '마팅게일(지면 키움)' };
-  function ruleHtml(sr) {
-    if (!sr || typeof sr !== 'object') return '– (size_rule 없음)';
-    var ev = sr.evidence || {};
-    return '<b>' + esc(RULE_KO[sr.kind] || sr.kind || '–') + '</b>' + (sr.steps != null ? ' · ' + esc(sr.steps) + '단계' : '') + (sr.cap_R != null ? ' · 상한 ' + f(sr.cap_R, 1) + 'R' : '') +
-      (sr.basis === 'measured' ? ' · 측정' : '') + ruleHelp(sr, sr.source || null) +
-      ((ev.p_w_given_w != null || ev.p_w_given_l != null) ? '<br><span class="wb-muted">P(승|승) ' + pct(ev.p_w_given_w) + ' · P(승|패) ' + pct(ev.p_w_given_l) + (ev.baseline_adj != null ? ' · 기준선 보정 ' + sgn(ev.baseline_adj * 100, 1) + '%p' : '') + (ev.years_stable != null ? ' · 안정 연수 ' + esc(ev.years_stable) : '') + (ev.n != null ? ' · n ' + esc(ev.n) : '') + '</span>' : '<br><span class="wb-muted">evidence 없음(측정 전)</span>');
-  }
   // §8e 조건부 분포(계약: boards[].conditional.after_win/after_loss {same_dir{win_rate,n,ci}, flip_dir{…}, R_hist[[bin,count]], baseline_adj, by_year[{year,same,flip,n}], streak_type, verdict_note}) · 운용 참고 · 추천 아님 · 과거 분포
   var STREAK_KO = { persistence: '몰림(지속)', alternation: '번갈이', none: '없음' };
   function condDiff(side, base) { var w = num(side && side.win_rate), b = num(base); return (w == null || b == null) ? '' : ' (' + sgn((w - b) * 100, 1) + '%p)'; }
-  function condLine(bid, result) {   // "이 판에서 방금 {승/패} → 다음 게임 같은 방향 n% · 뒤집기 n% (기준선 대비 ±)"
-    var b = boardById(bid), c = b && b.conditional; if (!c || !result) return '';
-    var blk = result === 'win' ? c.after_win : (result === 'loss' ? c.after_loss : null); if (!blk) return '';
-    var base = (b.breakeven && b.breakeven.baseline_winrate) || (b.scorecard && b.scorecard.baseline_winrate) || {};
-    var sd = blk.same_dir || {}, fd = blk.flip_dir || {};
-    return '<span class="bs-condline">이 판에서 방금 <b>' + (result === 'win' ? '승' : '패') + '</b> → 다음 게임 같은 방향 <b>' + pct(sd.win_rate) + '</b>' + condDiff(sd, blk.baseline_same != null ? blk.baseline_same : base['+1']) + (sd.n != null ? ' n' + sd.n : '') +
-      ' · 뒤집기 <b>' + pct(fd.win_rate) + '</b>' + condDiff(fd, blk.baseline_flip != null ? blk.baseline_flip : base['-1']) + (fd.n != null ? ' n' + fd.n : '') + (blk.streak_type ? ' · ' + esc(STREAK_KO[blk.streak_type] || blk.streak_type) : '') +
-      helpBtn(COND_HELP) + '</span>';
-  }
   var COND_HELP = '이긴 뒤 / 진 뒤 — 다음 게임 조건부 분포. 운용 참고 · 추천 아님 · 과거 분포(census 그대로 · 재선정 0).';
-  function histHtml(h) {
-    if (!Array.isArray(h) || !h.length) return '<div class="bs-cond-note">R 히스토그램 없음</div>';
-    var mx = 0; h.forEach(function (x) { var c = num(x[1]); if (c != null && c > mx) mx = c; });
-    return '<div class="bs-hist">' + h.map(function (x) { var c = num(x[1]) || 0, bn = num(x[0]); return '<i class="' + (bn != null && bn < 0 ? 'neg' : '') + '" style="height:' + (mx ? (c / mx * 100).toFixed(0) : 0) + '%" title="R ' + (bn == null ? '?' : bn) + ' · ' + c + '판"></i>'; }).join('') + '</div>' +
-      '<div class="bs-hist-lbl"><span>R ' + esc(h[0][0]) + '</span><span>R 분포(다음 게임 · n ' + h.reduce(function (a, x) { return a + (num(x[1]) || 0); }, 0) + ')</span><span>R ' + esc(h[h.length - 1][0]) + '</span></div>';
-  }
-  function condColHtml(title, blk, base) {
-    if (!blk) return '<div class="bs-cond-col"><h5>' + esc(title) + '</h5><div class="bs-cond-note">미실측</div></div>';
-    var sd = blk.same_dir || {}, fd = blk.flip_dir || {}, by = Array.isArray(blk.by_year) ? blk.by_year : [];
-    var stable = by.length ? (by.filter(function (y) { return num(y.same) != null && num(y.flip) != null && (num(y.same) >= num(y.flip)) === (num(sd.win_rate) >= num(fd.win_rate)); }).length + '/' + by.length + '년 같은 부호') : '연도별 없음';
-    return '<div class="bs-cond-col"><h5>' + esc(title) + (blk.streak_type ? ' <span class="wb-badge">' + esc(STREAK_KO[blk.streak_type] || blk.streak_type) + '</span>' : '') + '</h5>' +
-      '<table><tr><td>다음 게임</td><td>승률</td><td>n</td><td>기준선 차</td></tr>' +
-      '<tr><td>같은 방향</td><td>' + pct(sd.win_rate) + (sd.ci ? ' <span class="wb-muted">[' + pct(sd.ci[0]) + '~' + pct(sd.ci[1]) + ']</span>' : '') + '</td><td>' + dash(sd.n) + '</td><td>' + (condDiff(sd, blk.baseline_same != null ? blk.baseline_same : base['+1']).trim() || '–') + '</td></tr>' +
-      '<tr><td>뒤집기</td><td>' + pct(fd.win_rate) + (fd.ci ? ' <span class="wb-muted">[' + pct(fd.ci[0]) + '~' + pct(fd.ci[1]) + ']</span>' : '') + '</td><td>' + dash(fd.n) + '</td><td>' + (condDiff(fd, blk.baseline_flip != null ? blk.baseline_flip : base['-1']).trim() || '–') + '</td></tr></table>' +
-      histHtml(blk.R_hist) + '<div class="bs-cond-note">연도 안정: ' + esc(stable) + (blk.baseline_adj != null ? ' · 기준선 보정 Δ ' + sgn(num(blk.baseline_adj) * 100, 1) + '%p' : '') + (blk.verdict_note ? ' · ' + esc(blk.verdict_note) : '') + '</div></div>';
-  }
   function lastResultFor(bid) { var cl = ((_BS.snap || {}).my_games || {}).closed_recent || []; var last = null; cl.forEach(function (g) { if (g.board_id === bid && (!last || String(g.exit_date || '') >= String(last.exit_date || ''))) last = g; }); return last; }
   function paroliAllowed(bid) {   // 엔진 플래그 우선(boards[].paroli_allowed) · 없으면 그 판의 최근 종료 = 승(계약 §8e 허용 조건) — 최종 허용/거부는 엔진 open_game
     var b = boardById(bid); if (!b) return false;
@@ -4835,45 +4797,132 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     fillBoardSelect(bs);
   }
 
-  function kv(rows) { return '<dl class="bs-kv">' + rows.map(function (r) { return '<dt>' + esc(r[0]) + '</dt><dd>' + r[1] + '</dd>'; }).join('') + '</dl>'; }
   function get(o, path) { var v = o; for (var i = 0; i < path.length && v != null; i++) v = v[path[i]]; return v == null ? null : v; }
   function cell(x, path, fmt) { var v = get(x, path); return v == null ? '–' : fmt(v); }
+  function kline(label, inner) { return '<div class="bs-kpis bs-line"><span>' + (label ? '<i>' + esc(label) + '</i>' : '') + inner + '</span></div>'; }
+  function nfmt(n) { var v = num(n); return v == null ? '–' : (Math.round(v) === v ? String(v) : v.toFixed(1)); }
+  function hasOpenGame(bid) { var o = ((_BS.snap || {}).my_games || {}).open || []; for (var i = 0; i < o.length; i++) if (o[i].board_id === bid) return true; return false; }
+  // 레그 표 하나(2026-10-27 사용자 피드백): 레그 · 비율 · 오늘 종목코드 · 수익률 · DV01/10억 · 액면(억 · 해동 order_preview.legs[].face_억 — 없으면 열 생략). 옛 "레그" 줄 + "오늘 레그" 표를 합침.
+  function legTable(b) {
+    var legs = Array.isArray(b.legs) ? b.legs : [], today = Array.isArray(b.legs_today) ? b.legs_today : [];
+    var op = b.order_preview && Array.isArray(b.order_preview.legs) ? b.order_preview.legs : [];
+    var base = legs.length ? legs : today; if (!base.length) return '';
+    var hasToday = today.length > 0;
+    var rows = base.map(function (l, i) {
+      var sd = Number(l.side != null ? l.side : l.sign);
+      var t = today[i] && (l.tenor == null || today[i].tenor == null || today[i].tenor === l.tenor) ? today[i] : (today.filter(function (x) { return x.tenor === l.tenor && Number(x.side) === sd; })[0] || null);
+      var o = op.filter(function (x) { return (x.tenor != null && x.tenor === l.tenor && (x.side == null || Number(x.side) === sd)) || (t && x.code && x.code === t.code); })[0] || null;
+      var face = o ? pick(o, ['face_억', 'face_eok', 'face']) : null, ctr = o ? o.contracts : null;
+      return { l: l, t: t, sd: sd, face: face, ctr: ctr, ratio: l.dv01_ratio != null ? l.dv01_ratio : (t && t.dv01_ratio) };
+    });
+    var hasFace = rows.some(function (r) { return r.face != null || r.ctr != null; });
+    var h = '<table class="bs-sc bs-legs"><thead><tr><th>레그</th><th>비율</th>' + (hasToday ? '<th>오늘 종목코드</th><th>수익률</th><th>DV01/10억</th>' : '') + (hasFace ? '<th>액면(억)</th>' : '') + '</tr></thead><tbody>';
+    rows.forEach(function (r) {
+      var l = r.l, t = r.t;
+      h += '<tr><td>' + (r.sd > 0 ? '+' : '−') + ' ' + esc(l.tenor) + (l.kind ? ' <span class="wb-muted">' + esc(l.kind) + '</span>' : '') + '</td><td>' + (r.ratio != null ? '×' + f(r.ratio, 2) : '–') + '</td>' +
+        (hasToday ? '<td class="code">' + (t && t.code ? esc(t.code) : '코드 없음') + '</td><td>' + (t && t.ytm != null ? f(t.ytm, 3) + '%' : '–') + '</td><td>' + (t ? won(pick(t, ['dv01_per_1e9', 'dv01_per_10억'])) : '–') + '</td>' : '') +
+        (hasFace ? '<td>' + (r.face != null ? nfmt(r.face) + '억' : (r.ctr != null ? nfmt(r.ctr) + '계약' : '–')) + '</td>' : '') + '</tr>';
+    });
+    return h + '</tbody></table>';
+  }
+  // 주문 환산 한 줄: "1R {one_R_won} → 델타 {dv01_won_per_bp}/bp → 레그 액면 …" — 해동 order_preview 우선 · 없으면 엔진 one_R_won + per_board_cap.cap_won(= 1R/X · 같은 양)만 쓰고 액면은 "미생성" 정직 표기(웹 계산 0)
+  // 주문 환산 한 줄(해동 bcd2d51e boards[].order_preview): "1R {one_R_won} → 델타 {dv01_won_per_bp}/bp → 2y {face_억}억 숏 · 3y …억 롱 (반올림 후 1R {one_R_actual_won})" + basis default_D_R 이면 "(기본 D_R)" 꼬리 ·
+  //   dv01 null(blocked/σ 미달) = 엔진 note("환산 불가") 그대로 · order_preview 없으면(구 스냅샷) 엔진 one_R_won + per_board_cap.cap_won(= 1R/X · 같은 양)만 · 액면은 "미생성" 정직 표기(웹 계산 0)
+  function orderLine(b, pbc, bh) {
+    var op = b.order_preview && typeof b.order_preview === 'object' ? b.order_preview : null;
+    var oneR = op && op.one_R_won != null ? op.one_R_won : b.one_R_won; if (oneR == null) return '';
+    var rule = b.one_R_rule || {}, bd = (op && op.basis_detail) || {};
+    var isDefault = op ? (op.basis === 'default_D_R') : /^fallback/.test(String(rule.source || ''));
+    var help = [bh('order_preview', '') || bh('one_R_won', ''), op && op.note ? op.note : '', bd.note || '', bd.D_R != null ? 'D_R ' + f(bd.D_R, 1) + 'R' + (bd.source ? ' (' + bd.source + ')' : '') : (rule.D_R != null ? 'D_R ' + f(rule.D_R, 1) + 'R' + (rule.source ? ' (' + rule.source + ')' : '') : ''), bd.k_status || '', bd.decision_id ? '결정 ' + bd.decision_id : '', !op && pbc ? ('델타 = ' + (pbc.source || '1R/X')) : '', op && op.leg_dv01_mismatch_won ? '레그 DV01 불일치 ' + won(op.leg_dv01_mismatch_won) : ''].filter(Boolean).join(' · ');
+    var warn = op && Array.isArray(op.warnings) ? op.warnings.map(function (w) { return ' ' + badgeW(w); }).join('') : '';
+    var dv = op ? op.dv01_won_per_bp : (pbc && pbc.cap_won != null ? pbc.cap_won : null);
+    if (dv == null) return '1R <b>' + won(oneR) + '</b> → <span class="wb-muted">' + esc((op && op.note) || '델타 미계산') + '</span>' + (isDefault ? ' <span class="wb-muted">(기본 D_R)</span>' : '') + warn + helpBtn(help);
+    var legs = op && Array.isArray(op.legs) ? op.legs.map(function (l) { var face = pick(l, ['face_억', 'face_eok', 'face']); return esc(l.tenor || l.code || '') + ' ' + (face != null ? nfmt(face) + '억' : (l.contracts != null ? nfmt(l.contracts) + '계약' : '–')) + ' ' + (Number(l.side) > 0 ? '롱' : '숏'); }) : [];
+    return '1R <b>' + won(oneR) + '</b> → 델타 <b>' + won(dv) + '/bp</b>' +
+      (legs.length ? ' → ' + legs.join(' · ') + (op.one_R_actual_won != null ? ' <span class="wb-muted">(반올림 후 1R ' + won(op.one_R_actual_won) + ')</span>' : '') + (Array.isArray(b.legs) && legs.length < b.legs.length && op.note ? ' <span class="wb-muted">— ' + esc(op.note) + '</span>' : '') : (op ? (op.note ? ' <span class="wb-muted">— ' + esc(op.note) + '</span>' : '') : ' <span class="wb-muted">→ 레그 액면 미생성(order_preview 없음)</span>')) +
+      (isDefault ? ' <span class="wb-muted">(기본 D_R)</span>' : '') + (rule.shrunk ? ' ' + badgeW('크기 축소 중(E < 0)') : '') + warn + helpBtn(help);
+  }
+  // 본전 승률 vs 기준선 승률 한 줄 · 불가면 "불가 · 필요 샤프 n" 만 · 기준선 없으면 그 칸 생략
+  function breakevenLine(b, bw, bh) {
+    var be = b.breakeven; if (!be || typeof be !== 'object') return '';
+    if (be.p_star == null) return be.note ? esc(be.note) : '';
+    var help = [bh('breakeven', ''), be.formula || '', be.inputs ? '입력: ' + be.inputs : '', 'r* ' + f(be.r_star, 2) + 'R · 비용 ' + f(be.cost_R, 3) + 'R' + (be.sharpe_needed != null ? ' · 필요 샤프 ' + f(be.sharpe_needed, 1) : '') + (be.max_concurrent != null ? ' · 동시 최대 ' + f(be.max_concurrent, 1) + '판' : '') + (be.games_per_year != null ? ' · 연 ' + f(be.games_per_year, 0) + '판' : '') + (be.limit_won_per_bp != null ? ' · 한도 ' + won(be.limit_won_per_bp) : '')].filter(Boolean).join(' · ');
+    if (be.p_star_over_100) return '본전 승률 <b>불가</b>' + (be.sharpe_needed != null ? ' · 필요 샤프 ' + f(be.sharpe_needed, 1) : '') + helpBtn(help);
+    var base = (bw['+1'] != null || bw['-1'] != null) ? ' vs 기준선 승률 +1 <b>' + pct(bw['+1']) + '</b> · −1 <b>' + pct(bw['-1']) + '</b>' + helpBtn(bh('baseline_winrate', '기준선 승률 = 한쪽 고정(신호 없이 매일 진입) 승률 = 판의 기울기 · 신호 아님.')) : '';
+    return '본전 승률 p* <b>' + pct(be.p_star) + '</b>' + (be.estimated ? ' <span class="wb-muted">(추정)</span>' : '') + helpBtn(help) + base;
+  }
+  // 이긴 뒤 / 진 뒤 — 엔진 conditional 두 꼴 모두: 스키마 2 = {'+1': {after_win, after_loss, by_year, streak_type, verdict_note …}, '-1': {…}} · 구형 = {after_win, after_loss, …} 최상위. {status:'미실측'} → 빈 문자열(호출자가 미실측 한 줄).
+  function condDirs(c) {
+    if (!c || typeof c !== 'object') return [];
+    if (c['+1'] || c['-1']) return [['+1', c['+1']], ['−1', c['-1']]].filter(function (x) { return x[1] && (x[1].after_win || x[1].after_loss); });
+    return (c.after_win || c.after_loss) ? [['', c]] : [];
+  }
+  function condSide(s, baseFallback) {
+    if (!s) return '–';
+    var w = num(s.win_rate), lift = num(s.lift_vs_baseline), b = num(baseFallback);
+    var d = lift != null ? lift : (w != null && b != null ? w - b : null);
+    return '<b>' + pct(w) + '</b>' + (s.n != null ? ' <span class="wb-muted">n ' + nfmt(s.n) + '</span>' : '') + (d != null ? ' <span class="wb-muted">(' + sgn(d * 100, 1) + '%p)</span>' : '');
+  }
+  function condTable(b, bw, bh) {
+    var c = b.conditional, dirs = condDirs(c); if (!dirs.length) return '';
+    var h = '<table class="bs-sc bs-condtbl"><thead><tr><th>이긴 뒤 / 진 뒤' + helpBtn([bh('conditional', COND_HELP), c.source || '', c.note || ''].filter(Boolean).join(' · ')) + '</th><th>같은 방향</th><th>뒤집기</th></tr></thead><tbody>';
+    dirs.forEach(function (x) {
+      var d = x[0], blk = x[1];
+      [['이긴 뒤', blk.after_win], ['진 뒤', blk.after_loss]].forEach(function (p) {
+        var k = p[1]; if (!k) return;
+        var bs = k.baseline_same != null ? k.baseline_same : (d === '−1' ? bw['-1'] : bw['+1']), bf = k.baseline_flip != null ? k.baseline_flip : (d === '−1' ? bw['+1'] : bw['-1']);
+        h += '<tr><td>' + (d ? d + ' ' : '') + p[0] + '</td><td>' + condSide(k.same_dir, bs) + '</td><td>' + condSide(k.flip_dir, bf) + '</td></tr>';
+      });
+    });
+    h += '</tbody></table>';
+    var notes = dirs.map(function (x) {
+      var blk = x[1], by = Array.isArray(blk.by_year) ? blk.by_year : [];
+      var sd = blk.same_dir || (blk.after_win && blk.after_win.same_dir) || {}, fd = blk.flip_dir || (blk.after_win && blk.after_win.flip_dir) || {};
+      var stable = blk.year_signs ? '연도 부호 ' + blk.year_signs : (by.length ? by.filter(function (y) { return num(y.same) != null && num(y.flip) != null && (num(y.same) >= num(y.flip)) === (num(sd.win_rate) >= num(fd.win_rate)); }).length + '/' + by.length + '년 같은 부호' : '');
+      var st = blk.streak_type || (blk.after_win && blk.after_win.streak_type);
+      return [(x[0] ? x[0] + ' ' : '') + (st ? esc(STREAK_KO[st] || st) : ''), stable, blk.period ? esc(blk.period) : ''].filter(Boolean).join(' · ');
+    }).filter(Boolean);
+    var verdict = dirs.map(function (x) { return x[1].verdict_note || (x[1].after_win && x[1].after_win.verdict_note) || ''; }).filter(Boolean)[0] || '';
+    if (notes.length || verdict) h += '<div class="bs-sub">' + notes.join(' / ') + (verdict ? helpBtn(verdict) : '') + '</div>';
+    return h;
+  }
+  function condLine(bid, result, dir) {   // 게임 카드 한 줄: "이 판에서 방금 {승/패} → 다음 게임 같은 방향 n% · 뒤집기 n% (기준선 대비 ±)" — 스키마 2 는 그 게임 방향(dir) 블록
+    var b = boardById(bid), c = b && b.conditional; if (!c || !result) return '';
+    var root = (c['+1'] || c['-1']) ? (c[Number(dir) < 0 ? '-1' : '+1'] || c['+1'] || c['-1']) : c; if (!root) return '';
+    var blk = result === 'win' ? root.after_win : (result === 'loss' ? root.after_loss : null); if (!blk) return '';
+    var base = (b.breakeven && b.breakeven.baseline_winrate) || (b.scorecard && b.scorecard.baseline_winrate) || {};
+    var sd = blk.same_dir || {}, fd = blk.flip_dir || {}, neg = Number(dir) < 0;
+    var dS = num(sd.lift_vs_baseline) != null ? ' (' + sgn(num(sd.lift_vs_baseline) * 100, 1) + '%p)' : condDiff(sd, blk.baseline_same != null ? blk.baseline_same : (neg ? base['-1'] : base['+1']));
+    var dF = num(fd.lift_vs_baseline) != null ? ' (' + sgn(num(fd.lift_vs_baseline) * 100, 1) + '%p)' : condDiff(fd, blk.baseline_flip != null ? blk.baseline_flip : (neg ? base['+1'] : base['-1']));
+    var st = blk.streak_type || root.streak_type;
+    return '<span class="bs-condline">이 판에서 방금 <b>' + (result === 'win' ? '승' : '패') + '</b> → 다음 게임 같은 방향 <b>' + pct(sd.win_rate) + '</b>' + dS + (sd.n != null ? ' n' + nfmt(sd.n) : '') +
+      ' · 뒤집기 <b>' + pct(fd.win_rate) + '</b>' + dF + (fd.n != null ? ' n' + nfmt(fd.n) : '') + (st ? ' · ' + esc(STREAK_KO[st] || st) : '') + helpBtn(COND_HELP) + '</span>';
+  }
+  // 판 카드(2026-10-27 사용자 피드백 "각각 특별한 것 말고 쓸데없는 건 줄여라"): 헤더(이름·계열·상태 배지 — 상태 메모는 배지 툴팁) · 레그 표 1 · 방향 1줄 · 장벽/비용/상한 1줄 · 주문 환산 1줄 ·
+  //   본전 vs 기준선 1줄 · 성적표/이긴 뒤·진 뒤/요인 적재 = 측정된 판만(아니면 "미실측" 한 줄) · 사이즈 규칙 = 열린 사이클 있을 때만 · 회계 = blocked 만. 숫자 전부 스냅샷 그대로(웹 계산 0).
   function showBoard(id) {
     var b = boardById(id); if (!b) return;
     _BS.sel = id;
     Array.prototype.forEach.call(document.querySelectorAll('#bsMap .bs-cell'), function (el) { el.classList.toggle('is-sel', el.getAttribute('data-id') === id); });
     var st = STATUS_ORDER.indexOf(b.status) >= 0 ? b.status : 'untested';
-    var legs = Array.isArray(b.legs) ? b.legs.map(function (l) { return (Number(l.side != null ? l.side : l.sign) > 0 ? '+' : '−') + ' ' + esc(l.tenor) + ' ' + esc(l.kind || '') + (l.dv01_ratio != null ? ' ×' + f(l.dv01_ratio, 2) : ''); }).join(' · ') : '–';
-    var mu = b.marginal_usage_if_open || ((_BS.snap.risk || {}).marginal_usage_if_open || {})[id] || null;
+    var blocked = st === 'blocked' || b.accounting === 'none';
     var pbc = b.per_board_cap || ((_BS.snap.risk || {}).per_board_cap_won || {})[id] || null;   // 스키마 2: boards[].per_board_cap · 열린 판은 risk.per_board_cap_won[bid] 도 같은 구조
     var be = b.breakeven || null, bw = (be && be.baseline_winrate) || (b.scorecard && b.scorecard.baseline_winrate) || {};
     var sc = b.scorecard, dirs = (sc && sc.directions) || {}, dp = dirs['+1'] || null, dm = dirs['-1'] || null;
     var kTxt = b.k != null ? f(b.k, 1) : (b.k_eff != null ? f(b.k_eff, 1) : '–');
-    // 필드별 ? = 엔진 boards[].help[field](스키마 2 · 해동) 우선 · 없으면 짧은 기본 문장
-    var bh = function (key, fb) { return hget(b, key, fb); };
+    var bh = function (key, fb) { return hget(b, key, fb); };   // 필드별 ? = 엔진 boards[].help[field](스키마 2 · 해동) 우선 · 없으면 짧은 기본 문장
     var kHelp = b.provisional_k ? helpBtn(bh('k', 'k ' + kTxt + ' = 현행 기본값(config.k_provisional · 미실측/미통과 판의 표시용 · 통과 k 아님)') + ruleIdOf(b, 'k_provisional')) : '';
     var xHelp = helpBtn([bh('X_bp', '장벽 X = k × σ21 · 1R = X.'), b.X_rule || (b.entry_date_default ? b.entry_date_default + ' 진입 기준' : '')].filter(Boolean).join(' · '));
-    var cardHelp = [b.desc || '', '장벽 X · 비용 R · 성적표 6지표 · 기울기 · 본전 승률 vs 기준선 승률 · 한계 사용량 — 전부 스냅샷 그대로.'].filter(Boolean).join('\n');
-    var h = '<div class="wb-card-head"><span class="wb-card-title">' + esc(boardLabel(b)) + helpBtn(cardHelp) + '</span><span class="wb-badge bs-st-' + st + '">' + STATUS_KO[st] + helpBtn(bh('status', '')) + '</span><span class="wb-card-meta">' + esc(b.id) + (b.family_name ? ' · ' + esc(b.family_name) : '') + '</span></div><div class="wb-card-body">';
-    var rows = [
-      ['레그', legs],
-      ['방향', '<b>+1</b> ' + esc(dirMeaning(b, 1)) + '<br><b>−1</b> ' + esc(dirMeaning(b, -1))],
-      ['장벽 X', b.X_bp != null ? ('<b>' + f(b.X_bp, 1) + 'bp</b> = k ' + kTxt + ' × σ21 ' + f(b.sigma21_bp, 1) + 'bp' + xHelp + kHelp) : ('– (장벽 미계산' + (b.sigma_err ? ' · ' + esc(b.sigma_err) : b.computable === false ? ' · 계산 불가' : '') + ')')],
-      ['비용', b.cost_bp != null ? (f(b.cost_bp, 2) + 'bp = <b>' + f(b.cost_R, 3) + 'R</b>' + helpBtn(bh('cost_R', ''))) : '–'],
-      ['상한', b.cap == null ? '–' : (String(b.cap) === 'LT' ? '만기(LT)' : esc(b.cap) + '거래일')],
-      ['회계', esc(b.accounting || '–') + (b.accounting === 'none' ? ' <span class="wb-muted">— R 측정 불가 · 기록만</span>' : '')],
-      ['상태 메모', dash(b.status_note)]
-    ];
-    if (b.one_R_won != null) rows.push(['1R 금액', '<b>' + won(b.one_R_won) + '</b>' + (b.one_R_rule && b.one_R_rule.shrunk ? ' ' + badgeW('크기 축소 중(E < 0)') : '') + helpBtn([bh('one_R_won', ''), b.one_R_rule && b.one_R_rule.scope ? b.one_R_rule.scope : ''].filter(Boolean).join(' · '))]);
-    rows = rows.concat([
-      ['한계 사용량', mu ? ('+1: <b>' + won(mu['+1']) + '</b> · −1: <b>' + won(mu['-1']) + '</b>' + helpBtn(bh('marginal_usage_if_open', '이 판을 1R 로 넣을 때 한쪽 델타 변화 · 음수 = 한도를 돌려줌.'))) : '– (오늘 레그/1R 없음 — 미계산)'],
-      ['판당 델타 상한', pbc ? (won(pbc.cap_won) + '/bp' + (pbc.step_mult != null && num(pbc.step_mult) !== 1 ? ' (×' + esc(pbc.step_mult) + ')' : '') + ruleHelp(pbc, [bh('per_board_cap', hget(_BS.snap.risk, 'per_board_cap_won', '')), pbc.source || '', pbc.ruler ? '자 ' + pbc.ruler : '', pbc.one_R_won != null ? '1R ' + won(pbc.one_R_won) : '', pbc.tol != null ? '허용오차 ' + pbc.tol : ''].filter(Boolean).join(' · ') || null)) : '–'],
-      ['본전 승률 p*', be && be.p_star != null ? ('<b>' + pct(be.p_star) + '</b>' + (be.p_star_over_100 ? ' ' + badgeW('100% 초과 — 이 판 단독으로 본전 산술 불가') : '') + ' <span class="wb-muted">(r* ' + f(be.r_star, 2) + 'R · 비용 ' + f(be.cost_R, 3) + 'R' + (be.sharpe_needed != null ? ' · 필요 샤프 ' + f(be.sharpe_needed, 1) : '') + (be.max_concurrent != null ? ' · 동시 최대 ' + f(be.max_concurrent, 1) + '판' : '') + (be.games_per_year != null ? ' · 연 ' + f(be.games_per_year, 0) + '판' : '') + ' · 한도 ' + won(be.limit_won_per_bp) + ')</span>' + (be.estimated ? ' ' + badgeW('추정') : '') + helpBtn([bh('breakeven', ''), be.inputs ? '입력: ' + be.inputs : ''].filter(Boolean).join(' · '))) : (be && be.note ? esc(be.note) : '–')],
-      ['기준선 승률', (bw['+1'] != null || bw['-1'] != null) ? ('+1 <b>' + pct(bw['+1']) + '</b> · −1 <b>' + pct(bw['-1']) + '</b>' + helpBtn(bh('baseline_winrate', '기준선 승률 = 한쪽 고정(신호 없이 매일 진입) 승률 = 판의 기울기 · 신호 아님.'))) : '–'],
-      ['사이즈 규칙', ruleHtml(b.size_rule) + helpBtn(bh('size_rule', '')) + (b.size_rule_state && num(b.size_rule_state.next_size_R) != null ? '<br>지금 ' + dash(b.size_rule_state.step) + '단계 · 다음 판 사이즈 <b>' + f(b.size_rule_state.next_size_R, 2) + 'R</b>' : '')],
-      ['요인 적재', b.factor_loading ? ('레벨 ' + pct(b.factor_loading.level) + ' · 커브 ' + pct(b.factor_loading.curve) + ' · 잔차 ' + pct(b.factor_loading.residual) + ruleHelp(b.factor_loading, [bh('factor_loading', ''), b.factor_loading.source || ''].filter(Boolean).join(' · ') || null)) : '–']
-    ]);
-    h += kv(rows);
+    var cardHelp = [b.desc || '', '레그 · 장벽 X · 비용 R · 주문 환산 · 본전 승률 vs 기준선 승률 · 성적표(측정 판만) — 전부 스냅샷 그대로.'].filter(Boolean).join('\n');
+    var h = '<div class="wb-card-head"><span class="wb-card-title">' + esc(boardLabel(b)) + helpBtn(cardHelp) + '</span><span class="wb-badge bs-st-' + st + '"' + (b.status_note ? ' title="' + esc(b.status_note) + '"' : '') + '>' + STATUS_KO[st] + helpBtn([bh('status', ''), b.status_note || ''].filter(Boolean).join('\n')) + '</span><span class="wb-card-meta">' + esc(b.id) + (b.family_name ? ' · ' + esc(b.family_name) : '') + '</span></div><div class="wb-card-body">';
+    h += legTable(b);
+    if (b.legs_err) h += '<div class="bs-sub wb-warn-text">오늘 레그 오류: ' + esc(b.legs_err) + '</div>';
+    h += kline('방향', '<b>+1</b> ' + esc(dirMeaning(b, 1)) + ' · <b>−1</b> ' + esc(dirMeaning(b, -1)));
+    h += kline('', '<i>장벽 X</i>' + (b.X_bp != null ? ('<b>' + f(b.X_bp, 1) + 'bp</b> <span class="wb-muted">= k ' + kTxt + ' × σ21 ' + f(b.sigma21_bp, 1) + 'bp</span>' + xHelp + kHelp) : ('미계산' + (b.sigma_err ? ' · ' + esc(b.sigma_err) : b.computable === false ? ' · 계산 불가' : ''))) +
+      ' · <i>비용</i>' + (b.cost_bp != null ? (f(b.cost_bp, 2) + 'bp = <b>' + f(b.cost_R, 3) + 'R</b>' + helpBtn(bh('cost_R', ''))) : '미계산') +
+      ' · <i>상한</i>' + (b.cap == null ? '–' : (String(b.cap) === 'LT' ? '만기(LT)' : esc(b.cap) + '거래일')));
+    var ol = orderLine(b, pbc, bh); if (ol) h += kline('주문 환산', ol);
+    var bl = breakevenLine(b, bw, bh); if (bl) h += kline('', bl);
     if (sc) {
       var rowsDef = [
         ['판 수(해결)', ['per_game', 'n'], function (v) { return String(v); }],
@@ -4893,7 +4942,8 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
         ['동전 참조 q99: 연패 · MDD', ['coin_ref'], function (v) { return dash(v.streak_q99) + ' · ' + sgn(v.mdd_q99, 1); }]
       ];
       var sm0 = (_BS.snap || {}).scorecard_meta || {};
-      h += '<table class="bs-sc"><thead><tr><th>성적표 k ' + dash(sc.k) + ' · ' + (sc.census_pass ? '통과' : '미통과') + (sc.fail_reasons ? ' · ' + esc(sc.fail_reasons) : '') + helpBtn([bh('scorecard', 'census 그대로(재선정 0).'), sm0.chain_rule ? '비겹침 열 = ' + sm0.chain_rule : '', sm0.source ? '출처 ' + sm0.source : ''].filter(Boolean).join(' · ')) + '</th><th>+1</th><th>−1</th></tr></thead><tbody>';
+      var allK = b.scorecard_all_k ? 'k별 census: ' + Object.keys(b.scorecard_all_k).map(function (k) { var x = b.scorecard_all_k[k]; return 'k' + k + ' ' + (x.census_pass ? '통과' : '탈락'); }).join(' · ') : '';
+      h += '<table class="bs-sc"><thead><tr><th>성적표 k ' + dash(sc.k) + ' · ' + (sc.census_pass ? '통과' : '미통과') + (sc.fail_reasons ? ' · ' + esc(sc.fail_reasons) : '') + helpBtn([bh('scorecard', 'census 그대로(재선정 0).'), sm0.chain_rule ? '비겹침 열 = ' + sm0.chain_rule : '', sm0.source ? '출처 ' + sm0.source : '', allK].filter(Boolean).join(' · ')) + '</th><th>+1</th><th>−1</th></tr></thead><tbody>';
       rowsDef.forEach(function (r) { h += '<tr><td>' + esc(r[0]) + '</td><td>' + cell(dp, r[1], r[2]) + '</td><td>' + cell(dm, r[1], r[2]) + '</td></tr>'; });
       h += '<tr><td>기준선(한쪽 고정) 승률</td><td>' + pct(bw['+1']) + '</td><td>' + pct(bw['-1']) + '</td></tr>';
       if (sc.dir_pass) h += '<tr><td>방향별 census 통과</td><td>' + (sc.dir_pass['+1'] ? '통과' : '미통과') + '</td><td>' + (sc.dir_pass['-1'] ? '통과' : '미통과') + '</td></tr>';
@@ -4901,15 +4951,22 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
       if (br) { h += '<tr class="is-head"><td colspan="3">4국면별 승률 (n)</td></tr>'; Object.keys(br).forEach(function (k) { var a = get(dp, ['by_regime4', k]), c = get(dm, ['by_regime4', k]); h += '<tr><td>' + esc(k) + '</td><td>' + (a ? pct(a.win_rate) + ' (' + a.n + ')' : '–') + '</td><td>' + (c ? pct(c.win_rate) + ' (' + c.n + ')' : '–') + '</td></tr>'; }); }
       h += '</tbody></table>';
       h += '<div class="bs-sub">표본 ' + dash(sc.n_games_all) + '판 · 해결 ' + dash(sc.n_resolved) + (sc.tilt_detail ? ' · 기울기: ' + esc(sc.tilt_detail) : '') + (sc.D_R ? ' · D_R ' + f(sc.D_R.D_R, 1) + 'R' + ruleHelp(sc.D_R, [bh('D_R', ''), sc.D_R.source || ''].filter(Boolean).join(' · ') || null) : '') + '</div>';
-      if (b.scorecard_all_k) h += '<div class="bs-sub">k별 census: ' + Object.keys(b.scorecard_all_k).map(function (k) { var x = b.scorecard_all_k[k]; return 'k' + k + ' ' + (x.census_pass ? '통과' : '탈락'); }).join(' · ') + '</div>';
-    } else { h += '<div class="bs-sub">성적표 없음(scorecard null — 미실측 또는 회계 경로 없음)</div>'; }
-    var cond = b.conditional;
-    h += '<div class="bs-sub" style="margin-top:var(--wb-s3)"><b>이긴 뒤 / 진 뒤</b>' + helpBtn(bh('conditional', COND_HELP) + (cond && cond.source ? ' · ' + cond.source : '')) + '</div>';
-    if (!cond) h += '<div class="bs-cond"><div class="bs-cond-col"><h5>이긴 뒤</h5><div class="bs-cond-note">미실측</div></div><div class="bs-cond-col"><h5>진 뒤</h5><div class="bs-cond-note">미실측</div></div></div>';
-    else h += '<div class="bs-cond">' + condColHtml('이긴 뒤', cond.after_win, bw) + condColHtml('진 뒤', cond.after_loss, bw) + '</div>' + (cond.note ? '<div class="bs-cond-note">' + esc(cond.note) + '</div>' : '');
-    var lt = Array.isArray(b.legs_today) ? b.legs_today : [];
-    if (lt.length) h += '<table class="bs-sc"><thead><tr><th>오늘 레그(코드 고정)</th><th>수익률</th><th>DV01/10억</th></tr></thead><tbody>' + lt.map(function (l) { return '<tr><td>' + (Number(l.side) > 0 ? '+' : '−') + ' ' + esc(l.tenor) + ' <span class="wb-muted">' + esc(l.code || '코드 없음') + '</span></td><td>' + (l.ytm != null ? f(l.ytm, 3) + '%' : '–') + '</td><td>' + won(pick(l, ['dv01_per_1e9', 'dv01_per_10억'])) + '</td></tr>'; }).join('') + '</tbody></table>';
-    else if (b.legs_err) h += '<div class="bs-sub wb-warn-text">오늘 레그 오류: ' + esc(b.legs_err) + '</div>';
+      h += condTable(b, bw, bh);
+      var fl = b.factor_loading;
+      if (fl && fl.provisional !== true && fl.rule_status !== 'current_default') h += kline('요인 적재', '레벨 ' + pct(fl.level) + ' · 커브 ' + pct(fl.curve) + ' · 잔차 ' + pct(fl.residual) + (fl.dominant ? ' <span class="wb-muted">(주 ' + esc(fl.dominant) + ')</span>' : '') + helpBtn([bh('factor_loading', ''), fl.source || '', fl.period ? '기간 ' + fl.period : ''].filter(Boolean).join(' · ')));
+    } else if (blocked) {
+      h += kline('회계', '회계 경로 없음 — R 측정 불가 · 기록만' + helpBtn(bh('status', '')));
+    } else {
+      h += kline('', '미실측');
+    }
+    var srs = b.size_rule_state || null, sr = b.size_rule || null;
+    var cycleOpen = srs && ((num(srs.step) != null && num(srs.step) > 1) || srs.paroli_cycle_id || hasOpenGame(id));
+    if (cycleOpen) {
+      var ev = (sr && sr.evidence) || srs.evidence || {};
+      var ruleHelpTxt = [bh('size_rule', ''), sr ? (RULE_KO[sr.kind] || sr.kind || '') + (sr.steps != null ? ' · ' + sr.steps + '단계' : '') + (sr.cap_R != null ? ' · 상한 ' + f(sr.cap_R, 1) + 'R' : '') + (sr.basis === 'measured' ? ' · 측정' : (sr.basis ? ' · 현행 기본값' : '')) : '',
+        (ev.p_w_given_w != null || ev.p_w_given_l != null) ? 'P(승|승) ' + pct(ev.p_w_given_w) + ' · P(승|패) ' + pct(ev.p_w_given_l) + (ev.baseline_adj != null ? ' · 기준선 보정 ' + sgn(num(ev.baseline_adj) * 100, 1) + '%p' : '') + (ev.years_stable != null ? ' · 안정 연수 ' + ev.years_stable : '') + (ev.n != null ? ' · n ' + ev.n : '') : '', sr && sr.source ? sr.source : '', sr && sr.decision_id ? '결정 ' + sr.decision_id : '', srs.note || ''].filter(Boolean).join(' · ');
+      h += kline('사이즈 규칙', '<b>' + esc(RULE_KO[srs.rule || (sr && sr.kind)] || srs.rule || (sr && sr.kind) || '–') + '</b> · 지금 ' + dash(srs.step) + '단계' + (srs.size_mult != null && num(srs.size_mult) !== 1 ? ' (×' + esc(srs.size_mult) + ')' : '') + (srs.paroli_cycle_id ? ' · 사이클 ' + esc(srs.paroli_cycle_id) : '') + ' · 다음 사이즈 <b>' + (num(srs.next_size_R) != null ? f(srs.next_size_R, 2) + 'R' : '–') + '</b>' + (srs.capped || srs.capped_by ? ' ' + badgeW('한도 — 단계 증가 거부') : '') + helpBtn(ruleHelpTxt));
+    }
     h += '<div style="margin-top:var(--wb-s3)"><button type="button" class="wb-btn wb-btn--sm" onclick="BS.pick(\'' + esc(id) + '\')">진입 기록 폼에 이 판 채우기</button>' + helpBtn('폼 채우기일 뿐 — 들어갈지는 사람이 정한다.') + '</div>';
     $('bsBoardCard').innerHTML = h + '</div>';
   }
@@ -4948,7 +5005,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     var ss = g.size_rule_state;
     if (ss) body += '<div class="bs-kpis" style="margin-top:4px"><span><i>사이즈 규칙</i><b>' + esc(RULE_KO[ss.rule] || ss.rule || '–') + '</b> · 지금 ' + dash(ss.step != null ? ss.step : g.step) + '단계' + (g.size_mult != null ? ' (×' + esc(g.size_mult) + ')' : '') + (g.cycle_id ? ' · 사이클 ' + esc(g.cycle_id) : '') + ' · 다음 판 사이즈 <b>' + (num(ss.next_size_R) != null ? f(ss.next_size_R, 2) + 'R' : '–') + '</b>' + (ss.capped ? ' ' + badgeW('한도 — 단계 증가 거부') : '') + (ss.note ? helpBtn(ss.note) : '') + '</span></div>';
     else if (g.step != null || g.cycle_id) body += '<div class="bs-kpis" style="margin-top:4px"><span><i>단계</i>' + dash(g.step) + (g.size_mult != null ? ' (×' + esc(g.size_mult) + ')' : '') + (g.cycle_id ? ' · 사이클 ' + esc(g.cycle_id) : '') + '</span></div>';
-    var lastR = lastResultFor(g.board_id); var cl = lastR ? condLine(g.board_id, lastR.result) : '';
+    var lastR = lastResultFor(g.board_id); var cl = lastR ? condLine(g.board_id, lastR.result, lastR.dir) : '';
     if (cl) body += '<div class="bs-kpis" style="margin-top:4px"><span>' + cl + ' <span class="wb-muted">(직전 종료 ' + esc(lastR.exit_date || '') + ')</span></span></div>';
     body += '<div class="bs-decomp"><span>손익 분해(' + esc(dc.unit || 'bp') + ')</span><span>가격 ' + sgn(dc.price, 1) + '</span><span>이표 ' + sgn(dc.coupon, 1) + '</span><span>조달 ' + sgn(dc.funding, 1) + '</span><span>대차 ' + sgn(dc.lending, 1) + '</span><span>선물 ' + sgn(dc.futures, 1) + '</span>' +
       (Array.isArray(g.legs) && g.legs.length ? '<span>레그 ' + g.legs.map(function (l) { return (Number(l.side) > 0 ? '+' : '−') + esc(l.code || l.tenor) + (l['face_억'] != null ? ' ' + l['face_억'] + '억' : '') + (l.contracts != null ? ' ' + l.contracts + '계약' : '') + (l.dv01_won != null ? ' (' + won(l.dv01_won) + '/bp)' : ''); }).join(' · ') + '</span>' : '') +
@@ -5050,7 +5107,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
   function renderNextDecision(s) {
     var el = $('bsNextDecision'); if (!el) return;
     var cl = ((s.my_games || {}).closed_recent) || [], seen = {}, lines = [];
-    cl.slice().reverse().forEach(function (g) { if (seen[g.board_id]) return; seen[g.board_id] = 1; var line = condLine(g.board_id, g.result); if (line) lines.push('<div class="bs-next"><b>' + esc(boardLabel(boardById(g.board_id)) || g.board_id) + '</b> · 종료 ' + esc(g.exit_date || '') + ' — ' + line + (paroliAllowed(g.board_id) ? ' <span class="wb-badge">역마팅게일 켤 수 있음</span>' : '') + '</div>'); });
+    cl.slice().reverse().forEach(function (g) { if (seen[g.board_id]) return; seen[g.board_id] = 1; var line = condLine(g.board_id, g.result, g.dir); if (line) lines.push('<div class="bs-next"><b>' + esc(boardLabel(boardById(g.board_id)) || g.board_id) + '</b> · 종료 ' + esc(g.exit_date || '') + ' — ' + line + (paroliAllowed(g.board_id) ? ' <span class="wb-badge">역마팅게일 켤 수 있음</span>' : '') + '</div>'); });
     el.innerHTML = lines.length ? '<div class="bs-subhead">다음 결정 참고' + helpBtn('이 판에서 방금 승/패 뒤 과거 분포 — 운용 참고 · 추천 아님.') + '</div>' + lines.join('') : '';
   }
   function sizeMode(m) { _BS.sizeMode = m; Array.prototype.forEach.call(document.querySelectorAll('#bsFSizeMode button'), function (x) { x.setAttribute('aria-pressed', x.getAttribute('data-m') === m ? 'true' : 'false'); });
