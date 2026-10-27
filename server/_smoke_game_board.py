@@ -160,7 +160,13 @@ def close_game(game_id, date, result="manual", R=None, cum_bp=None, memo="", by=
     return append_event(dict(event="close", game_id=game_id, date=str(date), result=result, by=by))
 
 
-def amend(game_id, fields, memo="", by="cli", path=None):
+AMEND_ALLOWED = ("memo", "size_R", "dv01_won_per_bp", "one_R_won", "bond")   # 스키마 2 엔진 화이트리스트 흉내(ledger.AMEND_ALLOWED)
+
+
+def amend(game_id, fields, memo="", by="cli", path=None, **kw):
+    bad = [k for k in fields if k not in AMEND_ALLOWED]
+    if bad:
+        raise ValueError("PIT fixed fields %s not amendable - delete + new open" % bad)
     calls["amend"] = dict(game_id=game_id, fields=fields, by=by)
     return append_event(dict(event="amend", game_id=game_id, fields=fields, by=by))
 
@@ -208,6 +214,8 @@ try:
     check("POST amend -> ledger.amend(game_id, fields={size_R}, ...)", r.status_code == 200 and calls["amend"]["fields"] == {"size_R": 1.5})
     r = c.post("/quant-house/game-board/game", json={"event": "amend", "game_id": "G-FAKE", "size_R": 2, "bond": "KR1035", "memo": "m2"}, headers=KEY)
     check("POST amend (web form: size/bond/memo only) -> fields={size_R,bond} memo passed", r.status_code == 200 and calls["amend"]["fields"] == {"size_R": 2, "bond": "KR1035"} and calls["amend"]["by"] == "web")
+    r = c.post("/quant-house/game-board/game", json={"event": "amend", "game_id": "G-FAKE", "dir": -1, "size_R": 1}, headers=KEY)
+    check("POST amend with frozen field (dir) -> router passes through, engine ValueError -> 400 + reason verbatim", r.status_code == 400 and "not amendable" in r.json()["detail"] and "'dir'" in r.json()["detail"], r.json().get("detail"))
     r = c.post("/quant-house/game-board/game", json=dict(OPEN, bond="KR1035"), headers=KEY)
     check("POST open with bond -> open_game(..., bond=)", r.status_code == 200 and calls["open_game"].get("bond") == "KR1035")
     r = c.post("/quant-house/game-board/game", json={"event": "close", "game_id": "G-NOPE", "date": "2026-10-28"}, headers=KEY)

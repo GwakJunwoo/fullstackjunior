@@ -1163,7 +1163,9 @@ def _gb_call(mod, names, *args, **kwargs):
 
 
 _GB_SIZE_KEYS = ("size_R", "dv01_won_per_bp", "one_R_won")          # 엔진 ledger.open_game 이 받는 크기 인자(§7 face_억 은 엔진 미지원)
-_GB_AMEND_KEYS = ("size_R", "dv01_won_per_bp", "one_R_won", "date", "dir", "board_id", "bond", "legs", "k", "regime_at_entry")
+_GB_AMEND_META = ("event", "game_id", "memo", "by", "fields")        # amend 에서 fields 로 안 넘기는 제어 키 — 나머지는 전부 엔진 화이트리스트(ledger.AMEND_ALLOWED)가 판정
+#   스키마 2(2026-10-27.bootstrap_fix_defaults · 해동): 허용 = memo · size_R/dv01_won_per_bp/one_R_won · bond — 그 외(dir/date/board_id/X_bp/…)는 엔진이 ValueError 로 거부
+#   → 라우터는 거르지 않고 그대로 넘겨 400 + 엔진 사유 원문을 노출한다(단일출처 = 엔진 · 웹 폼은 크기·종목·메모만 보냄).
 
 
 def _gb_dispatch(gb_ledger, ev: dict):
@@ -1188,7 +1190,7 @@ def _gb_dispatch(gb_ledger, ev: dict):
                 kw[k] = ev[k]
         return "close_game", gb_ledger.close_game(ev["game_id"], ev.get("date") or date.today().isoformat(), memo=memo, by=by, **kw)
     if kind == "amend" and callable(getattr(gb_ledger, "amend", None)):
-        fields = ev.get("fields") if isinstance(ev.get("fields"), dict) else {k: ev[k] for k in _GB_AMEND_KEYS if ev.get(k) not in (None, "")}
+        fields = ev.get("fields") if isinstance(ev.get("fields"), dict) else {k: v for k, v in ev.items() if k not in _GB_AMEND_META and v not in (None, "")}
         return "amend", gb_ledger.amend(ev["game_id"], fields, memo=memo, by=by)
     if kind == "note" and callable(getattr(gb_ledger, "note", None)):
         return "note", gb_ledger.note(ev.get("game_id"), memo, by=by)

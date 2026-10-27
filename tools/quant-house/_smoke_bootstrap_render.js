@@ -142,10 +142,42 @@ function allHtml() { return Object.keys(ELS).map(k => ELS[k].innerHTML + ' ' + E
   check('⑤ 시즌 ? = 본전선 하루 증가(config 계산) · 50% 게임 문구(화면엔 없음)', /하루 약 2,000만씩/.test(F('bsHelpSeason').getAttribute('data-help') || '') && !/50% 게임/.test(ELS.bsSeason.innerHTML), (F('bsHelpSeason').getAttribute('data-help') || '').slice(0, 60));
   check('⑤ 4국면 ? = 엔진 regime4.definition 그대로', (F('bsHelpRegime').getAttribute('data-help') || '').indexOf(SAMPLE.market.regime4.definition) === 0);
   // 엔진 help 문구(해동 추가 예정 boards[].help · risk.help · my_games.help)가 오면 ? 가 그걸 쓴다
-  (function () { const s2 = clone(SAMPLE); s2.available = true; s2.risk.help = { limit: 'ENGINE-LIMIT-HELP' }; s2.my_games.help = 'ENGINE-GAMES-HELP'; s2.boards[0].help = 'ENGINE-BOARD-HELP'; B._setSnap(s2); B.render(); B.show(s2.boards[0].id);
-    check('⑤ 엔진 help 우선: risk.help.limit · my_games.help · boards[].help → ? 에 그대로', F('bsHelpLimit').getAttribute('data-help') === 'ENGINE-LIMIT-HELP' && F('bsHelpGames').getAttribute('data-help') === 'ENGINE-GAMES-HELP' && /data-help="ENGINE-BOARD-HELP/.test(ELS.bsBoardCard.innerHTML));
+  (function () { const s2 = clone(SAMPLE); s2.available = true; s2.risk.help = { one_side: 'ENGINE-LIMIT-HELP' }; s2.my_games.help = 'ENGINE-GAMES-HELP'; s2.boards[0].help = { X_bp: 'ENGINE-BOARD-HELP' }; B._setSnap(s2); B.render(); B.show(s2.boards[0].id);
+    check('⑤ 엔진 help 우선: risk.help.one_side · my_games.help(문자열) · boards[].help.X_bp → ? 에 그대로', F('bsHelpLimit').getAttribute('data-help') === 'ENGINE-LIMIT-HELP' && F('bsHelpGames').getAttribute('data-help') === 'ENGINE-GAMES-HELP' && /data-help="ENGINE-BOARD-HELP/.test(ELS.bsBoardCard.innerHTML));
     delete s2.honesty; delete s2.provisional_items; B._setSnap(s2); B.render();
     check('⑤ 스냅샷에 honesty · provisional_items 없어도 렌더 무해', /메인 게임 #1/.test(ELS.bsOpen.innerHTML) && /본전선/.test(ELS.bsSeason.innerHTML));
+    // 스키마 2(해동 2026-10-27.bootstrap_fix_defaults) 정확한 필드명: boards[].help{필드} · my_games.help{키} · risk.help{키} · my_games.amend · entry_date_default · rule_status · open[].entry_marks/E_won_at_open/one_R_rule
+    const s3 = clone(SAMPLE); s3.available = true; s3.schema = 2; s3.entry_date_default = '2026-10-27';
+    s3.rule_status = { status: 'current_default', fix_decision_id: '2026-10-27.bootstrap_fix_defaults', note: 'RS-NOTE' };
+    s3.current_defaults = [{ key: 'D0_won', decision_id: 'x', rule_status: 'current_default' }];
+    const b3 = s3.boards.find(b => b.id === 'S.slope.2_5'); b3.entry_date_default = '2026-10-27'; b3.X_rule = 'XRULE-2026-10-27'; b3.one_R_won = 12500000; b3.one_R_rule = { scope: 'ONE-R-SCOPE' };
+    b3.help = { X_bp: 'H-XBP', cost_R: 'H-COST', one_R_won: 'H-ONER', breakeven: 'H-BE', baseline_winrate: 'H-BASE', scorecard: 'H-SC', D_R: 'H-DR', size_rule: 'H-SR', conditional: 'H-COND', factor_loading: 'H-FL', marginal_usage_if_open: 'H-MU', per_board_cap: 'H-PBC', status: 'H-ST', k: 'H-K' };
+    b3.size_rule.rule_status = 'current_default'; delete b3.size_rule.basis; b3.per_board_cap.rule_status = 'current_default'; delete b3.per_board_cap.provisional;
+    s3.my_games.help = { open: 'H-OPEN', entry_date_default: 'H-EDD', season: 'H-SEASON', main_games: 'H-MAIN', next_size_R: 'H-NSR', closed_recent: 'H-CLOSED', deleted_recent: 'H-DEL', amend: 'H-AMEND', ledger: 'H-LEDGER' };
+    s3.my_games.amend = { allowed: ['memo', 'size_R', 'dv01_won_per_bp', 'one_R_won', 'bond'], frozen: ['dir', 'date'], reject_reason: 'REJECT-REASON-TEXT' };
+    s3.my_games.entry_date_default = '2026-10-27'; s3.my_games.ledger.chain_note = 'CHAIN-NOTE';
+    s3.risk.help = { one_side: 'H-ONESIDE', size_rule: 'H-RSR', b_now_won: 'H-BNOW', survivable_drawdowns: 'H-SURV', effective_decisions: 'H-EFF', netting_unit: 'H-NET', assumed_corr: 'H-CORR' };
+    s3.risk.size_rule.rule_status = 'current_default'; delete s3.risk.size_rule.provisional;
+    Object.assign(s3.my_games.open[2], { entry_marks: 'prev_close', marks_date: '2026-10-17', one_R_won: 12500000, E_won_at_open: -39810000, one_R_rule: 'ONE-R-RULE-TEXT', step: 1, size_mult: 1, cycle_id: 'C-B3F-1' });
+    s3.scorecard_meta.chain_rule = 'CHAIN-RULE';
+    s3.risk.decision_groups = [{ board_id: 'S.slope.2_5', dir: 1, size_R_sum: 1.5, allowed_size_R: 1.5 }];
+    Object.assign(b3.per_board_cap, { ruler: 'D_R', one_R_won: 152997003.9, step_mult: 1.0, tol: 1.05 });
+    B._setSnap(s3); B.render(); B.show('S.slope.2_5');
+    const c3 = ELS.bsBoardCard.innerHTML, helpsIn = h => (c3.match(/data-help="([^"]*)"/g) || []).some(x => x.indexOf(h) >= 0);
+    const H13 = ['H-XBP', 'H-COST', 'H-ONER', 'H-BE', 'H-BASE', 'H-SC', 'H-DR', 'H-SR', 'H-COND', 'H-FL', 'H-MU', 'H-PBC', 'H-ST'];
+    check('⑤ 스키마 2: boards[].help 필드별 ? 13종 전부 판 카드 ? 안 + X_rule · one_R_rule.scope · chain_rule', H13.every(helpsIn) && helpsIn('XRULE-2026-10-27') && helpsIn('ONE-R-SCOPE') && helpsIn('비겹침 열 = CHAIN-RULE'), H13.filter(h => !helpsIn(h)).join(','));
+    check('⑤ 스키마 2: 1R 금액 행(one_R_won) · rule_status current_default → 배지 0 · ? "현행 기본값 · 결정 id"', /1R 금액<\/dt><dd><b>1,250만<\/b>/.test(c3) && !/잠정|provisional/.test(stripHelp(c3)) && /data-help="현행 기본값 · 결정 2026-10-27\.open\.comovement_rule · H-PBC/.test(c3), (c3.match(/1R 금액<\/dt><dd>.{0,60}/) || [''])[0]);
+    check('⑤ 스키마 2: my_games.help → 섹션 ? · 메인 게임 ? · rule_status.note → 페이지 ?', F('bsHelpOpen').getAttribute('data-help') === 'H-OPEN' && F('bsHelpDate').getAttribute('data-help') === 'H-EDD' && F('bsHelpSeason').getAttribute('data-help') === 'H-SEASON' && F('bsHelpClosed').getAttribute('data-help') === 'H-CLOSED' && F('bsHelpDeleted').getAttribute('data-help') === 'H-DEL' && F('bsHelpGames').getAttribute('data-help') === 'H-LEDGER' && F('bsHelpParoli').getAttribute('data-help') === 'H-NSR' && /data-help="H-MAIN/.test(ELS.bsOpen.innerHTML) && /RS-NOTE · 결정 2026-10-27\.bootstrap_fix_defaults/.test(F('bsHelpPage').getAttribute('data-help') || ''));
+    check('⑤ 스키마 2: risk.help → 한도 ? · 사이즈 자 ? · 넷팅 ? · 결정 수 ? · 상관 ?(assumed_corr 폴백)', F('bsHelpLimit').getAttribute('data-help') === 'H-ONESIDE' && /data-help="현행 기본값[^"]*H-RSR · H-BNOW · H-SURV/.test(ELS.bsSeason.innerHTML) && /data-help="현행 기본값[^"]*H-NET/.test(ELS.bsRiskMeta.innerHTML) && /H-EFF/.test(ELS.bsRiskGauge.innerHTML) && F('bsHelpCorr').getAttribute('data-help') === 'H-CORR', (ELS.bsSeason.innerHTML.match(/data-help="현행 기본값[^"]{0,80}/) || [''])[0]);
+    F('bsFBoard').value = 'S.slope.2_5'; F('bsFDate').value = ''; F('bsFDate').setAttribute('data-auto', '1'); B.syncDir();
+    check('⑤ 스키마 2: 폼 날짜 = boards[].entry_date_default(2026-10-27 · asof 2026-10-26 와 다름)', F('bsFDate').value === '2026-10-27', F('bsFDate').value);
+    B.amend(s3.my_games.open[0].game_id);
+    check('⑤ 스키마 2: 정정 배너 ? = my_games.help.amend + allowed + reject_reason 원문', /data-help="H-AMEND\n허용 = memo, size_R, dv01_won_per_bp, one_R_won, bond\nREJECT-REASON-TEXT"/.test(F('bsFAmend').innerHTML), F('bsFAmend').innerHTML.slice(0, 200));
+    B.cancelAmend();
+    const op3 = ELS.bsOpen.innerHTML;
+    check('⑤ 스키마 2: 게임 카드 마크(prev_close 2026-10-17) · 1R + E_won_at_open · one_R_rule ? · 사이클', /마크<\/i>prev_close 2026-10-17/.test(op3) && /1R 1,250만 \(E −3,981만\)/.test(op3) && /data-help="ONE-R-RULE-TEXT"/.test(op3) && /사이클 C-B3F-1/.test(op3), (op3.match(/마크<\/i>.{0,40}/) || [''])[0]);
+    check('⑤ 스키마 2: risk.decision_groups[].allowed_size_R → 결정 묶음(1.50R/1.50R) · per_board_cap ? 에 자·1R·허용오차', /결정 묶음<\/i>현물 2-5 \+1 1\.50R\/1\.50R/.test(ELS.bsRiskGauge.innerHTML) && /data-help="[^"]*자 D_R · 1R 1\.53억 · 허용오차 1\.05/.test(c3), (ELS.bsRiskGauge.innerHTML.match(/결정 묶음<\/i>[^<]*/) || [''])[0]);
+    check('⑤ 스키마 2: schema 2 표시 · current_defaults 미렌더(잠정 목록 0)', /schema 2/.test(ELS.bsAsof.textContent) && !/D0_won/.test(allHtml()));
     B._setSnap(clone(SAMPLE)); B._state.snap.available = true; B.render(); B.show('S.slope.2_5'); })();
 
   // ②b board_corr matrix null(엔진 실값) · main_games 비어 있고 open[].main_game_id 만
