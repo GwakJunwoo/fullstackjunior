@@ -46,8 +46,8 @@ class _PeerAs:
         await self.app(scope, receive, send)
 
 
-c = TestClient(_PeerAs(_APP, "127.0.0.1"))                 # 로컬 호스트(터널 경유 아님) = GET 가드 통과
-c_remote = TestClient(_PeerAs(_APP, "198.51.100.7"))         # 원격 peer → GET 도 X-QH-KEY 필수
+c = TestClient(_PeerAs(_APP, "127.0.0.1"))                 # 로컬 호스트
+c_remote = TestClient(_PeerAs(_APP, "198.51.100.7"))         # 원격 peer — 읽기 공개(2026-10-27) 이므로 GET 은 키 없이 200 · POST 는 여전히 403
 KEY = {"X-QH-KEY": "smoketest-key"}
 OPEN = {"event": "open", "board_id": "S.slope.2_5", "dir": 1, "date": "2026-10-27", "size_R": 1.0, "memo": "smoke", "by": "web"}
 
@@ -57,32 +57,26 @@ check("GET game-board absent -> available:false + hint", r.status_code == 200 an
 r = c.get("/quant-house/game-board/ledger")
 check("GET ledger absent -> available:false events[]", r.status_code == 200 and r.json()["available"] is False and r.json()["events"] == [])
 
-# -- 1b. GET 비공개 가드(2026-10-27 저녁): 원격은 X-QH-KEY(POST 와 같은 키) 필수 · 로컬 호스트는 통과 · 터널(프록시 헤더) 경유 loopback 은 원격 취급 --
+# -- 1b. 읽기 공개(2026-10-27 사용자 지시 "fullstackjunior.com 에서 보이게"): 원격·터널 경유 GET 도 키 없이 200 · POST 는 §3 에서 여전히 403 --
 r = c_remote.get("/quant-house/game-board")
-check("GET game-board remote without key -> 403 (private)", r.status_code == 403 and "X-QH-KEY" in r.json()["detail"], r.status_code)
+check("GET game-board remote without key -> 200 (public read)", r.status_code == 200 and r.json().get("available") is False, r.status_code)
 r = c_remote.get("/quant-house/game-board/ledger")
-check("GET ledger remote without key -> 403 (private)", r.status_code == 403)
-r = c_remote.get("/quant-house/game-board", headers={"X-QH-KEY": "wrong"})
-check("GET game-board remote wrong key -> 403 (mismatch)", r.status_code == 403 and "불일치" in r.json()["detail"])
-r = c_remote.get("/quant-house/game-board", headers=KEY)
-check("GET game-board remote with key -> 200", r.status_code == 200 and r.json().get("available") is False)
-r = c_remote.get("/quant-house/game-board/ledger", headers=KEY)
-check("GET ledger remote with key -> 200", r.status_code == 200 and r.json()["available"] is False)
+check("GET ledger remote without key -> 200 (public read)", r.status_code == 200 and r.json()["available"] is False)
 for h in ("X-Forwarded-For", "Cf-Connecting-Ip"):
     r = c.get("/quant-house/game-board", headers={h: "203.0.113.9"})
-    check("GET via tunnel (loopback peer + %s) without key -> 403" % h, r.status_code == 403)
-r = c.get("/quant-house/game-board", headers={"Cf-Connecting-Ip": "203.0.113.9", **KEY})
-check("GET via tunnel with key -> 200", r.status_code == 200)
-r = c.get("/quant-house/game-board")
-check("GET local (loopback peer, no proxy header) without key -> 200", r.status_code == 200)
+    check("GET via tunnel (loopback peer + %s) without key -> 200" % h, r.status_code == 200)
+r = c_remote.get("/quant-house/game-board", headers={"X-QH-KEY": "wrong"})
+check("GET game-board with wrong key -> still 200 (key ignored on read)", r.status_code == 200)
 _saved_key = os.environ.pop("QH_OPS_KEY")
 try:
-    r = c_remote.get("/quant-house/game-board", headers=KEY)
-    check("GET remote when QH_OPS_KEY unset -> 403 (no key = fully private)", r.status_code == 403 and "미설정" in r.json()["detail"])
-    r = c.get("/quant-house/game-board")
-    check("GET local when QH_OPS_KEY unset -> still 200 (local host guard)", r.status_code == 200)
+    r = c_remote.get("/quant-house/game-board")
+    check("GET remote when QH_OPS_KEY unset -> 200 (read never depends on key)", r.status_code == 200)
+    r = c_remote.post("/quant-house/game-board/game", json=OPEN)
+    check("POST remote when QH_OPS_KEY unset -> 403 (write stays closed)", r.status_code == 403)
 finally:
     os.environ["QH_OPS_KEY"] = _saved_key
+r = c_remote.post("/quant-house/game-board/game", json=OPEN)
+check("POST remote without key -> 403 (write still keyed)", r.status_code == 403)
 
 # -- 2. passthrough = 파일 그대로 -------------------------------------------------------------
 QH._GB_SNAP.write_text(json.dumps(SAMPLE, ensure_ascii=False), encoding="utf-8")
