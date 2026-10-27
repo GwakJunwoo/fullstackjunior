@@ -797,7 +797,14 @@
     "common_share": 1.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "L.cash.3y",
@@ -870,7 +877,14 @@
     "common_share": 1.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "L.cash.5y",
@@ -943,7 +957,14 @@
     "common_share": 1.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "L.cash.10y",
@@ -1016,7 +1037,14 @@
     "common_share": 1.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "L.cash.30y",
@@ -1089,7 +1117,14 @@
     "common_share": 1.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "L.fut.3F",
@@ -1163,7 +1198,14 @@
     "common_share": 1.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "L.fut.10F",
@@ -1217,7 +1259,14 @@
     "common_share": 1.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "L.irs.2y",
@@ -1271,7 +1320,14 @@
     "common_share": 1.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "L.irs.3y",
@@ -1325,7 +1381,14 @@
     "common_share": 1.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "L.irs.5y",
@@ -1379,7 +1442,14 @@
     "common_share": 1.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "L.irs.10y",
@@ -1433,7 +1503,14 @@
     "common_share": 1.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "S.slope.2_3",
@@ -2345,7 +2422,14 @@
     "k": 1.0,
     "board_id": "S.slope.2_3"
    },
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "S.slope.3_5",
@@ -3404,6 +3488,13 @@
    "marginal_usage_if_open": {
     "+1": 0.0,
     "-1": 19000000.0
+   },
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
    }
   },
   {
@@ -4319,6 +4410,26 @@
    "marginal_usage_if_open": {
     "+1": 13500000.0,
     "-1": -13500000.0
+   },
+   "size_rule": {
+    "kind": "paroli",
+    "steps": 3,
+    "cap_R": 4.0,
+    "basis": "measured",
+    "evidence": {
+     "p_w_given_w": 0.74,
+     "p_w_given_l": 0.61,
+     "baseline_adj": 0.04,
+     "years_stable": 4,
+     "n": 612
+    },
+    "source": "(더미) _streak_paroli_20261027"
+   },
+   "size_rule_state": {
+    "rule": "paroli",
+    "step": 2,
+    "next_size_R": 2.0,
+    "capped": false
    }
   },
   {
@@ -4407,7 +4518,14 @@
     "common_share": 1.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "S.slope.5_10",
@@ -4495,7 +4613,14 @@
     "common_share": 1.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "S.slope.10_30",
@@ -4583,7 +4708,14 @@
     "common_share": 1.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "S.irs.2_3",
@@ -4643,7 +4775,14 @@
     "common_share": 1.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "S.irs.2_5",
@@ -4703,7 +4842,14 @@
     "common_share": 1.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "S.irs.3_5",
@@ -4763,7 +4909,14 @@
     "common_share": 1.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "S.irs.3_10",
@@ -4823,7 +4976,14 @@
     "common_share": 1.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "S.irs.5_10",
@@ -4883,7 +5043,14 @@
     "common_share": 1.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "S.irs.2_10",
@@ -4943,7 +5110,14 @@
     "common_share": 1.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "C.fly.2_3_5",
@@ -5046,7 +5220,14 @@
     "common_share": 0.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "C.fly.3_5_10",
@@ -5149,7 +5330,14 @@
     "common_share": 0.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "C.fly.5_10_30",
@@ -5252,7 +5440,14 @@
     "common_share": 0.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "C.fly.3_10_30",
@@ -5355,7 +5550,14 @@
     "common_share": 0.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "B.basket.3F",
@@ -6430,7 +6632,15 @@
     "k": 1.0,
     "board_id": "B.basket.3F"
    },
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {},
+    "source": "(더미) 측정 전 → flat 잠정"
+   }
   },
   {
    "id": "B.basket.10F",
@@ -6490,7 +6700,14 @@
     "common_share": 0.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "B.idx.3y_3F",
@@ -6579,7 +6796,14 @@
     "common_share": 0.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "B.idx.10y_10F",
@@ -6639,7 +6863,14 @@
     "common_share": 0.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "W.bondswap.2y",
@@ -6699,7 +6930,14 @@
     "common_share": 0.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "W.bondswap.3y",
@@ -6759,7 +6997,14 @@
     "common_share": 0.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "W.bondswap.5y",
@@ -6819,7 +7064,14 @@
     "common_share": 0.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "W.bondswap.10y",
@@ -6879,7 +7131,14 @@
     "common_share": 0.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   },
   {
    "id": "I.resid.nonbench",
@@ -6933,7 +7192,14 @@
     "common_share": 0.0
    },
    "D_R": null,
-   "marginal_usage_if_open": null
+   "marginal_usage_if_open": null,
+   "size_rule": {
+    "kind": "flat",
+    "steps": 1,
+    "cap_R": 1.0,
+    "basis": "provisional",
+    "evidence": {}
+   }
   }
  ],
  "my_games": {
@@ -7016,7 +7282,16 @@
     },
     "factor_sign": 1,
     "main_game_id": "MAIN-1",
-    "layer": "main"
+    "layer": "main",
+    "size_rule_state": {
+     "rule": "paroli",
+     "step": 2,
+     "next_size_R": 2.0,
+     "capped": false
+    },
+    "cycle_id": "C-S25-7",
+    "step": 2,
+    "size_mult": 2
    },
    {
     "game_id": "S.slope.3_10+1@2026-10-21#1",
@@ -7096,7 +7371,16 @@
     },
     "factor_sign": 1,
     "main_game_id": "MAIN-1",
-    "layer": "main"
+    "layer": "main",
+    "size_rule_state": {
+     "rule": "flat",
+     "step": 1,
+     "next_size_R": 1.0,
+     "capped": false
+    },
+    "cycle_id": null,
+    "step": 1,
+    "size_mult": 1
    },
    {
     "game_id": "B.basket.3F+1@2026-10-20#1",
@@ -7193,7 +7477,16 @@
     },
     "factor_sign": null,
     "main_game_id": null,
-    "layer": "mini"
+    "layer": "mini",
+    "size_rule_state": {
+     "rule": "flat",
+     "step": 1,
+     "next_size_R": 1.0,
+     "capped": false
+    },
+    "cycle_id": null,
+    "step": 1,
+    "size_mult": 1
    }
   ],
   "main_games": {
@@ -7535,7 +7828,8 @@
   "시즌·감내선 뜻·조달 규약·비용표·넷팅 단위·D0 는 전부 미결(config.provisional=true · DECISIONS 2026-10-27.open.*). 숨기지 않는다.",
   "합치기(메인 게임 묶음)는 가격 기대값을 바꾸지 않는다 — 달라지는 것은 비용·캐리·장벽(사전 계산값)과 엣지 측정의 해상도. 묶음 근거가 계열 잠정 적재면 provisional.",
   "판 간 상관(board_corr)·독립 판 수 n_eff 는 관측층이다 — 예측 0. 동행표 미실측이면 null 로 둔다(잠정값을 만들지 않는다).",
-  "게임 원장은 페이퍼(민평/종가 = 실체결 아님). 정직-N 0(실행층 · 알파 주장 없음)."
+  "게임 원장은 페이퍼(민평/종가 = 실체결 아님). 정직-N 0(실행층 · 알파 주장 없음).",
+  "규칙은 모양(왜도)을 바꾼다 · 기대값은 승패 몰림(P(승|승)≠P(승|패))이 있을 때만 양수 — 사이즈 규칙은 엣지를 만들지 않는다."
  ],
  "provisional_items": [
   {

@@ -759,7 +759,7 @@
               <button type="button" data-m="dv01_won_per_bp" aria-pressed="false" onclick="BS.sizeMode('dv01_won_per_bp')">DV01(원/bp)</button>
               <button type="button" data-m="one_R_won" aria-pressed="false" onclick="BS.sizeMode('one_R_won')">1R 금액(원)</button>
             </div></div>
-          <div class="wb-field"><span class="wb-label" id="bsFSizeLbl">크기(R)</span><input class="wb-input" id="bsFSize" type="number" step="any" placeholder="예: 1"></div>
+          <div class="wb-field"><span class="wb-label" id="bsFSizeLbl">크기(R)</span><input class="wb-input" id="bsFSize" type="number" step="any" placeholder="예: 1" oninput="this.removeAttribute('data-auto')"><span class="bs-sub" id="bsFSizeHint" style="margin-top:2px"></span></div>
           <div class="wb-field bs-wide"><span class="wb-label">메모(계산에 안 씀)</span><input class="wb-input" id="bsFMemo" type="text" placeholder="뷰·이유 — 원장에만 남음"></div>
           <button type="button" class="wb-btn wb-btn--primary" id="bsFSubmit" onclick="BS.submit()">기록</button>
         </div>
@@ -4520,6 +4520,22 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
   function dash(v) { return v == null || v === '' ? '–' : esc(v); }
   function pick(o, keys) { for (var i = 0; i < keys.length; i++) if (o && o[keys[i]] != null) return o[keys[i]]; return null; }
   function badgeW(t) { return '<span class="wb-badge wb-badge--warn">' + esc(t) + '</span>'; }
+  // §8d 판별 사이즈 규칙(계약: boards[].size_rule {kind flat|paroli|martingale, steps, cap_R, basis measured|provisional, evidence{p_w_given_w, p_w_given_l, baseline_adj, years_stable}})
+  var RULE_KO = { flat: '고정', paroli: '역마팅게일(파롤리 · 이기면 키움)', martingale: '마팅게일(지면 키움)' };
+  function ruleHtml(sr) {
+    if (!sr || typeof sr !== 'object') return '– (size_rule 없음)';
+    var ev = sr.evidence || {};
+    return '<b>' + esc(RULE_KO[sr.kind] || sr.kind || '–') + '</b>' + (sr.steps != null ? ' · ' + esc(sr.steps) + '단계' : '') + (sr.cap_R != null ? ' · 상한 ' + f(sr.cap_R, 1) + 'R' : '') +
+      ' · 근거 ' + (sr.basis === 'measured' ? '측정' : badgeW('잠정' + (sr.basis && sr.basis !== 'provisional' ? ' · ' + sr.basis : ''))) +
+      ((ev.p_w_given_w != null || ev.p_w_given_l != null) ? '<br><span class="wb-muted">P(승|승) ' + pct(ev.p_w_given_w) + ' · P(승|패) ' + pct(ev.p_w_given_l) + (ev.baseline_adj != null ? ' · 기준선 보정 ' + sgn(ev.baseline_adj * 100, 1) + '%p' : '') + (ev.years_stable != null ? ' · 안정 연수 ' + esc(ev.years_stable) : '') + (ev.n != null ? ' · n ' + esc(ev.n) : '') + '</span>' : '<br><span class="wb-muted">evidence 없음(측정 전)</span>') +
+      (sr.source ? '<br><span class="wb-muted">' + esc(sr.source) + '</span>' : '');
+  }
+  function nextSizeFor(boardId) {   // 폼 기본값 — 판의 size_rule_state.next_size_R → 그 판의 열린 게임 size_rule_state.next_size_R (엔진 값만 · 웹 계산 0)
+    var b = boardById(boardId); var v = b && b.size_rule_state && num(b.size_rule_state.next_size_R);
+    if (v == null && b && b.size_rule && num(b.size_rule.next_size_R) != null) v = num(b.size_rule.next_size_R);
+    if (v == null) { var o = ((_BS.snap || {}).my_games || {}).open || []; for (var i = o.length - 1; i >= 0; i--) if (o[i].board_id === boardId && o[i].size_rule_state && num(o[i].size_rule_state.next_size_R) != null) { v = num(o[i].size_rule_state.next_size_R); break; } }
+    return v;
+  }
 
   var STRUCT_KO = { cash: '국고', fut: '선물', irs: 'IRS', slope: '현물', fly: '현물', basket: '바스켓', idx: '지표', bondswap: '국고–IRS', resid: '비지표' };
   var FAM_KO = { L: ['L 레벨', '한 방향 금리'], S: ['S 커브', '두 테너 기울기'], C: ['C 곡률', '세 테너 휨'], B: ['B 현선', '현물 대 선물'], W: ['W 본드스왑', '국고 대 IRS'], I: ['I 개별종목', '비지표 잔차'] };
@@ -4750,6 +4766,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
       ['판당 델타 상한', b.per_board_cap ? (won(b.per_board_cap.cap_won) + '/bp <span class="wb-muted">' + esc(b.per_board_cap.source || '') + '</span>' + (b.per_board_cap.provisional ? ' ' + badgeW('잠정') : '')) : '–'],
       ['본전 승률 p*', be && be.p_star != null ? ('<b>' + pct(be.p_star) + '</b>' + (be.p_star_over_100 ? ' ' + badgeW('100% 초과 — 이 판 단독으로 본전 산술 불가') : '') + ' <span class="wb-muted">(r* ' + f(be.r_star, 2) + 'R · 비용 ' + f(be.cost_R, 3) + 'R' + (be.sharpe_needed != null ? ' · 필요 샤프 ' + f(be.sharpe_needed, 1) : '') + (be.max_concurrent != null ? ' · 동시 최대 ' + f(be.max_concurrent, 1) + '판' : '') + (be.games_per_year != null ? ' · 연 ' + f(be.games_per_year, 0) + '판' : '') + ' · 한도 ' + won(be.limit_won_per_bp) + ')</span>' + (be.inputs ? '<br><span class="wb-muted">입력: ' + esc(be.inputs) + '</span>' : '') + (be.estimated ? ' ' + badgeW('추정') : '')) : (be && be.note ? esc(be.note) : '–')],
       ['기준선 승률', (bw['+1'] != null || bw['-1'] != null) ? ('+1 <b>' + pct(bw['+1']) + '</b> · −1 <b>' + pct(bw['-1']) + '</b> <span class="wb-muted">— 한쪽 고정(신호 없이 매일 진입) 승률 = 판의 기울기 · 신호 아님</span>') : '–'],
+      ['사이즈 규칙', ruleHtml(b.size_rule) + (b.size_rule_state && num(b.size_rule_state.next_size_R) != null ? '<br>지금 ' + dash(b.size_rule_state.step) + '단계 · 다음 판 사이즈 <b>' + f(b.size_rule_state.next_size_R, 2) + 'R</b>' : '')],
       ['요인 적재', b.factor_loading ? ('레벨 ' + pct(b.factor_loading.level) + ' · 커브 ' + pct(b.factor_loading.curve) + ' · 잔차 ' + pct(b.factor_loading.residual) + (b.factor_loading.provisional ? ' ' + badgeW('잠정') : '') + (b.factor_loading.source ? ' <span class="wb-muted">' + esc(b.factor_loading.source) + '</span>' : '')) : '–']
     ]);
     if (sc) {
@@ -4814,6 +4831,8 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     }
     body += '<div class="bs-kpis" style="margin-top:4px"><span><i>크기</i>' + (g.size_R != null ? f(g.size_R, 2) + 'R' : '') + (g.actual_size_R != null ? ' (lot 반올림 후 ' + f(g.actual_size_R, 2) + 'R)' : '') + ' · DV01 ' + won(g.dv01_won_per_bp) + '/bp · X ' + f(g.X_bp, 1) + 'bp' + (g.k != null ? ' (k ' + f(g.k, 1) + ')' : '') + (g.cost_bp != null ? ' · 비용 ' + f(g.cost_bp, 2) + 'bp' : '') + '</span>' +
       (fl ? '<span><i>요인 적재</i>레벨 ' + pct(fl.level) + ' · 커브 ' + pct(fl.curve) + ' · 잔차 ' + pct(fl.residual) + (fl.provisional ? ' ' + badgeW('잠정') : '') + '</span>' : '') + '</div>';
+    var ss = g.size_rule_state;
+    if (ss) body += '<div class="bs-kpis" style="margin-top:4px"><span><i>사이즈 규칙</i><b>' + esc(RULE_KO[ss.rule] || ss.rule || '–') + '</b> · 지금 ' + dash(ss.step) + '단계' + (g.size_mult != null ? ' (×' + esc(g.size_mult) + ')' : '') + (g.cycle_id ? ' · 사이클 ' + esc(g.cycle_id) : '') + ' · 다음 판 사이즈 <b>' + (num(ss.next_size_R) != null ? f(ss.next_size_R, 2) + 'R' : '–') + '</b>' + (ss.capped ? ' ' + badgeW('한도 — 단계 증가 거부') : '') + (ss.note ? ' <span class="wb-muted">' + esc(ss.note) + '</span>' : '') + '</span></div>';
     body += '<div class="bs-decomp"><span>손익 분해(' + esc(dc.unit || 'bp') + ')</span><span>가격 ' + sgn(dc.price, 1) + '</span><span>이표 ' + sgn(dc.coupon, 1) + '</span><span>조달 ' + sgn(dc.funding, 1) + '</span><span>대차 ' + sgn(dc.lending, 1) + '</span><span>선물 ' + sgn(dc.futures, 1) + '</span>' +
       (Array.isArray(g.legs) && g.legs.length ? '<span>레그 ' + g.legs.map(function (l) { return (Number(l.side) > 0 ? '+' : '−') + esc(l.code || l.tenor) + (l['face_억'] != null ? ' ' + l['face_억'] + '억' : '') + (l.contracts != null ? ' ' + l.contracts + '계약' : '') + (l.dv01_won != null ? ' (' + won(l.dv01_won) + '/bp)' : ''); }).join(' · ') + '</span>' : '') +
       (g.memo ? '<span>메모 ' + esc(g.memo) + '</span>' : '') + (Array.isArray(g.notes) && g.notes.length ? '<span>note ' + g.notes.length + '건</span>' : '') + (Array.isArray(g.amendments) && g.amendments.length ? '<span>정정 ' + g.amendments.length + '건</span>' : '') + '</div>';
@@ -4887,7 +4906,13 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     sel.innerHTML = bs.length ? bs.map(function (b) { return '<option value="' + esc(b.id) + '">' + esc(boardLabel(b)) + ' — ' + esc(b.id) + (b.status === 'blocked' ? ' (회계 경로 없음 · 기록만)' : (b.computable === false ? ' (계산 불가)' : '')) + '</option>'; }).join('') : '<option value="">판 없음</option>';
     if (cur && boardById(cur)) sel.value = cur; else if (!sel.value && bs.length) sel.value = bs[0].id;
   }
-  function syncDir() { var b = boardById($('bsFBoard').value); var el = $('bsFDirMeaning'); if (el) el.textContent = b ? dirMeaning(b, parseInt($('bsFDir').value, 10)) : '—'; }
+  function syncDir() {
+    var bid = $('bsFBoard').value, b = boardById(bid); var el = $('bsFDirMeaning'); if (el) el.textContent = b ? dirMeaning(b, parseInt($('bsFDir').value, 10)) : '—';
+    // §8d 크기 기본값 = 엔진 next_size_R(있으면 · 크기 단위 R 일 때 · 사용자가 바꾸면 그대로 둠)
+    var sz = $('bsFSize'), ns = nextSizeFor(bid), hint = $('bsFSizeHint');
+    if (sz && _BS.sizeMode === 'size_R' && ns != null && (!sz.value || sz.getAttribute('data-auto') === '1')) { sz.value = String(ns); sz.setAttribute('data-auto', '1'); }
+    if (hint) hint.textContent = ns != null ? ('기본값 = 엔진 next_size_R ' + f(ns, 2) + 'R(사이즈 규칙 · 바꿔도 됨)') : '';
+  }
   function sizeMode(m) { _BS.sizeMode = m; Array.prototype.forEach.call(document.querySelectorAll('#bsFSizeMode button'), function (x) { x.setAttribute('aria-pressed', x.getAttribute('data-m') === m ? 'true' : 'false'); });
     $('bsFSizeLbl').textContent = { size_R: '크기(R)', dv01_won_per_bp: '크기(원/bp)', one_R_won: '1R 금액(원)' }[m] || '크기'; }
   function pick1(id) { if (!boardById(id)) return; $('bsFBoard').value = id; syncDir(); go('bs-games'); $('bsFSize').focus(); }
