@@ -7,9 +7,10 @@ Bond Quant House 의 registry.json(전략 통합 등록부)을 읽어 프론트�
 import json
 import os
 import sys
+from datetime import date
 from pathlib import Path
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Header, HTTPException, Query
 
 router = APIRouter(prefix="/quant-house", tags=["quant-house"])
 
@@ -1100,3 +1101,165 @@ def daily_output(name: str):
     return {"name": name, "snapshot": None,
             "note": "daily 스냅샷 미생성 — cli.py daily 실행 필요",
             "backtest": s.get("backtest")}
+
+
+# ═══ 부트스트랩 탭 — 판(작은 게임) 실행 계층 (2026-10-27 · 계약 06_workflow/design/BOOTSTRAP_TAB_SPEC.md) ═══
+#   정본 = BQH engine/research/game_board/ (해동) 가 만드는 스냅샷·원장. 라우터는 전달자(H3 · 재계산 0).
+#     GET  /quant-house/game-board          → 05_registry/research/game_board_snapshot.json *그대로*(+available)
+#     GET  /quant-house/game-board/ledger   → game_board_ledger.jsonl → 이벤트 배열(원문 그대로 · 파싱 실패 줄은 건수로 정직 표기)
+#     POST /quant-house/game-board/game     → 계약 §7 이벤트(open/close/amend/note) → engine.research.game_board.ledger 의
+#                                             append → snapshot 재빌드 → {ok, appended, snapshot}. X-QH-KEY 필수(원장 쓰기 = qh_ops 와 같은 키).
+#   엔진 패키지가 아직 없으면 503 + 안내(가짜 응답 0). 엔진 함수 이름은 얇은 어댑터(_gb_call)가 후보 이름을 순서대로 찾는다.
+_GB_DIR = QH_ROOT / "05_registry" / "research"
+_GB_SNAP = _GB_DIR / "game_board_snapshot.json"
+_GB_LEDGER = _GB_DIR / "game_board_ledger.jsonl"
+_GB_HINT = "cli.py board snapshot 실행 필요(해동 엔진 engine/research/game_board)"
+_GB_EVENTS = ("open", "close", "amend", "note")
+
+
+def _gb():
+    """엔진 game_board 패키지 지연 import — 없으면 503(해동 작업 중) · 다른 실패는 500(원문 그대로)."""
+    try:
+        from engine.research.game_board import ledger as gb_ledger, snapshot as gb_snapshot
+    except ImportError as e:
+        raise HTTPException(503, "엔진 game_board 패키지 없음(engine/research/game_board — 해동 작업 중): "
+                                 f"{type(e).__name__}: {e}. 원장 쓰기·스냅샷 재빌드 불가(웹은 읽기 전용).")
+    except Exception as e:
+        raise HTTPException(500, f"engine.research.game_board import 실패: {type(e).__name__}: {e}")
+    return gb_ledger, gb_snapshot
+
+
+def _gb_call(mod, names, *args, **kwargs):
+    """후보 함수 이름 중 첫 존재하는 것을 호출(엔진 함수 명명은 해동 — 어댑터가 흡수). 전부 없으면 503."""
+    for n in names:
+        fn = getattr(mod, n, None)
+        if callable(fn):
+            return n, fn(*args, **kwargs)
+    raise HTTPException(503, f"{getattr(mod, '__name__', mod)} 에 {'/'.join(names)} 함수 없음 — 계약 §7/§3 확인(해동)")
+
+
+_GB_SIZE_KEYS = ("size_R", "dv01_won_per_bp", "one_R_won")          # 엔진 ledger.open_game 이 받는 크기 인자(§7 face_억 은 엔진 미지원)
+_GB_AMEND_KEYS = ("size_R", "dv01_won_per_bp", "one_R_won", "date", "dir", "board_id", "bond", "legs", "k", "regime_at_entry")
+
+
+def _gb_dispatch(gb_ledger, ev: dict):
+    """계약 §7 이벤트 → 엔진 ledger 의 전용 진입점(정본 = engine/research/game_board/ledger.py 시그니처).
+       open  → open_game(board_id, direction, date, size_R=, dv01_won_per_bp=, one_R_won=, bond=, memo=, by=)   ← X·레그·DV01·lot 은 엔진이 PIT 로 박는다
+       close → close_game(game_id, date, result='manual', R=, cum_bp=, memo=, by=)
+       amend → amend(game_id, fields, memo=, by=) · note → note(game_id, memo, by=)
+    전용 진입점이 없으면(구버전) append(ev) 로 떨어진다 — 그때는 엔진이 X 를 안 박으므로 응답 engine.ledger_fn 으로 드러난다."""
+    kind, by, memo = ev["event"], ev.get("by", "web"), ev.get("memo") or ""
+    if kind == "open" and callable(getattr(gb_ledger, "open_game", None)):
+        kw = {k: ev[k] for k in _GB_SIZE_KEYS if ev.get(k) not in (None, "")}
+        for k in ("bond", "k", "regime_at_entry"):
+            if ev.get(k) not in (None, ""):
+                kw[k] = ev[k]
+        return "open_game", gb_ledger.open_game(ev["board_id"], int(ev["dir"]), ev["date"], memo=memo, by=by, **kw)
+    if kind == "close" and callable(getattr(gb_ledger, "close_game", None)):
+        kw = {}
+        for k in ("result", "R", "cum_bp", "decomp"):
+            if ev.get(k) not in (None, ""):
+                kw[k] = ev[k]
+        return "close_game", gb_ledger.close_game(ev["game_id"], ev.get("date") or date.today().isoformat(), memo=memo, by=by, **kw)
+    if kind == "amend" and callable(getattr(gb_ledger, "amend", None)):
+        fields = ev.get("fields") if isinstance(ev.get("fields"), dict) else {k: ev[k] for k in _GB_AMEND_KEYS if ev.get(k) not in (None, "")}
+        return "amend", gb_ledger.amend(ev["game_id"], fields, memo=memo, by=by)
+    if kind == "note" and callable(getattr(gb_ledger, "note", None)):
+        return "note", gb_ledger.note(ev.get("game_id"), memo, by=by)
+    return _gb_call(gb_ledger, ("append_event", "append", "record", "write_event"), ev)
+
+
+def _gb_json(obj):
+    """JSONResponse 직접 — FastAPI jsonable_encoder 가 `_sa*` 로 시작하는 키를 조용히 떨구므로(sqlalchemy_safe)
+    엔진 필드를 한 글자도 안 바꾸고 통과시키려고 json.dumps 로 바로 보낸다(무변형 통과 · 스모크 deep-equal 검증)."""
+    from fastapi.responses import JSONResponse
+    return JSONResponse(content=json.loads(json.dumps(obj, ensure_ascii=False, allow_nan=True)))
+
+
+@router.get("/game-board")
+def game_board():
+    """★판 실행 계층 스냅샷 — game_board_snapshot.json *그대로*(H3 전달자 · 숫자 재계산 0).
+
+    판 추천·방향 제안 0(계약 §0). 부재 시 available:false + 재생성 안내(가짜 데이터 금지·H2).
+    """
+    return _gb_json(_review_passthrough(_GB_SNAP, _GB_HINT))
+
+
+@router.get("/game-board/ledger")
+def game_board_ledger(limit: int = Query(500, ge=1, le=10000)):
+    """게임 원장(append-only jsonl) → 이벤트 배열(원문 그대로 · 최신 limit 건).
+
+    파싱 실패 줄은 버리지 않고 parse_errors 로 건수 표기(정직). 부재 시 available:false.
+    """
+    if not _GB_LEDGER.exists():
+        return {"available": False, "events": [], "n": 0,
+                "note": f"{_GB_LEDGER.name} 미생성 — 첫 open 이벤트(웹 폼 또는 cli.py board open)가 만든다."}
+    events, bad = [], 0
+    with _GB_LEDGER.open(encoding="utf-8") as f:
+        for i, line in enumerate(f, 1):
+            s = line.strip()
+            if not s:
+                continue
+            try:
+                events.append(json.loads(s))
+            except Exception:
+                bad += 1
+    return {"available": True, "n": len(events), "parse_errors": bad,
+            "events": events[-limit:], "path": str(_GB_LEDGER)}
+
+
+@router.post("/game-board/game")
+def game_board_game(body: dict = Body(...), x_qh_key: str | None = Header(default=None, alias="X-QH-KEY")):
+    """계약 §7 이벤트를 게임 원장에 append → 스냅샷 재빌드 → 결과 반환.
+
+    body = {"event": "open"|"close"|"amend"|"note", "game_id"?, "board_id", "dir"(±1), "date",
+            "size_R"|"dv01_won_per_bp"|"one_R_won", "memo", "by": "web"}  (close: result?·R?·cum_bp? · amend: fields?)
+    · 라우터는 검증 최소(이벤트 종류·필수 키)만 — X_bp·레그·DV01·lot 반올림·R 재계산은 전부 엔진(§7 · 재계산 0).
+    · 쓰기 = X-QH-KEY(server/.env QH_OPS_KEY · qh_ops 와 동일 키). 원장은 append-only — 삭제 엔드포인트 없음.
+    """
+    from .qh_ops import _require_key          # 같은 쓰기 키(별도 키 체계 만들지 않음)
+    _require_key(x_qh_key)
+    if not isinstance(body, dict):
+        raise HTTPException(400, "body 는 JSON object(계약 §7 이벤트)")
+    ev = dict(body)
+    kind = ev.get("event")
+    if kind not in _GB_EVENTS:
+        raise HTTPException(400, f"event 는 {list(_GB_EVENTS)} 중 하나 (받음: {kind!r})")
+    if kind == "open":
+        missing = [k for k in ("board_id", "dir", "date") if ev.get(k) in (None, "")]
+        if missing:
+            raise HTTPException(400, f"open 이벤트 필수 키 누락: {missing}")
+        if not any(ev.get(k) not in (None, "") for k in _GB_SIZE_KEYS):
+            raise HTTPException(400, "open 이벤트 크기 누락 — size_R | dv01_won_per_bp | one_R_won 중 하나(엔진 open_game 인자)")
+        try:
+            ev["dir"] = int(ev["dir"])
+        except Exception:
+            raise HTTPException(400, f"dir 은 +1/−1 정수 (받음: {ev.get('dir')!r})")
+        if ev["dir"] not in (1, -1):
+            raise HTTPException(400, f"dir 은 +1/−1 (받음: {ev['dir']})")
+    elif kind in ("close", "amend", "note") and not ev.get("game_id"):
+        raise HTTPException(400, f"{kind} 이벤트는 game_id 필수")
+    ev.setdefault("by", "web")
+
+    gb_ledger, gb_snapshot = _gb()
+    try:
+        fn_name, appended = _gb_dispatch(gb_ledger, ev)
+    except HTTPException:
+        raise
+    except (KeyError, ValueError, AssertionError) as e:
+        raise HTTPException(400, f"game_board.ledger {kind} 거부: {type(e).__name__}: {e}")
+    except Exception as e:
+        raise HTTPException(500, f"game_board.ledger {kind} 실패: {type(e).__name__}: {e}")
+    try:
+        build_name, built = _gb_call(gb_snapshot, ("build_snapshot", "build", "rebuild", "run"))
+    except HTTPException:
+        raise
+    except Exception as e:
+        # append 는 이미 됐다 — 숨기지 않고 알린다(원장 불변 · 스냅샷만 stale)
+        raise HTTPException(500, f"원장 append 완료({fn_name}) 후 스냅샷 재빌드 실패: {type(e).__name__}: {e} — "
+                                 f"cli.py board snapshot 으로 재빌드")
+    snap = built if isinstance(built, dict) and built.get("schema") else _review_passthrough(_GB_SNAP, _GB_HINT)
+    if isinstance(snap, dict) and "available" not in snap:
+        snap = dict(snap); snap["available"] = True
+    return _gb_json({"ok": True, "event": kind, "appended": appended if isinstance(appended, (dict, str, int, list)) else str(appended),
+                     "engine": {"ledger_fn": fn_name, "snapshot_fn": build_name}, "snapshot": snap})
