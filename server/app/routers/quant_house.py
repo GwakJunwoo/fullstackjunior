@@ -1154,6 +1154,8 @@ def _gb_dispatch(gb_ledger, ev: dict):
         for k in ("bond", "k", "regime_at_entry"):
             if ev.get(k) not in (None, ""):
                 kw[k] = ev[k]
+        if ev.get("paroli") is True:       # §8e 역마팅게일 = 사람이 켬(기본 off) · 허용(직전 같은 판 승) 판정·거부 사유는 엔진
+            kw["paroli"] = True
         return "open_game", gb_ledger.open_game(ev["board_id"], int(ev["dir"]), ev["date"], memo=memo, by=by, **kw)
     if kind == "close" and callable(getattr(gb_ledger, "close_game", None)):
         kw = {}

@@ -106,8 +106,8 @@ def build_snapshot():
     return s
 
 
-def open_game(board_id, direction, date, size_R=None, dv01_won_per_bp=None, one_R_won=None, bond=None, memo="", by="cli", k=None, regime_at_entry=None, path=None):
-    calls["open_game"] = dict(board_id=board_id, direction=direction, date=date, size_R=size_R, dv01_won_per_bp=dv01_won_per_bp, one_R_won=one_R_won, memo=memo, by=by)
+def open_game(board_id, direction, date, size_R=None, dv01_won_per_bp=None, one_R_won=None, bond=None, memo="", by="cli", k=None, regime_at_entry=None, path=None, **kw):
+    calls["open_game"] = dict(board_id=board_id, direction=direction, date=date, size_R=size_R, dv01_won_per_bp=dv01_won_per_bp, one_R_won=one_R_won, memo=memo, by=by, **kw)
     return append_event(dict(event="open", game_id="G-FAKE", board_id=board_id, dir=direction, date=str(date), X_bp=8.9, by=by, memo=memo))
 
 
@@ -152,9 +152,14 @@ try:
     check("POST open -> ledger.open_game(board_id, dir, date, size_R=, memo=, by='web') then snapshot.build_snapshot()", r.status_code == 200 and j["ok"]
           and calls["open_game"] == dict(board_id="S.slope.2_5", direction=1, date="2026-10-27", size_R=1.0, dv01_won_per_bp=None, one_R_won=None, memo="smoke", by="web")
           and calls.get("build") is True and j["engine"] == {"ledger_fn": "open_game", "snapshot_fn": "build_snapshot"}, j.get("engine"))
+    r = c.post("/quant-house/game-board/game", json=dict(OPEN, paroli=True), headers=KEY)
+    check("POST open paroli:true -> open_game(..., paroli=True) (user-toggled only)", r.status_code == 200 and calls["open_game"].get("paroli") is True)
+    r = c.post("/quant-house/game-board/game", json=dict(OPEN, paroli=False), headers=KEY)
+    check("POST open paroli:false -> no paroli kwarg", r.status_code == 200 and "paroli" not in calls["open_game"])
+    r = c.post("/quant-house/game-board/game", json=OPEN, headers=KEY); j = r.json()
     check("POST response carries appended + rebuilt snapshot", j["appended"]["game_id"] == "G-FAKE" and j["snapshot"]["built_at"] == "rebuilt" and j["snapshot"]["available"] is True)
     r = c.get("/quant-house/game-board/ledger")
-    check("ledger now has the appended event (append-only)", r.json()["n"] == 3 and r.json()["events"][-1]["event"] == "open")
+    check("ledger now has the appended event (append-only)", r.json()["n"] == 6 and r.json()["events"][-1]["event"] == "open")
     r = c.post("/quant-house/game-board/game", json={"event": "note", "game_id": "G-FAKE", "memo": "n"}, headers=KEY)
     check("POST note -> ledger.note(game_id, memo, by)", r.status_code == 200 and calls["note"] == dict(game_id="G-FAKE", memo="n", by="web"))
     r = c.post("/quant-house/game-board/game", json={"event": "amend", "game_id": "G-FAKE", "size_R": 1.5, "memo": "m"}, headers=KEY)

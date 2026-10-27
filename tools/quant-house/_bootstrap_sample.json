@@ -151,6 +151,13 @@
    "provisional": false,
    "decision_id": "GAME_BOARD_DESIGN §5.2c",
    "note": "선물 1계약 단위 반올림"
+  },
+  "paroli_mult": {
+   "value": 1.5,
+   "unit": "배",
+   "provisional": false,
+   "decision_id": "2026-10-27 사용자 §3 paroli_mult=1.5",
+   "note": "역마팅게일 배수 — 딴 돈 절반 재투자 · 실패하면 합계 −0.5R"
   }
  },
  "market": {
@@ -804,7 +811,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "L.cash.3y",
@@ -884,7 +892,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "L.cash.5y",
@@ -964,7 +973,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "L.cash.10y",
@@ -1044,7 +1054,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "L.cash.30y",
@@ -1124,7 +1135,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "L.fut.3F",
@@ -1205,7 +1217,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "L.fut.10F",
@@ -1266,7 +1279,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "L.irs.2y",
@@ -1327,7 +1341,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "L.irs.3y",
@@ -1388,7 +1403,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "L.irs.5y",
@@ -1449,7 +1465,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "L.irs.10y",
@@ -1510,7 +1527,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "S.slope.2_3",
@@ -2429,7 +2447,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "S.slope.3_5",
@@ -3495,7 +3514,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "S.slope.2_5",
@@ -4428,9 +4448,184 @@
    "size_rule_state": {
     "rule": "paroli",
     "step": 2,
-    "next_size_R": 2.0,
+    "next_size_R": 1.5,
     "capped": false
-   }
+   },
+   "conditional": {
+    "after_win": {
+     "same_dir": {
+      "win_rate": 0.71,
+      "n": 222,
+      "ci": [
+       0.65,
+       0.77
+      ]
+     },
+     "flip_dir": {
+      "win_rate": 0.32,
+      "n": 219,
+      "ci": [
+       0.25,
+       0.39
+      ]
+     },
+     "R_hist": [
+      [
+       -2.0,
+       3
+      ],
+      [
+       -1.5,
+       9
+      ],
+      [
+       -1.0,
+       41
+      ],
+      [
+       -0.5,
+       22
+      ],
+      [
+       0.0,
+       18
+      ],
+      [
+       0.5,
+       25
+      ],
+      [
+       1.0,
+       88
+      ],
+      [
+       1.5,
+       12
+      ],
+      [
+       2.0,
+       4
+      ]
+     ],
+     "baseline_adj": 0.01,
+     "by_year": [
+      {
+       "year": 2022,
+       "same": 0.71,
+       "flip": 0.31,
+       "n": 58
+      },
+      {
+       "year": 2023,
+       "same": 0.68,
+       "flip": 0.36,
+       "n": 61
+      },
+      {
+       "year": 2024,
+       "same": 0.73,
+       "flip": 0.29,
+       "n": 55
+      },
+      {
+       "year": 2025,
+       "same": 0.69,
+       "flip": 0.33,
+       "n": 48
+      }
+     ],
+     "streak_type": "none",
+     "verdict_note": "양 기간 성립 0 · 몰림 0"
+    },
+    "after_loss": {
+     "same_dir": {
+      "win_rate": 0.68,
+      "n": 203,
+      "ci": [
+       0.62,
+       0.74
+      ]
+     },
+     "flip_dir": {
+      "win_rate": 0.35,
+      "n": 200,
+      "ci": [
+       0.28,
+       0.42
+      ]
+     },
+     "R_hist": [
+      [
+       -2.0,
+       5
+      ],
+      [
+       -1.5,
+       11
+      ],
+      [
+       -1.0,
+       48
+      ],
+      [
+       -0.5,
+       19
+      ],
+      [
+       0.0,
+       16
+      ],
+      [
+       0.5,
+       21
+      ],
+      [
+       1.0,
+       71
+      ],
+      [
+       1.5,
+       9
+      ],
+      [
+       2.0,
+       3
+      ]
+     ],
+     "baseline_adj": -0.02,
+     "by_year": [
+      {
+       "year": 2022,
+       "same": 0.71,
+       "flip": 0.31,
+       "n": 58
+      },
+      {
+       "year": 2023,
+       "same": 0.68,
+       "flip": 0.36,
+       "n": 61
+      },
+      {
+       "year": 2024,
+       "same": 0.73,
+       "flip": 0.29,
+       "n": 55
+      },
+      {
+       "year": 2025,
+       "same": 0.69,
+       "flip": 0.33,
+       "n": 48
+      }
+     ],
+     "streak_type": "alternation",
+     "verdict_note": "번갈이 2판(양 기간 성립 0)"
+    },
+    "source": "(더미) _streak_paroli_20261027_result.json · k=1 비겹침 체인",
+    "note": "조건부 승률 − 기준선 = 승패 몰림 크기 · 0 근처면 규칙이 기대값을 못 바꾼다"
+   },
+   "paroli_allowed": true
   },
   {
    "id": "S.slope.3_10",
@@ -4525,7 +4720,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "S.slope.5_10",
@@ -4620,7 +4816,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "S.slope.10_30",
@@ -4715,7 +4912,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "S.irs.2_3",
@@ -4782,7 +4980,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "S.irs.2_5",
@@ -4849,7 +5048,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "S.irs.3_5",
@@ -4916,7 +5116,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "S.irs.3_10",
@@ -4983,7 +5184,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "S.irs.5_10",
@@ -5050,7 +5252,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "S.irs.2_10",
@@ -5117,7 +5320,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "C.fly.2_3_5",
@@ -5227,7 +5431,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "C.fly.3_5_10",
@@ -5337,7 +5542,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "C.fly.5_10_30",
@@ -5447,7 +5653,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "C.fly.3_10_30",
@@ -5557,7 +5764,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "B.basket.3F",
@@ -6640,7 +6848,8 @@
     "basis": "provisional",
     "evidence": {},
     "source": "(더미) 측정 전 → flat 잠정"
-   }
+   },
+   "conditional": null
   },
   {
    "id": "B.basket.10F",
@@ -6707,7 +6916,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "B.idx.3y_3F",
@@ -6803,7 +7013,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "B.idx.10y_10F",
@@ -6870,7 +7081,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "W.bondswap.2y",
@@ -6937,7 +7149,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "W.bondswap.3y",
@@ -7004,7 +7217,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "W.bondswap.5y",
@@ -7071,7 +7285,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "W.bondswap.10y",
@@ -7138,7 +7353,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   },
   {
    "id": "I.resid.nonbench",
@@ -7199,7 +7415,8 @@
     "cap_R": 1.0,
     "basis": "provisional",
     "evidence": {}
-   }
+   },
+   "conditional": null
   }
  ],
  "my_games": {
@@ -7286,12 +7503,12 @@
     "size_rule_state": {
      "rule": "paroli",
      "step": 2,
-     "next_size_R": 2.0,
+     "next_size_R": 1.5,
      "capped": false
     },
     "cycle_id": "C-S25-7",
     "step": 2,
-    "size_mult": 2
+    "size_mult": 1.5
    },
    {
     "game_id": "S.slope.3_10+1@2026-10-21#1",
@@ -7829,7 +8046,8 @@
   "합치기(메인 게임 묶음)는 가격 기대값을 바꾸지 않는다 — 달라지는 것은 비용·캐리·장벽(사전 계산값)과 엣지 측정의 해상도. 묶음 근거가 계열 잠정 적재면 provisional.",
   "판 간 상관(board_corr)·독립 판 수 n_eff 는 관측층이다 — 예측 0. 동행표 미실측이면 null 로 둔다(잠정값을 만들지 않는다).",
   "게임 원장은 페이퍼(민평/종가 = 실체결 아님). 정직-N 0(실행층 · 알파 주장 없음).",
-  "규칙은 모양(왜도)을 바꾼다 · 기대값은 승패 몰림(P(승|승)≠P(승|패))이 있을 때만 양수 — 사이즈 규칙은 엣지를 만들지 않는다."
+  "규칙은 모양(왜도)을 바꾼다 · 기대값은 승패 몰림(P(승|승)≠P(승|패))이 있을 때만 양수 — 사이즈 규칙은 엣지를 만들지 않는다.",
+  "몰림 0 · 번갈이 2판(양 기간 성립 0) · 역마팅게일은 시즌 왜도를 만들지 않음(실측) — 조건부 분포는 운용 참고이지 추천이 아니다."
  ],
  "provisional_items": [
   {
