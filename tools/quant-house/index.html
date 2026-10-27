@@ -12,7 +12,7 @@
   <title>주간 리뷰 · Bond Quant House</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%9B%EF%B8%8F%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="/assets/css/main.css">
-  <link rel="stylesheet" href="/assets/css/wb.css?v=20261022c">
+  <link rel="stylesheet" href="/assets/css/wb.css?v=20261027b">
   <script src="/assets/js/wb-shell.js?v=20261027a"></script>
   <style>
     /* CONTEST_MODE (2026-09 사내대회) — 대회 후 원복. html[data-contest] 일 때만 적용(이 페이지 한정).
@@ -407,7 +407,11 @@
   </style>
   <style id="wb-bootstrap-style">
     /* ═══ 부트스트랩 탭 (2026-10-27 · 판 실행 계층) — wb 토큰만 · #view-bootstrap 안쪽만 ═══ */
-    #view-bootstrap .bs-sec { margin-top: var(--wb-section); }
+    #view-bootstrap .bs-sec { margin-top: var(--wb-section); scroll-margin-top: calc(var(--wb-shell-h) + var(--wb-filterbar-h) + 12px); }
+    /* 목차 레일(2026-10-27 사용자 지시) = 공용 .wb-toc-layout/.wb-toc(wb.css §16b · 주간 리뷰·차익거래 모니터와 같은 컴포넌트) — 여기엔 배치 규칙만(차익거래 모니터 .am-content 와 동일) */
+    #view-bootstrap .bs-content { min-width: 0; }
+    #view-bootstrap .bs-content > .bs-sec:first-child { margin-top: 0; }
+    #view-bootstrap .bs-anchor { scroll-margin-top: calc(var(--wb-shell-h) + var(--wb-filterbar-h) + 12px); }
     #view-bootstrap .bs-sec-head { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px var(--wb-s3); margin: 0 0 var(--wb-s3); }
     #view-bootstrap .bs-sec-head h2 { font-size: var(--wb-fs-title); line-height: var(--wb-lh-title); font-weight: 600; margin: 0; }
     #view-bootstrap .bs-sec-head .bs-meta { font-size: 12px; color: var(--wb-muted); }
@@ -701,16 +705,30 @@
     </div>
     <div class="wb-filterbar">
       <div class="wb-field"><span class="wb-label">스냅샷</span><span class="wb-stepper-val" id="bsAsof">—</span></div>
-      <div class="wb-field"><span class="wb-label">바로가기</span>
-        <div class="wb-seg">
-          <button type="button" onclick="BS.go('bs-market')">1 시장 흐름</button><button type="button" onclick="BS.go('bs-map')">2 판 지도</button>
-          <button type="button" onclick="BS.go('bs-games')">3 내 게임</button><button type="button" onclick="BS.go('bs-risk')">4 한도·본전</button>
-        </div>
-      </div>
       <span id="bsMsg" class="wb-filterbar-status"></span>
       <div class="wb-filterbar-end"><button type="button" class="wb-btn wb-btn--primary" onclick="BS.load(true)">새로고침</button></div>
     </div>
     <div id="bsNotice"></div>
+
+    <!-- 목차 레일(2026-10-27 사용자 지시 "목차를 왼쪽 사이드로") — 주간 리뷰·차익거래 모니터와 같은 공용 컴포넌트(wb.css §16b .wb-toc-layout/.wb-toc) ·
+         좌측 sticky · 섹션 앵커 · 현재 섹션 하이라이트(스크롤스파이 · bs-script) · 모바일(≤720) 상단 접이식. 옛 필터바 섹션 이동 세그(BS.go 버튼 4개)는 이 레일로 대체. -->
+    <div class="wb-toc-layout">
+    <nav class="wb-card wb-toc" id="bsToc" aria-label="부트스트랩 목차">
+      <div class="wb-card-head"><span class="wb-card-title">목차</span></div>
+      <button type="button" class="wb-toc-toggle" id="bsTocToggle" aria-expanded="false" aria-controls="bsTocList">목차 <span class="wb-toc-cur" id="bsTocCur"></span></button>
+      <ul class="wb-toc-list" id="bsTocList">
+        <li><a href="#bs-market"><span class="wb-toc-num">01</span>시장 흐름</a></li>
+        <li><a href="#bs-map"><span class="wb-toc-num">02</span>판 지도</a></li>
+        <li><a href="#bs-games"><span class="wb-toc-num">03</span>내 게임</a></li>
+        <li class="lv2"><a href="#bs-g-open">열린 판 · 메인/미니 게임</a></li>
+        <li class="lv2"><a href="#bs-g-entry">진입 기록</a></li>
+        <li class="lv2"><a href="#bs-g-closed">최근 종료</a></li>
+        <li class="lv2"><a href="#bs-g-deleted">삭제됨</a></li>
+        <li><a href="#bs-risk"><span class="wb-toc-num">04</span>한도 · 본전</a></li>
+        <li><a href="#bs-foot"><span class="wb-toc-num"></span>각주</a></li>
+      </ul>
+    </nav>
+    <div class="bs-content">
 
     <!-- 1 시장 흐름 -->
     <section class="bs-sec" id="bs-market">
@@ -755,11 +773,11 @@
     <!-- 3 내 게임 -->
     <section class="bs-sec" id="bs-games">
       <div class="bs-sec-head"><h2>3 · 내 게임</h2><span class="bs-meta">열린 판 · 진입 기록(원장 이벤트 · 정정 = amend · 삭제 = 사유 필수) · 최근 종료 · 삭제됨</span></div>
-      <div class="wb-card">
+      <div class="wb-card bs-anchor" id="bs-g-open">
         <div class="wb-card-head"><span class="wb-card-title">열린 판</span><span class="wb-card-meta" id="bsOpenMeta"></span></div>
         <div id="bsOpen"></div>
       </div>
-      <div class="wb-card">
+      <div class="wb-card bs-anchor" id="bs-g-entry">
         <div class="wb-card-head"><span class="wb-card-title">진입 기록</span><span class="wb-card-meta">X_bp · 레그 코드 · DV01 · lot 반올림은 엔진이 그 날 PIT 로 박는다(웹 계산 0)</span></div>
         <div id="bsFAmend" class="wb-notice" hidden></div>
         <div id="bsNextDecision"></div>
@@ -782,10 +800,10 @@
         </div>
         <div class="bs-form-note">쓰기엔 X-QH-KEY(운용 콘솔과 같은 키) · 판 선택·방향은 사람이 정한다 — 이 화면은 어느 판도 권하지 않는다.</div>
       </div>
-      <div class="wb-card">
+      <div class="wb-card bs-anchor" id="bs-g-closed">
         <div class="wb-card-head"><span class="wb-card-title">최근 종료</span><span class="wb-card-meta" id="bsClosedMeta"></span></div>
         <div class="wb-table-wrap" id="bsClosed"></div>
-        <div class="bs-subhead">삭제됨 — 사용자 §3(2026-10-27) 삭제 허용 · 사유와 함께 남는다</div>
+        <div class="bs-subhead bs-anchor" id="bs-g-deleted">삭제됨 — 사용자 §3(2026-10-27) 삭제 허용 · 사유와 함께 남는다</div>
         <div class="wb-table-wrap" id="bsDeleted"></div>
       </div>
     </section>
@@ -814,6 +832,8 @@
         <div class="wb-table-wrap"><table class="bs-prov" id="bsProv"></table></div>
       </div>
     </section>
+    </div><!-- /bs-content -->
+    </div><!-- /wb-toc-layout -->
   </div>
 </div>
 
@@ -3820,6 +3840,7 @@ function switchTab(t){
   if (t==='review' && !_revInit){ _revInit=true; reviewLoad(); }
   if (t==='news' && !_newsInit){ _newsInit=true; gLoadNewsflowPanel(); loadNewsEmbed(); }
   if (t==='bootstrap' && !_bsInit && window.BS){ _bsInit=true; window.BS.load(); }
+  else if (t==='bootstrap' && window.BS && window.BS.spy){ window.BS.spy(); }   // 탭 재진입 시 목차 현재 섹션 하이라이트 갱신(숨김 중엔 스파이가 쉼)
 }
 if (!BS_VISIBLE) { const _bsTab = document.getElementById('tab-bootstrap'); if (_bsTab) _bsTab.style.display = 'none'; }
 
@@ -4652,6 +4673,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     renderRisk(s);
     renderFoot(s);
     if (_BS.sel && boardById(_BS.sel)) showBoard(_BS.sel); else { _BS.sel = null; }
+    tocSpy();
   }
 
   // ── 1 시장 흐름 ─────────────────────────────────────────────────────────
@@ -5084,7 +5106,38 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
   }
 
   function go(id) { var el = $(id); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
-  window.BS = { load: load, render: render, show: showBoard, pick: pick1, toggleMain: toggleMain, submit: submit, close: closeGame, amend: amendGame, del: deleteGame, paroli: paroliToggle, cancelAmend: cancelAmend, note: noteGame, syncDir: syncDir, sizeMode: sizeMode, go: go,
+
+  // ── 목차 레일(차익거래 모니터와 같은 동작 · 정적 앵커 = #bsTocList a[href="#id"]) · 스크롤스파이 · 모바일 접이식 ──
+  //    탭이 숨겨져 있으면(offsetParent null) 쉼 · 해시 변경 없음(탭 해시 라우팅과 분리) · 섹션 id 는 마크업 그대로(id 생성 0)
+  var _toc = $('bsToc'), _tocLinks = (_toc && _toc.querySelectorAll) ? Array.prototype.slice.call(_toc.querySelectorAll('a[href^="#"]')) : [];
+  var _tocTargets = _tocLinks.map(function (a) { return $(String(a.getAttribute('href') || '').slice(1)); });
+  function tocOpen(o) { var tg = $('bsTocToggle'); if (_toc && _toc.classList) _toc.classList.toggle('is-open', o); if (tg && tg.setAttribute) tg.setAttribute('aria-expanded', o ? 'true' : 'false'); }
+  function tocSpy() {
+    if (!_tocLinks.length || _toc.offsetParent === null) return -1;
+    var cs = (typeof getComputedStyle === 'function') ? getComputedStyle(document.documentElement) : null;
+    var mob = (window.innerWidth || 1440) <= 720;
+    var off = (cs ? (parseFloat(cs.getPropertyValue('--wb-shell-h')) || 48) + (parseFloat(cs.getPropertyValue('--wb-filterbar-h')) || 0) : 48) + (mob ? 60 : 24);
+    var cur = 0;
+    _tocTargets.forEach(function (t, i) { if (t && t.getBoundingClientRect && t.getBoundingClientRect().top - off <= 0) cur = i; });
+    _tocLinks.forEach(function (a, i) { a.classList.toggle('is-active', i === cur); });
+    var isLv2 = function (a) { return !!(a.parentElement && a.parentElement.classList && a.parentElement.classList.contains('lv2')); };
+    var top = _tocLinks.slice(0, cur + 1).reverse().filter(function (a) { return !isLv2(a); })[0];
+    var curEl = $('bsTocCur');
+    if (curEl) curEl.textContent = '· ' + (isLv2(_tocLinks[cur]) && top ? top.textContent.replace(/^[0-9]+/, '') + ' › ' : '') + _tocLinks[cur].textContent.replace(/^[0-9]+/, '');
+    return cur;
+  }
+  if (_tocLinks.length) {
+    var tgBtn = $('bsTocToggle');
+    if (tgBtn && tgBtn.addEventListener) tgBtn.addEventListener('click', function () { tocOpen(!(_toc.classList && _toc.classList.contains('is-open'))); });
+    _tocLinks.forEach(function (a, i) { if (!a.addEventListener) return; a.addEventListener('click', function (e) { e.preventDefault(); tocOpen(false); var t = _tocTargets[i]; if (t && t.scrollIntoView) t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }); });
+    if (window.addEventListener) {
+      var tick = false;
+      window.addEventListener('scroll', function () { if (tick) return; tick = true; requestAnimationFrame(function () { tick = false; tocSpy(); }); }, { passive: true });
+      window.addEventListener('resize', tocSpy, { passive: true });
+    }
+  }
+
+  window.BS = { load: load, render: render, show: showBoard, pick: pick1, toggleMain: toggleMain, submit: submit, close: closeGame, amend: amendGame, del: deleteGame, paroli: paroliToggle, cancelAmend: cancelAmend, note: noteGame, syncDir: syncDir, sizeMode: sizeMode, go: go, spy: tocSpy,
     _state: _BS, _setSnap: function (s, rv) { _BS.snap = s; _BS.review = rv || null; _BS.sample = !!(s && s.sample_dummy); } };
 })();
 </script>

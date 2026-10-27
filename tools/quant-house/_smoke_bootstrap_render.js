@@ -182,6 +182,30 @@ function allHtml() { return Object.keys(ELS).map(k => ELS[k].innerHTML + ' ' + E
   check('승률 라벨 = 기준선(한쪽 고정) · 내가 선 쪽 = 사실 서술', /기준선 승률/.test(ELS.bsBoardCard.innerHTML) && /내가 선 쪽/.test(ELS.bsOpen.innerHTML));
   check('더미는 로컬+?bs_sample=1 일 때만(코드 가드)', /BS_LOCAL/.test(src) && /bs_sample=1/.test(src));
 
+  // ⑤ 목차 레일(2026-10-27 사용자 지시 · 주간 리뷰/차익거래 모니터와 같은 공용 컴포넌트) — 정적 앵커 + 스크롤스파이
+  const nav = (html.match(/<nav class="wb-card wb-toc" id="bsToc"[\s\S]*?<\/nav>/) || [''])[0];
+  check('목차: nav#bsToc 가 공용 .wb-toc-layout 안(wb.css §16b · 새 스타일 0)', nav.length > 0 && /<div class="wb-toc-layout">\s*<nav class="wb-card wb-toc" id="bsToc"/.test(html) && /class="wb-toc-toggle" id="bsTocToggle"/.test(nav) && /class="wb-toc-list" id="bsTocList"/.test(nav) && /<\/div><!-- \/bs-content -->\s*<\/div><!-- \/wb-toc-layout -->/.test(html));
+  const tocItems = [...nav.matchAll(/<li( class="lv2")?><a href="#([^"]+)">(?:<span class="wb-toc-num">[^<]*<\/span>)?([^<]+)<\/a>/g)].map(x => ({ lv2: !!x[1], id: x[2], label: x[3] }));
+  check('목차: 상위 5(시장 흐름·판 지도·내 게임·한도 · 본전·각주) + 하위 4(열린 판·진입 기록·최근 종료·삭제됨)', tocItems.filter(x => !x.lv2).map(x => x.label).join('|') === '시장 흐름|판 지도|내 게임|한도 · 본전|각주' && tocItems.filter(x => x.lv2).map(x => x.id).join('|') === 'bs-g-open|bs-g-entry|bs-g-closed|bs-g-deleted', JSON.stringify(tocItems.map(x => x.id)));
+  const missing = tocItems.filter(x => !new RegExp(' id="' + x.id + '"').test(view));
+  check('목차: 앵커 ' + tocItems.length + '개 전부 #view-bootstrap 안에 id 존재', tocItems.length === 9 && missing.length === 0, missing.map(x => x.id).join(','));
+  check('목차: 4섹션 + 각주 전부 .bs-content 안 · 옛 필터바 바로가기 세그 없음', (view.match(/<section class="bs-sec/g) || []).length === 5 && view.indexOf('<div class="bs-content">') < view.indexOf('<section class="bs-sec" id="bs-market">') && !/바로가기/.test(view) && !/BS\.go\(/.test(view));
+  check('목차: 하위 앵커 카드에 .bs-anchor(스크롤 여백) · 섹션 scroll-margin-top', (view.match(/class="[^"]*bs-anchor[^"]*" id="bs-g-/g) || []).length === 4 && /#view-bootstrap \.bs-sec \{[^}]*scroll-margin-top/.test(html));
+  // 스크롤스파이: 가짜 앵커/섹션 위치로 BS.spy() → 현재 섹션 하이라이트 · 모바일 토글 라벨 '상위 › 하위' · 탭 숨김(offsetParent null) 이면 쉼
+  const fakeA = (id, lv2) => { const cl = new Set(); const li = { classList: { contains: c => lv2 && c === 'lv2' } }; return { _href: '#' + id, textContent: (lv2 ? '' : '00') + (tocItems.find(x => x.id === id) || {}).label, parentElement: li, getAttribute(k) { return k === 'href' ? this._href : null; }, classList: { toggle(c, on) { on ? cl.add(c) : cl.delete(c); }, contains: c => cl.has(c) }, addEventListener() {} }; };
+  const anchors = tocItems.map(x => fakeA(x.id, x.lv2));
+  const TOP = {}; tocItems.forEach((x, i) => { TOP[x.id] = i * 500; ELS[x.id] = Object.assign(fakeEl(x.id), { getBoundingClientRect() { return { top: TOP[x.id] }; } }); });
+  ELS.bsToc = Object.assign(fakeEl('bsToc'), { offsetParent: {}, querySelectorAll: sel => (/a\[href/.test(sel) ? anchors : []) });
+  B = boot(apiGet);
+  check('스파이: 맨 위 → 01 시장 흐름 활성', B.spy() === 0 && anchors[0].classList.contains('is-active') && !anchors[1].classList.contains('is-active') && /시장 흐름/.test(ELS.bsTocCur.textContent), ELS.bsTocCur.textContent);
+  tocItems.forEach((x, i) => { TOP[x.id] = i * 500 - 2100; });   // 진입 기록(index 4)이 오프셋 안쪽 · 최근 종료는 아직 아래
+  const cur = B.spy();
+  check('스파이: 스크롤 후 하위 "진입 기록" 활성 + 토글 라벨 "내 게임 › 진입 기록"', cur === 4 && anchors[4].classList.contains('is-active') && !anchors[0].classList.contains('is-active') && /내 게임 › 진입 기록/.test(ELS.bsTocCur.textContent), cur + ' | ' + ELS.bsTocCur.textContent);
+  ELS.bsToc.offsetParent = null;
+  check('스파이: 탭 숨김(offsetParent null) → 쉼(-1) · 하이라이트 유지', B.spy() === -1 && anchors[4].classList.contains('is-active'));
+  await B.load();
+  check('스파이: render() 끝에 자동 호출 · 숨김 중엔 무해', anchors[4].classList.contains('is-active'));
+
   console.log(fails ? ('\n' + fails + ' FAIL') : '\nALL PASS');
   process.exit(fails ? 1 : 0);
 })().catch(e => { console.error('ERROR', e); process.exit(1); });
