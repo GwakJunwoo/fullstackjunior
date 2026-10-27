@@ -50,13 +50,13 @@
     { id: 'alpha', label: '알파 전략', pages: [
       { id: 'alpha', label: '알파 전략', href: '/tools/alpha/', contest: true,
         desc: 'OF · CTA 델타 · UNI IRS v3.1 — 백테스트 · 기초 통계량 · 보유 포지션 · 오늘 진입 시그널', kw: 'alpha strategy 알파 전략 of cta delta uni irs 백테스트 포지션 시그널 신호' } ] },
-    // 2026-10-27 부트스트랩(판 = 작은 게임 실행 계층 · 내 게임 포함) — private: 기본 비공개 = 로컬(127.0.0.1/localhost)에서만 메뉴 노출.
-    //   공개 = 사용자 §3 뒤 BOOTSTRAP_PUBLIC=true + tools/quant-house/index.html 의 data-bootstrap-private 제거.
+    // 2026-10-27 부트스트랩(판 = 작은 게임 실행 계층 · 내 게임 포함) — ★공개(사용자 지시 2026-10-27 "fullstackjunior.com 에서 보이게"):
+    //   BOOTSTRAP_PUBLIC=true + tools/quant-house/index.html 의 data-bootstrap-private 제거. private 플래그는 비공개 복원 경로로 남긴다.
     { id: 'bootstrap', label: '부트스트랩', pages: [
       { id: 'bootstrap', label: '부트스트랩', href: '/tools/quant-house/#bootstrap', contest: true, private: true,
         desc: '시장 흐름 · 판 지도 · 내 게임 · 한도·본전 — 스냅샷 그대로 · 판 추천 0', kw: 'bootstrap board game 판 게임 부트스트랩 한도 본전 시장 흐름' } ] }
   ];
-  var BOOTSTRAP_PUBLIC = false;   // 사용자 §3 전 = 비공개
+  var BOOTSTRAP_PUBLIC = true;    // 2026-10-27 사용자 지시 = 공개(false 로 되돌리면 로컬에서만 메뉴 노출)
   function isLocalHost() { var h = (location && location.hostname) || ''; return /^(127\.0\.0\.1|localhost|\[::1\])$/.test(h); }
 
   function contest() { return root.hasAttribute('data-contest'); }

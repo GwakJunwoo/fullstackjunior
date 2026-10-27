@@ -2,9 +2,9 @@
 <!-- CONTEST_MODE (2026-09 사내대회) — 대회 후 원복: 아래 data-contest="1" 속성만 지우면 전부 원상복구 -->
 <!-- 2026-10-21 사용자 결정: 대회 모드 = 영구 기본. redesign-wb 1단계 = 셸 + 주간 리뷰 탭만 개편(data-wb="partial").
      숨긴 탭(전략·운용 콘솔·뉴스)은 무접촉 — 대회 모드를 끄면 wb.css 가 이 페이지를 어두운 테마로 고정해 레거시 탭을 보호. -->
-<!-- 2026-10-27 부트스트랩 탭(판 실행 계층 · 내 게임 포함) = 기본 비공개: data-bootstrap-private 가 있으면 로컬(127.0.0.1/localhost)에서만 보임.
-     공개(사용자 §3) = 이 속성 제거 + assets/js/wb-shell.js 의 BOOTSTRAP_PUBLIC=true. -->
-<html lang="ko" data-contest="1" data-wb="partial" data-bootstrap-private="1">
+<!-- 2026-10-27 부트스트랩 탭(판 실행 계층 · 내 게임 포함) = ★공개(사용자 지시 2026-10-27 "fullstackjunior.com 에서 보이게"):
+     data-bootstrap-private 제거 + assets/js/wb-shell.js 의 BOOTSTRAP_PUBLIC=true. 되돌리려면 둘 다 복원(읽기 가드는 라우터 git 이력). -->
+<html lang="ko" data-contest="1" data-wb="partial">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,7 +13,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%9B%EF%B8%8F%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="/assets/css/main.css">
   <link rel="stylesheet" href="/assets/css/wb.css?v=20261027b">
-  <script src="/assets/js/wb-shell.js?v=20261027a"></script>
+  <script src="/assets/js/wb-shell.js?v=20261027b"></script>
   <style>
     /* CONTEST_MODE (2026-09 사내대회) — 대회 후 원복. html[data-contest] 일 때만 적용(이 페이지 한정).
        주간 리뷰 외 탭 버튼·뷰 + 상단 네비 링크 시각적 숨김(DOM·JS·API 무수정). */
@@ -691,11 +691,11 @@
 
   <!-- ════════ 부트스트랩 — 판(작은 게임) 실행 계층 (2026-10-27 · 계약 06_workflow/design/BOOTSTRAP_TAB_SPEC.md §10)
        숫자 = /quant-house/game-board 스냅샷 그대로(재계산 0) · 판 추천·방향 제안 0 · 내 게임 기록 = POST → 엔진 원장(append-only).
-       기본 비공개(html[data-bootstrap-private] → 로컬에서만). ════════ -->
+       공개(2026-10-27 사용자 지시) · 읽기 공개 · 기록(POST)만 X-QH-KEY. ════════ -->
   <div id="view-bootstrap" style="display:none">
     <div class="wb-pagehead">
       <h1>부트스트랩</h1><button type="button" class="wb-help" id="bsHelpPage" data-help="시장 흐름과 판(작은 게임) — 지금 어디에 어떤 게임에 참여하고 있나. 숫자 = 엔진 스냅샷 그대로(웹 재계산 0) · 판 추천 0." aria-label="설명 보기"></button>
-      <span class="wb-badge wb-badge--warn" id="bsPrivBadge">비공개 · 로컬 전용<button type="button" class="wb-help" data-help="내 게임(개인 포지션) 포함 — 공개 여부는 사용자 §3. 읽기·쓰기 모두 X-QH-KEY 또는 로컬 호스트에서만." aria-label="설명 보기"></button></span>
+      <span class="wb-badge" id="bsPrivBadge">읽기 공개 · 기록은 키<button type="button" class="wb-help" data-help="스냅샷·원장 읽기는 공개(사용자 지시 2026-10-27). 게임 기록·정정·삭제(POST)는 X-QH-KEY 가 있어야 한다 — 남이 게임을 넣을 수 없다." aria-label="설명 보기"></button></span>
     </div>
     <div class="wb-filterbar">
       <div class="wb-field"><span class="wb-label">스냅샷</span><span class="wb-stepper-val" id="bsAsof">—</span></div>
@@ -3802,8 +3802,8 @@ let _OPS_HID_OPEN = false;   // 표시필터 외 전략 후보 접힘/펼침 (�
 
 // CONTEST_MODE (2026-09 사내대회) — 대회 후 원복. 스위치 = <html data-contest> 속성(단일 출처).
 const CONTEST_MODE = document.documentElement.hasAttribute('data-contest');
-// 2026-10-27 부트스트랩 탭 공개 스위치 — 내 게임(개인 포지션) 포함이라 기본 비공개(사용자 §3 전):
-//   html[data-bootstrap-private] 가 있으면 로컬(127.0.0.1/localhost)에서만 보임. 대회 모드에서도 보이는 유일한 비공개 탭.
+// 2026-10-27 부트스트랩 탭 공개 스위치 — ★공개(사용자 지시 2026-10-27): html 에 data-bootstrap-private 없음 → 모든 호스트에서 보임.
+//   속성을 다시 넣으면 로컬(127.0.0.1/localhost)에서만 보임(비공개 복원 경로). 대회 모드에서도 보이는 탭.
 const BS_LOCAL = /^(127\.0\.0\.1|localhost|\[::1\])$/.test(String((window.location && window.location.hostname) || ''));
 const BS_VISIBLE = !document.documentElement.hasAttribute('data-bootstrap-private') || BS_LOCAL;
 let _bsInit = false;
@@ -4640,20 +4640,15 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
   }
 
   // ── 로드 ────────────────────────────────────────────────────────────────
-  // 읽기도 비공개(라우터 가드: X-QH-KEY 또는 로컬 호스트) — 운용 콘솔과 같은 저장 키(localStorage qh_ops_key · _opsAskKey)를 헤더로 보낸다.
-  //   키가 없고 403 이면 한 번 묻고 재시도 · '불일치' 403 이면 저장 키 폐기(opsPost 와 같은 규칙). api.js 의 apiGet 은 헤더를 못 실어 직접 fetch.
-  async function bsGet(path, asked) {
+  // 읽기 공개(2026-10-27 사용자 지시 · 라우터 GET 가드 제거) — 키를 싣지 않는다(쓰기 키는 POST 에서만). api.js 의 apiGet 과 같은 경로.
+  //   403 이 오면(구버전 백엔드가 아직 떠 있는 경우) 정직하게 그 사유를 보여준다 — 키를 묻지 않는다.
+  async function bsGet(path) {
     if (typeof getApiBase !== 'function') return apiGet(path);   // 스모크/스텁 환경 = 주입된 apiGet
     var base = await getApiBase(); if (!base) base = await getApiBase(true); if (!base) throw new Error('API URL 미설정 — 서버/터널 확인');
-    var key = null; try { key = localStorage.getItem(OPS_KEY_LS); } catch (e) { /* noop */ }
-    var hd = { 'ngrok-skip-browser-warning': '1' }; if (key) hd['X-QH-KEY'] = key;
-    var res = await fetch(base + path, { headers: hd });
+    var res = await fetch(base + path, { headers: { 'ngrok-skip-browser-warning': '1' } });
     if (res.status === 403) {
       var j = null; try { j = await res.json(); } catch (e) { /* noop */ }
-      var d = (j && j.detail) || '읽기 거부(비공개 · X-QH-KEY 또는 로컬 호스트)';
-      if (/불일치/.test(d)) { try { localStorage.removeItem(OPS_KEY_LS); } catch (e) { /* noop */ } }
-      if (!asked && typeof _opsAskKey === 'function' && !/미설정/.test(d)) { var k = _opsAskKey(); if (k) return bsGet(path, true); }
-      throw new Error('403 — ' + d);
+      throw new Error('403 — ' + ((j && j.detail) || '읽기 거부') + ' (백엔드가 구버전 가드를 아직 들고 있음 — 8001 재시작 필요)');
     }
     if (!res.ok) { var t = ''; try { t = (await res.json()).detail || ''; } catch (e) { /* noop */ } throw new Error('서버 오류 ' + res.status + (t ? ' — ' + t : '')); }
     return res.json();

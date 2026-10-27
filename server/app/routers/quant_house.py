@@ -1109,36 +1109,15 @@ def daily_output(name: str):
 #     GET  /quant-house/game-board/ledger   → game_board_ledger.jsonl → 이벤트 배열(원문 그대로 · 파싱 실패 줄은 건수로 정직 표기)
 #     POST /quant-house/game-board/game     → 계약 §7 이벤트(open/close/amend/note/delete) → engine.research.game_board.ledger 의
 #                                             전용 진입점 → snapshot 재빌드 → {ok, appended, snapshot}. X-QH-KEY 필수(원장 쓰기 = qh_ops 와 같은 키).
-#   ★비공개(2026-10-27): 내 게임(개인 포지션)이 실리므로 GET 둘도 X-QH-KEY(POST 와 같은 키) 또는 로컬 호스트(터널 경유 아님)만.
+#   ★읽기 공개(2026-10-27 사용자 지시 "fullstackjunior.com 에서 보이게"): GET 둘은 가드 없음(같은 날 저녁의 X-QH-KEY/로컬 가드 제거 ·
+#     복원은 git 이력 529a0a4 의 _gb_read_guard). POST(기록·정정·삭제)는 X-QH-KEY 그대로 — 남이 게임을 넣지 못한다.
 #   엔진 패키지가 아직 없으면 503 + 안내(가짜 응답 0). 엔진 함수 이름은 얇은 어댑터(_gb_call)가 후보 이름을 순서대로 찾는다.
-from fastapi import Request
 
 _GB_DIR = QH_ROOT / "05_registry" / "research"
 _GB_SNAP = _GB_DIR / "game_board_snapshot.json"
 _GB_LEDGER = _GB_DIR / "game_board_ledger.jsonl"
 _GB_HINT = "cli.py board snapshot 실행 필요(해동 엔진 engine/research/game_board)"
 _GB_EVENTS = ("open", "close", "amend", "note", "delete")   # delete = 사용자 §3 2026-10-27(원장 삭제 가능 · 사유 필수)
-_LOOPBACK = ("127.0.0.1", "::1", "localhost")
-_PROXY_HEADERS = ("x-forwarded-for", "cf-connecting-ip", "x-real-ip")   # cloudflared/ngrok 경유 = 소켓은 loopback 이어도 원격
-
-
-def _gb_is_local(request: Request) -> bool:
-    """로컬 호스트 판정 — 소켓 peer 가 loopback 이고 프록시 헤더(터널 경유)가 없을 때만. 터널은 localhost 로 들어오므로 헤더로 구분."""
-    host = (request.client.host if request and request.client else "") or ""
-    if host not in _LOOPBACK:
-        return False
-    return not any(request.headers.get(h) for h in _PROXY_HEADERS)
-
-
-def _gb_read_guard(request: Request, x_qh_key: str | None):
-    """GET 비공개 가드 — 로컬 호스트면 통과 · 아니면 POST 와 같은 X-QH-KEY(qh_ops._require_key) 필수."""
-    if _gb_is_local(request):
-        return
-    from .qh_ops import _require_key
-    try:
-        _require_key(x_qh_key)
-    except HTTPException as e:
-        raise HTTPException(403, f"부트스트랩 읽기 거부(비공개 · X-QH-KEY 또는 로컬 호스트) — {e.detail}")
 
 
 def _gb():
@@ -1210,24 +1189,22 @@ def _gb_json(obj):
 
 
 @router.get("/game-board")
-def game_board(request: Request, x_qh_key: str | None = Header(default=None, alias="X-QH-KEY")):
+def game_board():
     """★판 실행 계층 스냅샷 — game_board_snapshot.json *그대로*(H3 전달자 · 숫자 재계산 0).
 
     판 추천·방향 제안 0(계약 §0). 부재 시 available:false + 재생성 안내(가짜 데이터 금지·H2).
-    비공개: X-QH-KEY(POST 와 같은 키) 또는 로컬 호스트(터널 경유 아님)만 — 내 게임이 터널로 새지 않게.
+    읽기 공개(2026-10-27 사용자 지시) — 키·호스트 가드 없음. 쓰기는 POST /game-board/game 의 X-QH-KEY.
     """
-    _gb_read_guard(request, x_qh_key)
     return _gb_json(_review_passthrough(_GB_SNAP, _GB_HINT))
 
 
 @router.get("/game-board/ledger")
-def game_board_ledger(request: Request, limit: int = Query(500, ge=1, le=10000), x_qh_key: str | None = Header(default=None, alias="X-QH-KEY")):
+def game_board_ledger(limit: int = Query(500, ge=1, le=10000)):
     """게임 원장(append-only jsonl · delete 도 이벤트로 남음) → 이벤트 배열(원문 그대로 · 최신 limit 건).
 
     파싱 실패 줄은 버리지 않고 parse_errors 로 건수 표기(정직). 부재 시 available:false.
-    비공개: X-QH-KEY 또는 로컬 호스트만(game_board 와 동일 가드).
+    읽기 공개(2026-10-27 사용자 지시 · game_board 와 동일).
     """
-    _gb_read_guard(request, x_qh_key)
     if not _GB_LEDGER.exists():
         return {"available": False, "events": [], "n": 0,
                 "note": f"{_GB_LEDGER.name} 미생성 — 첫 open 이벤트(웹 폼 또는 cli.py board open)가 만든다."}
