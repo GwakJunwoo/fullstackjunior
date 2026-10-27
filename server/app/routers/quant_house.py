@@ -1114,7 +1114,7 @@ _GB_DIR = QH_ROOT / "05_registry" / "research"
 _GB_SNAP = _GB_DIR / "game_board_snapshot.json"
 _GB_LEDGER = _GB_DIR / "game_board_ledger.jsonl"
 _GB_HINT = "cli.py board snapshot 실행 필요(해동 엔진 engine/research/game_board)"
-_GB_EVENTS = ("open", "close", "amend", "note")
+_GB_EVENTS = ("open", "close", "amend", "note", "delete")   # delete = 사용자 §3 2026-10-27(원장 삭제 가능 · 사유 필수)
 
 
 def _gb():
@@ -1146,7 +1146,7 @@ def _gb_dispatch(gb_ledger, ev: dict):
     """계약 §7 이벤트 → 엔진 ledger 의 전용 진입점(정본 = engine/research/game_board/ledger.py 시그니처).
        open  → open_game(board_id, direction, date, size_R=, dv01_won_per_bp=, one_R_won=, bond=, memo=, by=)   ← X·레그·DV01·lot 은 엔진이 PIT 로 박는다
        close → close_game(game_id, date, result='manual', R=, cum_bp=, memo=, by=)
-       amend → amend(game_id, fields, memo=, by=) · note → note(game_id, memo, by=)
+       amend → amend(game_id, fields, memo=, by=) · note → note(game_id, memo, by=) · delete → delete_game(game_id, reason, by=)(§3 2026-10-27)
     전용 진입점이 없으면(구버전) append(ev) 로 떨어진다 — 그때는 엔진이 X 를 안 박으므로 응답 engine.ledger_fn 으로 드러난다."""
     kind, by, memo = ev["event"], ev.get("by", "web"), ev.get("memo") or ""
     if kind == "open" and callable(getattr(gb_ledger, "open_game", None)):
@@ -1166,6 +1166,11 @@ def _gb_dispatch(gb_ledger, ev: dict):
         return "amend", gb_ledger.amend(ev["game_id"], fields, memo=memo, by=by)
     if kind == "note" and callable(getattr(gb_ledger, "note", None)):
         return "note", gb_ledger.note(ev.get("game_id"), memo, by=by)
+    if kind == "delete":
+        # 사용자 §3(2026-10-27) 삭제 가능 — 엔진 delete_game(game_id, reason, by) 전용 진입점만(raw append 폴백 없음 · 없으면 503)
+        if not callable(getattr(gb_ledger, "delete_game", None)):
+            raise HTTPException(503, "엔진 ledger.delete_game 없음(해동 추가 중) — 삭제 불가")
+        return "delete_game", gb_ledger.delete_game(ev["game_id"], str(ev["reason"]).strip(), by=by)
     return _gb_call(gb_ledger, ("append_event", "append", "record", "write_event"), ev)
 
 
@@ -1213,7 +1218,7 @@ def game_board_game(body: dict = Body(...), x_qh_key: str | None = Header(defaul
     """계약 §7 이벤트를 게임 원장에 append → 스냅샷 재빌드 → 결과 반환.
 
     body = {"event": "open"|"close"|"amend"|"note", "game_id"?, "board_id", "dir"(±1), "date",
-            "size_R"|"dv01_won_per_bp"|"one_R_won", "memo", "by": "web"}  (close: result?·R?·cum_bp? · amend: fields?)
+            "size_R"|"dv01_won_per_bp"|"one_R_won", "memo", "by": "web"}  (close: result?·R?·cum_bp? · amend: fields? · delete: reason 필수)
     · 라우터는 검증 최소(이벤트 종류·필수 키)만 — X_bp·레그·DV01·lot 반올림·R 재계산은 전부 엔진(§7 · 재계산 0).
     · 쓰기 = X-QH-KEY(server/.env QH_OPS_KEY · qh_ops 와 동일 키). 원장은 append-only — 삭제 엔드포인트 없음.
     """
@@ -1237,8 +1242,10 @@ def game_board_game(body: dict = Body(...), x_qh_key: str | None = Header(defaul
             raise HTTPException(400, f"dir 은 +1/−1 정수 (받음: {ev.get('dir')!r})")
         if ev["dir"] not in (1, -1):
             raise HTTPException(400, f"dir 은 +1/−1 (받음: {ev['dir']})")
-    elif kind in ("close", "amend", "note") and not ev.get("game_id"):
+    elif kind in ("close", "amend", "note", "delete") and not ev.get("game_id"):
         raise HTTPException(400, f"{kind} 이벤트는 game_id 필수")
+    if kind == "delete" and not str(ev.get("reason") or "").strip():
+        raise HTTPException(400, "delete 이벤트는 reason(사유) 필수 — 사용자 §3 2026-10-27")
     ev.setdefault("by", "web")
 
     gb_ledger, gb_snapshot = _gb()

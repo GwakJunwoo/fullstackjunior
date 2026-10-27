@@ -32,7 +32,8 @@ const opsPost = async function (p, body) { CALLS.post.push({ p, body }); if (POS
 const _esc = function (s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); };
 const fetch = function () { return Promise.reject(new Error('no network in smoke')); };
 const confirm = function () { return true; };
-const prompt = function (q, d) { return d || '2026-10-27'; };
+let PROMPT_REASON = '사유 smoke';
+const prompt = function (q, d) { return /사유/.test(q) ? PROMPT_REASON : (d || '2026-10-27'); };
 function boot(get) { new Function('document', 'window', 'apiGet', 'opsPost', '_esc', 'fetch', 'confirm', 'prompt', 'BS_LOCAL', src)(document, window, get, opsPost, _esc, fetch, confirm, prompt, false); return window.BS; }
 const F = id => document.getElementById(id);
 
@@ -126,13 +127,24 @@ function allHtml() { return Object.keys(ELS).map(k => ELS[k].innerHTML + ' ' + E
   B.close('G-SMOKE'); await new Promise(r => setTimeout(r, 0));
   check('close 이벤트(result manual · date) 전송 + 503 정직 표시', CALLS.post[2].body.event === 'close' && CALLS.post[2].body.game_id === 'G-SMOKE' && CALLS.post[2].body.result === 'manual' && /기록 실패/.test(ELS.bsMsg.textContent) && /503/.test(ELS.bsMsg.textContent), ELS.bsMsg.textContent);
   B.amend(SAMPLE.my_games.open[0].game_id);
-  check('amend: 폼 프리필 + 정정 배너(원래 open 보존 문구)', F('bsFBoard').value === 'S.slope.2_5' && F('bsFAmend').hidden === false && /지워지지 않음/.test(F('bsFAmend').innerHTML));
+  check('amend: 폼 프리필 + 정정 배너(원래 open 보존 문구)', F('bsFBoard').value === 'S.slope.2_5' && F('bsFAmend').hidden === false && /원래 open 은 남고/.test(F('bsFAmend').innerHTML));
   B.sizeMode('size_R'); F('bsFSize').value = '1.5'; POST_RESULT = { ok: true, snapshot: snap2 };
   await B.submit();
   check('amend 이벤트 game_id 포함', CALLS.post[3].body.event === 'amend' && CALLS.post[3].body.game_id === SAMPLE.my_games.open[0].game_id && CALLS.post[3].body.size_R === 1.5, JSON.stringify(CALLS.post[3].body));
   POST_RESULT = { ok: true, snapshot: { available: true, ok: false, err: 'rebuild fail' } };
   B.note('G-SMOKE'); await new Promise(r => setTimeout(r, 0));
   check('note 이벤트 + 스냅샷 재빌드 실패 → 재로드·정직 메시지', CALLS.post[4].body.event === 'note' && /재빌드 실패/.test(ELS.bsMsg.textContent), ELS.bsMsg.textContent);
+  // §3 삭제: 사유 필수 · 확인 한 번 · 삭제됨 목록
+  const nPost = CALLS.post.length;
+  PROMPT_REASON = '   '; B.del('G-SMOKE'); await new Promise(r => setTimeout(r, 0));
+  check('delete: 사유 비면 POST 안 함 + 안내', CALLS.post.length === nPost && /사유가 비어/.test(ELS.bsMsg.textContent), ELS.bsMsg.textContent);
+  PROMPT_REASON = '잘못 기록'; POST_RESULT = { ok: true, snapshot: snap2 };
+  B.del('G-SMOKE'); await new Promise(r => setTimeout(r, 0));
+  check('delete: POST {event delete, game_id, reason, by web}', CALLS.post.length === nPost + 1 && CALLS.post[nPost].body.event === 'delete' && CALLS.post[nPost].body.game_id === 'G-SMOKE' && CALLS.post[nPost].body.reason === '잘못 기록' && CALLS.post[nPost].body.by === 'web', JSON.stringify(CALLS.post[nPost].body));
+  check('삭제됨 목록(deleted_recent · 사유)', /잘못 기록 — 실제 체결 없음/.test(ELS.bsDeleted.innerHTML) && /L\.cash\.5y\+1@2026-10-02#1/.test(ELS.bsDeleted.innerHTML));
+  const snapNoDel = clone(SAMPLE); delete snapNoDel.my_games.deleted_recent; snapNoDel.available = true; B._setSnap(snapNoDel); B.render();
+  check('deleted_recent 없음 → 정직 안내', /삭제 기록 없음/.test(ELS.bsDeleted.innerHTML));
+  check('게임 카드에 삭제 버튼', /BS\.del\(/.test(ELS.bsOpen.innerHTML));
 
   // ④ 추천·신호·방향 제안 문구 0 (렌더 결과 + 탭 HTML + 스크립트)
   const view = (html.match(/<div id="view-bootstrap"[\s\S]*?<!-- 각주 -->[\s\S]*?<\/section>\s*<\/div>/) || [''])[0];

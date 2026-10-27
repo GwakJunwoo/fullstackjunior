@@ -7357,7 +7357,18 @@
     "n": 11,
     "last_hash": "dummy"
    }
-  }
+  },
+  "deleted_recent": [
+   {
+    "game_id": "L.cash.5y+1@2026-10-02#1",
+    "board_id": "L.cash.5y",
+    "dir": 1,
+    "entry_date": "2026-10-02",
+    "deleted_at": "2026-10-05T09:12:00",
+    "reason": "(더미) 잘못 기록 — 실제 체결 없음",
+    "by": "web"
+   }
+  ]
  },
  "risk": {
   "by_code": [

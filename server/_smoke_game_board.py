@@ -128,6 +128,12 @@ def note(game_id, memo, by="cli", path=None):
     return append_event(dict(event="note", game_id=game_id, memo=memo, by=by))
 
 
+def delete_game(game_id, reason, by="cli", path=None):
+    calls["delete_game"] = dict(game_id=game_id, reason=reason, by=by)
+    return append_event(dict(event="delete", game_id=game_id, reason=reason, by=by))
+
+
+fake_ledger.delete_game = delete_game
 fake_ledger.open_game = open_game
 fake_ledger.close_game = close_game
 fake_ledger.amend = amend
@@ -157,6 +163,13 @@ try:
     check("POST close unknown game -> 400 (engine KeyError passthrough)", r.status_code == 400 and "G-NOPE" in r.json()["detail"], r.json().get("detail"))
     r = c.post("/quant-house/game-board/game", json={"event": "close", "game_id": "G-FAKE", "date": "2026-10-28", "memo": "bye"}, headers=KEY)
     check("POST close -> ledger.close_game(game_id, date, result='manual', memo, by)", r.status_code == 200 and calls["close_game"] == dict(game_id="G-FAKE", date="2026-10-28", result="manual", memo="bye", by="web"))
+    r = c.post("/quant-house/game-board/game", json={"event": "delete", "game_id": "G-FAKE"}, headers=KEY)
+    check("POST delete without reason -> 400", r.status_code == 400 and "reason" in r.json()["detail"])
+    r = c.post("/quant-house/game-board/game", json={"event": "delete", "game_id": "G-FAKE", "reason": "  wrong entry "}, headers=KEY)
+    check("POST delete -> ledger.delete_game(game_id, reason.strip(), by='web') (user s3 2026-10-27)", r.status_code == 200 and calls["delete_game"] == dict(game_id="G-FAKE", reason="wrong entry", by="web") and r.json()["engine"]["ledger_fn"] == "delete_game")
+    del fake_ledger.delete_game
+    r = c.post("/quant-house/game-board/game", json={"event": "delete", "game_id": "G-FAKE", "reason": "x"}, headers=KEY)
+    check("POST delete with no engine delete_game -> 503 (no raw append fallback)", r.status_code == 503 and "delete_game" in r.json()["detail"])
     # 전용 진입점이 없는 구버전 엔진 -> append(ev) 폴백 (응답 engine.ledger_fn 으로 드러남)
     for n in ("open_game", "close_game", "amend", "note"):
         delattr(fake_ledger, n)
