@@ -4,6 +4,8 @@
 //         §8c 판 간 상관/n_eff · 한도/본전(by_layer) · 빈 상태(available:false) · 폼 POST → 응답 스냅샷 재렌더 · 추천/신호 문구 0
 //   2026-10-27 저녁(사용자 지시): 설명 문장 = 공용 ? 툴팁(.wb-help · data-help)만 · '잠정' 배지/문자열 0 · 하단 정직 각주 섹션 없음(honesty 미렌더 · 스냅샷에 없어도 무해) ·
 //         amend = 크기·종목·메모만 · 진입 날짜 기본 = boards[].entry_date_default · 역마팅게일 라벨 = config.paroli_mult · 테스트 게임 삭제 뒤 빈 상태
+//   2026-10-27 밤(사용자 피드백 · 판 카드 간소화): 레그 표 1개(비율·오늘 종목코드·수익률·DV01·액면) · 방향/장벽·비용·상한/주문 환산(해동 order_preview bcd2d51e)/본전 vs 기준선 = 각 한 줄 ·
+//         성적표·이긴 뒤/진 뒤(스키마 2 방향별)·요인 적재 = 측정 판만(아니면 "미실측" 한 줄) · 사이즈 규칙 = 열린 사이클만 · 회계 = blocked 만 · 삭제 줄(1R 금액·한계 사용량·판당 델타 상한·상태 메모) 0 · 그리드 상단 정렬
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -68,6 +70,7 @@ function allHtml() { return Object.keys(ELS).map(k => ELS[k].innerHTML + ' ' + E
   check('① §8c 히트맵 4×4(matrix.boards/values) · 판 ID 라벨 · 63일 굴림', (ELS.bsCorr.innerHTML.match(/<td /g) || []).length === 16 && /S\.slope\.2_5/.test(ELS.bsCorr.innerHTML) && /0\.83/.test(ELS.bsCorr.innerHTML) && /63일 굴림/.test(ELS.bsCorrMeta.textContent));
 
   const stripEngineText = h => SAMPLE.boards.reduce((acc, b) => (b.status_note ? acc.split(_esc(b.status_note)).join('') : acc), h);
+  const stripHelp = h => stripEngineText(h.replace(/data-help="[^"]*"/g, '').replace(/ title="[^"]*"/g, ''));   // title·상태 메모 = 엔진 status_note 원문 패스스루(문구는 엔진 소관 · 웹이 고쳐 쓰지 않음)
   const ids = SAMPLE.boards.map(b => b.id);
   check('② 판 지도 ' + ids.length + '칸 전부(엔진 boards 그대로)', ids.every(id => ELS.bsMap.innerHTML.indexOf('data-id="' + id + '"') >= 0) && ids.length === 36, ids.length);
   const cnt = {}; SAMPLE.boards.forEach(b => { cnt[b.status] = (cnt[b.status] || 0) + 1; });
@@ -75,20 +78,33 @@ function allHtml() { return Object.keys(ELS).map(k => ELS[k].innerHTML + ' ' + E
   check('② 열린 판 점 3(S.slope.2_5 · S.slope.3_10 · B.basket.3F)', (ELS.bsMap.innerHTML.match(/bs-open-dot/g) || []).length === 3);
   B.show('S.slope.2_5');
   const b25 = SAMPLE.boards.find(b => b.id === 'S.slope.2_5'); let card = ELS.bsBoardCard.innerHTML;
-  check('② 판 카드: X(엔진 X_bp) · 비용 R · 상한 63', card.indexOf(b25.X_bp.toFixed(1) + 'bp') >= 0 && card.indexOf(b25.cost_R.toFixed(3) + 'R') >= 0 && /63거래일/.test(card));
-  check('② 판 카드: 본전 승률 p*(엔진 breakeven) vs 기준선 승률(baseline_winrate) · 한쪽 고정 라벨', /본전 승률 p\*/.test(card) && card.indexOf((b25.breakeven.p_star * 100).toFixed(1) + '%') >= 0 && /기준선 승률/.test(card) && /한쪽 고정/.test(card) && card.indexOf((b25.breakeven.baseline_winrate['+1'] * 100).toFixed(1) + '%') >= 0);
+  check('② 판 카드: 장벽 X · 비용 R · 상한 = 한 줄(엔진 X_bp · cost_R · cap)', card.indexOf(b25.X_bp.toFixed(1) + 'bp') >= 0 && card.indexOf(b25.cost_R.toFixed(3) + 'R') >= 0 && /장벽 X<\/i><b>[0-9.]+bp<\/b>[^]*?<i>비용<\/i>[^]*?<i>상한<\/i>63거래일/.test(card) && !/<dt>/.test(card));
+  check('② 판 카드: 본전 승률 p* vs 기준선 승률 = 한 줄(엔진 breakeven · baseline_winrate)', new RegExp('본전 승률 p\\* <b>' + (b25.breakeven.p_star * 100).toFixed(1) + '%</b>[^]*? vs 기준선 승률 \\+1 <b>' + (b25.breakeven.baseline_winrate['+1'] * 100).toFixed(1) + '%</b> · −1 <b>' + (b25.breakeven.baseline_winrate['-1'] * 100).toFixed(1) + '%</b>').test(card) && !/<dt>기준선 승률/.test(card));
+  check('② 판 카드: 레그 표 1개(레그·비율·오늘 종목코드·수익률·DV01/10억·액면(억)) · 옛 "오늘 레그" 표 0 · "레그" 줄 0', (card.match(/class="bs-sc bs-legs"/g) || []).length === 1 && /<th>레그<\/th><th>비율<\/th><th>오늘 종목코드<\/th><th>수익률<\/th><th>DV01\/10억<\/th><th>액면\(억\)<\/th>/.test(card) && /KR103501GG96/.test(card) && /×1\.00/.test(card) && /<td>920억<\/td>/.test(card) && /<td>370억<\/td>/.test(card) && !/오늘 레그\(코드 고정\)/.test(card) && !/<dt>레그/.test(card), (card.match(/<th>[^<]*<\/th>/g) || []).join(''));
+  check('② 판 카드: 주문 환산 한 줄(해동 order_preview · 1R → 델타 → 레그 액면 롱/숏 · 반올림 후 1R) · measured 라 "(기본 D_R)" 없음', /주문 환산<\/i>1R <b>1\.53억<\/b> → 델타 <b>1,655만\/bp<\/b> → 2y 920억 롱 · 5y 370억 숏 <span class="wb-muted">\(반올림 후 1R 1\.52억\)<\/span>/.test(card) && !/기본 D_R/.test(stripHelp(card)), (card.match(/주문 환산<\/i>.{0,160}/) || [''])[0]);
+  check('② 판 카드: 삭제된 줄 0 — 1R 금액 · 한계 사용량 · 판당 델타 상한 · 상태 메모 · 회계(비 blocked) · 기준선 승률 별도 줄 · 키-값 dl', !/1R 금액|한계 사용량|판당 델타 상한|상태 메모|<i>회계<\/i>|<dl|<dt>/.test(stripHelp(card)), (stripHelp(card).match(/1R 금액|한계 사용량|판당 델타 상한|상태 메모|<i>회계<\/i>/g) || []).join(','));
+  check('② 판 카드: 상태 메모 = 상태 배지 title 툴팁(별도 줄 0 · 엔진 status_note 원문)', card.indexOf('class="wb-badge bs-st-pass" title="' + _esc(b25.status_note) + '"') >= 0 && /S\.slope\.2_5 · 커브<\/span>/.test(card));
+  check('② 판 카드: 방향 한 줄(+1 / −1 뜻 = 엔진 dir_meaning)', /방향<\/i><b>\+1<\/b> 스티프너[^<]* · <b>−1<\/b> 플래트너/.test(card));
   const pg = b25.scorecard.directions['+1'].per_game;
-  check('② 판 카드: census 성적표 6지표(+1/−1 두 열 · directions.per_game)', /승률<\/td>/.test(card) && /MDD/.test(card) && /최장 연패/.test(card) && /길이/.test(card) && /꼬리/.test(card) && /관통률/.test(card) && card.indexOf('<td>' + pg.n + '</td>') >= 0 && card.indexOf((pg.win_rate * 100).toFixed(1) + '%') >= 0);
-  check('② 판 카드: 4국면별 승률 · 비겹침/종료일/최악 시즌/동전 참조 · k별 census', /4국면별 승률/.test(card) && /비겹침 열/.test(card) && /동전 참조/.test(card) && /k별 census/.test(card));
-  check('② §8d 판 카드: 사이즈 규칙(역마팅게일 · 3단계 · 상한 4R · 측정 · P(승|승)/P(승|패) · 지금 2단계 · 다음 1.50R)', /역마팅게일/.test(card) && /3단계/.test(card) && /상한 4\.0R/.test(card) && / · 측정/.test(card) && /P\(승\|승\) 74\.0%/.test(card) && /P\(승\|패\) 61\.0%/.test(card) && /다음 판 사이즈 <b>1\.50R/.test(card));
-  check('② §8e 판 카드: 이긴 뒤/진 뒤 두 열(같은 방향·뒤집기 승률·n·기준선 차·연도 안정) + R 히스토그램 2개 + 라벨', (card.match(/bs-cond-col/g) || []).length === 2 && /같은 방향/.test(card) && /뒤집기/.test(card) && /71\.0%/.test(card) && /n<\/td><td>222|<td>222<\/td>/.test(card) && /4\/4년 같은 부호/.test(card) && (card.match(/class="bs-hist"/g) || []).length === 2 && /운용 참고 · 추천 아님 · 과거 분포/.test(card) && /번갈이/.test(card));
-  check('② 판 카드: 한계 사용량 ±1(돌려줌 음수) · 판당 델타 상한', /한계 사용량/.test(card) && /−1,350만/.test(card) && /판당 델타 상한/.test(card));
+  check('② 판 카드: census 성적표 6지표(+1/−1 두 열 · directions.per_game) — 측정 판만', /승률<\/td>/.test(card) && /MDD/.test(card) && /최장 연패/.test(card) && /길이/.test(card) && /꼬리/.test(card) && /관통률/.test(card) && card.indexOf('<td>' + pg.n + '</td>') >= 0 && card.indexOf((pg.win_rate * 100).toFixed(1) + '%') >= 0);
+  check('② 판 카드: 4국면별 승률 · 비겹침/종료일/최악 시즌/동전 참조 · k별 census 는 ? 안', /4국면별 승률/.test(card) && /비겹침 열/.test(card) && /동전 참조/.test(card) && /data-help="[^"]*k별 census/.test(card) && !/k별 census/.test(stripHelp(card)));
+  check('② §8d 사이즈 규칙 줄 = 열린 사이클(step 2)일 때만 · "지금 2단계 · 다음 사이즈 1.50R" · 규칙 설명(역마팅게일 · 3단계 · 상한 4.0R · P(승|승)/P(승|패))은 ? 안', /사이즈 규칙<\/i><b>역마팅게일[^<]*<\/b> · 지금 2단계 · 다음 사이즈 <b>1\.50R<\/b>/.test(card) && /data-help="[^"]*3단계 · 상한 4\.0R · 측정 · P\(승\|승\) 74\.0% · P\(승\|패\) 61\.0%/.test(card) && !/3단계/.test(stripHelp(card)), (card.match(/사이즈 규칙<\/i>.{0,80}/) || [''])[0]);
+  const c25 = b25.conditional['+1'].after_win.same_dir, c25f = b25.conditional['+1'].after_win.flip_dir;
+  check('② §8e 이긴 뒤/진 뒤 = 작은 표 하나(스키마 2 방향별 after_win/after_loss · 같은 방향/뒤집기 · 승률 · n · lift_vs_baseline) · 히스토그램/두 칸 박스 0 · 연도 부호', (card.match(/bs-condtbl/g) || []).length === 1 && new RegExp('\\+1 이긴 뒤</td><td><b>' + (c25.win_rate * 100).toFixed(1) + '%</b> <span class="wb-muted">n ' + c25.n + '</span> <span class="wb-muted">\\(' + (c25.lift_vs_baseline < 0 ? '−' : '\\+') + Math.abs(c25.lift_vs_baseline * 100).toFixed(1) + '%p\\)').test(card) && card.indexOf('<b>' + (c25f.win_rate * 100).toFixed(1) + '%</b>') >= 0 && /−1 진 뒤/.test(card) && !/bs-cond-col|bs-hist|R 히스토그램/.test(card) && /연도 부호 −−\+−−−/.test(card) && /data-help="[^"]*운용 참고 · 추천 아님 · 과거 분포/.test(card), (card.match(/\+1 이긴 뒤.{0,140}/) || [''])[0]);
+  check('② 요인 적재 = 측정 판(provisional false)만 · 엔진 factor_loading 값', /요인 적재<\/i>레벨 45\.8% · 커브 47\.4% · 잔차 6\.8%/.test(card) && (card.match(/class="bs-kpis bs-line"/g) || []).length >= 6, (card.match(/class="bs-kpis bs-line"/g) || []).length);
   B.show('L.cash.2y'); card = ELS.bsBoardCard.innerHTML;
-  check('② §8d 측정 전 판: flat + evidence 없음 · 잠정 배지 0 · ? 안에 현행 기본값·결정 id', /고정<\/b>/.test(card) && !/잠정/.test(stripEngineText(card.replace(/data-help="[^"]*"/g, ''))) && /evidence 없음/.test(card) && /사이즈 규칙<\/dt><dd><b>고정<\/b> · 1단계 · 상한 1\.0R<button type="button" class="wb-help" data-help="현행 기본값/.test(card) && /판당 델타 상한<\/dt><dd>[^<]*<button type="button" class="wb-help" data-help="현행 기본값 · 결정 2026-10-27\.open\.comovement_rule/.test(card), (card.match(/사이즈 규칙<\/dt><dd>.{0,120}/) || [''])[0]);
-  check('② §8e conditional null → 미실측 두 칸', (card.match(/bs-cond-note">미실측</g) || []).length === 2);
-  check('② 미실측 판: X 는 확정 숫자 · k 기본값 설명은 ? 안(k_provisional · 결정 id) · 성적표 없음 · 추정 라벨 · 한계 사용량 미계산', /장벽 X<\/dt><dd><b>[0-9.]+bp<\/b> = k 1\.0 × σ21/.test(card) && !/\(잠정\)/.test(card) && /data-help="k 1\.0 = 현행 기본값\(config\.k_provisional[^"]*결정 2026-10-27\.open\.spoke_s25_promotion/.test(card) && /성적표 없음/.test(card) && /추정/.test(card) && /미계산/.test(card), (card.match(/장벽 X<\/dt><dd>[^<]*<b>[^<]*<\/b>[^<]*/) || [''])[0]);
+  check('② 미실측 판(scorecard null): 성적표 · 이긴 뒤/진 뒤 · 요인 적재 없음 → "미실측" 한 줄 · evidence 없음/성적표 없음/빈 박스 0 · 사이즈 규칙 줄 0(열린 사이클 없음) · 잠정 0', /<span>미실측<\/span>/.test(card) && !/class="bs-sc"|bs-condtbl|요인 적재|evidence 없음|성적표 없음|사이즈 규칙|bs-cond-note/.test(card) && !/잠정/.test(stripEngineText(card.replace(/data-help="[^"]*"/g, ''))), (card.match(/<span>미실측<\/span>|evidence 없음|성적표 없음/g) || []).join(','));
+  check('② 미실측 판: X 확정 숫자 · k 기본값 설명은 ? 안(k_provisional · 결정 id) · 본전 p* (추정) · 기준선 없으면 그 칸 생략("–" 0)', /장벽 X<\/i><b>[0-9.]+bp<\/b> <span class="wb-muted">= k 1\.0 × σ21/.test(card) && !/\(잠정\)/.test(card) && /data-help="k 1\.0 = 현행 기본값\(config\.k_provisional[^"]*결정 2026-10-27\.open\.spoke_s25_promotion/.test(card) && /본전 승률 p\* <b>65\.3%<\/b> <span class="wb-muted">\(추정\)<\/span>/.test(card) && !/기준선 승률/.test(stripHelp(card)) && !/–<\/b>/.test(card), (card.match(/본전 승률.{0,80}/) || [''])[0]);
+  B.show('C.fly.2_3_5'); card = ELS.bsBoardCard.innerHTML;
+  check('② 미실측 판(본전 불가): "본전 승률 불가 · 필요 샤프 6.7" 만 · 주문 환산 "(기본 D_R)" 꼬리 · 레그 3행 액면 숏/롱/숏', /본전 승률 <b>불가<\/b> · 필요 샤프 6\.7/.test(card) && !/기준선 승률|p\* /.test(stripHelp(card)) && /2y 1140억 숏 · 3y 1660억 롱 · 5y 460억 숏/.test(card) && /\(기본 D_R\)/.test(card) && (card.match(/<tr><td>[+−] /g) || []).length === 3, (card.match(/본전 승률.{0,60}/) || [''])[0]);
   B.show('S.irs.2_5'); card = ELS.bsBoardCard.innerHTML;
-  check('② blocked 판: 회계 none · 장벽 미계산', /R 측정 불가/.test(card) && /장벽 미계산/.test(card));
+  check('② blocked 판: 회계 줄(회계 경로 없음 — R 측정 불가 · 기록만 · blocked 만) · 장벽 미계산 · 주문 환산 = 엔진 note(환산 불가) · 레그 표 = 레그·비율만(오늘 열 생략) · "미실측" 줄 0', /<i>회계<\/i>회계 경로 없음 — R 측정 불가 · 기록만/.test(card) && /장벽 X<\/i>미계산/.test(card) && /환산 불가/.test(card) && /<th>레그<\/th><th>비율<\/th><\/tr>/.test(card) && !/<span>미실측<\/span>|오늘 종목코드/.test(card), (card.match(/주문 환산<\/i>.{0,100}/) || [''])[0]);
+  B.show('B.basket.3F'); card = ELS.bsBoardCard.innerHTML;
+  check('② 현선 판: 주문 환산 선물 레그만(2213계약 롱) + 엔진 note 인라인(현물 레그는 open 때 종목 지정) (size_rule_state 없는 더미라 사이즈 규칙 줄 0)', /3F 2213계약 롱/.test(card) && /바스켓 종목\(bond\) 지정 전/.test(stripHelp(card)) && !/사이즈 규칙<\/i>/.test(card), (card.match(/주문 환산<\/i>.{0,200}/) || [''])[0]);
+  B.show('S.slope.2_5'); card = ELS.bsBoardCard.innerHTML;
+  // 정렬(2026-10-27 사용자 피드백 ②): 그리드 안 오른쪽 카드에 세로 간격 규칙이 걸리지 않음 · 그리드 상단 정렬 · 목차 레일 상단 = 본문 첫 카드 상단 · 공용 wb.css 무변경
+  const bsStyle = html.slice(html.indexOf('<style id="wb-bootstrap-style">'), html.indexOf('</style>', html.indexOf('<style id="wb-bootstrap-style">')));
+  check('② 정렬: `.wb-card + .wb-card` 간격은 섹션 직계 자식만 · .bs-grid-2/.bs-grid-4 align-items:start · #view-bootstrap .wb-toc margin-top(제목 줄 높이) · 공용 .wb-toc-layout 규칙은 이 탭 스타일에 없음', /#view-bootstrap \.bs-sec > \.wb-card \+ \.wb-card \{ margin-top/.test(bsStyle) && !/#view-bootstrap \.wb-card \+ \.wb-card \{/.test(bsStyle) && /\.bs-grid-2 \{[^}]*align-items: start/.test(bsStyle) && /\.bs-grid-4 \{[^}]*align-items: start/.test(bsStyle) && /#view-bootstrap \.wb-toc \{ margin-top: calc\(var\(--wb-lh-title\) \+ var\(--wb-s3\)\)/.test(bsStyle) && !/\.wb-toc-layout \{/.test(bsStyle));
 
   let op = ELS.bsOpen.innerHTML;
   const mg0 = SAMPLE.my_games.main_games.main_games[0];
@@ -98,7 +114,7 @@ function allHtml() { return Object.keys(ELS).map(k => ELS[k].innerHTML + ' ' + E
   B.toggleMain('MAIN-1'); op = ELS.bsOpen.innerHTML;
   const comp = SAMPLE.my_games.main_games.main_games[0].composite;
   check('③ §8b 펼침: 멤버 2카드 + composite(합친 장벽 원 · 합친 비용 netted/gross · 넷팅 절감 · 캐리/일) + 합친 R 막대', /진입 2026-10-13/.test(op) && /진입 2026-10-21/.test(op) && /합친 장벽/.test(op) && op.indexOf(comp.cost_R_netted.toFixed(3) + 'R') >= 0 && op.indexOf(comp.cost_R_gross.toFixed(3) + 'R') >= 0 && /넷팅 절감/.test(op) && (op.match(/bs-rbar"/g) || []).length === 4);
-  check('③ §8e 게임 카드 한 줄: 이 판에서 방금 승 → 같은 방향 71.0% · 뒤집기 32.0% (기준선 대비 ±) + 라벨', /이 판에서 방금 <b>승<\/b> → 다음 게임 같은 방향 <b>71\.0%<\/b> \(\+1\.0%p\)/.test(op) && /뒤집기 <b>32\.0%<\/b> \(−5\.5%p\)/.test(op) && /운용 참고 · 추천 아님 · 과거 분포/.test(op));
+  check('③ §8e 게임 카드 한 줄(스키마 2 · 직전 종료 게임 방향 +1 블록 · lift_vs_baseline): 이 판에서 방금 승 → 같은 방향 63.3% (−10.0%p) n31.1 · 뒤집기 49.5% (+14.7%p) + 라벨', /이 판에서 방금 <b>승<\/b> → 다음 게임 같은 방향 <b>63\.3%<\/b> \(−10\.0%p\) n31\.1/.test(op) && /뒤집기 <b>49\.5%<\/b> \(\+14\.7%p\) n33\.1/.test(op) && /운용 참고 · 추천 아님 · 과거 분포/.test(op), (op.match(/이 판에서 방금.{0,120}/) || [''])[0]);
   check('③ §8e 다음 결정 참고 블록(최근 종료 판별 · 역마팅게일 켤 수 있음 배지)', /다음 결정 참고/.test(ELS.bsNextDecision.innerHTML) && /역마팅게일 켤 수 있음/.test(ELS.bsNextDecision.innerHTML) && /현물 2-5/.test(ELS.bsNextDecision.innerHTML));
   check('③ §8d 게임 카드: 사이즈 규칙 · 지금 2단계(×2 · 사이클) · 다음 판 사이즈 2.00R', /사이즈 규칙<\/i><b>역마팅게일/.test(op) && /지금 2단계 \(×1\.5\) · 사이클 C-S25-7 · 다음 판 사이즈 <b>1\.50R/.test(op) && /지금 1단계/.test(op));
   check('③ 게임 카드: 지금 R · 승/패 거리 · 캐리/일 · 국면 진입→지금 · 손익 분해 · 요인 적재 잠정 · 만기(B)', /\+0\.34R/.test(op) && /승까지/.test(op) && /패까지/.test(op) && /캐리\/일/.test(op) && /불스팁 → 불플랫/.test(op) && /손익 분해/.test(op) && /요인 적재/.test(op) && /만기 2026-12-15/.test(op));
@@ -131,7 +147,6 @@ function allHtml() { return Object.keys(ELS).map(k => ELS[k].innerHTML + ' ' + E
   // ⑤ 2026-10-27 저녁(사용자 지시): 각주 섹션 없음 · 잠정 배지 0 · 설명은 ? 툴팁
   const viewNow = (html.match(/<div id="view-bootstrap"[\s\S]*?<\/div><!-- \/bs-content -->/) || [''])[0];
   check('⑤ 각주 섹션 없음(bs-foot · bsHonesty · bsProv 0) · honesty 미렌더', !/bs-foot|bsHonesty|bsProv|정직 각주|잠정 규약/.test(viewNow) && !ELS.bsHonesty && !ELS.bsProv && !/시즌 왜도를 만들지 않음/.test(allHtml()));
-  const stripHelp = h => stripEngineText(h.replace(/data-help="[^"]*"/g, '').replace(/ title="[^"]*"/g, ''));   // title·상태 메모 = 엔진 status_note 원문 패스스루(문구는 엔진 소관 · 웹이 고쳐 쓰지 않음)
   const rendered = Object.keys(ELS).map(k => stripHelp(ELS[k].innerHTML) + ' ' + ELS[k].textContent).join('\n');
   check("⑤ 렌더 출력에 '잠정'·'provisional' 문자열 0(값은 확정 숫자로)", !/잠정|provisional/.test(rendered) && !/잠정/.test(stripHelp(viewNow)), (rendered.match(/.{0,30}(잠정|provisional).{0,30}/g) || []).slice(0, 3).join(' | '));
   const helpIds = ['bsHelpPage', 'bsHelpMarket', 'bsHelpCurve', 'bsHelpRegime', 'bsHelpCorr', 'bsHelpNeff', 'bsHelpMap', 'bsHelpGames', 'bsHelpOpen', 'bsHelpEntry', 'bsHelpDate', 'bsHelpParoli', 'bsHelpClosed', 'bsHelpDeleted', 'bsHelpRisk', 'bsHelpLimit', 'bsHelpSeason'];
@@ -161,12 +176,12 @@ function allHtml() { return Object.keys(ELS).map(k => ELS[k].innerHTML + ' ' + E
     Object.assign(s3.my_games.open[2], { entry_marks: 'prev_close', marks_date: '2026-10-17', one_R_won: 12500000, E_won_at_open: -39810000, one_R_rule: 'ONE-R-RULE-TEXT', step: 1, size_mult: 1, cycle_id: 'C-B3F-1' });
     s3.scorecard_meta.chain_rule = 'CHAIN-RULE';
     s3.risk.decision_groups = [{ board_id: 'S.slope.2_5', dir: 1, size_R_sum: 1.5, allowed_size_R: 1.5 }];
-    Object.assign(b3.per_board_cap, { ruler: 'D_R', one_R_won: 152997003.9, step_mult: 1.0, tol: 1.05 });
+    Object.assign(b3.per_board_cap, { ruler: 'D_R', one_R_won: 152997003.9, step_mult: 1.0, tol: 1.05 }); delete b3.order_preview;   // 구 스냅샷(해동 bcd2d51e 이전) 폴백 경로
     B._setSnap(s3); B.render(); B.show('S.slope.2_5');
     const c3 = ELS.bsBoardCard.innerHTML, helpsIn = h => (c3.match(/data-help="([^"]*)"/g) || []).some(x => x.indexOf(h) >= 0);
-    const H13 = ['H-XBP', 'H-COST', 'H-ONER', 'H-BE', 'H-BASE', 'H-SC', 'H-DR', 'H-SR', 'H-COND', 'H-FL', 'H-MU', 'H-PBC', 'H-ST'];
-    check('⑤ 스키마 2: boards[].help 필드별 ? 13종 전부 판 카드 ? 안 + X_rule · one_R_rule.scope · chain_rule', H13.every(helpsIn) && helpsIn('XRULE-2026-10-27') && helpsIn('ONE-R-SCOPE') && helpsIn('비겹침 열 = CHAIN-RULE'), H13.filter(h => !helpsIn(h)).join(','));
-    check('⑤ 스키마 2: 1R 금액 행(one_R_won) · rule_status current_default → 배지 0 · ? "현행 기본값 · 결정 id"', /1R 금액<\/dt><dd><b>1,250만<\/b>/.test(c3) && !/잠정|provisional/.test(stripHelp(c3)) && /data-help="현행 기본값 · 결정 2026-10-27\.open\.comovement_rule · H-PBC/.test(c3), (c3.match(/1R 금액<\/dt><dd>.{0,60}/) || [''])[0]);
+    const H11 = ['H-XBP', 'H-COST', 'H-ONER', 'H-BE', 'H-BASE', 'H-SC', 'H-DR', 'H-SR', 'H-COND', 'H-FL', 'H-ST'];
+    check('⑤ 스키마 2: boards[].help 필드별 ? 11종 판 카드 ? 안(한계 사용량·판당 상한 ? 는 카드에서 삭제 → 한도 섹션) + X_rule · chain_rule · order_preview 없으면 one_R_won help', H11.every(helpsIn) && helpsIn('XRULE-2026-10-27') && helpsIn('비겹침 열 = CHAIN-RULE') && !helpsIn('H-MU') && !helpsIn('H-PBC'), H11.filter(h => !helpsIn(h)).join(','));
+    check('⑤ 스키마 2: order_preview 없는(구) 스냅샷 → 주문 환산 폴백 = 엔진 one_R_won(1,250만) → 델타 per_board_cap.cap_won · 액면 "미생성" 정직 · 1R 금액 행 0 · 잠정 0', /주문 환산<\/i>1R <b>1,250만<\/b> → 델타 <b>[0-9,]+만\/bp<\/b> <span class="wb-muted">→ 레그 액면 미생성\(order_preview 없음\)<\/span>/.test(c3) && !/1R 금액/.test(c3) && !/잠정|provisional/.test(stripHelp(c3)), (c3.match(/주문 환산<\/i>.{0,120}/) || [''])[0]);
     check('⑤ 스키마 2: my_games.help → 섹션 ? · 메인 게임 ? · rule_status.note → 페이지 ?', F('bsHelpOpen').getAttribute('data-help') === 'H-OPEN' && F('bsHelpDate').getAttribute('data-help') === 'H-EDD' && F('bsHelpSeason').getAttribute('data-help') === 'H-SEASON' && F('bsHelpClosed').getAttribute('data-help') === 'H-CLOSED' && F('bsHelpDeleted').getAttribute('data-help') === 'H-DEL' && F('bsHelpGames').getAttribute('data-help') === 'H-LEDGER' && F('bsHelpParoli').getAttribute('data-help') === 'H-NSR' && /data-help="H-MAIN/.test(ELS.bsOpen.innerHTML) && /RS-NOTE · 결정 2026-10-27\.bootstrap_fix_defaults/.test(F('bsHelpPage').getAttribute('data-help') || ''));
     check('⑤ 스키마 2: risk.help → 한도 ? · 사이즈 자 ? · 넷팅 ? · 결정 수 ? · 상관 ?(assumed_corr 폴백)', F('bsHelpLimit').getAttribute('data-help') === 'H-ONESIDE' && /data-help="현행 기본값[^"]*H-RSR · H-BNOW · H-SURV/.test(ELS.bsSeason.innerHTML) && /data-help="현행 기본값[^"]*H-NET/.test(ELS.bsRiskMeta.innerHTML) && /H-EFF/.test(ELS.bsRiskGauge.innerHTML) && F('bsHelpCorr').getAttribute('data-help') === 'H-CORR', (ELS.bsSeason.innerHTML.match(/data-help="현행 기본값[^"]{0,80}/) || [''])[0]);
     F('bsFBoard').value = 'S.slope.2_5'; F('bsFDate').value = ''; F('bsFDate').setAttribute('data-auto', '1'); B.syncDir();
@@ -176,7 +191,7 @@ function allHtml() { return Object.keys(ELS).map(k => ELS[k].innerHTML + ' ' + E
     B.cancelAmend();
     const op3 = ELS.bsOpen.innerHTML;
     check('⑤ 스키마 2: 게임 카드 마크(prev_close 2026-10-17) · 1R + E_won_at_open · one_R_rule ? · 사이클', /마크<\/i>prev_close 2026-10-17/.test(op3) && /1R 1,250만 \(E −3,981만\)/.test(op3) && /data-help="ONE-R-RULE-TEXT"/.test(op3) && /사이클 C-B3F-1/.test(op3), (op3.match(/마크<\/i>.{0,40}/) || [''])[0]);
-    check('⑤ 스키마 2: risk.decision_groups[].allowed_size_R → 결정 묶음(1.50R/1.50R) · per_board_cap ? 에 자·1R·허용오차', /결정 묶음<\/i>현물 2-5 \+1 1\.50R\/1\.50R/.test(ELS.bsRiskGauge.innerHTML) && /data-help="[^"]*자 D_R · 1R 1\.53억 · 허용오차 1\.05/.test(c3), (ELS.bsRiskGauge.innerHTML.match(/결정 묶음<\/i>[^<]*/) || [''])[0]);
+    check('⑤ 스키마 2: risk.decision_groups[].allowed_size_R → 결정 묶음(1.50R/1.50R)', /결정 묶음<\/i>현물 2-5 \+1 1\.50R\/1\.50R/.test(ELS.bsRiskGauge.innerHTML), (ELS.bsRiskGauge.innerHTML.match(/결정 묶음<\/i>[^<]*/) || [''])[0]);
     check('⑤ 스키마 2: schema 2 표시 · current_defaults 미렌더(잠정 목록 0)', /schema 2/.test(ELS.bsAsof.textContent) && !/D0_won/.test(allHtml()));
     B._setSnap(clone(SAMPLE)); B._state.snap.available = true; B.render(); B.show('S.slope.2_5'); })();
 
