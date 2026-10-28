@@ -5095,22 +5095,29 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     var cs = Array.isArray(g.chips) ? g.chips.map(function (c) { return (c && typeof c === 'object') ? (c.mult != null ? c.mult : c.size_R) : c; }).filter(function (x) { return x != null; }) : [];
     return d + (cs.length ? ' (' + cs.join('+') + ')' : '');
   }
-  function gameTitle(g) { var w = winnerOf(g), m = g.mine ? myGameById(g.mine) : null; return '#' + dash(g.n) + ' ' + (w == null ? '?' : RD_KO[String(w)]) + (g.kind ? ' · ' + g.kind : '') + (g.entry ? ' · ' + g.entry + ' → ' + (g.exit || '') : '') + (g.length != null ? ' · ' + g.length + '일' : '') + (g.R_plus != null ? ' · +1 관점 ' + sgn(g.R_plus, 2) + 'R' : '') + (g.penetration ? ' · 관통' : '') + (g.mine ? ' · 내 게임 ' + g.mine + (m ? ' ' + chipsTxt(m.g) + (m.open ? ' 진행 중' : '') : '') : ''); }
-  function beadCell(g) { var w = winnerOf(g), m = g.mine ? myGameById(g.mine) : null; return '<span class="bs-rd ' + (w == null ? 'bs-rd-cur' : rdCls(w)) + (g.penetration ? ' is-pen' : '') + (g.mine ? ' is-mine' : '') + (m && m.open ? ' is-live' : '') + '" title="' + esc(gameTitle(g)) + '">' + (g.mine ? '<i></i>' : '') + '</span>'; }
-  function curTxt(c) { return '진입 ' + dash(c.entry) + ' · ' + dash(c.days) + '일 · 지금 R(+1 관점) ' + (c.cum_R_plus != null ? sgn(c.cum_R_plus, 2) + 'R' : '–') + ' · 승까지 ' + f(c.dist_win_R, 2) + 'R · 패까지 ' + f(c.dist_loss_R, 2) + 'R'; }
+  function mineInfo(g) {   // games[].mine = 객체 {game_id, dir, entry, exit, result, R, net_R, dv01_won_per_bp, chips, size_R}(해동 확정) 또는 game_id 문자열 → {id, g(레코드 · my_games 우선), open}
+    var m = g && g.mine; if (!m) return null; var id = typeof m === 'string' ? m : m.game_id; var rec = id ? myGameById(id) : null;
+    if (rec) return { id: id, g: rec.g, open: rec.open };
+    if (typeof m === 'object') return { id: id || '', g: m, open: m.exit == null && m.result == null };
+    return { id: id, g: null, open: false };
+  }
+  function gameTitle(g) { var w = winnerOf(g), m = mineInfo(g); return '#' + dash(g.n) + ' ' + (w == null ? '?' : RD_KO[String(w)]) + (g.kind ? ' · ' + g.kind : '') + (g.entry ? ' · ' + g.entry + ' → ' + (g.exit || '') : '') + (g.length != null ? ' · ' + g.length + '일' : '') + (g.R_plus != null ? ' · +1 관점 ' + sgn(g.R_plus, 2) + 'R' : '') + (g.net_R_plus != null ? ' (순 ' + sgn(g.net_R_plus, 2) + 'R)' : '') + (g.X_bp != null ? ' · X ' + f(g.X_bp, 1) + 'bp' : '') + (g.penetration ? ' · 관통' : '') + (g.source ? ' · ' + g.source : '') + (m ? ' · 내 게임 ' + m.id + (m.g ? ' ' + dirTxt(m.g.dir) + ' ' + chipsTxt(m.g) + (m.open ? ' 진행 중' : (m.g.result ? ' ' + (RES_KO[m.g.result] || m.g.result) : '')) : '') : ''); }
+  function winTxt(w) { if (w == null) return ''; if (typeof w === 'object') return (w.size != null ? '최근 ' + esc(w.size) : '') + (w.from_n != null && w.to_n != null ? ' (#' + esc(w.from_n) + '–#' + esc(w.to_n) + (w.total != null ? ' / 전체 ' + esc(w.total) : '') + ')' : ''); return '최근 ' + esc(w); }   // 엔진 window = {size, from_n, to_n, total} 또는 숫자
+  function beadCell(g) { var w = winnerOf(g), m = mineInfo(g); return '<span class="bs-rd ' + (w == null ? 'bs-rd-cur' : rdCls(w)) + (g.penetration ? ' is-pen' : '') + (g.mine ? ' is-mine' : '') + (m && m.open ? ' is-live' : '') + '" title="' + esc(gameTitle(g)) + '">' + (g.mine ? '<i></i>' : '') + '</span>'; }
+  function curTxt(c) { return (c.n != null ? '#' + c.n + ' · ' : '') + '진입 ' + dash(c.entry) + ' · ' + dash(c.days) + '일 · 지금 R(+1 관점) ' + (c.cum_R_plus != null ? sgn(c.cum_R_plus, 2) + 'R' : '–') + (c.cum_bp != null ? ' (' + sgn(c.cum_bp, 1) + 'bp)' : '') + ' · 승까지 ' + f(c.dist_win_R, 2) + 'R · 패까지 ' + f(c.dist_loss_R, 2) + 'R' + (c.X_bp != null ? ' · X ' + f(c.X_bp, 1) + 'bp' : '') + (c.note ? ' · ' + c.note : ''); }
   function roadMini(b, n) {   // 지도 칸 · 판 카드용 미리보기(최근 n칸 구슬 · 진행 중 = 점선) · road 없으면 ''
     var rd = roadOf(b); if (!rd) return ''; var gs = rd.games.slice(-(n || 20));
-    return '<span class="bs-rd-mini" title="최근 ' + gs.length + '칸 결과열(시간순)">' + gs.map(function (g) { var w = winnerOf(g), m = g.mine ? myGameById(g.mine) : null; return '<i class="' + (w == null ? 'bs-rd-cur' : rdCls(w)) + (g.mine ? ' is-mine' : '') + (m && m.open ? ' is-live' : '') + '"></i>'; }).join('') + (rd.current ? '<i class="bs-rd-cur"></i>' : '') + '</span>';
+    return '<span class="bs-rd-mini" title="최근 ' + gs.length + '칸 결과열(시간순)">' + gs.map(function (g) { var w = winnerOf(g), m = mineInfo(g); return '<i class="' + (w == null ? 'bs-rd-cur' : rdCls(w)) + (g.mine ? ' is-mine' : '') + (m && m.open ? ' is-live' : '') + '"></i>'; }).join('') + (rd.current ? '<i class="bs-rd-cur"></i>' : '') + '</span>';
   }
   function tallyHtml(rd) {
     var gs = rd.games, cnt = rd.counts && typeof rd.counts === 'object' ? rd.counts : null, cntFrom = !cnt;
     if (!cnt) { cnt = { plus: 0, minus: 0, draw: 0, penetration: 0 }; gs.forEach(function (g) { var w = winnerOf(g); if (w > 0) cnt.plus++; else if (w < 0) cnt.minus++; else if (w === 0) cnt.draw++; if (g.penetration) cnt.penetration++; }); }
     var st = rd.streaks && typeof rd.streaks === 'object' ? rd.streaks : null, stFrom = !st; if (!st) st = streaksFrom(gs);
     var mp = pick(st, ['max_plus', 'longest_plus', 'plus']), mm = pick(st, ['max_minus', 'longest_minus', 'minus']), now = pick(st, ['now', 'current', 'last']);
-    var nowTxt = now == null ? '–' : (typeof now === 'object' ? ((num(now.dir) > 0 ? '+' : num(now.dir) < 0 ? '−' : '') + dash(pick(now, ['n', 'len', 'length', 'count']))) : esc(String(now)));
+    var nowTxt = now == null ? '–' : (typeof now === 'object' ? ((num(pick(now, ['side', 'dir'])) > 0 ? '+' : num(pick(now, ['side', 'dir'])) < 0 ? '−' : '') + dash(pick(now, ['len', 'n', 'length', 'count']))) : esc(String(now)));   // 엔진(해동) streaks.current = {side, len}
     var sum = (num(cnt.plus) || 0) + (num(cnt.minus) || 0) + (num(cnt.draw) || 0), mismatch = !cntFrom && sum !== gs.length;
     return '<div class="bs-rd-tally"><span><i style="background:var(--wb-up)"></i>+1 승 <b>' + dash(cnt.plus) + '</b></span><span><i style="background:var(--wb-down)"></i>−1 승 <b>' + dash(cnt.minus) + '</b></span><span><i style="background:var(--wb-open)"></i>무승부 <b>' + dash(cnt.draw) + '</b></span><span>관통 <b>' + dash(cnt.penetration) + '</b></span>' +
-      '<span>최장 연속 <b>+' + dash(mp) + ' / −' + dash(mm) + '</b></span><span>지금 연속 <b>' + nowTxt + '</b></span><span class="wb-muted">열 ' + gs.length + '판</span>' + (mismatch ? badgeW('집계 ' + sum + ' ≠ 열 ' + gs.length) : '') + ((cntFrom || stFrom) ? helpBtn('엔진 road.' + (cntFrom ? 'counts' : '') + (cntFrom && stFrom ? '·' : '') + (stFrom ? 'streaks' : '') + ' 없음 — 결과열(games)에서 센 값') : '') + '</div>';
+      '<span>최장 연속 <b>+' + dash(mp) + ' / −' + dash(mm) + '</b>' + (st.rule ? helpBtn(st.rule) : '') + '</span><span>지금 연속 <b>' + nowTxt + '</b></span><span class="wb-muted">열 ' + gs.length + '판' + (cnt.census != null || cnt.engine != null ? ' (census ' + dash(cnt.census) + ' · 엔진 ' + dash(cnt.engine) + ')' : '') + '</span>' + (mismatch ? badgeW('집계 ' + sum + ' ≠ 열 ' + gs.length) : '') + ((cntFrom || stFrom) ? helpBtn('엔진 road.' + (cntFrom ? 'counts' : '') + (cntFrom && stFrom ? '·' : '') + (stFrom ? 'streaks' : '') + ' 없음 — 결과열(games)에서 센 값') : '') + '</div>';
   }
   function myGamesOnBoard(b, rd) {   // road.my_open · road.my_games_on_board(id 또는 객체) → 내 게임 레코드 · 없으면 my_games.open/closed_recent 에서 이 판만
     var mg = (_BS.snap || {}).my_games || {}, out = [], seen = {};
@@ -5125,21 +5132,23 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     return '<div class="bs-mychips"><b>내 칩</b>' + list.map(function (x) {
       var g = x.g, d = num(g.dir) > 0 ? 1 : -1, res = x.open ? '진행 중' : (RES_KO[g.result] || g.result || '종료');
       var col = x.open ? 'var(--wb-ink)' : (g.result === 'win' ? (d > 0 ? 'var(--wb-up)' : 'var(--wb-down)') : g.result === 'loss' ? (d > 0 ? 'var(--wb-down)' : 'var(--wb-up)') : (g.result === 'draw' || g.result === 'maturity') ? 'var(--wb-open)' : 'var(--wb-mark)');   // 종료 = 결과 색(이긴 쪽 색) · 진행 중 = 잉크 + 깜빡임
-      return '<span class="wb-chip" title="' + esc(g.game_id || '') + '"><i class="bs-rd' + (x.open ? ' is-live' : '') + '" style="background:' + col + '"></i>' + dirTxt(d) + ' ' + esc(g.entry_date || '') + (x.open ? '' : ' → ' + esc(g.exit_date || '')) + ' · <b>' + esc(chipsTxt(g) || '–') + '</b> · ' + esc(res) + (x.open ? (g.now && g.now.cum_R != null ? ' ' + sgn(g.now.cum_R, 2) + 'R' : '') : (g.R != null ? ' ' + sgn(g.R, 2) + 'R' : '')) + '</span>';
+      return '<span class="wb-chip" title="' + esc(g.game_id || '') + '"><i class="bs-rd' + (x.open ? ' is-live' : '') + '" style="background:' + col + '"></i>' + dirTxt(d) + ' ' + esc(g.entry_date || g.entry || '') + (x.open ? '' : ' → ' + esc(g.exit_date || g.exit || '')) + ' · <b>' + esc(chipsTxt(g) || '–') + '</b> · ' + esc(res) + (x.open ? ((g.now && g.now.cum_R != null) ? ' ' + sgn(g.now.cum_R, 2) + 'R' : (g.now_R != null ? ' ' + sgn(g.now_R, 2) + 'R' : '')) : (g.R != null ? ' ' + sgn(g.R, 2) + 'R' : '')) + '</span>';   // road.my_open[] 객체(entry/now_R) · my_games.open[] 레코드(entry_date/now.cum_R) 둘 다
     }).join('') + '</div>';
   }
   function roadHtml(b) {
     var rd = roadOf(b);
     if (!rd) return emptyHtml('결과열 없음', '스냅샷 boards[].road 미생성 — cli.py board snapshot(road 배선 뒤) 이 만든다 · 가짜 결과 0');
     var gs = rd.games, cur = rd.current && typeof rd.current === 'object' ? rd.current : null, h = '';
-    h += '<div class="bs-rd-title">구슬 로드(珠盤) · 시간순 · 6행' + (rd.window != null ? ' · 최근 ' + esc(rd.window) : '') + (rd.chain_rule ? ' · 사슬 ' + esc(rd.chain_rule) : '') + (rd.k != null ? ' · k ' + esc(rd.k) : '') + '</div>';
+    if (!gs.length && !cur && rd.status && rd.status !== 'ok') return emptyHtml('결과열 없음 — 엔진 road.status ' + rd.status, [rd.note || '', b.accounting === 'none' ? '회계 경로 없음 판(R 측정 불가)' : ''].filter(Boolean).join(' · '));   // 해동: I.resid.nonbench 등 status none · games 0
+    if (rd.status && rd.status !== 'ok') h += '<div class="bs-sub wb-warn-text">road.status ' + esc(rd.status) + (rd.note ? ' — ' + esc(rd.note) : '') + '</div>';
+    h += '<div class="bs-rd-title">구슬 로드(珠盤) · 시간순 · 6행' + (rd.window != null ? ' · ' + winTxt(rd.window) : '') + (rd.chain_rule ? ' · 사슬 ' + esc(rd.chain_rule) : '') + (rd.k != null ? ' · k ' + esc(rd.k) + (rd.provisional_k ? '(기본값)' : '') : '') + (rd.direction_basis ? ' · ' + esc(rd.direction_basis) : '') + (rd.note && rd.status === 'ok' ? helpBtn(rd.note) : '') + '</div>';
     h += '<div class="bs-rd-wrap"><div class="bs-rd-grid bs-rd-bead">' + gs.map(beadCell).join('') + (cur ? '<span class="bs-rd bs-rd-cur" title="진행 중 · ' + esc(curTxt(cur)) + '">?</span>' : '') + '</div></div>';
     if (!gs.length && !cur) h += '<div class="bs-sub">결과 0판</div>';
     if (cur) h += '<div class="bs-kpis bs-line"><span><i>진행 중(사슬)</i>' + esc(curTxt(cur)) + '</span></div>';
     var br = bigRoad(gs);
     h += '<div class="bs-rd-title" style="margin-top:var(--wb-s3)">빅 로드(大路) · 같은 결과 아래로 · 바뀌면 다음 열 · 무승부 = 직전 칸 녹색 사선 · 6행 넘침 = 오른쪽 꼬리</div>';
     h += '<div class="bs-rd-wrap"><div class="bs-rd-grid bs-rd-big" style="grid-template-columns:repeat(' + Math.max(1, br.cols + (br.pending_ties ? 1 : 0)) + ',20px)">' +
-      br.cells.map(function (c) { var g = gs[c.i], m = c.mine ? myGameById(c.mine) : null; return '<span class="bs-rd ' + rdCls(c.w) + (c.ties ? ' is-tie' : '') + (c.pen ? ' is-pen' : '') + (c.mine ? ' is-mine' : '') + (m && m.open ? ' is-live' : '') + (c.tail ? ' is-tail' : '') + '" style="grid-column:' + (c.c + 1) + ';grid-row:' + (c.r + 1) + '"' + (c.ties ? ' data-ties="' + c.ties + '"' : '') + ' title="' + esc(gameTitle(g) + (c.ties ? ' · 뒤 무승부 ' + c.ties : '')) + '">' + (c.ties ? '<b>' + c.ties + '</b>' : '') + (c.mine ? '<i></i>' : '') + '</span>'; }).join('') +
+      br.cells.map(function (c) { var g = gs[c.i], m = mineInfo(g); return '<span class="bs-rd ' + rdCls(c.w) + (c.ties ? ' is-tie' : '') + (c.pen ? ' is-pen' : '') + (c.mine ? ' is-mine' : '') + (m && m.open ? ' is-live' : '') + (c.tail ? ' is-tail' : '') + '" style="grid-column:' + (c.c + 1) + ';grid-row:' + (c.r + 1) + '"' + (c.ties ? ' data-ties="' + c.ties + '"' : '') + ' title="' + esc(gameTitle(g) + (c.ties ? ' · 뒤 무승부 ' + c.ties : '')) + '">' + (c.ties ? '<b>' + c.ties + '</b>' : '') + (c.mine ? '<i></i>' : '') + '</span>'; }).join('') +
       (br.pending_ties ? '<span class="bs-rd is-tie" data-ties="' + br.pending_ties + '" style="grid-column:' + (br.cols + 1) + ';grid-row:1" title="무승부 ' + br.pending_ties + ' (뒤에 승패 결과 없음)"><b>' + br.pending_ties + '</b></span>' : '') + '</div></div>';
     h += tallyHtml(rd);
     h += myChipsHtml(b, rd);
@@ -5150,16 +5159,23 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
   function chipByMult(b, mult) { var cs = Array.isArray(b.chips) ? b.chips : []; for (var i = 0; i < cs.length; i++) if (num(cs[i].mult) === num(mult)) return cs[i]; return null; }
   function stackSum(b, st) { var R = 0, D = 0, dOk = true; st.chips.forEach(function (m) { var c = chipByMult(b, m); if (!c) return; R += num(c.size_R) || 0; if (c.dv01_won_per_bp != null) D += num(c.dv01_won_per_bp) || 0; else dOk = false; }); return { R: R, D: dOk ? D : null, parts: st.chips.slice() }; }
   function sumTxt(b, st) { var s = stackSum(b, st); return f(s.R, 2) + 'R · ' + (s.D != null ? won(s.D) + '/bp' : '델타 –') + ' · ' + s.parts.join(' + '); }
-  function capWhy(b) { return pick(b, ['allowed_max_reason', 'allowed_max_note', 'allowed_max_size_reason', 'allowed_max_size_note', 'allowed_max_size_R_note']); }
+  function capWhy(b) {   // 상한 사유 = 엔진 문구만: boards[].allowed_max_reason 류 → 없으면 size_rule_state.paroli_reason(해동 · 1.5R 불허 이유 "이 판 종료 게임 없음" 등 · 상한이 if_paroli_size_R 미만일 때)
+    var r = pick(b, ['allowed_max_reason', 'allowed_max_note', 'allowed_max_size_reason', 'allowed_max_size_note', 'allowed_max_size_R_note']); if (r) return r;
+    var s = b.size_rule_state || {}; var cap = num(b.allowed_max_size_R), ip = num(s.if_paroli_size_R);
+    if (s.paroli_reason && (s.paroli_available === false || (cap != null && ip != null && cap < ip))) return s.paroli_reason + (cap != null ? ' · ' + f(cap, 1) + 'R 까지' : '');
+    return s.capped_by ? String(s.capped_by) : null;
+  }
+  function chipFace(c) { return '×' + esc(c.mult); }
   function chipBtn(c, b, st) {
     var cap = num(b.allowed_max_size_R), over = cap != null && (stackSum(b, st).R + (num(c.size_R) || 0)) > cap + 1e-9;
-    return '<button type="button" class="bs-chip' + (over ? ' is-dim' : '') + '" draggable="true" data-mult="' + esc(c.mult) + '" ondragstart="BS.dragChip(event)" onclick="BS.addChip(this.getAttribute(\'data-mult\'))" title="' + esc((c.label || ('×' + c.mult)) + ' = ' + f(c.size_R, 2) + 'R' + (c.dv01_won_per_bp != null ? ' · 델타 ' + won(c.dv01_won_per_bp) + '/bp' : '')) + '">' + esc(c.label || ('×' + c.mult)) + '<small>' + (c.dv01_won_per_bp != null ? won(c.dv01_won_per_bp) + '/bp' : f(c.size_R, 2) + 'R') + '</small></button>';
+    var delta = c.dv01_won_per_bp != null ? won(c.dv01_won_per_bp) + '/bp' : (c.label ? esc(c.label) : f(c.size_R, 2) + 'R');   // 칩 면 = 델타(엔진 dv01_won_per_bp · 해동 label 과 같은 값)
+    return '<button type="button" class="bs-chip' + (over ? ' is-dim' : '') + '" draggable="true" data-mult="' + esc(c.mult) + '" ondragstart="BS.dragChip(event)" onclick="BS.addChip(this.getAttribute(\'data-mult\'))" title="' + esc('×' + c.mult + ' = ' + f(c.size_R, 2) + 'R' + (c.dv01_won_per_bp != null ? ' · 델타 ' + won(c.dv01_won_per_bp) + '/bp' : '') + (c.loss_at_barrier_won != null ? ' · 장벽 도달 손실 ' + won(c.loss_at_barrier_won) + (c.label_won ? ' (' + c.label_won + ')' : '') : '')) + '">' + chipFace(c) + '<small>' + delta + '</small></button>';
   }
   function zoneHtml(b, st, d) {
     var sel = st.dir === d, cls = d > 0 ? 'bs-zone-p' : 'bs-zone-m';
     return '<div class="bs-zone ' + cls + (sel ? ' is-sel' : '') + '" role="button" tabindex="0" data-dir="' + d + '" onclick="BS.zone(' + d + ')" onkeydown="if(event.key===\'Enter\')BS.zone(' + d + ')" ondragover="BS.dragOver(event)" ondragleave="BS.dragLeave(event)" ondrop="BS.drop(event,' + d + ')">' +
       '<span class="bs-zone-dir">' + dirTxt(d) + '</span><span class="bs-zone-mean">' + esc(dirMeaning(b, d)) + '</span>' +
-      '<div class="bs-stack">' + (sel ? st.chips.map(function (m) { var c = chipByMult(b, m); return '<span class="bs-chip">' + esc(c ? (c.label || ('×' + c.mult)) : ('×' + m)) + '</span>'; }).join('') : '') + '</div>' +
+      '<div class="bs-stack">' + (sel ? st.chips.map(function (m) { var c = chipByMult(b, m); return '<span class="bs-chip"' + (c && c.dv01_won_per_bp != null ? ' title="' + won(c.dv01_won_per_bp) + '/bp"' : '') + '>' + (c ? chipFace(c) : '×' + esc(m)) + '</span>'; }).join('') : '') + '</div>' +
       '<div class="bs-zone-sum">' + (sel && st.chips.length ? esc(sumTxt(b, st)) : '<span class="wb-muted">' + (sel ? '칩을 올리세요' : '여기를 누르고 칩을 올리세요') + '</span>') + '</div></div>';
   }
   function betHtml(b) {
@@ -5167,11 +5183,12 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     var open = (((_BS.snap || {}).my_games || {}).open || []).filter(function (g) { return g.board_id === b.id; });
     if (open.length) h += '<div class="bs-opengames"><div class="bs-subhead" style="padding-left:0">열린 게임 ' + open.length + ' — 종료 / 정정 / 삭제</div>' + open.map(gameCard).join('') + '</div>';
     if (!chips) {
-      h += '<div class="wb-empty" style="margin:var(--wb-s3) var(--wb-inset)"><div class="wb-empty-title">칩 트레이 없음</div><div class="wb-empty-text">스냅샷 boards[].chips 미생성 — 테이블 베팅 불가 · 진입 기록 폼으로 기록</div><button type="button" class="wb-btn wb-btn--sm" style="margin-top:6px" onclick="BS.closeTable();BS.pick(\'' + esc(b.id) + '\')">진입 기록 폼으로</button></div>';
+      var emptyArr = Array.isArray(b.chips);   // 해동: 회계 경로 없음 판(I.resid.nonbench) 은 chips [] (비어 있음 · 미생성 아님)
+      h += '<div class="wb-empty" style="margin:var(--wb-s3) var(--wb-inset)"><div class="wb-empty-title">칩 트레이 없음</div><div class="wb-empty-text">' + (emptyArr ? '엔진 boards[].chips 비어 있음' + (b.accounting === 'none' ? ' — 회계 경로 없음 판(R 측정 불가 · 기록만)' : '') : '스냅샷 boards[].chips 미생성') + ' — 테이블 베팅 불가 · 진입 기록 폼으로 기록</div><button type="button" class="wb-btn wb-btn--sm" style="margin-top:6px" onclick="BS.closeTable();BS.pick(\'' + esc(b.id) + '\')">진입 기록 폼으로</button></div>';
       return h;
     }
     h += '<div class="bs-bet">' + zoneHtml(b, st, 1) + zoneHtml(b, st, -1) + '</div>';
-    h += '<div class="bs-tray"><span class="wb-label">칩 트레이</span><div class="bs-chips">' + chips.map(function (c) { return chipBtn(c, b, st); }).join('') + '</div>' +
+    h += '<div class="bs-tray"><span class="wb-label">칩 트레이' + helpBtn([hget(b, 'chips', ''), hget(b, 'allowed_max_size_R', '')].filter(Boolean).join('\n')) + '</span><div class="bs-chips">' + chips.map(function (c) { return chipBtn(c, b, st); }).join('') + '</div>' +
       '<span class="bs-sub" style="margin:0">상한 ' + (cap != null ? '<b>' + f(cap, 2) + 'R</b>' : '엔진 미지정(최종 판정 = 엔진)') + (why ? ' · ' + esc(why) : '') + (b.one_R_won != null ? ' · 1R = ' + won(b.one_R_won) : '') + '</span>' +
       '<button type="button" class="wb-btn wb-btn--sm" onclick="BS.clearChips()">치우기</button></div>';
     var isB = b.family === 'B', codes = isB ? (b.legs_today || []).map(function (l) { return l.code; }).filter(Boolean) : [];
@@ -5197,7 +5214,9 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     var rd = roadOf(b);
     $('bsTblHead').innerHTML = tableHead(b);
     $('bsTblRoad').innerHTML = roadHtml(b);
-    $('bsTblRoadMeta').textContent = rd ? (rd.games.length + '판' + (rd.current ? ' + 진행 중' : '') + (rd.asof ? ' · ' + rd.asof : '')) : 'road 없음';
+    $('bsTblRoadMeta').textContent = rd ? (rd.games.length + '판' + (rd.current ? ' + 진행 중' : '') + (rd.last_end ? ' · 마지막 종료 ' + rd.last_end : (rd.asof ? ' · ' + rd.asof : '')) + (rd.status && rd.status !== 'ok' ? ' · status ' + rd.status : '')) : 'road 없음';
+    var rh = rd && typeof rd.help === 'string' && rd.help ? rd.help : hget(b, 'road', null); if (rh) setHelp('bsHelpRoad', rh);   // 엔진 road.help / boards[].help.road 우선
+    var bh2 = [hget(b, 'chips', ''), hget(b, 'allowed_max_size_R', '')].filter(Boolean).join('\n'); if (bh2) setHelp('bsHelpBet', bh2);
     $('bsTblBet').innerHTML = betHtml(b);
     $('bsTblBetMeta').textContent = Array.isArray(b.chips) && b.chips.length ? ('칩 ' + b.chips.map(function (c) { return c.label || ('×' + c.mult); }).join(' · ')) : '';
   }
