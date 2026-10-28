@@ -534,18 +534,24 @@
     .bs-rd-wrap { overflow-x: auto; padding: 6px 0; }
     .bs-rd-grid { display: grid; gap: 2px; width: max-content; }
     .bs-rd-bead { grid-auto-flow: column; grid-template-rows: repeat(6, 20px); grid-auto-columns: 20px; }
-    .bs-rd-big { grid-template-rows: repeat(6, 20px); grid-auto-columns: 20px; }
+    .bs-rd-big { grid-template-rows: repeat(6, 22px); grid-auto-columns: 22px; }   /* 大路 원 22px(사용자 2026-10-28: 원 안 일수 두 자리가 들어가게 살짝 키움 · 6행 유지) */
     .bs-rd { position: relative; display: inline-block; width: 20px; height: 20px; border-radius: 50%; box-sizing: border-box; border: 2px solid transparent; }
+    .bs-rd-big .bs-rd { width: 22px; height: 22px; }
     .bs-rd-bead .bs-rd-p { background: var(--wb-up); border-color: var(--wb-up); }
     .bs-rd-bead .bs-rd-m { background: var(--wb-down); border-color: var(--wb-down); }
     .bs-rd-bead .bs-rd-t { background: var(--wb-open); border-color: var(--wb-open); }
     .bs-rd-big .bs-rd-p { border-color: var(--wb-up); } .bs-rd-big .bs-rd-m { border-color: var(--wb-down); }
+    /* 원 안 숫자 = 한 게임 총 일수(엔진 games[].length 거래일 · 진행 중 = road.current.days · 사용자 2026-10-28) · 색 = 원 색과 대비(채운 원 = 바탕색 · 빈 링 = 링 색) · 없으면 안 그림 */
+    .bs-rd > b.bs-rd-n { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font: 700 9px/1 var(--wb-font); letter-spacing: -.3px; z-index: 1; pointer-events: none; }
+    .bs-rd-bead .bs-rd > b.bs-rd-n, .bs-mychips .bs-rd > b.bs-rd-n { color: var(--wb-bg); }
+    .bs-rd-big .bs-rd-p > b.bs-rd-n { color: var(--wb-up); } .bs-rd-big .bs-rd-m > b.bs-rd-n { color: var(--wb-down); } .bs-rd-big .bs-rd-t > b.bs-rd-n { color: var(--wb-open); }
+    .bs-rd-cur > b.bs-rd-n { color: var(--wb-muted); }
     .bs-rd.is-pen::after { content: ''; position: absolute; right: -3px; top: -3px; width: 7px; height: 7px; border-radius: 50%; background: var(--wb-ink); border: 1px solid var(--wb-bg); }   /* 관통 = 테두리 점 */
     .bs-rd.is-tie::before { content: ''; position: absolute; left: -3px; right: -3px; top: 50%; height: 2px; background: var(--wb-open); transform: rotate(-45deg); }   /* 大路 무승부 = 직전 칸 녹색 사선 */
-    .bs-rd.is-tie[data-ties]:not([data-ties="1"]) > b { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font: 700 9px/1 var(--wb-font); color: var(--wb-open); }
-    .bs-rd.is-tie[data-ties="1"] > b { display: none; }
+    .bs-rd > b.bs-rd-ties { position: absolute; right: -5px; bottom: -4px; font: 700 8px/1 var(--wb-font); color: var(--wb-open); background: var(--wb-bg); border-radius: 4px; padding: 1px 2px; z-index: 2; pointer-events: none; }   /* 뒤 무승부 2회 이상 = 모서리 배지(가운데는 일수) */
+    .bs-rd.is-tie[data-ties="1"] > b.bs-rd-ties { display: none; }
     .bs-rd.is-mine { box-shadow: 0 0 0 2px var(--wb-bg), 0 0 0 4px var(--wb-ink); }   /* 내 게임 = 칩(이중 링 · 안쪽 점선) */
-    .bs-rd.is-mine > i { position: absolute; inset: 3px; border-radius: 50%; border: 2px dashed var(--wb-bg); }
+    .bs-rd.is-mine > i { position: absolute; inset: 3px; border-radius: 50%; border: 2px dashed var(--wb-bg); z-index: 0; }
     .bs-rd-big .bs-rd.is-mine > i { border-color: var(--wb-ink); }
     .bs-rd.is-live { animation: bs-blink 1.1s steps(2, start) infinite; }   /* 진행 중 = 깜빡임 */
     .bs-rd-cur { border: 2px dashed var(--wb-mark); color: var(--wb-muted); font: 700 10px/16px var(--wb-font); text-align: center; }
@@ -559,7 +565,7 @@
     .bs-rd-mini i.is-mine { outline: 1px solid var(--wb-ink); outline-offset: 1px; }
     .bs-rd-mini i.bs-rd-cur { border: 1px dashed var(--wb-mark); background: transparent; box-sizing: border-box; }
     .bs-mychips { font-size: 12px; margin-top: var(--wb-s2); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
-    .bs-mychips .bs-rd { width: 12px; height: 12px; border-width: 0; vertical-align: -2px; margin-right: 4px; }
+    .bs-mychips .bs-rd { width: 20px; height: 20px; border-width: 0; vertical-align: -5px; margin-right: 4px; }   /* 내 칩 원도 안에 일수(20px · 사용자 2026-10-28) */
     /* 칩 트레이 · 베팅 존(+1 / −1 · 색 = 로드와 동일) */
     .bs-bet { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--wb-gap); padding: var(--wb-s3) var(--wb-inset) 0; }
     .bs-zone { padding: var(--wb-s4); min-height: 140px; border: 2px solid var(--wb-rule-strong); border-radius: var(--wb-r-card); background: var(--wb-surface); cursor: pointer; display: flex; flex-direction: column; gap: 6px; text-align: left; font: inherit; color: inherit; }
@@ -885,7 +891,7 @@
         <div class="bs-modal-head" id="bsTblHead"></div>
         <div class="bs-modal-body">
           <div class="wb-card">
-            <div class="wb-card-head"><span class="wb-card-title">점수판<button type="button" class="wb-help" id="bsHelpRoad" data-help="과거 결과열(스냅샷 boards[].road · 사슬 = 당일 재진입 비겹침 · D_R 과 같은 사슬). 적 = +1 쪽 승 · 청 = −1 쪽 승 · 녹 = 무승부(상한·만기) · 테두리 점 = 관통 · 이중 링 = 내 게임(깜빡임 = 진행 중). 구슬 로드 = 시간순 6행 · 빅 로드 = 같은 결과 아래로, 바뀌면 다음 열, 무승부는 직전 칸 사선, 6행 넘침은 오른쪽 꼬리. 과거 표시일 뿐 — 다음 결과를 말하지 않는다." aria-label="설명 보기"></button></span><span class="wb-card-meta" id="bsTblRoadMeta"></span></div>
+            <div class="wb-card-head"><span class="wb-card-title">점수판<button type="button" class="wb-help" id="bsHelpRoad" data-help="과거 결과열(스냅샷 boards[].road · 사슬 = 당일 재진입 비겹침 · D_R 과 같은 사슬). 적 = +1 쪽 승 · 청 = −1 쪽 승 · 녹 = 무승부(상한·만기) · 원 안 숫자 = 그 게임 진입→청산 총 일수(거래일 · 엔진 games[].length · 상한/만기도 숫자 그대로 · 진행 중 칸 = 지금까지 일수) · 테두리 점 = 관통 · 이중 링 = 내 게임(깜빡임 = 진행 중). 구슬 로드 = 시간순 6행 · 빅 로드 = 같은 결과 아래로, 바뀌면 다음 열, 무승부는 직전 칸 사선(2회 이상이면 모서리 배지), 6행 넘침은 오른쪽 꼬리. 과거 표시일 뿐 — 다음 결과를 말하지 않는다." aria-label="설명 보기"></button></span><span class="wb-card-meta" id="bsTblRoadMeta"></span></div>
             <div class="wb-card-body" id="bsTblRoad"></div>
           </div>
           <div class="wb-card">
@@ -5103,7 +5109,8 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
   }
   function gameTitle(g) { var w = winnerOf(g), m = mineInfo(g); return '#' + dash(g.n) + ' ' + (w == null ? '?' : RD_KO[String(w)]) + (g.kind ? ' · ' + g.kind : '') + (g.entry ? ' · ' + g.entry + ' → ' + (g.exit || '') : '') + (g.length != null ? ' · ' + g.length + '일' : '') + (g.R_plus != null ? ' · +1 관점 ' + sgn(g.R_plus, 2) + 'R' : '') + (g.net_R_plus != null ? ' (순 ' + sgn(g.net_R_plus, 2) + 'R)' : '') + (g.X_bp != null ? ' · X ' + f(g.X_bp, 1) + 'bp' : '') + (g.penetration ? ' · 관통' : '') + (g.source ? ' · ' + g.source : '') + (m ? ' · 내 게임 ' + m.id + (m.g ? ' ' + dirTxt(m.g.dir) + ' ' + chipsTxt(m.g) + (m.open ? ' 진행 중' : (m.g.result ? ' ' + (RES_KO[m.g.result] || m.g.result) : '')) : '') : ''); }
   function winTxt(w) { if (w == null) return ''; if (typeof w === 'object') return (w.size != null ? '최근 ' + esc(w.size) : '') + (w.from_n != null && w.to_n != null ? ' (#' + esc(w.from_n) + '–#' + esc(w.to_n) + (w.total != null ? ' / 전체 ' + esc(w.total) : '') + ')' : ''); return '최근 ' + esc(w); }   // 엔진 window = {size, from_n, to_n, total} 또는 숫자
-  function beadCell(g) { var w = winnerOf(g), m = mineInfo(g); return '<span class="bs-rd ' + (w == null ? 'bs-rd-cur' : rdCls(w)) + (g.penetration ? ' is-pen' : '') + (g.mine ? ' is-mine' : '') + (m && m.open ? ' is-live' : '') + '" title="' + esc(gameTitle(g)) + '">' + (g.mine ? '<i></i>' : '') + '</span>'; }
+  function lenTxt(v) { v = num(v); return v == null ? '' : '<b class="bs-rd-n">' + esc(v) + '</b>'; }   // 원 안 일수(사용자 2026-10-28) = 엔진 games[].length(거래일 · 63/65 상한·만기도 그대로 숫자) · 없으면 빈 원(가짜 0)
+  function beadCell(g) { var w = winnerOf(g), m = mineInfo(g); return '<span class="bs-rd ' + (w == null ? 'bs-rd-cur' : rdCls(w)) + (g.penetration ? ' is-pen' : '') + (g.mine ? ' is-mine' : '') + (m && m.open ? ' is-live' : '') + '" title="' + esc(gameTitle(g)) + '">' + (g.mine ? '<i></i>' : '') + lenTxt(g.length) + '</span>'; }
   function curTxt(c) { return (c.n != null ? '#' + c.n + ' · ' : '') + '진입 ' + dash(c.entry) + ' · ' + dash(c.days) + '일 · 지금 R(+1 관점) ' + (c.cum_R_plus != null ? sgn(c.cum_R_plus, 2) + 'R' : '–') + (c.cum_bp != null ? ' (' + sgn(c.cum_bp, 1) + 'bp)' : '') + ' · 승까지 ' + f(c.dist_win_R, 2) + 'R · 패까지 ' + f(c.dist_loss_R, 2) + 'R' + (c.X_bp != null ? ' · X ' + f(c.X_bp, 1) + 'bp' : '') + (c.note ? ' · ' + c.note : ''); }
   function roadMini(b, n) {   // 지도 칸 · 판 카드용 미리보기(최근 n칸 구슬 · 진행 중 = 점선) · road 없으면 ''
     var rd = roadOf(b); if (!rd) return ''; var gs = rd.games.slice(-(n || 20));
@@ -5132,7 +5139,9 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     return '<div class="bs-mychips"><b>내 칩</b>' + list.map(function (x) {
       var g = x.g, d = num(g.dir) > 0 ? 1 : -1, res = x.open ? '진행 중' : (RES_KO[g.result] || g.result || '종료');
       var col = x.open ? 'var(--wb-ink)' : (g.result === 'win' ? (d > 0 ? 'var(--wb-up)' : 'var(--wb-down)') : g.result === 'loss' ? (d > 0 ? 'var(--wb-down)' : 'var(--wb-up)') : (g.result === 'draw' || g.result === 'maturity') ? 'var(--wb-open)' : 'var(--wb-mark)');   // 종료 = 결과 색(이긴 쪽 색) · 진행 중 = 잉크 + 깜빡임
-      return '<span class="wb-chip" title="' + esc(g.game_id || '') + '"><i class="bs-rd' + (x.open ? ' is-live' : '') + '" style="background:' + col + '"></i>' + dirTxt(d) + ' ' + esc(g.entry_date || g.entry || '') + (x.open ? '' : ' → ' + esc(g.exit_date || g.exit || '')) + ' · <b>' + esc(chipsTxt(g) || '–') + '</b> · ' + esc(res) + (x.open ? ((g.now && g.now.cum_R != null) ? ' ' + sgn(g.now.cum_R, 2) + 'R' : (g.now_R != null ? ' ' + sgn(g.now_R, 2) + 'R' : '')) : (g.R != null ? ' ' + sgn(g.R, 2) + 'R' : '')) + '</span>';   // road.my_open[] 객체(entry/now_R) · my_games.open[] 레코드(entry_date/now.cum_R) 둘 다
+      var days = x.open ? pick(g, ['days']) : pick(g, ['length', 'days']); if (days == null && x.open && g.now && typeof g.now === 'object') days = g.now.days;   // 일수: 진행 중 = road.my_open[].days / my_games.open[].now.days · 종료 = 레코드 length 또는 대응 games[].length(mine.game_id) · 재계산 0
+      if (days == null && !x.open && g.game_id && rd) { for (var k = 0; k < rd.games.length; k++) { var mm = rd.games[k].mine, mid = mm && (typeof mm === 'string' ? mm : mm.game_id); if (mid === g.game_id) { days = rd.games[k].length; break; } } }
+      return '<span class="wb-chip" title="' + esc(g.game_id || '') + (days != null ? ' · ' + days + '일' : '') + '"><i class="bs-rd' + (x.open ? ' is-live' : '') + '" style="background:' + col + '">' + lenTxt(days) + '</i>' + dirTxt(d) + ' ' + esc(g.entry_date || g.entry || '') + (x.open ? '' : ' → ' + esc(g.exit_date || g.exit || '')) + ' · <b>' + esc(chipsTxt(g) || '–') + '</b> · ' + esc(res) + (x.open ? ((g.now && g.now.cum_R != null) ? ' ' + sgn(g.now.cum_R, 2) + 'R' : (g.now_R != null ? ' ' + sgn(g.now_R, 2) + 'R' : '')) : (g.R != null ? ' ' + sgn(g.R, 2) + 'R' : '')) + '</span>';   // road.my_open[] 객체(entry/now_R) · my_games.open[] 레코드(entry_date/now.cum_R) 둘 다
     }).join('') + '</div>';
   }
   function roadHtml(b) {
@@ -5141,15 +5150,15 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     var gs = rd.games, cur = rd.current && typeof rd.current === 'object' ? rd.current : null, h = '';
     if (!gs.length && !cur && rd.status && rd.status !== 'ok') return emptyHtml('결과열 없음 — 엔진 road.status ' + rd.status, [rd.note || '', b.accounting === 'none' ? '회계 경로 없음 판(R 측정 불가)' : ''].filter(Boolean).join(' · '));   // 해동: I.resid.nonbench 등 status none · games 0
     if (rd.status && rd.status !== 'ok') h += '<div class="bs-sub wb-warn-text">road.status ' + esc(rd.status) + (rd.note ? ' — ' + esc(rd.note) : '') + '</div>';
-    h += '<div class="bs-rd-title">구슬 로드(珠盤) · 시간순 · 6행' + (rd.window != null ? ' · ' + winTxt(rd.window) : '') + (rd.chain_rule ? ' · 사슬 ' + esc(rd.chain_rule) : '') + (rd.k != null ? ' · k ' + esc(rd.k) + (rd.provisional_k ? '(기본값)' : '') : '') + (rd.direction_basis ? ' · ' + esc(rd.direction_basis) : '') + (rd.note && rd.status === 'ok' ? helpBtn(rd.note) : '') + '</div>';
-    h += '<div class="bs-rd-wrap"><div class="bs-rd-grid bs-rd-bead">' + gs.map(beadCell).join('') + (cur ? '<span class="bs-rd bs-rd-cur" title="진행 중 · ' + esc(curTxt(cur)) + '">?</span>' : '') + '</div></div>';
+    h += '<div class="bs-rd-title">구슬 로드(珠盤) · 시간순 · 6행 · 원 안 숫자 = 일수' + (rd.window != null ? ' · ' + winTxt(rd.window) : '') + (rd.chain_rule ? ' · 사슬 ' + esc(rd.chain_rule) : '') + (rd.k != null ? ' · k ' + esc(rd.k) + (rd.provisional_k ? '(기본값)' : '') : '') + (rd.direction_basis ? ' · ' + esc(rd.direction_basis) : '') + (rd.note && rd.status === 'ok' ? helpBtn(rd.note) : '') + '</div>';
+    h += '<div class="bs-rd-wrap"><div class="bs-rd-grid bs-rd-bead">' + gs.map(beadCell).join('') + (cur ? '<span class="bs-rd bs-rd-cur" title="진행 중 · ' + esc(curTxt(cur)) + '">' + (num(cur.days) != null ? lenTxt(cur.days) : '?') + '</span>' : '') + '</div></div>';   // 진행 중 칸 = 지금까지 일수(road.current.days) · 없으면 ?
     if (!gs.length && !cur) h += '<div class="bs-sub">결과 0판</div>';
     if (cur) h += '<div class="bs-kpis bs-line"><span><i>진행 중(사슬)</i>' + esc(curTxt(cur)) + '</span></div>';
     var br = bigRoad(gs);
-    h += '<div class="bs-rd-title" style="margin-top:var(--wb-s3)">빅 로드(大路) · 같은 결과 아래로 · 바뀌면 다음 열 · 무승부 = 직전 칸 녹색 사선 · 6행 넘침 = 오른쪽 꼬리</div>';
-    h += '<div class="bs-rd-wrap"><div class="bs-rd-grid bs-rd-big" style="grid-template-columns:repeat(' + Math.max(1, br.cols + (br.pending_ties ? 1 : 0)) + ',20px)">' +
-      br.cells.map(function (c) { var g = gs[c.i], m = mineInfo(g); return '<span class="bs-rd ' + rdCls(c.w) + (c.ties ? ' is-tie' : '') + (c.pen ? ' is-pen' : '') + (c.mine ? ' is-mine' : '') + (m && m.open ? ' is-live' : '') + (c.tail ? ' is-tail' : '') + '" style="grid-column:' + (c.c + 1) + ';grid-row:' + (c.r + 1) + '"' + (c.ties ? ' data-ties="' + c.ties + '"' : '') + ' title="' + esc(gameTitle(g) + (c.ties ? ' · 뒤 무승부 ' + c.ties : '')) + '">' + (c.ties ? '<b>' + c.ties + '</b>' : '') + (c.mine ? '<i></i>' : '') + '</span>'; }).join('') +
-      (br.pending_ties ? '<span class="bs-rd is-tie" data-ties="' + br.pending_ties + '" style="grid-column:' + (br.cols + 1) + ';grid-row:1" title="무승부 ' + br.pending_ties + ' (뒤에 승패 결과 없음)"><b>' + br.pending_ties + '</b></span>' : '') + '</div></div>';
+    h += '<div class="bs-rd-title" style="margin-top:var(--wb-s3)">빅 로드(大路) · 같은 결과 아래로 · 바뀌면 다음 열 · 무승부 = 직전 칸 녹색 사선 · 6행 넘침 = 오른쪽 꼬리 · 원 안 숫자 = 그 게임 일수(거래일)</div>';
+    h += '<div class="bs-rd-wrap"><div class="bs-rd-grid bs-rd-big" style="grid-template-columns:repeat(' + Math.max(1, br.cols + (br.pending_ties ? 1 : 0)) + ',22px)">' +
+      br.cells.map(function (c) { var g = gs[c.i], m = mineInfo(g); return '<span class="bs-rd ' + rdCls(c.w) + (c.ties ? ' is-tie' : '') + (c.pen ? ' is-pen' : '') + (c.mine ? ' is-mine' : '') + (m && m.open ? ' is-live' : '') + (c.tail ? ' is-tail' : '') + '" style="grid-column:' + (c.c + 1) + ';grid-row:' + (c.r + 1) + '"' + (c.ties ? ' data-ties="' + c.ties + '"' : '') + ' title="' + esc(gameTitle(g) + (c.ties ? ' · 뒤 무승부 ' + c.ties : '')) + '">' + (c.mine ? '<i></i>' : '') + lenTxt(g.length) + (c.ties ? '<b class="bs-rd-ties">' + c.ties + '</b>' : '') + '</span>'; }).join('') +   // 가운데 = 그 게임 일수(무승부 사선 칸도 유지) · 뒤 무승부 횟수 = 모서리 배지
+      (br.pending_ties ? '<span class="bs-rd bs-rd-t is-tie" data-ties="' + br.pending_ties + '" style="grid-column:' + (br.cols + 1) + ';grid-row:1" title="무승부 ' + br.pending_ties + ' (뒤에 승패 결과 없음)"><b class="bs-rd-n">' + br.pending_ties + '</b></span>' : '') + '</div></div>';
     h += tallyHtml(rd);
     h += myChipsHtml(b, rd);
     return h;
