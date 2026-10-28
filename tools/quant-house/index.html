@@ -521,16 +521,16 @@
     .bs-layer { display: grid; grid-template-columns: auto repeat(4, minmax(0, 1fr)); gap: 2px 12px; font-size: 12px; margin-top: var(--wb-s3); }
     .bs-layer span.h { color: var(--wb-muted); font-size: 11px; }
     /* §8f 바카라 테이블(2026-10-28 사용자) — 판 지도 칸 클릭 → 전면 모달: 점수판(珠盤·大路·집계) + 칩 쌓기 베팅 존 + 접이식 판 정보. wb 토큰만 */
-    .bs-tbl { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-start; justify-content: center; padding: 24px 16px; background: var(--wb-overlay); overflow: auto; }
-    .bs-tbl[hidden] { display: none; }
-    body.bs-tbl-lock { overflow: hidden; }
-    .bs-tbl-win { width: min(1180px, 100%); background: var(--wb-bg); border: 1px solid var(--wb-rule-strong); border-radius: var(--wb-r-card); box-shadow: 0 12px 40px rgb(0 0 0 / 35%); }
-    .bs-tbl-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; padding: var(--wb-s3) var(--wb-inset); border-bottom: 1px solid var(--wb-rule); position: sticky; top: 0; background: var(--wb-bg); z-index: 2; border-radius: var(--wb-r-card) var(--wb-r-card) 0 0; }
-    .bs-tbl-head h3 { margin: 0; font-size: var(--wb-fs-title); line-height: var(--wb-lh-title); font-weight: 600; }
-    .bs-tbl-head .bs-kpis { font-size: 12px; flex-basis: 100%; }
-    .bs-tbl-head .bs-tbl-x { margin-left: auto; }
-    .bs-tbl-minmax { font-size: 11px; color: var(--wb-muted); flex-basis: 100%; }
-    .bs-tbl-body { padding: var(--wb-inset); display: grid; gap: var(--wb-gap); }
+    .bs-modal { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-start; justify-content: center; padding: 24px 16px; background: var(--wb-overlay); overflow: auto; }
+    .bs-modal[hidden] { display: none; }
+    body.bs-modal-lock { overflow: hidden; }
+    .bs-modal-win { width: min(1180px, 100%); background: var(--wb-bg); border: 1px solid var(--wb-rule-strong); border-radius: var(--wb-r-card); box-shadow: 0 12px 40px rgb(0 0 0 / 35%); }
+    .bs-modal-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; padding: var(--wb-s3) var(--wb-inset); border-bottom: 1px solid var(--wb-rule); position: sticky; top: 0; background: var(--wb-bg); z-index: 2; border-radius: var(--wb-r-card) var(--wb-r-card) 0 0; }
+    .bs-modal-head h3 { margin: 0; font-size: var(--wb-fs-title); line-height: var(--wb-lh-title); font-weight: 600; }
+    .bs-modal-head .bs-kpis { font-size: 12px; flex-basis: 100%; }
+    .bs-modal-head .bs-modal-x { margin-left: auto; }
+    .bs-modal-minmax { font-size: 11px; color: var(--wb-muted); flex-basis: 100%; }
+    .bs-modal-body { padding: var(--wb-inset); display: grid; gap: var(--wb-gap); }
     .bs-rd-wrap { overflow-x: auto; padding: 6px 0; }
     .bs-rd-grid { display: grid; gap: 2px; width: max-content; }
     .bs-rd-bead { grid-auto-flow: column; grid-template-rows: repeat(6, 20px); grid-auto-columns: 20px; }
@@ -579,17 +579,17 @@
     .bs-stack .bs-chip small { display: none; }
     .bs-tray { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wb-s3) var(--wb-s4); padding: var(--wb-s3) var(--wb-inset); }
     .bs-tray .bs-chips { display: flex; gap: 10px; }
-    .bs-tbl-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--wb-s3) var(--wb-s4); padding: 0 var(--wb-inset) var(--wb-inset); }
-    .bs-tbl-form .wb-field { min-width: 120px; }
-    .bs-tbl-form .bs-wide { flex: 1 1 200px; }
-    .bs-tbl-msg { font-size: 12px; padding: 0 var(--wb-inset) var(--wb-s3); min-height: 16px; }
-    .bs-tbl-msg.is-err { color: var(--wb-warn); }
-    .bs-tbl-info > summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--wb-muted); padding: var(--wb-s2) 0; list-style: none; }
-    .bs-tbl-info > summary::before { content: '▸ '; } .bs-tbl-info[open] > summary::before { content: '▾ '; }
+    .bs-modal-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--wb-s3) var(--wb-s4); padding: 0 var(--wb-inset) var(--wb-inset); }
+    .bs-modal-form .wb-field { min-width: 120px; }
+    .bs-modal-form .bs-wide { flex: 1 1 200px; }
+    .bs-modal-msg { font-size: 12px; padding: 0 var(--wb-inset) var(--wb-s3); min-height: 16px; }
+    .bs-modal-msg.is-err { color: var(--wb-warn); }
+    .bs-modal-info > summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--wb-muted); padding: var(--wb-s2) 0; list-style: none; }
+    .bs-modal-info > summary::before { content: '▸ '; } .bs-modal-info[open] > summary::before { content: '▾ '; }
     .bs-opengames { padding: 0 var(--wb-inset); }
     .bs-opengames .bs-game { border: 1px solid var(--wb-rule); border-radius: var(--wb-r-card); background: var(--wb-surface); margin-top: var(--wb-s2); }
     @media (max-width: 1080px) { .bs-grid-2 { grid-template-columns: minmax(0, 1fr); } .bs-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .bs-sticky { position: static; } }
-    @media (max-width: 720px) { .bs-bet { grid-template-columns: minmax(0, 1fr); } .bs-tbl { padding: 8px; } }
+    @media (max-width: 720px) { .bs-bet { grid-template-columns: minmax(0, 1fr); } .bs-modal { padding: 8px; } }
     @media (max-width: 720px) { .bs-grid-4 { grid-template-columns: minmax(0, 1fr); } .bs-map { grid-template-columns: minmax(0, 1fr); } .bs-band { grid-template-columns: repeat(13, minmax(0, 1fr)); } }
   </style>
   <link rel="stylesheet" href="/assets/css/wb-review-plain.css?v=20261022c"><!-- 일반 보기 스타일(예전 인라인 4단계 블록 그대로 · 같은 캐스케이드 자리) -->
@@ -880,10 +880,10 @@
 
     <!-- §8f 바카라 테이블(사용자 2026-10-28) — 판 지도 칸 클릭 → 전면 모달. 점수판 = 스냅샷 boards[].road 그대로(珠盤/大路 배치는 바카라 표시 규칙 · 결과 재계산 0) ·
          베팅 = 칩 쌓기(boards[].chips · allowed_max_size_R) → 기존 POST open(size_R = 칩 합계 · paroli 인자 0) · 판 정보 = 옛 판 카드(접이식). 추천·방향 제안 0. -->
-    <div class="bs-tbl" id="bsTable" hidden role="dialog" aria-modal="true" aria-labelledby="bsTblTitle" onclick="if (event.target === this) BS.closeTable()">
-      <div class="bs-tbl-win">
-        <div class="bs-tbl-head" id="bsTblHead"></div>
-        <div class="bs-tbl-body">
+    <div class="bs-modal" id="bsTable" hidden role="dialog" aria-modal="true" aria-labelledby="bsTblTitle" onclick="if (event.target === this) BS.closeTable()">
+      <div class="bs-modal-win">
+        <div class="bs-modal-head" id="bsTblHead"></div>
+        <div class="bs-modal-body">
           <div class="wb-card">
             <div class="wb-card-head"><span class="wb-card-title">점수판<button type="button" class="wb-help" id="bsHelpRoad" data-help="과거 결과열(스냅샷 boards[].road · 사슬 = 당일 재진입 비겹침 · D_R 과 같은 사슬). 적 = +1 쪽 승 · 청 = −1 쪽 승 · 녹 = 무승부(상한·만기) · 테두리 점 = 관통 · 이중 링 = 내 게임(깜빡임 = 진행 중). 구슬 로드 = 시간순 6행 · 빅 로드 = 같은 결과 아래로, 바뀌면 다음 열, 무승부는 직전 칸 사선, 6행 넘침은 오른쪽 꼬리. 과거 표시일 뿐 — 다음 결과를 말하지 않는다." aria-label="설명 보기"></button></span><span class="wb-card-meta" id="bsTblRoadMeta"></span></div>
             <div class="wb-card-body" id="bsTblRoad"></div>
@@ -891,9 +891,9 @@
           <div class="wb-card">
             <div class="wb-card-head"><span class="wb-card-title">베팅<button type="button" class="wb-help" id="bsHelpBet" data-help="+1 / −1 존을 고르고 트레이의 칩(×0.5 · ×1 · 칩 면 = 델타 원/bp · 스냅샷 boards[].chips)을 클릭하거나 끌어 올린다 · 합계가 판 상한(boards[].allowed_max_size_R)을 넘으면 칩이 놓이지 않고 엔진 사유가 뜬다 · '베팅' = 기존 open 이벤트(size_R = 칩 합계) → 엔진이 X·레그·DV01·lot 을 PIT 로 박는다 · 서버 거부(400) 사유 원문 표시. 방향은 사람이 정한다 — 이 화면은 어느 쪽도 권하지 않는다." aria-label="설명 보기"></button></span><span class="wb-card-meta" id="bsTblBetMeta"></span></div>
             <div id="bsTblBet"></div>
-            <div class="bs-tbl-msg" id="bsTblMsg"></div>
+            <div class="bs-modal-msg" id="bsTblMsg"></div>
           </div>
-          <details class="bs-tbl-info" id="bsTblInfo"><summary>판 정보 — 레그 · 장벽 · 비용 · 주문 환산 · 성적표</summary><div class="wb-card" id="bsBoardCard"><div class="wb-empty"><div class="wb-empty-title">판을 고르면 여기에</div></div></div></details>
+          <details class="bs-modal-info" id="bsTblInfo"><summary>판 정보 — 레그 · 장벽 · 비용 · 주문 환산 · 성적표</summary><div class="wb-card" id="bsBoardCard"><div class="wb-empty"><div class="wb-empty-title">판을 고르면 여기에</div></div></div></details>
         </div>
       </div>
     </div>
@@ -5192,7 +5192,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
       '<span class="bs-sub" style="margin:0">상한 ' + (cap != null ? '<b>' + f(cap, 2) + 'R</b>' : '엔진 미지정(최종 판정 = 엔진)') + (why ? ' · ' + esc(why) : '') + (b.one_R_won != null ? ' · 1R = ' + won(b.one_R_won) : '') + '</span>' +
       '<button type="button" class="wb-btn wb-btn--sm" onclick="BS.clearChips()">치우기</button></div>';
     var isB = b.family === 'B', codes = isB ? (b.legs_today || []).map(function (l) { return l.code; }).filter(Boolean) : [];
-    h += '<div class="bs-tbl-form"><div class="wb-field"><span class="wb-label">날짜</span><input class="wb-input" id="bsTDate" type="date" value="' + esc(tf.date || entryDateFor(b.id)) + '" oninput="BS.tf(\'date\', this.value)"></div>' +
+    h += '<div class="bs-modal-form"><div class="wb-field"><span class="wb-label">날짜</span><input class="wb-input" id="bsTDate" type="date" value="' + esc(tf.date || entryDateFor(b.id)) + '" oninput="BS.tf(\'date\', this.value)"></div>' +
       (isB ? '<div class="wb-field"><span class="wb-label">종목(바스켓 판)</span><input class="wb-input" id="bsTBond" type="text" list="bsTBondList" placeholder="코드 · 비우면 엔진 기본" value="' + esc(tf.bond || '') + '" oninput="BS.tf(\'bond\', this.value)"><datalist id="bsTBondList">' + codes.map(function (c) { return '<option value="' + esc(c) + '">'; }).join('') + '</datalist></div>' : '') +
       '<div class="wb-field bs-wide"><span class="wb-label">메모(계산에 안 씀)</span><input class="wb-input" id="bsTMemo" type="text" placeholder="원장에만 남음" value="' + esc(tf.memo || '') + '" oninput="BS.tf(\'memo\', this.value)"></div>' +
       '<button type="button" class="wb-btn wb-btn--primary" id="bsTBet" onclick="BS.bet()"' + (st.dir && st.chips.length ? '' : ' disabled') + '>베팅' + (st.dir && st.chips.length ? ' ' + dirTxt(st.dir) + ' · ' + f(stackSum(b, st).R, 2) + 'R' : '') + '</button></div>';
@@ -5204,11 +5204,11 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     var gameNo = null, gameLbl = '';
     if (rd) { if (rd.current && rd.current.n != null) { gameNo = rd.current.n; gameLbl = '진행 중'; } else { var ln = rd.games.length ? num(rd.games[rd.games.length - 1].n) : null; gameNo = ln != null ? ln + 1 : rd.games.length + 1; gameLbl = '다음'; } }
     return '<h3 id="bsTblTitle">테이블 · ' + esc(boardLabel(b)) + '</h3><span class="wb-badge bs-st-' + st + '">' + STATUS_KO[st] + '</span><span class="wb-muted" style="font-size:12px">' + esc(b.id) + (b.family_name ? ' · ' + esc(b.family_name) : '') + '</span>' +
-      '<button type="button" class="wb-btn wb-btn--sm bs-tbl-x" onclick="BS.closeTable()" aria-label="닫기">닫기 ✕</button>' +
+      '<button type="button" class="wb-btn wb-btn--sm bs-modal-x" onclick="BS.closeTable()" aria-label="닫기">닫기 ✕</button>' +
       '<div class="bs-kpis"><span><i>+1</i>' + esc(dirMeaning(b, 1)) + '</span><span><i>−1</i>' + esc(dirMeaning(b, -1)) + '</span><span><i>오늘 장벽</i><b>' + (b.X_bp != null ? '±' + f(b.X_bp, 1) + 'bp' : '미계산') + '</b>' + (b.entry_date_default ? ' <span class="wb-muted">(' + esc(b.entry_date_default) + ' 진입)</span>' : '') + '</span>' +
       '<span><i>한도 사용</i>' + won(rk.one_side) + ' / ' + won(rk.limit) + (rk.usage_pct != null ? ' (' + f(rk.usage_pct, 1) + '%)' : '') + '</span><span><i>시즌(슈)</i>' + dash(se.start) + (se.unit ? ' · ' + esc(se.unit) : '') + (se.n_closed != null ? ' · 종료 ' + se.n_closed + '판' : '') + '</span>' +
       '<span><i>게임</i>' + (gameNo != null ? '#' + esc(gameNo) + ' <span class="wb-muted">(' + gameLbl + ' · 사슬 순번)</span>' : '–') + '</span></div>' +
-      '<div class="bs-tbl-minmax">Min 1R = ' + (b.one_R_won != null ? won(b.one_R_won) : '–') + ' · Max 판당 델타 상한 ' + (pbc && pbc.cap_won != null ? won(pbc.cap_won) + '/bp' : '–') + ' · 칩 상한 ' + (cap != null ? f(cap, 2) + 'R' : '–') + (b.cap != null ? ' · 게임 상한 ' + (String(b.cap) === 'LT' ? '만기(LT)' : esc(b.cap) + '거래일') : '') + '</div>';
+      '<div class="bs-modal-minmax">Min 1R = ' + (b.one_R_won != null ? won(b.one_R_won) : '–') + ' · Max 판당 델타 상한 ' + (pbc && pbc.cap_won != null ? won(pbc.cap_won) + '/bp' : '–') + ' · 칩 상한 ' + (cap != null ? f(cap, 2) + 'R' : '–') + (b.cap != null ? ' · 게임 상한 ' + (String(b.cap) === 'LT' ? '만기(LT)' : esc(b.cap) + '거래일') : '') + '</div>';
   }
   function renderTable(b) {
     var rd = roadOf(b);
@@ -5220,8 +5220,8 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     $('bsTblBet').innerHTML = betHtml(b);
     $('bsTblBetMeta').textContent = Array.isArray(b.chips) && b.chips.length ? ('칩 ' + b.chips.map(function (c) { return c.label || ('×' + c.mult); }).join(' · ')) : '';
   }
-  function openTable() { var el = $('bsTable'); if (!el) return; el.hidden = false; _BS.tblOpen = true; if (document.body && document.body.classList) document.body.classList.add('bs-tbl-lock'); }
-  function closeTable() { var el = $('bsTable'); if (el) el.hidden = true; _BS.tblOpen = false; if (document.body && document.body.classList) document.body.classList.remove('bs-tbl-lock'); }
+  function openTable() { var el = $('bsTable'); if (!el) return; el.hidden = false; _BS.tblOpen = true; if (document.body && document.body.classList) document.body.classList.add('bs-modal-lock'); }
+  function closeTable() { var el = $('bsTable'); if (el) el.hidden = true; _BS.tblOpen = false; if (document.body && document.body.classList) document.body.classList.remove('bs-modal-lock'); }
   function zone(d) { var b = boardById(_BS.sel); if (!b) return; var st = stackFor(b.id); st.dir = Number(d) > 0 ? 1 : -1; renderTable(b); }
   function addChip(mult) {
     var b = boardById(_BS.sel); if (!b) return false; var st = stackFor(b.id), c = chipByMult(b, mult);
