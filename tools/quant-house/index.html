@@ -520,7 +520,76 @@
     .bs-subhead { font-size: 11px; font-weight: 600; color: var(--wb-muted); letter-spacing: .3px; padding: var(--wb-s3) var(--wb-inset) 0; }
     .bs-layer { display: grid; grid-template-columns: auto repeat(4, minmax(0, 1fr)); gap: 2px 12px; font-size: 12px; margin-top: var(--wb-s3); }
     .bs-layer span.h { color: var(--wb-muted); font-size: 11px; }
+    /* §8f 바카라 테이블(2026-10-28 사용자) — 판 지도 칸 클릭 → 전면 모달: 점수판(珠盤·大路·집계) + 칩 쌓기 베팅 존 + 접이식 판 정보. wb 토큰만 */
+    .bs-tbl { position: fixed; inset: 0; z-index: 90; display: flex; align-items: flex-start; justify-content: center; padding: 24px 16px; background: var(--wb-overlay); overflow: auto; }
+    .bs-tbl[hidden] { display: none; }
+    body.bs-tbl-lock { overflow: hidden; }
+    .bs-tbl-win { width: min(1180px, 100%); background: var(--wb-bg); border: 1px solid var(--wb-rule-strong); border-radius: var(--wb-r-card); box-shadow: 0 12px 40px rgb(0 0 0 / 35%); }
+    .bs-tbl-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; padding: var(--wb-s3) var(--wb-inset); border-bottom: 1px solid var(--wb-rule); position: sticky; top: 0; background: var(--wb-bg); z-index: 2; border-radius: var(--wb-r-card) var(--wb-r-card) 0 0; }
+    .bs-tbl-head h3 { margin: 0; font-size: var(--wb-fs-title); line-height: var(--wb-lh-title); font-weight: 600; }
+    .bs-tbl-head .bs-kpis { font-size: 12px; flex-basis: 100%; }
+    .bs-tbl-head .bs-tbl-x { margin-left: auto; }
+    .bs-tbl-minmax { font-size: 11px; color: var(--wb-muted); flex-basis: 100%; }
+    .bs-tbl-body { padding: var(--wb-inset); display: grid; gap: var(--wb-gap); }
+    .bs-rd-wrap { overflow-x: auto; padding: 6px 0; }
+    .bs-rd-grid { display: grid; gap: 2px; width: max-content; }
+    .bs-rd-bead { grid-auto-flow: column; grid-template-rows: repeat(6, 20px); grid-auto-columns: 20px; }
+    .bs-rd-big { grid-template-rows: repeat(6, 20px); grid-auto-columns: 20px; }
+    .bs-rd { position: relative; display: inline-block; width: 20px; height: 20px; border-radius: 50%; box-sizing: border-box; border: 2px solid transparent; }
+    .bs-rd-bead .bs-rd-p { background: var(--wb-up); border-color: var(--wb-up); }
+    .bs-rd-bead .bs-rd-m { background: var(--wb-down); border-color: var(--wb-down); }
+    .bs-rd-bead .bs-rd-t { background: var(--wb-open); border-color: var(--wb-open); }
+    .bs-rd-big .bs-rd-p { border-color: var(--wb-up); } .bs-rd-big .bs-rd-m { border-color: var(--wb-down); }
+    .bs-rd.is-pen::after { content: ''; position: absolute; right: -3px; top: -3px; width: 7px; height: 7px; border-radius: 50%; background: var(--wb-ink); border: 1px solid var(--wb-bg); }   /* 관통 = 테두리 점 */
+    .bs-rd.is-tie::before { content: ''; position: absolute; left: -3px; right: -3px; top: 50%; height: 2px; background: var(--wb-open); transform: rotate(-45deg); }   /* 大路 무승부 = 직전 칸 녹색 사선 */
+    .bs-rd.is-tie[data-ties]:not([data-ties="1"]) > b { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); font: 700 9px/1 var(--wb-font); color: var(--wb-open); }
+    .bs-rd.is-tie[data-ties="1"] > b { display: none; }
+    .bs-rd.is-mine { box-shadow: 0 0 0 2px var(--wb-bg), 0 0 0 4px var(--wb-ink); }   /* 내 게임 = 칩(이중 링 · 안쪽 점선) */
+    .bs-rd.is-mine > i { position: absolute; inset: 3px; border-radius: 50%; border: 2px dashed var(--wb-bg); }
+    .bs-rd-big .bs-rd.is-mine > i { border-color: var(--wb-ink); }
+    .bs-rd.is-live { animation: bs-blink 1.1s steps(2, start) infinite; }   /* 진행 중 = 깜빡임 */
+    .bs-rd-cur { border: 2px dashed var(--wb-mark); color: var(--wb-muted); font: 700 10px/16px var(--wb-font); text-align: center; }
+    @keyframes bs-blink { to { visibility: hidden; } }
+    .bs-rd-title { font-size: 11px; font-weight: 600; color: var(--wb-muted); margin-bottom: 2px; }
+    .bs-rd-tally { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; font-size: 12px; padding: var(--wb-s2) 0; border-top: 1px solid var(--wb-rule); margin-top: var(--wb-s3); }
+    .bs-rd-tally i { font-style: normal; display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+    .bs-rd-mini { display: inline-flex; gap: 2px; margin-top: 4px; vertical-align: middle; }
+    .bs-rd-mini i { width: 6px; height: 6px; border-radius: 50%; display: inline-block; background: var(--wb-subtle); }
+    .bs-rd-mini i.bs-rd-p { background: var(--wb-up); } .bs-rd-mini i.bs-rd-m { background: var(--wb-down); } .bs-rd-mini i.bs-rd-t { background: var(--wb-open); }
+    .bs-rd-mini i.is-mine { outline: 1px solid var(--wb-ink); outline-offset: 1px; }
+    .bs-rd-mini i.bs-rd-cur { border: 1px dashed var(--wb-mark); background: transparent; box-sizing: border-box; }
+    .bs-mychips { font-size: 12px; margin-top: var(--wb-s2); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+    .bs-mychips .bs-rd { width: 12px; height: 12px; border-width: 0; vertical-align: -2px; margin-right: 4px; }
+    /* 칩 트레이 · 베팅 존(+1 / −1 · 색 = 로드와 동일) */
+    .bs-bet { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--wb-gap); padding: var(--wb-s3) var(--wb-inset) 0; }
+    .bs-zone { padding: var(--wb-s4); min-height: 140px; border: 2px solid var(--wb-rule-strong); border-radius: var(--wb-r-card); background: var(--wb-surface); cursor: pointer; display: flex; flex-direction: column; gap: 6px; text-align: left; font: inherit; color: inherit; }
+    .bs-zone-p { border-color: color-mix(in srgb, var(--wb-up) 55%, var(--wb-rule-strong)); } .bs-zone-m { border-color: color-mix(in srgb, var(--wb-down) 55%, var(--wb-rule-strong)); }
+    .bs-zone-p.is-sel { background: color-mix(in srgb, var(--wb-up) 14%, var(--wb-surface)); box-shadow: 0 0 0 2px var(--wb-up); }
+    .bs-zone-m.is-sel { background: color-mix(in srgb, var(--wb-down) 14%, var(--wb-surface)); box-shadow: 0 0 0 2px var(--wb-down); }
+    .bs-zone.is-over { outline: 2px dashed var(--wb-mark); outline-offset: 3px; }
+    .bs-zone .bs-zone-dir { font-size: 24px; line-height: 1; font-weight: 700; }
+    .bs-zone-p .bs-zone-dir { color: var(--wb-up); } .bs-zone-m .bs-zone-dir { color: var(--wb-down); }
+    .bs-zone .bs-zone-mean { font-size: 12px; color: var(--wb-muted); }
+    .bs-zone .bs-zone-sum { margin-top: auto; font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .bs-stack { display: flex; flex-wrap: wrap; gap: 4px; min-height: 36px; }
+    .bs-chip { width: 56px; height: 56px; border-radius: 50%; border: 4px dashed var(--wb-bg); box-shadow: 0 0 0 2px var(--wb-mark); background: var(--wb-surface); display: inline-flex; flex-direction: column; align-items: center; justify-content: center; font: 600 11px/13px var(--wb-font); color: var(--wb-ink); cursor: grab; user-select: none; padding: 0; }
+    .bs-chip small { font-weight: 400; font-size: 9px; line-height: 10px; color: var(--wb-muted); }
+    .bs-chip.is-dim { opacity: .4; }
+    .bs-stack .bs-chip { width: 36px; height: 36px; font-size: 10px; line-height: 11px; border-width: 3px; cursor: default; }
+    .bs-stack .bs-chip small { display: none; }
+    .bs-tray { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wb-s3) var(--wb-s4); padding: var(--wb-s3) var(--wb-inset); }
+    .bs-tray .bs-chips { display: flex; gap: 10px; }
+    .bs-tbl-form { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--wb-s3) var(--wb-s4); padding: 0 var(--wb-inset) var(--wb-inset); }
+    .bs-tbl-form .wb-field { min-width: 120px; }
+    .bs-tbl-form .bs-wide { flex: 1 1 200px; }
+    .bs-tbl-msg { font-size: 12px; padding: 0 var(--wb-inset) var(--wb-s3); min-height: 16px; }
+    .bs-tbl-msg.is-err { color: var(--wb-warn); }
+    .bs-tbl-info > summary { cursor: pointer; font-size: 12px; font-weight: 600; color: var(--wb-muted); padding: var(--wb-s2) 0; list-style: none; }
+    .bs-tbl-info > summary::before { content: '▸ '; } .bs-tbl-info[open] > summary::before { content: '▾ '; }
+    .bs-opengames { padding: 0 var(--wb-inset); }
+    .bs-opengames .bs-game { border: 1px solid var(--wb-rule); border-radius: var(--wb-r-card); background: var(--wb-surface); margin-top: var(--wb-s2); }
     @media (max-width: 1080px) { .bs-grid-2 { grid-template-columns: minmax(0, 1fr); } .bs-grid-4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } .bs-sticky { position: static; } }
+    @media (max-width: 720px) { .bs-bet { grid-template-columns: minmax(0, 1fr); } .bs-tbl { padding: 8px; } }
     @media (max-width: 720px) { .bs-grid-4 { grid-template-columns: minmax(0, 1fr); } .bs-map { grid-template-columns: minmax(0, 1fr); } .bs-band { grid-template-columns: repeat(13, minmax(0, 1fr)); } }
   </style>
   <link rel="stylesheet" href="/assets/css/wb-review-plain.css?v=20261022c"><!-- 일반 보기 스타일(예전 인라인 4단계 블록 그대로 · 같은 캐스케이드 자리) -->
@@ -746,14 +815,11 @@
 
     <!-- 2 판 지도 -->
     <section class="bs-sec" id="bs-map">
-      <div class="bs-sec-head"><h2>2 · 판 지도</h2><button type="button" class="wb-help" id="bsHelpMap" data-help="계열 × 판 · 색 = 지금까지 잰 상태 · 칸을 누르면 판 카드 · 점 = 내가 열어 둔 판." aria-label="설명 보기"></button></div>
-      <div class="bs-grid-2">
-        <div class="wb-card">
-          <div class="wb-card-head"><span class="wb-card-title">계열 × 판</span><span class="wb-card-meta" id="bsMapMeta"></span></div>
-          <div id="bsMap"></div>
-          <div class="bs-legend" id="bsMapLegend"></div>
-        </div>
-        <div class="wb-card bs-sticky" id="bsBoardCard"><div class="wb-empty"><div class="wb-empty-title">판을 고르면 여기에</div></div></div>
+      <div class="bs-sec-head"><h2>2 · 판 지도</h2><button type="button" class="wb-help" id="bsHelpMap" data-help="계열 × 판 · 색 = 지금까지 잰 상태 · 칸을 누르면 테이블(점수판 + 베팅) · 점 = 내가 열어 둔 판 · 칸 아래 작은 구슬 = 최근 결과열(스냅샷 road)." aria-label="설명 보기"></button></div>
+      <div class="wb-card">
+        <div class="wb-card-head"><span class="wb-card-title">계열 × 판</span><span class="wb-card-meta" id="bsMapMeta"></span></div>
+        <div id="bsMap"></div>
+        <div class="bs-legend" id="bsMapLegend"></div>
       </div>
     </section>
 
@@ -811,6 +877,26 @@
     </section>
     </div><!-- /bs-content -->
     </div><!-- /wb-toc-layout -->
+
+    <!-- §8f 바카라 테이블(사용자 2026-10-28) — 판 지도 칸 클릭 → 전면 모달. 점수판 = 스냅샷 boards[].road 그대로(珠盤/大路 배치는 바카라 표시 규칙 · 결과 재계산 0) ·
+         베팅 = 칩 쌓기(boards[].chips · allowed_max_size_R) → 기존 POST open(size_R = 칩 합계 · paroli 인자 0) · 판 정보 = 옛 판 카드(접이식). 추천·방향 제안 0. -->
+    <div class="bs-tbl" id="bsTable" hidden role="dialog" aria-modal="true" aria-labelledby="bsTblTitle" onclick="if (event.target === this) BS.closeTable()">
+      <div class="bs-tbl-win">
+        <div class="bs-tbl-head" id="bsTblHead"></div>
+        <div class="bs-tbl-body">
+          <div class="wb-card">
+            <div class="wb-card-head"><span class="wb-card-title">점수판<button type="button" class="wb-help" id="bsHelpRoad" data-help="과거 결과열(스냅샷 boards[].road · 사슬 = 당일 재진입 비겹침 · D_R 과 같은 사슬). 적 = +1 쪽 승 · 청 = −1 쪽 승 · 녹 = 무승부(상한·만기) · 테두리 점 = 관통 · 이중 링 = 내 게임(깜빡임 = 진행 중). 구슬 로드 = 시간순 6행 · 빅 로드 = 같은 결과 아래로, 바뀌면 다음 열, 무승부는 직전 칸 사선, 6행 넘침은 오른쪽 꼬리. 과거 표시일 뿐 — 다음 결과를 말하지 않는다." aria-label="설명 보기"></button></span><span class="wb-card-meta" id="bsTblRoadMeta"></span></div>
+            <div class="wb-card-body" id="bsTblRoad"></div>
+          </div>
+          <div class="wb-card">
+            <div class="wb-card-head"><span class="wb-card-title">베팅<button type="button" class="wb-help" id="bsHelpBet" data-help="+1 / −1 존을 고르고 트레이의 칩(×0.5 · ×1 · 칩 면 = 델타 원/bp · 스냅샷 boards[].chips)을 클릭하거나 끌어 올린다 · 합계가 판 상한(boards[].allowed_max_size_R)을 넘으면 칩이 놓이지 않고 엔진 사유가 뜬다 · '베팅' = 기존 open 이벤트(size_R = 칩 합계) → 엔진이 X·레그·DV01·lot 을 PIT 로 박는다 · 서버 거부(400) 사유 원문 표시. 방향은 사람이 정한다 — 이 화면은 어느 쪽도 권하지 않는다." aria-label="설명 보기"></button></span><span class="wb-card-meta" id="bsTblBetMeta"></span></div>
+            <div id="bsTblBet"></div>
+            <div class="bs-tbl-msg" id="bsTblMsg"></div>
+          </div>
+          <details class="bs-tbl-info" id="bsTblInfo"><summary>판 정보 — 레그 · 장벽 · 비용 · 주문 환산 · 성적표</summary><div class="wb-card" id="bsBoardCard"><div class="wb-empty"><div class="wb-empty-title">판을 고르면 여기에</div></div></div></details>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -4515,7 +4601,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
    · 주간 커브 4패널 = 리뷰 스냅샷(/quant-house/market-review · 이미 있는 값만) 재사용. */
 (function () {
   'use strict';
-  var _BS = { snap: null, review: null, charts: [], sel: null, amend: null, sample: false, sizeMode: 'size_R', mainOpen: {} };
+  var _BS = { snap: null, review: null, charts: [], sel: null, amend: null, sample: false, sizeMode: 'size_R', mainOpen: {}, tblOpen: false, stack: {}, tform: {} };   // stack[boardId] = {dir, chips:[mult]} · tform = 테이블 폼 입력 보존(재렌더 시)
   var esc = function (s) { return _esc(s); };
   function num(v) { if (v == null || v === '') return null; var n = Number(v); return isFinite(n) ? n : null; }
   function f(v, d) { var n = num(v); return n == null ? '–' : n.toFixed(d == null ? 1 : d); }
@@ -4587,7 +4673,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
 
   // ── 상태 메시지 · 빈 상태 ───────────────────────────────────────────────
   function setNotice(html, kind) { var el = $('bsNotice'); if (!el) return; el.innerHTML = html ? '<div class="wb-notice' + (kind === 'warn' ? ' wb-notice--warn' : '') + '">' + html + '</div>' : ''; }
-  function setMsg(m, err) { var el = $('bsMsg'); if (!el) return; el.textContent = m || ''; el.style.color = err ? 'var(--wb-warn)' : ''; }
+  function setMsg(m, err) { var el = $('bsMsg'); if (el) { el.textContent = m || ''; el.style.color = err ? 'var(--wb-warn)' : ''; } var t = $('bsTblMsg'); if (t) { t.textContent = m || ''; if (t.classList) t.classList.toggle('is-err', !!err); } }   // 테이블 모달이 떠 있으면 같은 문구를 모달 안에도(엔진 거부 사유 원문 그대로)
   function emptyHtml(title, text) { return '<div class="wb-empty"><div class="wb-empty-title">' + esc(title) + '</div>' + (text ? '<div class="wb-empty-text">' + esc(text) + '</div>' : '') + '</div>'; }
   function renderEmpty(snap) {
     killCharts();
@@ -4597,6 +4683,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     ['bsCurveTbl', 'bsRegime', 'bsMap', 'bsOpen', 'bsClosed', 'bsRiskGauge', 'bsSeason', 'bsCorr', 'bsNeff'].forEach(function (id) { var el = $(id); if (el) el.innerHTML = emptyHtml('자료 없음', '스냅샷이 생기면 표시'); });
     $('bsWeekly').innerHTML = ''; $('bsMapLegend').innerHTML = ''; $('bsDeleted').innerHTML = ''; $('bsNextDecision').innerHTML = ''; if ($('bsCurveChartBox')) $('bsCurveChartBox').innerHTML = ''; if ($('bsRiskChartBox')) $('bsRiskChartBox').innerHTML = '';
     $('bsBoardCard').innerHTML = emptyHtml('판 없음');
+    closeTable(); $('bsTblHead').innerHTML = ''; $('bsTblRoad').innerHTML = emptyHtml('결과열 없음'); $('bsTblBet').innerHTML = '';
     ['bsCurveMeta', 'bsMapMeta', 'bsOpenMeta', 'bsClosedMeta', 'bsRiskMeta', 'bsSeasonMeta', 'bsCorrMeta', 'bsNeffMeta', 'bsRegimeMeta', 'bsEntryMeta'].forEach(function (id) { var el = $(id); if (el) el.textContent = ''; });
     fillBoardSelect([]);
   }
@@ -4643,7 +4730,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     renderMap(s);
     renderGames(s);
     renderRisk(s);
-    if (_BS.sel && boardById(_BS.sel)) showBoard(_BS.sel); else { _BS.sel = null; }
+    if (_BS.sel && boardById(_BS.sel)) renderBoard(_BS.sel); else { _BS.sel = null; closeTable(); }   // 재렌더는 내용만(모달 열림 상태는 유지 · 새로 열지 않음)
     tocSpy();
   }
   // 엔진 help 문구가 스냅샷에 있으면 섹션 ? 를 그걸로 바꾼다(없으면 마크업의 짧은 기본 문장 유지)
@@ -4787,7 +4874,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
         var st = STATUS_ORDER.indexOf(b.status) >= 0 ? b.status : 'untested';
         h += '<button type="button" class="bs-cell bs-st-' + st + (b.id === _BS.sel ? ' is-sel' : '') + '" data-id="' + esc(b.id) + '" onclick="BS.show(this.getAttribute(\'data-id\'))" title="' + esc(b.id) + ' · ' + esc(STATUS_KO[st]) + (b.status_note ? ' · ' + esc(b.status_note) : '') + '">' +
           esc(boardLabel(b)) + (oi[b.id] ? '<span class="bs-open-dot" title="내가 열어 둔 판 ' + oi[b.id] + '"></span>' : '') +
-          '<small>' + esc(STATUS_KO[st]) + (b.X_bp != null ? ' · X ' + f(b.X_bp, 1) + 'bp' : (b.sigma_err ? ' · σ 오류' : '')) + '</small></button>';   // 칸 = 상태 라벨 + X 만 · status_note 원문은 title(hover)·판 카드 '상태 메모'(엔진 문구 패스스루)
+          '<small>' + esc(STATUS_KO[st]) + (b.X_bp != null ? ' · X ' + f(b.X_bp, 1) + 'bp' : (b.sigma_err ? ' · σ 오류' : '')) + '</small>' + roadMini(b, 20) + '</button>';   // 칸 = 상태 라벨 + X + 로드 미리보기(최근 20칸 구슬 · road 없으면 0) · status_note 원문은 title(hover)·판 카드 '상태 메모'(엔진 문구 패스스루)
       });
       h += '</div>';
     });
@@ -4900,7 +4987,8 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
   }
   // 판 카드(2026-10-27 사용자 피드백 "각각 특별한 것 말고 쓸데없는 건 줄여라"): 헤더(이름·계열·상태 배지 — 상태 메모는 배지 툴팁) · 레그 표 1 · 방향 1줄 · 장벽/비용/상한 1줄 · 주문 환산 1줄 ·
   //   본전 vs 기준선 1줄 · 성적표/이긴 뒤·진 뒤/요인 적재 = 측정된 판만(아니면 "미실측" 한 줄) · 사이즈 규칙 = 열린 사이클 있을 때만 · 회계 = blocked 만. 숫자 전부 스냅샷 그대로(웹 계산 0).
-  function showBoard(id) {
+  function showBoard(id) { if (!boardById(id)) return; renderBoard(id); openTable(); }   // 판 지도 칸 클릭 = 테이블(모달) 열기 · 내용 = renderBoard
+  function renderBoard(id) {
     var b = boardById(id); if (!b) return;
     _BS.sel = id;
     Array.prototype.forEach.call(document.querySelectorAll('#bsMap .bs-cell'), function (el) { el.classList.toggle('is-sel', el.getAttribute('data-id') === id); });
@@ -4967,9 +5055,187 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
         (ev.p_w_given_w != null || ev.p_w_given_l != null) ? 'P(승|승) ' + pct(ev.p_w_given_w) + ' · P(승|패) ' + pct(ev.p_w_given_l) + (ev.baseline_adj != null ? ' · 기준선 보정 ' + sgn(num(ev.baseline_adj) * 100, 1) + '%p' : '') + (ev.years_stable != null ? ' · 안정 연수 ' + ev.years_stable : '') + (ev.n != null ? ' · n ' + ev.n : '') : '', sr && sr.source ? sr.source : '', sr && sr.decision_id ? '결정 ' + sr.decision_id : '', srs.note || ''].filter(Boolean).join(' · ');
       h += kline('사이즈 규칙', '<b>' + esc(RULE_KO[srs.rule || (sr && sr.kind)] || srs.rule || (sr && sr.kind) || '–') + '</b> · 지금 ' + dash(srs.step) + '단계' + (srs.size_mult != null && num(srs.size_mult) !== 1 ? ' (×' + esc(srs.size_mult) + ')' : '') + (srs.paroli_cycle_id ? ' · 사이클 ' + esc(srs.paroli_cycle_id) : '') + ' · 다음 사이즈 <b>' + (num(srs.next_size_R) != null ? f(srs.next_size_R, 2) + 'R' : '–') + '</b>' + (srs.capped || srs.capped_by ? ' ' + badgeW('한도 — 단계 증가 거부') : '') + helpBtn(ruleHelpTxt));
     }
+    if (roadOf(b)) h += kline('로드 미리보기', roadMini(b, 20) + ' <span class="wb-muted">최근 20칸(시간순)</span>');
     h += '<div style="margin-top:var(--wb-s3)"><button type="button" class="wb-btn wb-btn--sm" onclick="BS.pick(\'' + esc(id) + '\')">진입 기록 폼에 이 판 채우기</button>' + helpBtn('폼 채우기일 뿐 — 들어갈지는 사람이 정한다.') + '</div>';
     $('bsBoardCard').innerHTML = h + '</div>';
+    renderTable(b);
   }
+
+  // ── §8f 바카라 테이블(2026-10-28 사용자) ───────────────────────────────────────────────────────────
+  //   점수판 = 스냅샷 boards[].road 그대로 {chain_rule, k, window, games[{n, entry, exit, winner ∈ {+1,−1,0}, kind, length, R_plus, penetration, mine, draw_after_n}],
+  //           counts{plus, minus, draw, penetration}, streaks, current{entry, days, cum_R_plus, dist_win_R, dist_loss_R}, my_open, my_games_on_board} — 결과 재계산 0 ·
+  //           珠盤/大路 배치만 바카라 표시 규칙(bigRoad) · counts/streaks 는 엔진 값 우선(없으면 결과열에서 센 값 + ? 명시).
+  //   베팅 = 칩 쌓기(사용자 2026-10-28 변경 · 역마팅게일 토글 폐지): boards[].chips[{mult, size_R, dv01_won_per_bp, label}] · 상한 boards[].allowed_max_size_R(+엔진 사유) ·
+  //           '베팅' → 기존 POST open(size_R = 칩 합계 · chips = 쌓은 배수 목록 · paroli 인자 0) · 거부(400) 사유 원문. road/chips 없으면 정직 폴백(가짜 0).
+  //   추천·방향 제안 0 — 존 라벨 = dir_meaning 만.
+  var RD_KO = { '1': '+1 승', '-1': '−1 승', '0': '무승부' }, RES_KO = { win: '승', loss: '패', draw: '무승부', maturity: '만기', manual: '수동 종료' };
+  function winnerOf(g) { var w = num(g && g.winner); if (w == null) { var k = g && g.kind; return (k === 'draw' || k === 'maturity') ? 0 : null; } return w > 0 ? 1 : w < 0 ? -1 : 0; }
+  function rdCls(w) { return w > 0 ? 'bs-rd-p' : w < 0 ? 'bs-rd-m' : 'bs-rd-t'; }
+  function roadOf(b) { var r = b && b.road; return (r && typeof r === 'object' && Array.isArray(r.games)) ? r : null; }
+  function bigRoad(games) {   // 大路: 같은 결과 아래로 · 바뀌면 다음 열 맨 위 · 무승부 = 직전 칸 사선(앞선 무승부는 첫 칸에) · 6행 넘침/충돌 = 오른쪽 꼬리(바카라 규칙 · 표시 규칙일 뿐)
+    var cells = [], occ = {}, last = null, lastW = null, startCol = -1, pend = 0, maxC = -1;
+    function K(c, r) { return c + ':' + r; }
+    (games || []).forEach(function (g, i) {
+      var w = winnerOf(g); if (w == null) return;
+      if (w === 0) { if (last) last.ties += 1; else pend += 1; return; }
+      var c, r;
+      if (last && w === lastW) {
+        if (last.r < 5 && !occ[K(last.c, last.r + 1)]) { c = last.c; r = last.r + 1; }
+        else { c = last.c + 1; r = last.r; while (occ[K(c, r)]) c++; }
+      } else { c = startCol + 1; r = 0; while (occ[K(c, r)]) c++; startCol = c; }
+      var cell = { c: c, r: r, w: w, ties: pend, i: i, n: g.n, pen: !!g.penetration, mine: g.mine || null, tail: !!(last && w === lastW && r === last.r) };
+      pend = 0; occ[K(c, r)] = true; cells.push(cell); last = cell; lastW = w; if (c > maxC) maxC = c;
+    });
+    return { cells: cells, cols: maxC + 1, pending_ties: pend };
+  }
+  function streaksFrom(games) { var mp = 0, mm = 0, cur = 0, curW = null; (games || []).forEach(function (g) { var w = winnerOf(g); if (w == null || w === 0) return; if (w === curW) cur++; else { curW = w; cur = 1; } if (w > 0 && cur > mp) mp = cur; if (w < 0 && cur > mm) mm = cur; }); return { max_plus: mp, max_minus: mm, now: curW == null ? null : { dir: curW, n: cur } }; }
+  function myGameById(id) { var mg = (_BS.snap || {}).my_games || {}, o = mg.open || [], c = mg.closed_recent || []; for (var i = 0; i < o.length; i++) if (o[i].game_id === id) return { g: o[i], open: true }; for (var j = 0; j < c.length; j++) if (c[j].game_id === id) return { g: c[j], open: false }; return null; }
+  function chipsTxt(g) {   // 내 칩 델타 숫자: "2,475만/bp (1+0.5)" — g.dv01_won_per_bp · 쌓은 구성 g.chips(배수 목록 또는 [{mult}])
+    if (!g) return ''; var d = g.dv01_won_per_bp != null ? won(g.dv01_won_per_bp) + '/bp' : (g.size_R != null ? f(g.size_R, 2) + 'R' : '');
+    var cs = Array.isArray(g.chips) ? g.chips.map(function (c) { return (c && typeof c === 'object') ? (c.mult != null ? c.mult : c.size_R) : c; }).filter(function (x) { return x != null; }) : [];
+    return d + (cs.length ? ' (' + cs.join('+') + ')' : '');
+  }
+  function gameTitle(g) { var w = winnerOf(g), m = g.mine ? myGameById(g.mine) : null; return '#' + dash(g.n) + ' ' + (w == null ? '?' : RD_KO[String(w)]) + (g.kind ? ' · ' + g.kind : '') + (g.entry ? ' · ' + g.entry + ' → ' + (g.exit || '') : '') + (g.length != null ? ' · ' + g.length + '일' : '') + (g.R_plus != null ? ' · +1 관점 ' + sgn(g.R_plus, 2) + 'R' : '') + (g.penetration ? ' · 관통' : '') + (g.mine ? ' · 내 게임 ' + g.mine + (m ? ' ' + chipsTxt(m.g) + (m.open ? ' 진행 중' : '') : '') : ''); }
+  function beadCell(g) { var w = winnerOf(g), m = g.mine ? myGameById(g.mine) : null; return '<span class="bs-rd ' + (w == null ? 'bs-rd-cur' : rdCls(w)) + (g.penetration ? ' is-pen' : '') + (g.mine ? ' is-mine' : '') + (m && m.open ? ' is-live' : '') + '" title="' + esc(gameTitle(g)) + '">' + (g.mine ? '<i></i>' : '') + '</span>'; }
+  function curTxt(c) { return '진입 ' + dash(c.entry) + ' · ' + dash(c.days) + '일 · 지금 R(+1 관점) ' + (c.cum_R_plus != null ? sgn(c.cum_R_plus, 2) + 'R' : '–') + ' · 승까지 ' + f(c.dist_win_R, 2) + 'R · 패까지 ' + f(c.dist_loss_R, 2) + 'R'; }
+  function roadMini(b, n) {   // 지도 칸 · 판 카드용 미리보기(최근 n칸 구슬 · 진행 중 = 점선) · road 없으면 ''
+    var rd = roadOf(b); if (!rd) return ''; var gs = rd.games.slice(-(n || 20));
+    return '<span class="bs-rd-mini" title="최근 ' + gs.length + '칸 결과열(시간순)">' + gs.map(function (g) { var w = winnerOf(g), m = g.mine ? myGameById(g.mine) : null; return '<i class="' + (w == null ? 'bs-rd-cur' : rdCls(w)) + (g.mine ? ' is-mine' : '') + (m && m.open ? ' is-live' : '') + '"></i>'; }).join('') + (rd.current ? '<i class="bs-rd-cur"></i>' : '') + '</span>';
+  }
+  function tallyHtml(rd) {
+    var gs = rd.games, cnt = rd.counts && typeof rd.counts === 'object' ? rd.counts : null, cntFrom = !cnt;
+    if (!cnt) { cnt = { plus: 0, minus: 0, draw: 0, penetration: 0 }; gs.forEach(function (g) { var w = winnerOf(g); if (w > 0) cnt.plus++; else if (w < 0) cnt.minus++; else if (w === 0) cnt.draw++; if (g.penetration) cnt.penetration++; }); }
+    var st = rd.streaks && typeof rd.streaks === 'object' ? rd.streaks : null, stFrom = !st; if (!st) st = streaksFrom(gs);
+    var mp = pick(st, ['max_plus', 'longest_plus', 'plus']), mm = pick(st, ['max_minus', 'longest_minus', 'minus']), now = pick(st, ['now', 'current', 'last']);
+    var nowTxt = now == null ? '–' : (typeof now === 'object' ? ((num(now.dir) > 0 ? '+' : num(now.dir) < 0 ? '−' : '') + dash(pick(now, ['n', 'len', 'length', 'count']))) : esc(String(now)));
+    var sum = (num(cnt.plus) || 0) + (num(cnt.minus) || 0) + (num(cnt.draw) || 0), mismatch = !cntFrom && sum !== gs.length;
+    return '<div class="bs-rd-tally"><span><i style="background:var(--wb-up)"></i>+1 승 <b>' + dash(cnt.plus) + '</b></span><span><i style="background:var(--wb-down)"></i>−1 승 <b>' + dash(cnt.minus) + '</b></span><span><i style="background:var(--wb-open)"></i>무승부 <b>' + dash(cnt.draw) + '</b></span><span>관통 <b>' + dash(cnt.penetration) + '</b></span>' +
+      '<span>최장 연속 <b>+' + dash(mp) + ' / −' + dash(mm) + '</b></span><span>지금 연속 <b>' + nowTxt + '</b></span><span class="wb-muted">열 ' + gs.length + '판</span>' + (mismatch ? badgeW('집계 ' + sum + ' ≠ 열 ' + gs.length) : '') + ((cntFrom || stFrom) ? helpBtn('엔진 road.' + (cntFrom ? 'counts' : '') + (cntFrom && stFrom ? '·' : '') + (stFrom ? 'streaks' : '') + ' 없음 — 결과열(games)에서 센 값') : '') + '</div>';
+  }
+  function myGamesOnBoard(b, rd) {   // road.my_open · road.my_games_on_board(id 또는 객체) → 내 게임 레코드 · 없으면 my_games.open/closed_recent 에서 이 판만
+    var mg = (_BS.snap || {}).my_games || {}, out = [], seen = {};
+    function add(x, open) { var id = typeof x === 'string' ? x : (x && x.game_id); if (!id || seen[id]) return; var m = myGameById(id), g = m ? m.g : ((x && typeof x === 'object') ? x : null); if (!g) return; seen[id] = 1; out.push({ g: g, open: m ? m.open : !!open }); }
+    if (rd) { (Array.isArray(rd.my_open) ? rd.my_open : (rd.my_open ? [rd.my_open] : [])).forEach(function (x) { add(x, true); }); (Array.isArray(rd.my_games_on_board) ? rd.my_games_on_board : []).forEach(function (x) { add(x, false); }); }
+    (mg.open || []).forEach(function (g) { if (g.board_id === b.id) add(g, true); });
+    (mg.closed_recent || []).forEach(function (g) { if (g.board_id === b.id) add(g, false); });
+    return out;
+  }
+  function myChipsHtml(b, rd) {
+    var list = myGamesOnBoard(b, rd); if (!list.length) return '<div class="bs-mychips wb-muted">내 칩 없음 — 이 판에 내 게임 0</div>';
+    return '<div class="bs-mychips"><b>내 칩</b>' + list.map(function (x) {
+      var g = x.g, d = num(g.dir) > 0 ? 1 : -1, res = x.open ? '진행 중' : (RES_KO[g.result] || g.result || '종료');
+      var col = x.open ? 'var(--wb-ink)' : (g.result === 'win' ? (d > 0 ? 'var(--wb-up)' : 'var(--wb-down)') : g.result === 'loss' ? (d > 0 ? 'var(--wb-down)' : 'var(--wb-up)') : (g.result === 'draw' || g.result === 'maturity') ? 'var(--wb-open)' : 'var(--wb-mark)');   // 종료 = 결과 색(이긴 쪽 색) · 진행 중 = 잉크 + 깜빡임
+      return '<span class="wb-chip" title="' + esc(g.game_id || '') + '"><i class="bs-rd' + (x.open ? ' is-live' : '') + '" style="background:' + col + '"></i>' + dirTxt(d) + ' ' + esc(g.entry_date || '') + (x.open ? '' : ' → ' + esc(g.exit_date || '')) + ' · <b>' + esc(chipsTxt(g) || '–') + '</b> · ' + esc(res) + (x.open ? (g.now && g.now.cum_R != null ? ' ' + sgn(g.now.cum_R, 2) + 'R' : '') : (g.R != null ? ' ' + sgn(g.R, 2) + 'R' : '')) + '</span>';
+    }).join('') + '</div>';
+  }
+  function roadHtml(b) {
+    var rd = roadOf(b);
+    if (!rd) return emptyHtml('결과열 없음', '스냅샷 boards[].road 미생성 — cli.py board snapshot(road 배선 뒤) 이 만든다 · 가짜 결과 0');
+    var gs = rd.games, cur = rd.current && typeof rd.current === 'object' ? rd.current : null, h = '';
+    h += '<div class="bs-rd-title">구슬 로드(珠盤) · 시간순 · 6행' + (rd.window != null ? ' · 최근 ' + esc(rd.window) : '') + (rd.chain_rule ? ' · 사슬 ' + esc(rd.chain_rule) : '') + (rd.k != null ? ' · k ' + esc(rd.k) : '') + '</div>';
+    h += '<div class="bs-rd-wrap"><div class="bs-rd-grid bs-rd-bead">' + gs.map(beadCell).join('') + (cur ? '<span class="bs-rd bs-rd-cur" title="진행 중 · ' + esc(curTxt(cur)) + '">?</span>' : '') + '</div></div>';
+    if (!gs.length && !cur) h += '<div class="bs-sub">결과 0판</div>';
+    if (cur) h += '<div class="bs-kpis bs-line"><span><i>진행 중(사슬)</i>' + esc(curTxt(cur)) + '</span></div>';
+    var br = bigRoad(gs);
+    h += '<div class="bs-rd-title" style="margin-top:var(--wb-s3)">빅 로드(大路) · 같은 결과 아래로 · 바뀌면 다음 열 · 무승부 = 직전 칸 녹색 사선 · 6행 넘침 = 오른쪽 꼬리</div>';
+    h += '<div class="bs-rd-wrap"><div class="bs-rd-grid bs-rd-big" style="grid-template-columns:repeat(' + Math.max(1, br.cols + (br.pending_ties ? 1 : 0)) + ',20px)">' +
+      br.cells.map(function (c) { var g = gs[c.i], m = c.mine ? myGameById(c.mine) : null; return '<span class="bs-rd ' + rdCls(c.w) + (c.ties ? ' is-tie' : '') + (c.pen ? ' is-pen' : '') + (c.mine ? ' is-mine' : '') + (m && m.open ? ' is-live' : '') + (c.tail ? ' is-tail' : '') + '" style="grid-column:' + (c.c + 1) + ';grid-row:' + (c.r + 1) + '"' + (c.ties ? ' data-ties="' + c.ties + '"' : '') + ' title="' + esc(gameTitle(g) + (c.ties ? ' · 뒤 무승부 ' + c.ties : '')) + '">' + (c.ties ? '<b>' + c.ties + '</b>' : '') + (c.mine ? '<i></i>' : '') + '</span>'; }).join('') +
+      (br.pending_ties ? '<span class="bs-rd is-tie" data-ties="' + br.pending_ties + '" style="grid-column:' + (br.cols + 1) + ';grid-row:1" title="무승부 ' + br.pending_ties + ' (뒤에 승패 결과 없음)"><b>' + br.pending_ties + '</b></span>' : '') + '</div></div>';
+    h += tallyHtml(rd);
+    h += myChipsHtml(b, rd);
+    return h;
+  }
+  // 칩 쌓기
+  function stackFor(bid) { if (!_BS.stack[bid]) _BS.stack[bid] = { dir: null, chips: [] }; return _BS.stack[bid]; }
+  function chipByMult(b, mult) { var cs = Array.isArray(b.chips) ? b.chips : []; for (var i = 0; i < cs.length; i++) if (num(cs[i].mult) === num(mult)) return cs[i]; return null; }
+  function stackSum(b, st) { var R = 0, D = 0, dOk = true; st.chips.forEach(function (m) { var c = chipByMult(b, m); if (!c) return; R += num(c.size_R) || 0; if (c.dv01_won_per_bp != null) D += num(c.dv01_won_per_bp) || 0; else dOk = false; }); return { R: R, D: dOk ? D : null, parts: st.chips.slice() }; }
+  function sumTxt(b, st) { var s = stackSum(b, st); return f(s.R, 2) + 'R · ' + (s.D != null ? won(s.D) + '/bp' : '델타 –') + ' · ' + s.parts.join(' + '); }
+  function capWhy(b) { return pick(b, ['allowed_max_reason', 'allowed_max_note', 'allowed_max_size_reason', 'allowed_max_size_note', 'allowed_max_size_R_note']); }
+  function chipBtn(c, b, st) {
+    var cap = num(b.allowed_max_size_R), over = cap != null && (stackSum(b, st).R + (num(c.size_R) || 0)) > cap + 1e-9;
+    return '<button type="button" class="bs-chip' + (over ? ' is-dim' : '') + '" draggable="true" data-mult="' + esc(c.mult) + '" ondragstart="BS.dragChip(event)" onclick="BS.addChip(this.getAttribute(\'data-mult\'))" title="' + esc((c.label || ('×' + c.mult)) + ' = ' + f(c.size_R, 2) + 'R' + (c.dv01_won_per_bp != null ? ' · 델타 ' + won(c.dv01_won_per_bp) + '/bp' : '')) + '">' + esc(c.label || ('×' + c.mult)) + '<small>' + (c.dv01_won_per_bp != null ? won(c.dv01_won_per_bp) + '/bp' : f(c.size_R, 2) + 'R') + '</small></button>';
+  }
+  function zoneHtml(b, st, d) {
+    var sel = st.dir === d, cls = d > 0 ? 'bs-zone-p' : 'bs-zone-m';
+    return '<div class="bs-zone ' + cls + (sel ? ' is-sel' : '') + '" role="button" tabindex="0" data-dir="' + d + '" onclick="BS.zone(' + d + ')" onkeydown="if(event.key===\'Enter\')BS.zone(' + d + ')" ondragover="BS.dragOver(event)" ondragleave="BS.dragLeave(event)" ondrop="BS.drop(event,' + d + ')">' +
+      '<span class="bs-zone-dir">' + dirTxt(d) + '</span><span class="bs-zone-mean">' + esc(dirMeaning(b, d)) + '</span>' +
+      '<div class="bs-stack">' + (sel ? st.chips.map(function (m) { var c = chipByMult(b, m); return '<span class="bs-chip">' + esc(c ? (c.label || ('×' + c.mult)) : ('×' + m)) + '</span>'; }).join('') : '') + '</div>' +
+      '<div class="bs-zone-sum">' + (sel && st.chips.length ? esc(sumTxt(b, st)) : '<span class="wb-muted">' + (sel ? '칩을 올리세요' : '여기를 누르고 칩을 올리세요') + '</span>') + '</div></div>';
+  }
+  function betHtml(b) {
+    var st = stackFor(b.id), chips = Array.isArray(b.chips) && b.chips.length ? b.chips : null, cap = num(b.allowed_max_size_R), why = capWhy(b), tf = _BS.tform, h = '';
+    var open = (((_BS.snap || {}).my_games || {}).open || []).filter(function (g) { return g.board_id === b.id; });
+    if (open.length) h += '<div class="bs-opengames"><div class="bs-subhead" style="padding-left:0">열린 게임 ' + open.length + ' — 종료 / 정정 / 삭제</div>' + open.map(gameCard).join('') + '</div>';
+    if (!chips) {
+      h += '<div class="wb-empty" style="margin:var(--wb-s3) var(--wb-inset)"><div class="wb-empty-title">칩 트레이 없음</div><div class="wb-empty-text">스냅샷 boards[].chips 미생성 — 테이블 베팅 불가 · 진입 기록 폼으로 기록</div><button type="button" class="wb-btn wb-btn--sm" style="margin-top:6px" onclick="BS.closeTable();BS.pick(\'' + esc(b.id) + '\')">진입 기록 폼으로</button></div>';
+      return h;
+    }
+    h += '<div class="bs-bet">' + zoneHtml(b, st, 1) + zoneHtml(b, st, -1) + '</div>';
+    h += '<div class="bs-tray"><span class="wb-label">칩 트레이</span><div class="bs-chips">' + chips.map(function (c) { return chipBtn(c, b, st); }).join('') + '</div>' +
+      '<span class="bs-sub" style="margin:0">상한 ' + (cap != null ? '<b>' + f(cap, 2) + 'R</b>' : '엔진 미지정(최종 판정 = 엔진)') + (why ? ' · ' + esc(why) : '') + (b.one_R_won != null ? ' · 1R = ' + won(b.one_R_won) : '') + '</span>' +
+      '<button type="button" class="wb-btn wb-btn--sm" onclick="BS.clearChips()">치우기</button></div>';
+    var isB = b.family === 'B', codes = isB ? (b.legs_today || []).map(function (l) { return l.code; }).filter(Boolean) : [];
+    h += '<div class="bs-tbl-form"><div class="wb-field"><span class="wb-label">날짜</span><input class="wb-input" id="bsTDate" type="date" value="' + esc(tf.date || entryDateFor(b.id)) + '" oninput="BS.tf(\'date\', this.value)"></div>' +
+      (isB ? '<div class="wb-field"><span class="wb-label">종목(바스켓 판)</span><input class="wb-input" id="bsTBond" type="text" list="bsTBondList" placeholder="코드 · 비우면 엔진 기본" value="' + esc(tf.bond || '') + '" oninput="BS.tf(\'bond\', this.value)"><datalist id="bsTBondList">' + codes.map(function (c) { return '<option value="' + esc(c) + '">'; }).join('') + '</datalist></div>' : '') +
+      '<div class="wb-field bs-wide"><span class="wb-label">메모(계산에 안 씀)</span><input class="wb-input" id="bsTMemo" type="text" placeholder="원장에만 남음" value="' + esc(tf.memo || '') + '" oninput="BS.tf(\'memo\', this.value)"></div>' +
+      '<button type="button" class="wb-btn wb-btn--primary" id="bsTBet" onclick="BS.bet()"' + (st.dir && st.chips.length ? '' : ' disabled') + '>베팅' + (st.dir && st.chips.length ? ' ' + dirTxt(st.dir) + ' · ' + f(stackSum(b, st).R, 2) + 'R' : '') + '</button></div>';
+    return h;
+  }
+  function tableHead(b) {
+    var s = _BS.snap || {}, rk = s.risk || {}, se = (s.my_games || {}).season || {}, rd = roadOf(b), st = STATUS_ORDER.indexOf(b.status) >= 0 ? b.status : 'untested';
+    var pbc = b.per_board_cap || ((rk.per_board_cap_won || {})[b.id]) || null, cap = num(b.allowed_max_size_R);
+    var gameNo = null, gameLbl = '';
+    if (rd) { if (rd.current && rd.current.n != null) { gameNo = rd.current.n; gameLbl = '진행 중'; } else { var ln = rd.games.length ? num(rd.games[rd.games.length - 1].n) : null; gameNo = ln != null ? ln + 1 : rd.games.length + 1; gameLbl = '다음'; } }
+    return '<h3 id="bsTblTitle">테이블 · ' + esc(boardLabel(b)) + '</h3><span class="wb-badge bs-st-' + st + '">' + STATUS_KO[st] + '</span><span class="wb-muted" style="font-size:12px">' + esc(b.id) + (b.family_name ? ' · ' + esc(b.family_name) : '') + '</span>' +
+      '<button type="button" class="wb-btn wb-btn--sm bs-tbl-x" onclick="BS.closeTable()" aria-label="닫기">닫기 ✕</button>' +
+      '<div class="bs-kpis"><span><i>+1</i>' + esc(dirMeaning(b, 1)) + '</span><span><i>−1</i>' + esc(dirMeaning(b, -1)) + '</span><span><i>오늘 장벽</i><b>' + (b.X_bp != null ? '±' + f(b.X_bp, 1) + 'bp' : '미계산') + '</b>' + (b.entry_date_default ? ' <span class="wb-muted">(' + esc(b.entry_date_default) + ' 진입)</span>' : '') + '</span>' +
+      '<span><i>한도 사용</i>' + won(rk.one_side) + ' / ' + won(rk.limit) + (rk.usage_pct != null ? ' (' + f(rk.usage_pct, 1) + '%)' : '') + '</span><span><i>시즌(슈)</i>' + dash(se.start) + (se.unit ? ' · ' + esc(se.unit) : '') + (se.n_closed != null ? ' · 종료 ' + se.n_closed + '판' : '') + '</span>' +
+      '<span><i>게임</i>' + (gameNo != null ? '#' + esc(gameNo) + ' <span class="wb-muted">(' + gameLbl + ' · 사슬 순번)</span>' : '–') + '</span></div>' +
+      '<div class="bs-tbl-minmax">Min 1R = ' + (b.one_R_won != null ? won(b.one_R_won) : '–') + ' · Max 판당 델타 상한 ' + (pbc && pbc.cap_won != null ? won(pbc.cap_won) + '/bp' : '–') + ' · 칩 상한 ' + (cap != null ? f(cap, 2) + 'R' : '–') + (b.cap != null ? ' · 게임 상한 ' + (String(b.cap) === 'LT' ? '만기(LT)' : esc(b.cap) + '거래일') : '') + '</div>';
+  }
+  function renderTable(b) {
+    var rd = roadOf(b);
+    $('bsTblHead').innerHTML = tableHead(b);
+    $('bsTblRoad').innerHTML = roadHtml(b);
+    $('bsTblRoadMeta').textContent = rd ? (rd.games.length + '판' + (rd.current ? ' + 진행 중' : '') + (rd.asof ? ' · ' + rd.asof : '')) : 'road 없음';
+    $('bsTblBet').innerHTML = betHtml(b);
+    $('bsTblBetMeta').textContent = Array.isArray(b.chips) && b.chips.length ? ('칩 ' + b.chips.map(function (c) { return c.label || ('×' + c.mult); }).join(' · ')) : '';
+  }
+  function openTable() { var el = $('bsTable'); if (!el) return; el.hidden = false; _BS.tblOpen = true; if (document.body && document.body.classList) document.body.classList.add('bs-tbl-lock'); }
+  function closeTable() { var el = $('bsTable'); if (el) el.hidden = true; _BS.tblOpen = false; if (document.body && document.body.classList) document.body.classList.remove('bs-tbl-lock'); }
+  function zone(d) { var b = boardById(_BS.sel); if (!b) return; var st = stackFor(b.id); st.dir = Number(d) > 0 ? 1 : -1; renderTable(b); }
+  function addChip(mult) {
+    var b = boardById(_BS.sel); if (!b) return false; var st = stackFor(b.id), c = chipByMult(b, mult);
+    if (!c) { setMsg('칩 없음 — boards[].chips 에 ×' + mult + ' 없음', true); return false; }
+    if (!st.dir) { setMsg('+1 / −1 존을 먼저 고르세요(칩은 존 위에 쌓인다)', true); return false; }
+    var cap = num(b.allowed_max_size_R), next = stackSum(b, st).R + (num(c.size_R) || 0);
+    if (cap != null && next > cap + 1e-9) { setMsg('칩 안 놓임 — 합계 ' + f(next, 2) + 'R > 상한 ' + f(cap, 2) + 'R' + (capWhy(b) ? ' · ' + capWhy(b) : ''), true); return false; }
+    st.chips.push(num(c.mult)); setMsg(''); renderTable(b); return true;
+  }
+  function clearChips() { var b = boardById(_BS.sel); if (!b) return; var st = stackFor(b.id); st.chips = []; setMsg(''); renderTable(b); }
+  function tf(k, v) { _BS.tform[k] = v; }
+  function dragChip(e) { try { e.dataTransfer.setData('text/plain', String(e.target.getAttribute('data-mult'))); e.dataTransfer.effectAllowed = 'copy'; } catch (x) { /* noop */ } }
+  function dragOver(e) { e.preventDefault(); if (e.currentTarget && e.currentTarget.classList) e.currentTarget.classList.add('is-over'); }
+  function dragLeave(e) { if (e.currentTarget && e.currentTarget.classList) e.currentTarget.classList.remove('is-over'); }
+  function drop(e, d) { e.preventDefault(); var m = null; try { m = e.dataTransfer.getData('text/plain'); } catch (x) { /* noop */ } var b = boardById(_BS.sel); if (!b) return; stackFor(b.id).dir = Number(d) > 0 ? 1 : -1; if (m) addChip(m); else renderTable(b); }
+  async function bet() {
+    var b = boardById(_BS.sel); if (!b || !_BS.snap) { setMsg('스냅샷 없음 — 기록 불가', true); return; }
+    var st = stackFor(b.id);
+    if (!st.dir) { setMsg('+1 / −1 존을 먼저 고르세요', true); return; }
+    if (!st.chips.length) { setMsg('칩 0 — 트레이에서 칩을 올리세요', true); return; }
+    var date = ($('bsTDate') && $('bsTDate').value) || _BS.tform.date || entryDateFor(b.id); if (!date) { setMsg('날짜 필요', true); return; }
+    var sum = stackSum(b, st), cap = num(b.allowed_max_size_R);
+    if (cap != null && sum.R > cap + 1e-9) { setMsg('합계 ' + f(sum.R, 2) + 'R > 상한 ' + f(cap, 2) + 'R' + (capWhy(b) ? ' · ' + capWhy(b) : ''), true); return; }
+    var memo = ($('bsTMemo') && $('bsTMemo').value) || _BS.tform.memo || '', bond = (($('bsTBond') && $('bsTBond').value) || _BS.tform.bond || '').trim();
+    var ev = { event: 'open', board_id: b.id, dir: st.dir, date: date, size_R: sum.R, chips: st.chips.slice(), memo: memo, by: 'web' };   // 크기 = 칩 합계 · chips = 쌓은 배수(라우터가 엔진 open_game 이 받을 때만 전달) · paroli 인자 0
+    if (bond) ev.bond = bond;
+    if (b.status === 'blocked' && !confirm('이 판은 회계 경로가 없어 R 을 못 잰다(기록만 남음). 그래도 기록할까?')) return;
+    var ok = await post(ev);   // 거부(400) 사유 원문 = setMsg → bsTblMsg
+    if (!ok) return;
+    st.chips = []; st.dir = null; _BS.tform.memo = ''; _BS.tform.bond = '';
+    renderBoard(b.id);
+  }
+  if (document.addEventListener) document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && _BS.tblOpen) closeTable(); });
   function ruleIdOf(b, key) { var c = (_BS.snap || {}).config || {}; var x = c[key]; return x && x.decision_id ? ' · 결정 ' + x.decision_id : ''; }
 
   // ── 3 내 게임 ───────────────────────────────────────────────────────────
@@ -5152,7 +5418,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
   function closeGame(id) { var d = prompt('종료일(YYYY-MM-DD · 비우면 오늘)', (_BS.snap && _BS.snap.asof) || ''); if (d === null) return; var m = prompt('메모(선택)', ''); if (m === null) m = ''; var ev = { event: 'close', game_id: id, result: 'manual', memo: m, by: 'web' }; if (d) ev.date = d; post(ev); }
   function noteGame(id) { var m = prompt('메모(note 이벤트 · 원장에 남고 계산엔 안 씀)', ''); if (!m) return; post({ event: 'note', game_id: id, memo: m, by: 'web' }); }
   var AMEND_LOCK = ['bsFBoard', 'bsFDir', 'bsFDate'];   // 정정 중 잠그는 필드(방향·날짜·판은 amend 로 못 바꾼다)
-  function amendGame(id) { var g = findOpen(id); _BS.amend = id; if (g) { $('bsFBoard').value = g.board_id; $('bsFDir').value = String(Number(g.dir) > 0 ? 1 : -1); $('bsFDate').value = g.entry_date || ''; if ($('bsFBond')) $('bsFBond').value = g.bond || ''; }
+  function amendGame(id) { closeTable(); var g = findOpen(id); _BS.amend = id; if (g) { $('bsFBoard').value = g.board_id; $('bsFDir').value = String(Number(g.dir) > 0 ? 1 : -1); $('bsFDate').value = g.entry_date || ''; if ($('bsFBond')) $('bsFBond').value = g.bond || ''; }
     AMEND_LOCK.forEach(function (k) { var el = $(k); if (el) el.disabled = true; });
     var am = ((_BS.snap || {}).my_games || {}).amend || null;   // 스키마 2: my_games.amend {allowed, frozen, reject_reason} — 엔진 화이트리스트 원문
     $('bsFAmend').innerHTML = '정정 대상 <b>' + esc(id) + '</b> — 크기·종목·메모만' + helpBtn([hget((_BS.snap || {}).my_games, 'amend', 'amend 는 새 이벤트로 덧붙는다(원래 open 은 남고 정정 이력이 쌓임). 방향·날짜·상태는 바꿀 수 없다 — 잘못 열었으면 삭제(사유 필수) 후 다시 연다.'), am && Array.isArray(am.allowed) ? '허용 = ' + am.allowed.join(', ') : '', am && am.reject_reason ? am.reject_reason : '거부 사유는 엔진 원문.'].filter(Boolean).join('\n')) + ' <button type="button" class="wb-btn wb-btn--sm" onclick="BS.cancelAmend()">정정 취소</button>';
@@ -5240,7 +5506,8 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
   }
 
   window.BS = { load: load, render: render, show: showBoard, pick: pick1, toggleMain: toggleMain, submit: submit, close: closeGame, amend: amendGame, del: deleteGame, paroli: paroliToggle, cancelAmend: cancelAmend, note: noteGame, syncDir: syncDir, sizeMode: sizeMode, go: go, spy: tocSpy,
-    _state: _BS, _setSnap: function (s, rv) { _BS.snap = s; _BS.review = rv || null; _BS.sample = !!(s && s.sample_dummy); } };
+    closeTable: closeTable, zone: zone, addChip: addChip, clearChips: clearChips, bet: bet, tf: tf, dragChip: dragChip, dragOver: dragOver, dragLeave: dragLeave, drop: drop,   // §8f 테이블
+    _state: _BS, _bigRoad: bigRoad, _setSnap: function (s, rv) { _BS.snap = s; _BS.review = rv || null; _BS.sample = !!(s && s.sample_dummy); } };
 })();
 </script>
 <script>

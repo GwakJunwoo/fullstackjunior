@@ -2918,7 +2918,327 @@
    },
    "help": {
     "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
-   }
+   },
+   "road": {
+    "chain_rule": "당일 재진입 비겹침",
+    "k": 1.0,
+    "window": 120,
+    "asof": "2026-10-26",
+    "games": [
+     {
+      "n": 1,
+      "entry": "2026-03-02",
+      "exit": "2026-05-04",
+      "winner": 0,
+      "kind": "draw",
+      "length": 63,
+      "R_plus": 0.13,
+      "penetration": false,
+      "mine": null,
+      "draw_after_n": 0
+     },
+     {
+      "n": 2,
+      "entry": "2026-05-05",
+      "exit": "2026-07-07",
+      "winner": 0,
+      "kind": "draw",
+      "length": 63,
+      "R_plus": 0.14,
+      "penetration": false,
+      "mine": null,
+      "draw_after_n": 1
+     },
+     {
+      "n": 3,
+      "entry": "2026-07-08",
+      "exit": "2026-07-21",
+      "winner": -1,
+      "kind": "loss",
+      "length": 13,
+      "R_plus": -1.0,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 4,
+      "entry": "2026-07-22",
+      "exit": "2026-07-31",
+      "winner": -1,
+      "kind": "loss",
+      "length": 9,
+      "R_plus": -1.08,
+      "penetration": true,
+      "mine": null
+     },
+     {
+      "n": 5,
+      "entry": "2026-08-01",
+      "exit": "2026-08-06",
+      "winner": -1,
+      "kind": "loss",
+      "length": 5,
+      "R_plus": -1.16,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 6,
+      "entry": "2026-08-07",
+      "exit": "2026-08-19",
+      "winner": -1,
+      "kind": "loss",
+      "length": 12,
+      "R_plus": -1.0,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 7,
+      "entry": "2026-08-20",
+      "exit": "2026-08-28",
+      "winner": -1,
+      "kind": "loss",
+      "length": 8,
+      "R_plus": -1.08,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 8,
+      "entry": "2026-08-29",
+      "exit": "2026-09-02",
+      "winner": -1,
+      "kind": "loss",
+      "length": 4,
+      "R_plus": -1.16,
+      "penetration": true,
+      "mine": null
+     },
+     {
+      "n": 9,
+      "entry": "2026-09-03",
+      "exit": "2026-09-14",
+      "winner": -1,
+      "kind": "loss",
+      "length": 11,
+      "R_plus": -1.0,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 10,
+      "entry": "2026-09-15",
+      "exit": "2026-09-22",
+      "winner": -1,
+      "kind": "loss",
+      "length": 7,
+      "R_plus": -1.08,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 11,
+      "entry": "2026-09-23",
+      "exit": "2026-09-26",
+      "winner": -1,
+      "kind": "loss",
+      "length": 3,
+      "R_plus": -1.16,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 12,
+      "entry": "2026-09-27",
+      "exit": "2026-10-07",
+      "winner": 1,
+      "kind": "win",
+      "length": 10,
+      "R_plus": 1.0,
+      "penetration": true,
+      "mine": null
+     },
+     {
+      "n": 13,
+      "entry": "2026-10-08",
+      "exit": "2026-10-14",
+      "winner": 1,
+      "kind": "win",
+      "length": 6,
+      "R_plus": 1.08,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 14,
+      "entry": "2026-10-15",
+      "exit": "2026-10-28",
+      "winner": 1,
+      "kind": "win",
+      "length": 13,
+      "R_plus": 1.16,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 15,
+      "entry": "2026-10-29",
+      "exit": "2026-11-07",
+      "winner": 1,
+      "kind": "win",
+      "length": 9,
+      "R_plus": 1.0,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 16,
+      "entry": "2026-11-08",
+      "exit": "2026-11-13",
+      "winner": 1,
+      "kind": "win",
+      "length": 5,
+      "R_plus": 1.08,
+      "penetration": true,
+      "mine": null
+     },
+     {
+      "n": 17,
+      "entry": "2026-11-14",
+      "exit": "2026-11-26",
+      "winner": 1,
+      "kind": "win",
+      "length": 12,
+      "R_plus": 1.16,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 18,
+      "entry": "2026-11-27",
+      "exit": "2026-12-05",
+      "winner": 1,
+      "kind": "win",
+      "length": 8,
+      "R_plus": 1.0,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 19,
+      "entry": "2026-12-06",
+      "exit": "2026-12-10",
+      "winner": -1,
+      "kind": "loss",
+      "length": 4,
+      "R_plus": -1.08,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 20,
+      "entry": "2026-12-11",
+      "exit": "2026-12-22",
+      "winner": 1,
+      "kind": "win",
+      "length": 11,
+      "R_plus": 1.16,
+      "penetration": true,
+      "mine": null
+     },
+     {
+      "n": 21,
+      "entry": "2026-12-23",
+      "exit": "2026-12-30",
+      "winner": -1,
+      "kind": "loss",
+      "length": 7,
+      "R_plus": -1.0,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 22,
+      "entry": "2026-12-31",
+      "exit": "2027-01-03",
+      "winner": -1,
+      "kind": "loss",
+      "length": 3,
+      "R_plus": -1.08,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 23,
+      "entry": "2027-01-04",
+      "exit": "2027-03-08",
+      "winner": 0,
+      "kind": "draw",
+      "length": 63,
+      "R_plus": 0.14,
+      "penetration": false,
+      "mine": null,
+      "draw_after_n": 22
+     },
+     {
+      "n": 24,
+      "entry": "2027-03-09",
+      "exit": "2027-03-15",
+      "winner": 1,
+      "kind": "win",
+      "length": 6,
+      "R_plus": 1.0,
+      "penetration": true,
+      "mine": null
+     },
+     {
+      "n": 25,
+      "entry": "2027-03-16",
+      "exit": "2027-03-29",
+      "winner": 1,
+      "kind": "win",
+      "length": 13,
+      "R_plus": 1.08,
+      "penetration": false,
+      "mine": null
+     }
+    ],
+    "counts": {
+     "plus": 10,
+     "minus": 12,
+     "draw": 3,
+     "penetration": 6
+    },
+    "streaks": {
+     "max_plus": 7,
+     "max_minus": 9,
+     "now": {
+      "dir": 1,
+      "n": 2
+     }
+    },
+    "current": null,
+    "my_open": [],
+    "my_games_on_board": [],
+    "sample_dummy": true
+   },
+   "chips": [
+    {
+     "mult": 0.5,
+     "size_R": 0.5,
+     "dv01_won_per_bp": 8250000.0,
+     "label": "×0.5"
+    },
+    {
+     "mult": 1.0,
+     "size_R": 1.0,
+     "dv01_won_per_bp": 16500000.0,
+     "label": "×1"
+    }
+   ],
+   "allowed_max_size_R": 1.0,
+   "allowed_max_reason": "직전 패 · 1R 까지"
   },
   {
    "id": "S.slope.3_5",
@@ -5234,7 +5554,594 @@
    },
    "help": {
     "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
-   }
+   },
+   "road": {
+    "chain_rule": "당일 재진입 비겹침",
+    "k": 1.0,
+    "window": 120,
+    "asof": "2026-10-26",
+    "games": [
+     {
+      "n": 1,
+      "entry": "2025-11-03",
+      "exit": "2025-11-13",
+      "winner": 1,
+      "kind": "win",
+      "length": 10,
+      "R_plus": 1.08,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 2,
+      "entry": "2025-11-14",
+      "exit": "2025-11-20",
+      "winner": 1,
+      "kind": "win",
+      "length": 6,
+      "R_plus": 1.16,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 3,
+      "entry": "2025-11-21",
+      "exit": "2025-12-04",
+      "winner": -1,
+      "kind": "loss",
+      "length": 13,
+      "R_plus": -1.0,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 4,
+      "entry": "2025-12-05",
+      "exit": "2025-12-14",
+      "winner": -1,
+      "kind": "loss",
+      "length": 9,
+      "R_plus": -1.08,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 5,
+      "entry": "2025-12-15",
+      "exit": "2025-12-20",
+      "winner": -1,
+      "kind": "loss",
+      "length": 5,
+      "R_plus": -1.16,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 6,
+      "entry": "2025-12-21",
+      "exit": "2026-02-22",
+      "winner": 0,
+      "kind": "draw",
+      "length": 63,
+      "R_plus": 0.12,
+      "penetration": false,
+      "mine": null,
+      "draw_after_n": 5
+     },
+     {
+      "n": 7,
+      "entry": "2026-02-23",
+      "exit": "2026-03-03",
+      "winner": 1,
+      "kind": "win",
+      "length": 8,
+      "R_plus": 1.08,
+      "penetration": true,
+      "mine": null
+     },
+     {
+      "n": 8,
+      "entry": "2026-03-04",
+      "exit": "2026-03-08",
+      "winner": -1,
+      "kind": "loss",
+      "length": 4,
+      "R_plus": -1.16,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 9,
+      "entry": "2026-03-09",
+      "exit": "2026-03-20",
+      "winner": 1,
+      "kind": "win",
+      "length": 11,
+      "R_plus": 1.0,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 10,
+      "entry": "2026-03-21",
+      "exit": "2026-03-28",
+      "winner": 1,
+      "kind": "win",
+      "length": 7,
+      "R_plus": 1.08,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 11,
+      "entry": "2026-03-29",
+      "exit": "2026-04-01",
+      "winner": 1,
+      "kind": "win",
+      "length": 3,
+      "R_plus": 1.16,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 12,
+      "entry": "2026-04-02",
+      "exit": "2026-04-12",
+      "winner": 1,
+      "kind": "win",
+      "length": 10,
+      "R_plus": 1.0,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 13,
+      "entry": "2026-04-13",
+      "exit": "2026-06-15",
+      "winner": 0,
+      "kind": "draw",
+      "length": 63,
+      "R_plus": 0.13,
+      "penetration": false,
+      "mine": null,
+      "draw_after_n": 12
+     },
+     {
+      "n": 14,
+      "entry": "2026-06-16",
+      "exit": "2026-08-18",
+      "winner": 0,
+      "kind": "draw",
+      "length": 63,
+      "R_plus": 0.14,
+      "penetration": false,
+      "mine": null,
+      "draw_after_n": 13
+     },
+     {
+      "n": 15,
+      "entry": "2026-08-19",
+      "exit": "2026-08-28",
+      "winner": -1,
+      "kind": "loss",
+      "length": 9,
+      "R_plus": -1.0,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 16,
+      "entry": "2026-08-29",
+      "exit": "2026-09-03",
+      "winner": 1,
+      "kind": "win",
+      "length": 5,
+      "R_plus": 1.08,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 17,
+      "entry": "2026-09-04",
+      "exit": "2026-09-16",
+      "winner": -1,
+      "kind": "loss",
+      "length": 12,
+      "R_plus": -1.16,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 18,
+      "entry": "2026-09-17",
+      "exit": "2026-09-25",
+      "winner": -1,
+      "kind": "loss",
+      "length": 8,
+      "R_plus": -1.0,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 19,
+      "entry": "2026-09-26",
+      "exit": "2026-09-30",
+      "winner": 1,
+      "kind": "win",
+      "length": 4,
+      "R_plus": 1.08,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 20,
+      "entry": "2026-10-01",
+      "exit": "2026-10-12",
+      "winner": 1,
+      "kind": "win",
+      "length": 11,
+      "R_plus": 1.16,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 21,
+      "entry": "2026-10-13",
+      "exit": "2026-10-20",
+      "winner": -1,
+      "kind": "loss",
+      "length": 7,
+      "R_plus": -1.0,
+      "penetration": true,
+      "mine": null
+     },
+     {
+      "n": 22,
+      "entry": "2026-10-21",
+      "exit": "2026-12-23",
+      "winner": 0,
+      "kind": "draw",
+      "length": 63,
+      "R_plus": 0.13,
+      "penetration": false,
+      "mine": null,
+      "draw_after_n": 21
+     },
+     {
+      "n": 23,
+      "entry": "2026-12-24",
+      "exit": "2027-01-03",
+      "winner": -1,
+      "kind": "loss",
+      "length": 10,
+      "R_plus": -1.16,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 24,
+      "entry": "2027-01-04",
+      "exit": "2027-01-10",
+      "winner": -1,
+      "kind": "loss",
+      "length": 6,
+      "R_plus": -1.0,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 25,
+      "entry": "2027-01-11",
+      "exit": "2027-01-24",
+      "winner": -1,
+      "kind": "loss",
+      "length": 13,
+      "R_plus": -1.08,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 26,
+      "entry": "2027-01-25",
+      "exit": "2027-02-03",
+      "winner": -1,
+      "kind": "loss",
+      "length": 9,
+      "R_plus": -1.16,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 27,
+      "entry": "2027-02-04",
+      "exit": "2027-02-09",
+      "winner": -1,
+      "kind": "loss",
+      "length": 5,
+      "R_plus": -1.0,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 28,
+      "entry": "2027-02-10",
+      "exit": "2027-02-22",
+      "winner": -1,
+      "kind": "loss",
+      "length": 12,
+      "R_plus": -1.08,
+      "penetration": true,
+      "mine": null
+     },
+     {
+      "n": 29,
+      "entry": "2027-02-23",
+      "exit": "2027-03-03",
+      "winner": -1,
+      "kind": "loss",
+      "length": 8,
+      "R_plus": -1.16,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 30,
+      "entry": "2027-03-04",
+      "exit": "2027-03-08",
+      "winner": -1,
+      "kind": "loss",
+      "length": 4,
+      "R_plus": -1.0,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 31,
+      "entry": "2027-03-09",
+      "exit": "2027-03-20",
+      "winner": 1,
+      "kind": "win",
+      "length": 11,
+      "R_plus": 1.08,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 32,
+      "entry": "2027-03-21",
+      "exit": "2027-03-28",
+      "winner": -1,
+      "kind": "loss",
+      "length": 7,
+      "R_plus": -1.16,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 33,
+      "entry": "2027-03-29",
+      "exit": "2027-04-01",
+      "winner": 1,
+      "kind": "win",
+      "length": 3,
+      "R_plus": 1.0,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 34,
+      "entry": "2027-04-02",
+      "exit": "2027-04-12",
+      "winner": 1,
+      "kind": "win",
+      "length": 10,
+      "R_plus": 1.08,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 35,
+      "entry": "2027-04-13",
+      "exit": "2027-06-15",
+      "winner": 0,
+      "kind": "maturity",
+      "length": 63,
+      "R_plus": 0.14,
+      "penetration": false,
+      "mine": null,
+      "draw_after_n": 34
+     },
+     {
+      "n": 36,
+      "entry": "2027-06-16",
+      "exit": "2027-06-29",
+      "winner": -1,
+      "kind": "loss",
+      "length": 13,
+      "R_plus": -1.0,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 37,
+      "entry": "2027-06-30",
+      "exit": "2027-07-09",
+      "winner": 1,
+      "kind": "win",
+      "length": 9,
+      "R_plus": 1.08,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 38,
+      "entry": "2027-07-10",
+      "exit": "2027-07-15",
+      "winner": 1,
+      "kind": "win",
+      "length": 5,
+      "R_plus": 1.16,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 39,
+      "entry": "2027-07-16",
+      "exit": "2027-07-28",
+      "winner": 1,
+      "kind": "win",
+      "length": 12,
+      "R_plus": 1.0,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 40,
+      "entry": "2027-07-29",
+      "exit": "2027-08-06",
+      "winner": -1,
+      "kind": "loss",
+      "length": 8,
+      "R_plus": -1.08,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 41,
+      "entry": "2027-08-07",
+      "exit": "2027-08-11",
+      "winner": -1,
+      "kind": "loss",
+      "length": 4,
+      "R_plus": -1.16,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 42,
+      "entry": "2027-08-12",
+      "exit": "2027-08-23",
+      "winner": 1,
+      "kind": "win",
+      "length": 11,
+      "R_plus": 1.0,
+      "penetration": true,
+      "mine": null
+     },
+     {
+      "n": 43,
+      "entry": "2027-08-24",
+      "exit": "2027-10-26",
+      "winner": 0,
+      "kind": "draw",
+      "length": 63,
+      "R_plus": 0.13,
+      "penetration": false,
+      "mine": null,
+      "draw_after_n": 42
+     },
+     {
+      "n": 44,
+      "entry": "2027-10-27",
+      "exit": "2027-10-30",
+      "winner": -1,
+      "kind": "loss",
+      "length": 3,
+      "R_plus": -1.16,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 45,
+      "entry": "2027-10-31",
+      "exit": "2027-11-10",
+      "winner": 1,
+      "kind": "win",
+      "length": 10,
+      "R_plus": 1.0,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 46,
+      "entry": "2027-11-11",
+      "exit": "2027-11-17",
+      "winner": 1,
+      "kind": "win",
+      "length": 6,
+      "R_plus": 1.08,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 47,
+      "entry": "2027-11-18",
+      "exit": "2027-12-01",
+      "winner": -1,
+      "kind": "loss",
+      "length": 13,
+      "R_plus": -1.16,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 48,
+      "entry": "2026-09-14",
+      "exit": "2026-10-06",
+      "winner": 1,
+      "kind": "win",
+      "length": 16,
+      "R_plus": 1.08,
+      "penetration": false,
+      "mine": "S.slope.2_5+1@2026-09-14#1"
+     }
+    ],
+    "counts": {
+     "plus": 20,
+     "minus": 22,
+     "draw": 6,
+     "penetration": 4
+    },
+    "streaks": {
+     "max_plus": 4,
+     "max_minus": 9,
+     "now": {
+      "dir": 1,
+      "n": 1
+     }
+    },
+    "current": {
+     "n": 49,
+     "entry": "2026-10-13",
+     "days": 10,
+     "cum_R_plus": 0.34,
+     "dist_win_R": 0.66,
+     "dist_loss_R": 1.34
+    },
+    "my_open": [
+     "S.slope.2_5+1@2026-10-13#1"
+    ],
+    "my_games_on_board": [
+     "S.slope.2_5+1@2026-09-14#1"
+    ],
+    "sample_dummy": true
+   },
+   "chips": [
+    {
+     "mult": 0.5,
+     "size_R": 0.5,
+     "dv01_won_per_bp": 6738200.0,
+     "label": "×0.5"
+    },
+    {
+     "mult": 1.0,
+     "size_R": 1.0,
+     "dv01_won_per_bp": 13476400.0,
+     "label": "×1"
+    }
+   ],
+   "allowed_max_size_R": 1.5,
+   "allowed_max_reason": "직전 승 · 1.5R 까지"
   },
   {
    "id": "S.slope.3_10",
@@ -8109,6 +9016,65 @@
    },
    "help": {
     "order_preview": "1R = 장벽 −X 에 닿았을 때 잃는 돈(델타 아님) · 델타 = 1R ÷ X(원/bp) → 레그 비율대로 현물 10억·선물 1계약 반올림한 주문 환산(+1 방향 · −1 은 부호 반전) · basis=default_D_R 이면 미실측 판 기본 D_R 로 만든 1R."
+   },
+   "road": {
+    "chain_rule": "당일 재진입 비겹침",
+    "k": 1.0,
+    "window": 120,
+    "games": [
+     {
+      "n": 1,
+      "entry": "2026-06-01",
+      "exit": "2026-06-11",
+      "winner": 1,
+      "kind": "win",
+      "length": 10,
+      "R_plus": 1.08,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 2,
+      "entry": "2026-06-12",
+      "exit": "2026-06-18",
+      "winner": -1,
+      "kind": "loss",
+      "length": 6,
+      "R_plus": -1.16,
+      "penetration": false,
+      "mine": null
+     },
+     {
+      "n": 3,
+      "entry": "2026-06-19",
+      "exit": "2026-08-21",
+      "winner": 0,
+      "kind": "draw",
+      "length": 63,
+      "R_plus": 0.12,
+      "penetration": false,
+      "mine": null,
+      "draw_after_n": 2
+     }
+    ],
+    "counts": {
+     "plus": 1,
+     "minus": 1,
+     "draw": 1,
+     "penetration": 0
+    },
+    "streaks": {
+     "max_plus": 1,
+     "max_minus": 1,
+     "now": {
+      "dir": -1,
+      "n": 1
+     }
+    },
+    "current": null,
+    "my_open": [],
+    "my_games_on_board": [],
+    "sample_dummy": true
    }
   },
   {
@@ -9012,7 +9978,10 @@
     },
     "cycle_id": "C-S25-7",
     "step": 2,
-    "size_mult": 1.5
+    "size_mult": 1.5,
+    "chips": [
+     1.0
+    ]
    },
    {
     "game_id": "S.slope.3_10+1@2026-10-21#1",
@@ -9266,7 +10235,12 @@
     "notes": [],
     "R_main": 0.97,
     "R_mini": 0.0,
-    "layer_provisional": true
+    "layer_provisional": true,
+    "chips": [
+     1.0,
+     0.5
+    ],
+    "dv01_won_per_bp": 20214600.0
    },
    {
     "game_id": "S.slope.3_5-1@2026-09-01#1",
