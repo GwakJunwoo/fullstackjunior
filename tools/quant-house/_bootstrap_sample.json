@@ -6093,7 +6093,21 @@
       "length": 16,
       "R_plus": 1.08,
       "penetration": false,
-      "mine": "S.slope.2_5+1@2026-09-14#1"
+      "mine": {
+       "game_id": "S.slope.2_5+1@2026-09-14#1",
+       "dir": 1,
+       "entry": "2026-09-14",
+       "exit": "2026-10-06",
+       "result": "win",
+       "R": 1.08,
+       "net_R": 0.97,
+       "dv01_won_per_bp": 20214600.0,
+       "chips": [
+        1.0,
+        0.5
+       ],
+       "size_R": 1.5
+      }
      }
     ],
     "counts": {
@@ -6119,10 +6133,36 @@
      "dist_loss_R": 1.34
     },
     "my_open": [
-     "S.slope.2_5+1@2026-10-13#1"
+     {
+      "game_id": "S.slope.2_5+1@2026-10-13#1",
+      "dir": 1,
+      "entry": "2026-10-13",
+      "now_R": 0.34,
+      "net_R": 0.23,
+      "days": 10,
+      "dv01_won_per_bp": 13500000.0,
+      "chips": [
+       1.0
+      ],
+      "size_R": 1.0
+     }
     ],
     "my_games_on_board": [
-     "S.slope.2_5+1@2026-09-14#1"
+     {
+      "game_id": "S.slope.2_5+1@2026-09-14#1",
+      "dir": 1,
+      "entry": "2026-09-14",
+      "exit": "2026-10-06",
+      "result": "win",
+      "R": 1.08,
+      "net_R": 0.97,
+      "dv01_won_per_bp": 20214600.0,
+      "chips": [
+       1.0,
+       0.5
+      ],
+      "size_R": 1.5
+     }
     ],
     "sample_dummy": true
    },
@@ -9981,7 +10021,8 @@
     "size_mult": 1.5,
     "chips": [
      1.0
-    ]
+    ],
+    "size_R_total": 1.0
    },
    {
     "game_id": "S.slope.3_10+1@2026-10-21#1",
