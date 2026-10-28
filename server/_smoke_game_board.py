@@ -249,6 +249,53 @@ finally:
         else:
             sys.modules[k] = v
 
+# -- 6. §8f-2 road-path (2026-10-28): 지연 import · game_path 없으면 503 · 있으면 그대로 통과(+캐시) · 못 찾음 404 · 인자 가드 400 ----
+fake_road = types.ModuleType("engine.research.game_board.road")
+fake_pkg.road = fake_road
+saved_rp = {k: sys.modules.get(k) for k in ("engine.research.game_board", "engine.research.game_board.road")}
+sys.modules["engine.research.game_board"] = fake_pkg
+sys.modules["engine.research.game_board.road"] = fake_road
+PATH = {"board_id": "S.slope.2_5", "n": 49, "entry": "2026-10-13", "exit": None, "X_bp": 7.1, "k": 1.0, "length": 10, "kind": "open", "winner": None,
+        "series": [{"date": "2026-10-13", "mkt_bp": 0.0, "cum_R_plus": 0.0, "net_R_plus": -0.11}, {"date": "2026-10-14", "mkt_bp": 2.4, "cum_R_plus": 0.34, "net_R_plus": 0.23}],
+        "barrier": {"win": 7.1, "loss": -7.1}, "legs_note": "2y-5y 스프레드 · _sa_probe"}
+rp_calls = []
+try:
+    QH._RP_CACHE.clear()
+    r = c.get("/quant-house/game-board/road-path?board_id=S.slope.2_5&n=49")
+    check("GET road-path with no game_path fn -> 503 (no fake path)", r.status_code == 503 and "game_path" in r.json()["detail"], r.status_code)
+
+    def game_path(board_id, n=None, game_id=None):
+        rp_calls.append((board_id, n, game_id))
+        if n is not None and game_id:
+            raise ValueError("n and game_id both given")
+        if n == 999 or game_id == "nope":
+            raise KeyError("game not found")
+        return dict(PATH, n=n, game_id=game_id)
+    fake_road.game_path = game_path
+    r = c.get("/quant-house/game-board/road-path?board_id=S.slope.2_5&n=49")
+    j = r.json()
+    check("GET road-path -> engine dict passthrough (series/barrier/legs_note intact · _sa key kept)", r.status_code == 200 and j["series"] == PATH["series"]
+          and j["barrier"] == PATH["barrier"] and j["legs_note"] == PATH["legs_note"] and j["n"] == 49 and rp_calls[-1] == ("S.slope.2_5", 49, None), j)
+    r = c_remote.get("/quant-house/game-board/road-path?board_id=S.slope.2_5&n=49")
+    check("GET road-path remote without key -> 200 (public read) + cached (engine not re-called)", r.status_code == 200 and len(rp_calls) == 1, len(rp_calls))
+    r = c.get("/quant-house/game-board/road-path?board_id=S.slope.2_5&game_id=S.slope.2_5%2B1%402026-10-13%231")
+    check("GET road-path by game_id -> game_path(board_id, n=None, game_id=...)", r.status_code == 200 and rp_calls[-1] == ("S.slope.2_5", None, "S.slope.2_5+1@2026-10-13#1"), rp_calls[-1])
+    r = c.get("/quant-house/game-board/road-path?board_id=S.slope.2_5&n=999")
+    check("GET road-path unknown game -> 404 with engine reason", r.status_code == 404 and "game not found" in r.json()["detail"], r.status_code)
+    r = c.get("/quant-house/game-board/road-path?board_id=S.slope.2_5&n=3&game_id=G1")
+    check("GET road-path n+game_id both -> engine ValueError -> 400", r.status_code == 400 and "both" in r.json()["detail"], r.status_code)
+    r = c.get("/quant-house/game-board/road-path?board_id=S.slope.2_5")
+    check("GET road-path without n/game_id -> 400", r.status_code == 400)
+    r = c.get("/quant-house/game-board/road-path?board_id=S.slope.2_5&n=0")
+    check("GET road-path n=0 -> 422 (ge=1)", r.status_code == 422)
+finally:
+    QH._RP_CACHE.clear()
+    for k, v in saved_rp.items():
+        if v is None:
+            sys.modules.pop(k, None)
+        else:
+            sys.modules[k] = v
+
 print("")
 print("RESULT:", "ALL PASS" if not FAILS else ("%d FAIL: %s" % (len(FAILS), FAILS)))
 sys.exit(1 if FAILS else 0)

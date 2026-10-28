@@ -1109,6 +1109,7 @@ def daily_output(name: str):
 #     GET  /quant-house/game-board/ledger   → game_board_ledger.jsonl → 이벤트 배열(원문 그대로 · 파싱 실패 줄은 건수로 정직 표기)
 #     POST /quant-house/game-board/game     → 계약 §7 이벤트(open/close/amend/note/delete) → engine.research.game_board.ledger 의
 #                                             전용 진입점 → snapshot 재빌드 → {ok, appended, snapshot}. X-QH-KEY 필수(원장 쓰기 = qh_ops 와 같은 키).
+#     GET  /quant-house/game-board/road-path?board_id=&n=|game_id=  → §8f-2 호버 차트 경로 = 엔진 road.game_path(...) 반환 *그대로*(지연 조회 · 503 if 미배선)
 #   ★읽기 공개(2026-10-27 사용자 지시 "fullstackjunior.com 에서 보이게"): GET 둘은 가드 없음(같은 날 저녁의 X-QH-KEY/로컬 가드 제거 ·
 #     복원은 git 이력 529a0a4 의 _gb_read_guard). POST(기록·정정·삭제)는 X-QH-KEY 그대로 — 남이 게임을 넣지 못한다.
 #   엔진 패키지가 아직 없으면 503 + 안내(가짜 응답 0). 엔진 함수 이름은 얇은 어댑터(_gb_call)가 후보 이름을 순서대로 찾는다.
@@ -1227,6 +1228,57 @@ def game_board_ledger(limit: int = Query(500, ge=1, le=10000)):
                 bad += 1
     return {"available": True, "n": len(events), "parse_errors": bad,
             "events": events[-limit:], "path": str(_GB_LEDGER)}
+
+
+_RP_CACHE: dict = {}          # (board_id, n, game_id, snapshot mtime) → 엔진 응답(스냅샷이 다시 빌드되면 키가 바뀌어 자연 무효) · 상한 512
+_RP_CACHE_MAX = 512
+
+
+@router.get("/game-board/road-path")
+def game_board_road_path(board_id: str = Query(..., min_length=1), n: int | None = Query(None, ge=1), game_id: str | None = Query(None)):
+    """§8f-2 호버 차트 — 한 게임의 진입→청산 경로(지연 조회 · 스냅샷에 안 실림).
+
+    정본 = 엔진 `engine.research.game_board.road.game_path(board_id, n=None, game_id=None)`(해동) 의 반환
+    {board_id, n, entry, exit|null, X_bp, k, length, kind, winner, series:[{date, mkt_bp, cum_R_plus, net_R_plus}], barrier:{win, loss}, legs_note}
+    을 *그대로* 통과(H3 · 재계산 0). n = 사슬 순번(진행 중 = road.current.n) · game_id = 내 게임(mine.game_id).
+    엔진에 함수가 아직 없으면 503(가짜 경로 0) · 인자 거부(엔진 ValueError) 400 · 게임 못 찾음(LookupError) 404 · 그 외 500 원문.
+    series[].post_exit(종료 뒤 표시용 행)·mkt_note·cum_R_mine 등 엔진 필드 전부 그대로 통과(프론트가 점선/라벨로만 쓴다).
+    읽기 공개(game-board 와 동일) · 라우터 캐시 = 스냅샷 mtime 키(재빌드되면 무효).
+    """
+    if n is None and not game_id:
+        raise HTTPException(400, "n(사슬 순번) 또는 game_id(내 게임) 중 하나 필수")
+    try:
+        from engine.research.game_board import road as gb_road
+    except ImportError as e:
+        raise HTTPException(503, f"엔진 game_board.road 모듈 없음(해동 작업 중): {type(e).__name__}: {e}")
+    except Exception as e:
+        raise HTTPException(500, f"engine.research.game_board.road import 실패: {type(e).__name__}: {e}")
+    fn = getattr(gb_road, "game_path", None)
+    if not callable(fn):
+        raise HTTPException(503, "엔진 road.game_path 없음(해동 배선 중) — 호버 경로 차트 불가(가짜 경로 0)")
+    try:
+        mtime = _GB_SNAP.stat().st_mtime if _GB_SNAP.exists() else None
+    except OSError:
+        mtime = None
+    key = (board_id, n, game_id, mtime)
+    if key in _RP_CACHE:
+        return _gb_json(_RP_CACHE[key])
+    try:
+        out = fn(board_id, n=n, game_id=game_id) if game_id else fn(board_id, n=n)
+    except HTTPException:
+        raise
+    except ValueError as e:                       # 엔진 인자 거부(n·game_id 둘 다/둘 다 없음 등)
+        raise HTTPException(400, f"road.game_path 인자 거부: {type(e).__name__}: {e}")
+    except (LookupError, AssertionError) as e:    # KeyError/IndexError/LookupError = 게임 없음
+        raise HTTPException(404, f"road.game_path 게임 없음: {type(e).__name__}: {e}")
+    except Exception as e:
+        raise HTTPException(500, f"road.game_path 실패: {type(e).__name__}: {e}")
+    if not isinstance(out, dict):
+        raise HTTPException(500, f"road.game_path 반환이 dict 아님: {type(out).__name__}")
+    if len(_RP_CACHE) >= _RP_CACHE_MAX:
+        _RP_CACHE.clear()
+    _RP_CACHE[key] = out
+    return _gb_json(out)
 
 
 @router.post("/game-board/game")
