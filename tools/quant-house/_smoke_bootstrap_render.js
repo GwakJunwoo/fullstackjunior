@@ -80,7 +80,23 @@ function allHtml() { return Object.keys(ELS).map(k => ELS[k].innerHTML + ' ' + E
   check('① 4국면 라벨 + 26주 띠 + counts_26w + partial', new RegExp(SAMPLE.market.regime4.label).test(ELS.bsRegime.innerHTML) && (ELS.bsRegime.innerHTML.match(/data-rg=/g) || []).length >= 26 + 4 && /부분 주/.test(ELS.bsRegime.innerHTML) && /9주/.test(ELS.bsRegime.innerHTML));
   check('① 주간 4패널(리뷰 없음 → 정직 안내 · weekly_moves.curve_moves 중첩 해석)', (ELS.bsWeekly.innerHTML.match(/wb-card-title/g) || []).length === 4 && /리뷰 스냅샷 없음/.test(ELS.bsWeekly.innerHTML) && /bsWk2/.test(ELS.bsWeekly.innerHTML));
   check('① §8c board_corr: 독립 판 수 2.3개 · 26주 이력 · 읽는 법은 화면 아닌 ? 안', /2\.3개/.test(ELS.bsNeff.innerHTML) && /bsNeffChart/.test(ELS.bsNeff.innerHTML) && !/상관이 오르면/.test(ELS.bsNeff.innerHTML) && /id="bsHelpNeff" data-help="[^"]*상관이 오르면/.test(html));
+  const bsStyle = html.slice(html.indexOf('<style id="wb-bootstrap-style">'), html.indexOf('</style>', html.indexOf('<style id="wb-bootstrap-style">')));
   check('① §8c 히트맵 4×4(matrix.boards/values) · 판 ID 라벨 · 63일 굴림', (ELS.bsCorr.innerHTML.match(/<td /g) || []).length === 16 && /S\.slope\.2_5/.test(ELS.bsCorr.innerHTML) && /0\.83/.test(ELS.bsCorr.innerHTML) && /63일 굴림/.test(ELS.bsCorrMeta.textContent));
+  // 레이아웃(2026-10-28 사용자 스크린샷): n_eff 카드 = 4국면 카드와 같은 오른쪽 열(.bs-col 세로 쌓임) · 판 간 상관 = 섹션 직계 전폭 카드(.bs-grid-2 밖) · 접이식(제목 옆 ▾/▸ · 기본 펼침 · localStorage try/catch)
+  const mkt = (html.match(/<section class="bs-sec" id="bs-market">[\s\S]*?<\/section>/) || [''])[0];
+  const col = (mkt.match(/<div class="bs-col">[\s\S]*?<\/div>\s*<\/div>\s*<\/div>/) || [''])[0];
+  check('① 배치: n_eff 카드가 4국면과 같은 .bs-col 안(4국면 → n_eff 순) · 첫 .bs-grid-2 안 · 시장 흐름 섹션에 .bs-grid-2 는 1개', /id="bsRegime"/.test(col) && /id="bsNeff"/.test(col) && col.indexOf('id="bsRegime"') < col.indexOf('id="bsNeff"') && mkt.indexOf('<div class="bs-grid-2">') < mkt.indexOf('<div class="bs-col">') && (mkt.match(/class="bs-grid-2/g) || []).length === 1);
+  check('① 배치: 판 간 상관 카드 #bsCorrCard = 섹션 직계 전폭(그리드 밖 · bsWeekly 다음) · .bs-corr width:100% · .bs-col/.bs-fold 규칙은 이 탭 스타일 안', /<div class="bs-grid-4" id="bsWeekly"[^>]*><\/div>\s*(<!--[^>]*-->\s*)?<div class="wb-card bs-fold" id="bsCorrCard"/.test(mkt) && mkt.indexOf('id="bsCorrCard"') > mkt.lastIndexOf('</div>', mkt.indexOf('id="bsWeekly"')) && /\.bs-corr \{ width: 100%/.test(bsStyle) && /\.bs-col \{ display: grid/.test(bsStyle) && /\.bs-fold\.is-folded > :not\(\.wb-card-head\) \{ display: none/.test(bsStyle));
+  check('① 접이식: 기본 펼침(▾ · aria-expanded true · 본문 보임) · BS.fold("corr") → ▸ · aria-expanded false · 본문 hidden · 다시 → 펼침', ELS.bsCorrFold.textContent === '▾' && ELS.bsCorrFold.getAttribute('aria-expanded') === 'true' && !ELS.bsCorr.hidden && (B.fold('corr'), ELS.bsCorrFold.textContent === '▸' && ELS.bsCorrFold.getAttribute('aria-expanded') === 'false' && ELS.bsCorr.hidden === true) && (B.fold('corr'), ELS.bsCorrFold.textContent === '▾' && ELS.bsCorr.hidden === false), ELS.bsCorrFold.textContent);
+  { // localStorage 차단(throw) → try/catch 로 무해 · 기본 펼침 / 저장값 '1' → 접힌 채 부팅(기억) · 토글 시 removeItem
+    const LS = []; window.localStorage = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); }, removeItem() { throw new Error('blocked'); } };
+    let ok = true; try { B = boot(apiGet); B.fold('corr'); B.fold('corr'); } catch (e) { ok = false; }
+    check('① 접이식: localStorage throw → 부팅·토글 무해(try/catch) · 기본 펼침', ok && ELS.bsCorrFold.textContent === '▾' && !ELS.bsCorr.hidden);
+    window.localStorage = { getItem(k) { LS.push(['get', k]); return k === 'bs-fold:corr' ? '1' : null; }, setItem(k, v) { LS.push(['set', k, v]); }, removeItem(k) { LS.push(['rm', k]); } };
+    B = boot(apiGet);
+    check('① 접이식: 저장값 bs-fold:corr=1 → 접힌 채 부팅(▸ · hidden) · 펼치면 removeItem · 접으면 setItem "1"', ELS.bsCorrFold.textContent === '▸' && ELS.bsCorr.hidden === true && (B.fold('corr'), LS.some(x => x[0] === 'rm' && x[1] === 'bs-fold:corr') && !ELS.bsCorr.hidden) && (B.fold('corr'), LS.some(x => x[0] === 'set' && x[1] === 'bs-fold:corr' && x[2] === '1') && ELS.bsCorr.hidden), JSON.stringify(LS));
+    delete window.localStorage; B = boot(apiGet); await B.load();
+  }
 
   const stripEngineText = h => SAMPLE.boards.reduce((acc, b) => (b.status_note ? acc.split(_esc(b.status_note)).join('') : acc), h);
   const stripHelp = h => stripEngineText(h.replace(/data-help="[^"]*"/g, '').replace(/ title="[^"]*"/g, ''));   // title·상태 메모 = 엔진 status_note 원문 패스스루(문구는 엔진 소관 · 웹이 고쳐 쓰지 않음)
@@ -116,7 +132,6 @@ function allHtml() { return Object.keys(ELS).map(k => ELS[k].innerHTML + ' ' + E
   check('② 현선 판: 주문 환산 선물 레그만(2213계약 롱) + 엔진 note 인라인(현물 레그는 open 때 종목 지정) (size_rule_state 없는 더미라 사이즈 규칙 줄 0)', /3F 2213계약 롱/.test(card) && /바스켓 종목\(bond\) 지정 전/.test(stripHelp(card)) && !/사이즈 규칙<\/i>/.test(card), (card.match(/주문 환산<\/i>.{0,200}/) || [''])[0]);
   B.show('S.slope.2_5'); card = ELS.bsBoardCard.innerHTML;
   // 정렬(2026-10-27 사용자 피드백 ②): 그리드 안 오른쪽 카드에 세로 간격 규칙이 걸리지 않음 · 그리드 상단 정렬 · 목차 레일 상단 = 본문 첫 카드 상단 · 공용 wb.css 무변경
-  const bsStyle = html.slice(html.indexOf('<style id="wb-bootstrap-style">'), html.indexOf('</style>', html.indexOf('<style id="wb-bootstrap-style">')));
   check('② 정렬: `.wb-card + .wb-card` 간격은 섹션 직계 자식만 · .bs-grid-2/.bs-grid-4 align-items:start · #view-bootstrap .wb-toc margin-top(제목 줄 높이) · 공용 .wb-toc-layout 규칙은 이 탭 스타일에 없음', /#view-bootstrap \.bs-sec > \.wb-card \+ \.wb-card \{ margin-top/.test(bsStyle) && !/#view-bootstrap \.wb-card \+ \.wb-card \{/.test(bsStyle) && /\.bs-grid-2 \{[^}]*align-items: start/.test(bsStyle) && /\.bs-grid-4 \{[^}]*align-items: start/.test(bsStyle) && /#view-bootstrap \.wb-toc \{ margin-top: calc\(var\(--wb-lh-title\) \+ var\(--wb-s3\)\)/.test(bsStyle) && !/\.wb-toc-layout \{/.test(bsStyle));
 
   let op = ELS.bsOpen.innerHTML;

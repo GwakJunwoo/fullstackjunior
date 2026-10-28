@@ -422,6 +422,11 @@
     .bs-grid-2 { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--wb-gap); align-items: start; }
     .bs-grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--wb-gap); align-items: start; }
     .bs-grid-4 .wb-card-body { padding: var(--wb-s3) var(--wb-s3) var(--wb-s2); }
+    /* 그리드 오른쪽 열 세로 쌓임(4국면 + n_eff · 2026-10-28) · 접이식 카드(제목 옆 ▾/▸ · 기본 펼침) */
+    .bs-col { display: grid; gap: var(--wb-gap); min-width: 0; align-content: start; }
+    .bs-fold-btn { background: none; border: 0; padding: 0 6px 0 0; margin: 0; color: var(--wb-muted); font: inherit; line-height: inherit; cursor: pointer; }
+    .bs-fold-btn:hover { color: var(--wb-ink); }
+    .bs-fold.is-folded > :not(.wb-card-head) { display: none; }
     .bs-chart { position: relative; height: 210px; }
     .bs-chart--sm { height: 170px; }
     .bs-chart-none { padding: var(--wb-s4); font-size: 12px; color: var(--wb-muted); }
@@ -503,10 +508,10 @@
     .bs-next { padding: var(--wb-s2) var(--wb-inset); font-size: 12px; border-bottom: 1px solid var(--wb-rule); }
     .bs-next:last-child { border-bottom: 0; }
     /* 판 간 상관 히트맵 · 메인 게임 카드 */
-    .bs-corr { border-collapse: collapse; font-size: 11px; margin: var(--wb-s3) auto; }
+    .bs-corr { width: 100%; border-collapse: collapse; font-size: 11px; margin: var(--wb-s3) 0; }   /* 전폭 한 줄(2026-10-28) · 칸은 가로로 늘고 행 머리는 내용 폭 */
     .bs-corr th { font-weight: 400; color: var(--wb-muted); padding: 2px 4px; white-space: nowrap; font-size: 10px; }
-    .bs-corr th.row { text-align: right; }
-    .bs-corr td { width: 44px; height: 30px; text-align: center; border: 1px solid var(--wb-surface); font-variant-numeric: tabular-nums; }
+    .bs-corr th.row { text-align: right; width: 1%; }
+    .bs-corr td { min-width: 44px; height: 30px; text-align: center; border: 1px solid var(--wb-surface); font-variant-numeric: tabular-nums; }
     .bs-corr-ramp { display: flex; align-items: center; gap: 2px; font-size: 10px; color: var(--wb-muted); padding: 0 var(--wb-inset) var(--wb-s3); }
     .bs-corr-ramp i { width: 14px; height: 10px; display: inline-block; }
     .bs-main { border-bottom: 1px solid var(--wb-rule); }
@@ -809,21 +814,22 @@
           <div class="wb-table-wrap" id="bsCurveTbl"></div>
           <div class="wb-card-body"><div class="bs-chart bs-chart--sm" id="bsCurveChartBox"><canvas id="bsCurveChart"></canvas></div></div>
         </div>
-        <div class="wb-card">
-          <div class="wb-card-head"><span class="wb-card-title">4국면<button type="button" class="wb-help" id="bsHelpRegime" data-help="레벨 × 커브 주간 Δ · 최근 26주 · 설명용 · 예측 0." aria-label="설명 보기"></button></span><span class="wb-card-meta" id="bsRegimeMeta"></span></div>
-          <div class="wb-card-body" id="bsRegime"></div>
+        <div class="bs-col"><!-- 오른쪽 열 = 4국면 + 독립 판 수 세로 쌓임(2026-10-28 사용자: 4국면 아래 빈 칸을 n_eff 로 채움) -->
+          <div class="wb-card">
+            <div class="wb-card-head"><span class="wb-card-title">4국면<button type="button" class="wb-help" id="bsHelpRegime" data-help="레벨 × 커브 주간 Δ · 최근 26주 · 설명용 · 예측 0." aria-label="설명 보기"></button></span><span class="wb-card-meta" id="bsRegimeMeta"></span></div>
+            <div class="wb-card-body" id="bsRegime"></div>
+          </div>
+          <div class="wb-card">
+            <div class="wb-card-head"><span class="wb-card-title">독립 판 수 n_eff<button type="button" class="wb-help" id="bsHelpNeff" data-help="상관이 오르면 북 전체가 금리 방향 게임 하나 · 떨어지면 독립 판이 늘어난다(관측 · 예측 아님). 최근 26주." aria-label="설명 보기"></button></span><span class="wb-card-meta" id="bsNeffMeta"></span></div>
+            <div class="wb-card-body" id="bsNeff"></div>
+          </div>
         </div>
       </div>
       <div class="bs-grid-4" id="bsWeekly" style="margin-top:var(--wb-gap)"></div>
-      <div class="bs-grid-2" style="margin-top:var(--wb-gap)">
-        <div class="wb-card">
-          <div class="wb-card-head"><span class="wb-card-title">판 간 상관<button type="button" class="wb-help" id="bsHelpCorr" data-help="일별 R 의 굴림 창 상관 · 관측 · 예측 0. 실측(_board_comovement) 뒤 스냅샷 market.board_corr.matrix 에 실린다." aria-label="설명 보기"></button></span><span class="wb-card-meta" id="bsCorrMeta"></span></div>
-          <div id="bsCorr"></div>
-        </div>
-        <div class="wb-card">
-          <div class="wb-card-head"><span class="wb-card-title">독립 판 수 n_eff<button type="button" class="wb-help" id="bsHelpNeff" data-help="상관이 오르면 북 전체가 금리 방향 게임 하나 · 떨어지면 독립 판이 늘어난다(관측 · 예측 아님). 최근 26주." aria-label="설명 보기"></button></span><span class="wb-card-meta" id="bsNeffMeta"></span></div>
-          <div class="wb-card-body" id="bsNeff"></div>
-        </div>
+      <!-- 판 간 상관 = 전폭 한 줄 · 접이식(제목 옆 ▾/▸ · 기본 펼침 · localStorage bs-fold:corr · try/catch) -->
+      <div class="wb-card bs-fold" id="bsCorrCard" style="margin-top:var(--wb-gap)">
+        <div class="wb-card-head"><span class="wb-card-title"><button type="button" class="bs-fold-btn" id="bsCorrFold" onclick="BS.fold('corr')" aria-expanded="true" aria-controls="bsCorr" aria-label="판 간 상관 접기/펼치기">▾</button>판 간 상관<button type="button" class="wb-help" id="bsHelpCorr" data-help="일별 R 의 굴림 창 상관 · 관측 · 예측 0. 실측(_board_comovement) 뒤 스냅샷 market.board_corr.matrix 에 실린다." aria-label="설명 보기"></button></span><span class="wb-card-meta" id="bsCorrMeta"></span></div>
+        <div id="bsCorr"></div>
       </div>
     </section>
 
@@ -4616,7 +4622,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
    · 주간 커브 4패널 = 리뷰 스냅샷(/quant-house/market-review · 이미 있는 값만) 재사용. */
 (function () {
   'use strict';
-  var _BS = { snap: null, review: null, charts: [], sel: null, amend: null, sample: false, sizeMode: 'size_R', mainOpen: {}, tblOpen: false, stack: {}, tform: {}, rpCache: {} };   // rpCache[asof|board|n/g] = road-path 응답 Promise(§8f-2 호버 차트 · 지연 조회)   // stack[boardId] = {dir, chips:[mult]} · tform = 테이블 폼 입력 보존(재렌더 시)
+  var _BS = { snap: null, review: null, charts: [], sel: null, amend: null, sample: false, sizeMode: 'size_R', mainOpen: {}, fold: {}, tblOpen: false, stack: {}, tform: {}, rpCache: {} };   // rpCache[asof|board|n/g] = road-path 응답 Promise(§8f-2 호버 차트 · 지연 조회)   // stack[boardId] = {dir, chips:[mult]} · tform = 테이블 폼 입력 보존(재렌더 시)
   var esc = function (s) { return _esc(s); };
   function num(v) { if (v == null || v === '') return null; var n = Number(v); return isFinite(n) ? n : null; }
   function f(v, d) { var n = num(v); return n == null ? '–' : n.toFixed(d == null ? 1 : d); }
@@ -5464,6 +5470,20 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     post({ event: 'delete', game_id: id, reason: reason, by: 'web' });
   }
   function toggleMain(id) { _BS.mainOpen[id] = !_BS.mainOpen[id]; if (_BS.snap) renderGames(_BS.snap); }
+  // 접이식 카드(2026-10-28 · 판 간 상관): 제목 옆 ▾/▸ · 기본 펼침 · 상태는 localStorage('bs-fold:<key>' = '1' 접힘) · 읽기/쓰기 전부 try/catch(차단·용량 초과·스텁 무해)
+  var FOLD_EL = { corr: { card: 'bsCorrCard', btn: 'bsCorrFold', body: 'bsCorr' } };
+  function foldGet(key) { try { return window.localStorage.getItem('bs-fold:' + key) === '1'; } catch (e) { return false; } }
+  function foldSet(key, folded) { try { if (folded) window.localStorage.setItem('bs-fold:' + key, '1'); else window.localStorage.removeItem('bs-fold:' + key); } catch (e) { /* 저장 불가 = 세션 안에서만 기억 */ } }
+  function foldApply(key, folded) {
+    var m = FOLD_EL[key]; if (!m) return; var card = $(m.card), btn = $(m.btn), body = $(m.body);
+    if (card && card.classList) card.classList.toggle('is-folded', !!folded);
+    if (btn) { btn.textContent = folded ? '▸' : '▾'; if (btn.setAttribute) btn.setAttribute('aria-expanded', folded ? 'false' : 'true'); }
+    if (body) body.hidden = !!folded;
+    _BS.fold[key] = !!folded;
+  }
+  function toggleFold(key) { foldApply(key, !_BS.fold[key]); foldSet(key, _BS.fold[key]); }
+  function foldInit() { Object.keys(FOLD_EL).forEach(function (k) { foldApply(k, foldGet(k)); }); }
+  foldInit();
   function fillBoardSelect(bs) {
     var sel = $('bsFBoard'); if (!sel) return; var cur = sel.value;
     sel.innerHTML = bs.length ? bs.map(function (b) { return '<option value="' + esc(b.id) + '">' + esc(boardLabel(b)) + ' — ' + esc(b.id) + (b.status === 'blocked' ? ' (회계 경로 없음 · 기록만)' : (b.computable === false ? ' (계산 불가)' : '')) + '</option>'; }).join('') : '<option value="">판 없음</option>';
@@ -5626,7 +5646,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     }
   }
 
-  window.BS = { load: load, render: render, show: showBoard, pick: pick1, toggleMain: toggleMain, submit: submit, close: closeGame, amend: amendGame, del: deleteGame, paroli: paroliToggle, cancelAmend: cancelAmend, note: noteGame, syncDir: syncDir, sizeMode: sizeMode, go: go, spy: tocSpy,
+  window.BS = { load: load, render: render, show: showBoard, pick: pick1, toggleMain: toggleMain, fold: toggleFold, submit: submit, close: closeGame, amend: amendGame, del: deleteGame, paroli: paroliToggle, cancelAmend: cancelAmend, note: noteGame, syncDir: syncDir, sizeMode: sizeMode, go: go, spy: tocSpy,
     closeTable: closeTable, zone: zone, addChip: addChip, clearChips: clearChips, bet: bet, tf: tf, dragChip: dragChip, dragOver: dragOver, dragLeave: dragLeave, drop: drop,   // §8f 테이블
     _state: _BS, _bigRoad: bigRoad, _roadPath: roadPath, _pathCard: pathCardHtml, _pathCfg: pathChartCfg, _curSide: curSide, _showPath: showPath, _hoverEnd: hoverEnd, _setSnap: function (s, rv) { _BS.snap = s; _BS.review = rv || null; _BS.sample = !!(s && s.sample_dummy); } };
 })();
