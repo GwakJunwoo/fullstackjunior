@@ -1161,6 +1161,13 @@ def _gb_dispatch(gb_ledger, ev: dict):
                 kw[k] = ev[k]
         if ev.get("paroli") is True:       # §8e 역마팅게일 = 사람이 켬(기본 off) · 허용(직전 같은 판 승) 판정·거부 사유는 엔진
             kw["paroli"] = True
+        if isinstance(ev.get("chips"), list) and ev["chips"]:   # §8f 테이블 칩 쌓기(사용자 2026-10-28): 쌓은 배수 목록 — 엔진 open_game 이 chips 인자를 받을 때만 전달(해동 배선 전엔 버림 · size_R 합계는 그대로)
+            try:
+                import inspect
+                if "chips" in inspect.signature(gb_ledger.open_game).parameters:
+                    kw["chips"] = ev["chips"]
+            except (TypeError, ValueError):
+                pass
         return "open_game", gb_ledger.open_game(ev["board_id"], int(ev["dir"]), ev["date"], memo=memo, by=by, **kw)
     if kind == "close" and callable(getattr(gb_ledger, "close_game", None)):
         kw = {}

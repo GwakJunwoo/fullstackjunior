@@ -212,6 +212,17 @@ try:
     check("POST amend with frozen field (dir) -> router passes through, engine ValueError -> 400 + reason verbatim", r.status_code == 400 and "not amendable" in r.json()["detail"] and "'dir'" in r.json()["detail"], r.json().get("detail"))
     r = c.post("/quant-house/game-board/game", json=dict(OPEN, bond="KR1035"), headers=KEY)
     check("POST open with bond -> open_game(..., bond=)", r.status_code == 200 and calls["open_game"].get("bond") == "KR1035")
+    # s8f table chip stacking (user 2026-10-28): web sends size_R = chip sum + chips=[mults]; chips forwarded only when engine open_game declares it
+    r = c.post("/quant-house/game-board/game", json=dict(OPEN, size_R=1.5, chips=[1, 0.5]), headers=KEY)
+    check("POST open chips=[1,0.5] (engine open_game without chips param) -> size_R 1.5 passed, chips dropped, no paroli", r.status_code == 200 and calls["open_game"].get("size_R") == 1.5 and "chips" not in calls["open_game"] and "paroli" not in calls["open_game"], str(calls["open_game"]))
+    _og = fake_ledger.open_game
+    def open_game_chips(board_id, direction, date, chips=None, **kw):
+        calls["open_game"] = dict(board_id=board_id, direction=direction, date=date, chips=chips, **kw)
+        return append_event(dict(event="open", game_id="G-FAKE", board_id=board_id, dir=direction, date=str(date), X_bp=8.9, by=kw.get("by"), memo=kw.get("memo", "")))
+    fake_ledger.open_game = open_game_chips
+    r = c.post("/quant-house/game-board/game", json=dict(OPEN, size_R=1.5, chips=[1, 0.5]), headers=KEY)
+    check("POST open chips (engine open_game WITH chips param) -> open_game(..., chips=[1,0.5]) verbatim", r.status_code == 200 and calls["open_game"].get("chips") == [1, 0.5] and calls["open_game"].get("size_R") == 1.5, str(calls["open_game"]))
+    fake_ledger.open_game = _og
     r = c.post("/quant-house/game-board/game", json={"event": "close", "game_id": "G-NOPE", "date": "2026-10-28"}, headers=KEY)
     check("POST close unknown game -> 400 (engine KeyError passthrough)", r.status_code == 400 and "G-NOPE" in r.json()["detail"], r.json().get("detail"))
     r = c.post("/quant-house/game-board/game", json={"event": "close", "game_id": "G-FAKE", "date": "2026-10-28", "memo": "bye"}, headers=KEY)

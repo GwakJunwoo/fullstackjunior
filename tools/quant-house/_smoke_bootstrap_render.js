@@ -256,6 +256,81 @@ function allHtml() { return Object.keys(ELS).map(k => ELS[k].innerHTML + ' ' + E
   check('deleted_recent 없음 → 정직 안내', /삭제 기록 없음/.test(ELS.bsDeleted.innerHTML));
   check('게임 카드에 삭제 버튼', /BS\.del\(/.test(ELS.bsOpen.innerHTML));
 
+  // ⑥ §8f 바카라 테이블(사용자 2026-10-28) — 모달 열림 · 로드 규칙(연속/전환/무승부 겹침/6행 꼬리) · 집계 · 칩 쌓기(상한·사유) · 베팅 POST 페이로드 · road/chips 없음 폴백
+  B._setSnap(clone(SAMPLE)); B._state.snap.available = true; B.render();
+  check('⑥ 모달 마크업: #bsTable(role dialog) · 점수판/베팅 카드 · 접이식 판 정보 안에 #bsBoardCard · 지도 그리드에 sticky 카드 없음', /<div class="bs-tbl" id="bsTable" hidden role="dialog"/.test(html) && /<details class="bs-tbl-info" id="bsTblInfo">[\s\S]*?id="bsBoardCard"/.test(html) && !/class="wb-card bs-sticky" id="bsBoardCard"/.test(html) && /id="bsHelpRoad" data-help="[^"]+"/.test(html) && /id="bsHelpBet" data-help="[^"]+"/.test(html));
+  check('⑥ 지도 칸 로드 미리보기(최근 20칸 구슬): road 있는 3판만 · 진행 중 점선 칸', (ELS.bsMap.innerHTML.match(/class="bs-rd-mini"/g) || []).length === 3 && /bs-rd-mini"[^>]*>(<i class="[^"]*"><\/i>){20}<i class="bs-rd-cur"><\/i><\/span>/.test(ELS.bsMap.innerHTML));
+  check('⑥ 모달 닫힘 상태에서 render() 는 열지 않음', F('bsTable').hidden !== false);
+  B.show('S.slope.2_5');
+  const hd = ELS.bsTblHead.innerHTML, rd = ELS.bsTblRoad.innerHTML;
+  check('⑥ 판 지도 칸 클릭 → 모달 열림(hidden=false) + 판 정보 카드(옛 판 카드 · 기준선 승률)', F('bsTable').hidden === false && /기준선 승률/.test(ELS.bsBoardCard.innerHTML) && /로드 미리보기/.test(ELS.bsBoardCard.innerHTML));
+  check('⑥ 헤더: 판 이름 · +1/−1 뜻 · 오늘 장벽 ±X · 한도 사용/1억 · 시즌(슈) · 게임 #49(진행 중 · 사슬 순번) · Min 1R · Max 판당 델타 상한 · 칩 상한 1.50R', /테이블 · /.test(hd) && /<i>\+1<\/i>스티프너/.test(hd) && /<i>−1<\/i>/.test(hd) && /오늘 장벽<\/i><b>±9\.2bp/.test(hd) && /한도 사용<\/i>4,710만 \/ 1억/.test(hd) && /시즌\(슈\)<\/i>2026-01-01 · year/.test(hd) && /게임<\/i>#49 <span class="wb-muted">\(진행 중/.test(hd) && /Min 1R = /.test(hd) && /Max 판당 델타 상한 1,348만\/bp/.test(hd) && /칩 상한 1\.50R/.test(hd), hd.replace(/<[^>]+>/g, ' ').slice(0, 300));
+  const beadHtml = rd.slice(rd.indexOf('bs-rd-bead'), rd.indexOf('bs-rd-big')), bigHtml = rd.slice(rd.indexOf('bs-rd-big'), rd.indexOf('bs-rd-tally'));
+  check('⑥ 구슬 로드: 48칸 + 진행 중 1칸 · 색 = +1 적 20 / −1 청 22 / 무승부 녹 6 · 관통 테두리 점 4 · 내 게임(종료 = 결과 색 칸) 1', (beadHtml.match(/class="bs-rd bs-rd-p/g) || []).length === 20 && (beadHtml.match(/class="bs-rd bs-rd-m/g) || []).length === 22 && (beadHtml.match(/class="bs-rd bs-rd-t/g) || []).length === 6 && (beadHtml.match(/is-pen/g) || []).length === 4 && (beadHtml.match(/is-mine/g) || []).length === 1 && /bs-rd bs-rd-cur" title="진행 중 · 진입 2026-10-13 · 10일 · 지금 R\(\+1 관점\) \+0\.34R · 승까지 0\.66R · 패까지 1\.34R/.test(beadHtml));
+  check('⑥ 구슬 칸 title = 엔진 games 필드 그대로(#n · 결과 · kind · 날짜 · 길이 · +1 관점 R · 내 게임 + 델타 (1+0.5))', /title="#48 \+1 승 · win · 2026-09-14 → 2026-10-06 · 16일 · \+1 관점 \+1\.08R · 내 게임 S\.slope\.2_5\+1@2026-09-14#1 2,021만\/bp \(1\+0\.5\)"/.test(beadHtml), (beadHtml.match(/title="#48[^"]*"/) || [''])[0]);
+  check('⑥ 빅 로드 렌더: 무승부 사선 칸(is-tie · data-ties) · 꼬리 칸(is-tail) · grid-column/row 좌표', /is-tie/.test(bigHtml) && /data-ties="2"/.test(bigHtml) && /is-tail/.test(bigHtml) && /style="grid-column:1;grid-row:1"/.test(bigHtml) && /grid-column:1;grid-row:2"/.test(bigHtml));
+  check('⑥ 집계 박스 = 엔진 road.counts/streaks 그대로: +1 승 20 · −1 승 22 · 무승부 6 · 관통 4 · 최장 연속 +4 / −9 · 지금 연속 +1 · 열 48판', /\+1 승 <b>20<\/b>/.test(rd) && /−1 승 <b>22<\/b>/.test(rd) && /무승부 <b>6<\/b>/.test(rd) && /관통 <b>4<\/b>/.test(rd) && /최장 연속 <b>\+4 \/ −9<\/b>/.test(rd) && /지금 연속 <b>\+1<\/b>/.test(rd) && /열 48판/.test(rd) && !/집계 .* ≠ 열/.test(rd) && !/결과열\(games\)에서 센 값/.test(rd));
+  check('⑥ 내 칩(델타 숫자): 진행 중 = 깜빡임(is-live) + 1,350만/bp (1) · 종료 = 2,021만/bp (1+0.5) 승 +1.08R', /is-live[^>]*><\/i>\+1 2026-10-13 · <b>1,350만\/bp \(1\)<\/b> · 진행 중 \+0\.34R/.test(rd) && /\+1 2026-09-14 → 2026-10-06 · <b>2,021만\/bp \(1\+0\.5\)<\/b> · 승 \+1\.08R/.test(rd), (rd.match(/내 칩.{0,400}/) || [''])[0].replace(/<[^>]+>/g, ' '));
+  // 大路 배치 규칙(순수 함수 BS._bigRoad · 결과 재계산 0 · 배치만)
+  const BR = B._bigRoad, W = s => s.map((w, i) => ({ n: i + 1, winner: w }));
+  let br = BR(W([1, 1, -1]));
+  check('⑥ 大路: 같은 결과 아래로 · 바뀌면 다음 열 맨 위', br.cols === 2 && br.cells.map(c => c.c + ',' + c.r).join(' ') === '0,0 0,1 1,0', JSON.stringify(br.cells.map(c => [c.c, c.r])));
+  br = BR(W([0, 0, 1, 0, -1]));
+  check('⑥ 大路: 앞선 무승부 2 → 첫 칸 · 뒤 무승부 → 직전 칸 사선 겹침(ties 3) · 열 안 늘어남', br.cells.length === 2 && br.cells[0].ties === 3 && br.cells[1].ties === 0 && br.pending_ties === 0 && br.cols === 2, JSON.stringify(br.cells.map(c => [c.c, c.r, c.ties])));
+  br = BR(W([0, 0]));
+  check('⑥ 大路: 승패 결과 없이 무승부만 → pending_ties 2 · 칸 0', br.cells.length === 0 && br.pending_ties === 2);
+  br = BR(W([-1, -1, -1, -1, -1, -1, -1, -1, -1, 1, 1, 1, 1, 1, 1, 1, -1]));
+  check('⑥ 大路: 9연속 → 6행 넘침 꼬리 (0,5)→(1,5)(2,5)(3,5) · 다음 열은 1열 맨 위 · 꼬리 충돌(1,5 점유) → (1,4)에서 오른쪽 (2,4)(3,4) · 그다음 새 열 2', br.cells.slice(0, 9).map(c => c.c + ',' + c.r).join(' ') === '0,0 0,1 0,2 0,3 0,4 0,5 1,5 2,5 3,5' && br.cells.slice(9, 16).map(c => c.c + ',' + c.r).join(' ') === '1,0 1,1 1,2 1,3 1,4 2,4 3,4' && br.cells[16].c === 2 && br.cells[16].r === 0 && br.cells[6].tail === true && br.cells[14].tail === true && br.cols === 4, JSON.stringify(br.cells.map(c => [c.c, c.r])));
+  br = BR(W([1, 0, 1, 1, -1]));
+  check('⑥ 大路: 무승부는 연속을 끊지 않음(1,0,1,1 = 한 열 3칸)', br.cells.map(c => c.c + ',' + c.r).join(' ') === '0,0 0,1 0,2 1,0' && br.cells[0].ties === 1);
+  // 집계 정직: 엔진 counts 가 열과 안 맞으면 배지 · counts/streaks 없으면 센 값 + ?
+  (function () { const s4 = clone(SAMPLE); s4.available = true; const r4 = s4.boards.find(b => b.id === 'S.slope.2_5').road; r4.counts.plus = 99; B._setSnap(s4); B.render(); B.show('S.slope.2_5');
+    check('⑥ 엔진 counts ≠ 열 → 배지(집계 127 ≠ 열 48) · 숫자는 엔진 값 그대로(99)', /집계 127 ≠ 열 48/.test(ELS.bsTblRoad.innerHTML) && /\+1 승 <b>99<\/b>/.test(ELS.bsTblRoad.innerHTML));
+    delete r4.counts; delete r4.streaks; B.show('S.slope.2_5');
+    check('⑥ counts·streaks 없음 → 결과열에서 센 값(20/22/6/4 · +4/−9) + ? 명시', /\+1 승 <b>20<\/b>/.test(ELS.bsTblRoad.innerHTML) && /최장 연속 <b>\+4 \/ −9<\/b>/.test(ELS.bsTblRoad.innerHTML) && /road\.counts·streaks 없음 — 결과열\(games\)에서 센 값/.test(ELS.bsTblRoad.innerHTML)); })();
+  B._setSnap(clone(SAMPLE)); B._state.snap.available = true; B.render(); B.show('S.slope.2_5');
+  // 칩 쌓기(사용자 2026-10-28): 트레이 ×0.5/×1(칩 면 = 델타) · 존 선택 → 쌓임 · 합계 · 상한(allowed_max_size_R) 넘으면 안 놓이고 사유 · 치우기 · 베팅 POST size_R = 합계 · chips · paroli 0
+  let bet = ELS.bsTblBet.innerHTML;
+  check('⑥ 칩 트레이: ×0.5(674만/bp) · ×1(1,348만/bp) · 상한 1.50R + 엔진 사유 · 역마팅게일 토글 0 · 열린 게임 카드(종료/정정/삭제)', /data-mult="0\.5"[^>]*>×0\.5<small>674만\/bp<\/small>/.test(bet) && /data-mult="1"[^>]*>×1<small>1,348만\/bp<\/small>/.test(bet) && /상한 <b>1\.50R<\/b> · 직전 승 · 1\.5R 까지/.test(bet) && !/type="checkbox"|bsFParoli|paroli/.test(bet) && /열린 게임 1 — 종료 \/ 정정 \/ 삭제/.test(bet) && /BS\.close\('S\.slope\.2_5\+1@2026-10-13#1'\)/.test(bet) && /BS\.amend\(/.test(bet) && /BS\.del\(/.test(bet), bet.replace(/<[^>]+>/g, ' ').slice(0, 200));
+  check('⑥ 존 라벨 = 방향 뜻만(dir_meaning) · 베팅 버튼 비활성(칩 0)', /bs-zone bs-zone-p"[^>]*>[\s\S]*?<span class="bs-zone-mean">스티프너/.test(bet) && /bs-zone bs-zone-m"[^>]*>[\s\S]*?<span class="bs-zone-mean">/.test(bet) && /id="bsTBet" onclick="BS\.bet\(\)" disabled>베팅<\/button>/.test(bet));
+  check('⑥ 존 안 고르고 칩 → 안 놓임 + 안내', B.addChip('1') === false && /존을 먼저/.test(ELS.bsTblMsg.textContent));
+  B.zone(1);
+  check('⑥ +1 존 선택(is-sel) · 칩 ×1 → 합계 "1.00R · 1,348만/bp · 1"', B.addChip('1') === true && /bs-zone bs-zone-p is-sel/.test(ELS.bsTblBet.innerHTML) && /bs-zone-sum">1\.00R · 1,348만\/bp · 1</.test(ELS.bsTblBet.innerHTML), (ELS.bsTblBet.innerHTML.match(/bs-zone-sum">[^<]*/g) || []).join(' | '));
+  check('⑥ 칩 ×0.5 추가 → "1.50R · 2,021만/bp · 1 + 0.5" · 베팅 버튼 활성 "베팅 +1 · 1.50R"', B.addChip('0.5') === true && /bs-zone-sum">1\.50R · 2,021만\/bp · 1 \+ 0\.5</.test(ELS.bsTblBet.innerHTML) && /id="bsTBet" onclick="BS\.bet\(\)">베팅 \+1 · 1\.50R</.test(ELS.bsTblBet.innerHTML));
+  check('⑥ 상한 초과(1.5 + 0.5 > 1.5) → 칩 안 놓임 · 엔진 사유 표시 · 트레이 칩 흐림(is-dim)', B.addChip('0.5') === false && /칩 안 놓임 — 합계 2\.00R > 상한 1\.50R · 직전 승 · 1\.5R 까지/.test(ELS.bsTblMsg.textContent) && /bs-chip is-dim" draggable="true" data-mult="0\.5"/.test(ELS.bsTblBet.innerHTML) && /bs-zone-sum">1\.50R/.test(ELS.bsTblBet.innerHTML), ELS.bsTblMsg.textContent);
+  B.zone(-1);
+  check('⑥ 존 바꾸면 칩이 −1 존으로 옮겨짐(합계 유지)', /bs-zone bs-zone-m is-sel/.test(ELS.bsTblBet.innerHTML) && !/bs-zone-p is-sel/.test(ELS.bsTblBet.innerHTML) && /베팅 −1 · 1\.50R/.test(ELS.bsTblBet.innerHTML));
+  B.zone(1); B.tf('memo', 'table smoke');
+  const snapBet = clone(SAMPLE); snapBet.available = true;
+  snapBet.my_games.open.push(Object.assign(clone(SAMPLE.my_games.open[0]), { game_id: 'G-TABLE', board_id: 'S.slope.2_5', dir: 1, entry_date: SAMPLE.asof, size_R: 1.5, dv01_won_per_bp: 20214600, chips: [1, 0.5], main_game_id: null, layer: 'mini' }));
+  snapBet.boards.find(b => b.id === 'S.slope.2_5').road.my_open.push('G-TABLE');
+  POST_RESULT = { ok: true, event: 'open', engine: { ledger_fn: 'open_game', snapshot_fn: 'build_snapshot' }, snapshot: snapBet };
+  const nBet = CALLS.post.length; await B.bet();
+  const evb = CALLS.post[nBet] && CALLS.post[nBet].body;
+  check('⑥ 베팅 POST = 기존 open 이벤트: size_R 1.5(칩 합계) · chips [1,0.5] · dir +1 · 날짜 기본(entry_date_default→asof) · memo · by web · paroli 키 없음 · one_R_won/dv01 없음', !!evb && evb.event === 'open' && evb.board_id === 'S.slope.2_5' && evb.dir === 1 && evb.size_R === 1.5 && JSON.stringify(evb.chips) === '[1,0.5]' && evb.date === SAMPLE.asof && evb.memo === 'table smoke' && evb.by === 'web' && evb.paroli === undefined && evb.one_R_won === undefined && evb.dv01_won_per_bp === undefined, JSON.stringify(evb));
+  check('⑥ 응답 스냅샷으로 로드에 내 칩 즉시 반영(G-TABLE 진행 중 · 2,021만/bp (1+0.5) · 깜빡임) · 칩 치워짐 · 모달 유지', /G-TABLE/.test(ELS.bsTblRoad.innerHTML) && /is-live[^>]*><\/i>\+1 2026-10-26 · <b>2,021만\/bp \(1\+0\.5\)<\/b> · 진행 중/.test(ELS.bsTblRoad.innerHTML) && /bs-zone-sum"><span class="wb-muted">/.test(ELS.bsTblBet.innerHTML) && !/is-sel/.test(ELS.bsTblBet.innerHTML) && F('bsTable').hidden === false && /기록 완료/.test(ELS.bsTblMsg.textContent) && /열린 게임 2/.test(ELS.bsTblBet.innerHTML), (ELS.bsTblRoad.innerHTML.match(/G-TABLE.{0,200}/) || [''])[0].replace(/<[^>]+>/g, ' '));
+  // 서버 거부(400) 사유 원문 · 칩 보존
+  B.zone(1); B.addChip('1'); POST_RESULT = new Error('서버 오류 400 — game_board.ledger open 거부: ValueError: 상한 초과 1.0R'); await B.bet();
+  check('⑥ 서버 거부 → 사유 원문(모달 안) · 칩 보존', /기록 실패 — 서버 오류 400 — game_board\.ledger open 거부: ValueError: 상한 초과 1\.0R/.test(ELS.bsTblMsg.textContent) && /bs-zone-sum">1\.00R/.test(ELS.bsTblBet.innerHTML), ELS.bsTblMsg.textContent);
+  B.clearChips();
+  check('⑥ 치우기 → 칩 0 · 베팅 비활성', /bs-zone-sum"><span class="wb-muted">칩을 올리세요/.test(ELS.bsTblBet.innerHTML) && / disabled>베팅</.test(ELS.bsTblBet.innerHTML));
+  B.show('S.slope.2_3'); B.zone(-1);
+  check('⑥ 상한 1.0R 판(직전 패): ×1 뒤 ×0.5 안 놓임 + 사유 "직전 패 · 1R 까지" · 앞선 무승부 2 = 첫 칸 사선(data-ties 2) · 9연속 꼬리', B.addChip('1') === true && B.addChip('0.5') === false && /직전 패 · 1R 까지/.test(ELS.bsTblMsg.textContent) && /is-tie[^"]*" style="grid-column:1;grid-row:1" data-ties="2"/.test(ELS.bsTblRoad.innerHTML) && /is-tail/.test(ELS.bsTblRoad.innerHTML) && /게임<\/i>#26 <span class="wb-muted">\(다음/.test(ELS.bsTblHead.innerHTML), ELS.bsTblMsg.textContent);
+  check('⑥ 판 바꾸면 칩 스택은 판별로 분리(2_5 는 0 · 2_3 는 1칩)', B._state.stack['S.slope.2_5'].chips.length === 0 && B._state.stack['S.slope.2_3'].chips.length === 1);
+  // 폴백: road 없음 · chips 없음 · B 바스켓 판 종목 입력
+  B.show('L.cash.2y');
+  check('⑥ road 없음 → "결과열 없음"(가짜 결과 0) · 게임 번호 – · 칩 트레이 없음 → 진입 기록 폼 안내', /결과열 없음/.test(ELS.bsTblRoad.innerHTML) && !/bs-rd-bead/.test(ELS.bsTblRoad.innerHTML) && /게임<\/i>–/.test(ELS.bsTblHead.innerHTML) && /칩 트레이 없음/.test(ELS.bsTblBet.innerHTML) && /boards\[\]\.chips 미생성/.test(ELS.bsTblBet.innerHTML) && !/bs-zone/.test(ELS.bsTblBet.innerHTML) && ELS.bsTblRoadMeta.textContent === 'road 없음');
+  B.show('B.basket.3F');
+  check('⑥ B 바스켓 판: road 3판 렌더 · chips 없음 폴백(종목 입력은 chips 있을 때만)', /열 3판/.test(ELS.bsTblRoad.innerHTML) && /칩 트레이 없음/.test(ELS.bsTblBet.innerHTML));
+  (function () { const s5 = clone(SAMPLE); s5.available = true; const bb = s5.boards.find(b => b.id === 'B.basket.3F'); bb.chips = [{ mult: 1, size_R: 1, dv01_won_per_bp: 5000000, label: '×1' }]; bb.allowed_max_size_R = 1; B._setSnap(s5); B.render(); B.show('B.basket.3F');
+    check('⑥ B 판 + chips → 종목 입력(datalist = legs_today 코드) · 베팅 POST 에 bond', /id="bsTBond"[^>]*list="bsTBondList"/.test(ELS.bsTblBet.innerHTML) && /<datalist id="bsTBondList">(<option value="[^"]+">)+<\/datalist>/.test(ELS.bsTblBet.innerHTML)); })();
+  B.closeTable();
+  check('⑥ 닫기 → hidden', F('bsTable').hidden === true);
+  B._setSnap(clone(SAMPLE)); B._state.snap.available = true; B.render(); B.show('S.slope.2_5');
+  B.amend(SAMPLE.my_games.open[0].game_id);
+  check('⑥ 모달 안 "정정" → 모달 닫고 폼으로(기존 amend 동작)', F('bsTable').hidden === true && F('bsFAmend').hidden === false); B.cancelAmend();
+  B._setSnap(clone(SAMPLE)); B._state.snap.available = true; B.render(); B.show('S.slope.2_5');
+
   // ④ 추천·신호·방향 제안 문구 0 (렌더 결과 + 탭 HTML + 스크립트)
   const view = (html.match(/<div id="view-bootstrap"[\s\S]*?<\/div><!-- \/bs-content -->/) || [''])[0];
   const corpus = allHtml() + '\n' + view + '\n' + src;
