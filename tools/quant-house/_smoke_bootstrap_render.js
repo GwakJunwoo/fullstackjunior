@@ -27,6 +27,7 @@ const document = {
   documentElement: { hasAttribute() { return false; }, getAttribute() { return null; } },
   getElementById(id) { if (!ELS[id]) ELS[id] = fakeEl(id); return ELS[id]; },
   querySelectorAll() { return []; },
+  body: { classList: { _s: new Set(), add(c) { this._s.add(c); }, remove(c) { this._s.delete(c); }, contains(c) { return this._s.has(c); }, toggle() {} } },
 };
 const window = { location: { search: '', hash: '', hostname: '' }, WBChart: null, WBShell: null };
 const CALLS = { get: [], post: [] };
@@ -258,7 +259,7 @@ function allHtml() { return Object.keys(ELS).map(k => ELS[k].innerHTML + ' ' + E
 
   // ⑥ §8f 바카라 테이블(사용자 2026-10-28) — 모달 열림 · 로드 규칙(연속/전환/무승부 겹침/6행 꼬리) · 집계 · 칩 쌓기(상한·사유) · 베팅 POST 페이로드 · road/chips 없음 폴백
   B._setSnap(clone(SAMPLE)); B._state.snap.available = true; B.render();
-  check('⑥ 모달 마크업: #bsTable(role dialog) · 점수판/베팅 카드 · 접이식 판 정보 안에 #bsBoardCard · 지도 그리드에 sticky 카드 없음', /<div class="bs-tbl" id="bsTable" hidden role="dialog"/.test(html) && /<details class="bs-tbl-info" id="bsTblInfo">[\s\S]*?id="bsBoardCard"/.test(html) && !/class="wb-card bs-sticky" id="bsBoardCard"/.test(html) && /id="bsHelpRoad" data-help="[^"]+"/.test(html) && /id="bsHelpBet" data-help="[^"]+"/.test(html));
+  check('⑥ 모달 마크업: #bsTable(role dialog) · 점수판/베팅 카드 · 접이식 판 정보 안에 #bsBoardCard · 지도 그리드에 sticky 카드 없음', /<div class="bs-modal" id="bsTable" hidden role="dialog"/.test(html) && /<details class="bs-modal-info" id="bsTblInfo">[\s\S]*?id="bsBoardCard"/.test(html) && !/class="wb-card bs-sticky" id="bsBoardCard"/.test(html) && /id="bsHelpRoad" data-help="[^"]+"/.test(html) && /id="bsHelpBet" data-help="[^"]+"/.test(html));
   check('⑥ 지도 칸 로드 미리보기(최근 20칸 구슬): road 있는 3판만 · 진행 중 점선 칸', (ELS.bsMap.innerHTML.match(/class="bs-rd-mini"/g) || []).length === 3 && /bs-rd-mini"[^>]*>(<i class="[^"]*"><\/i>){20}<i class="bs-rd-cur"><\/i><\/span>/.test(ELS.bsMap.innerHTML));
   check('⑥ 모달 닫힘 상태에서 render() 는 열지 않음', F('bsTable').hidden !== false);
   B.show('S.slope.2_5');
@@ -339,12 +340,26 @@ function allHtml() { return Object.keys(ELS).map(k => ELS[k].innerHTML + ' ' + E
   check('⑥ B 바스켓 판: road 3판 렌더 · chips 없음 폴백(종목 입력은 chips 있을 때만)', /열 3판/.test(ELS.bsTblRoad.innerHTML) && /칩 트레이 없음/.test(ELS.bsTblBet.innerHTML));
   (function () { const s5 = clone(SAMPLE); s5.available = true; const bb = s5.boards.find(b => b.id === 'B.basket.3F'); bb.chips = [{ mult: 1, size_R: 1, dv01_won_per_bp: 5000000, label: '×1' }]; bb.allowed_max_size_R = 1; B._setSnap(s5); B.render(); B.show('B.basket.3F');
     check('⑥ B 판 + chips → 종목 입력(datalist = legs_today 코드) · 베팅 POST 에 bond', /id="bsTBond"[^>]*list="bsTBondList"/.test(ELS.bsTblBet.innerHTML) && /<datalist id="bsTBondList">(<option value="[^"]+">)+<\/datalist>/.test(ELS.bsTblBet.innerHTML)); })();
+  check('⑥ 모달 열림 → body.bs-modal-lock', document.body.classList.contains('bs-modal-lock'));
   B.closeTable();
   check('⑥ 닫기 → hidden', F('bsTable').hidden === true);
+  check('⑥ 닫기 → body 잠금 해제(본문 레이아웃 정상)', !document.body.classList.contains('bs-modal-lock'));
   B._setSnap(clone(SAMPLE)); B._state.snap.available = true; B.render(); B.show('S.slope.2_5');
   B.amend(SAMPLE.my_games.open[0].game_id);
   check('⑥ 모달 안 "정정" → 모달 닫고 폼으로(기존 amend 동작)', F('bsTable').hidden === true && F('bsFAmend').hidden === false); B.cancelAmend();
   B._setSnap(clone(SAMPLE)); B._state.snap.available = true; B.render(); B.show('S.slope.2_5');
+
+  // ⑦ 클래스 충돌 가드(2026-10-28 라이브 버그: 모달 컨테이너 class 가 커브 표 .bs-tbl 과 같아 TABLE 이 position:fixed + 백드롭을 받음)
+  const css = (html.match(/<style[^>]*>([\s\S]*?)<\/style>/g) || []).join('\n');
+  // 선택자 안에 .cls 가 정확히(접미 -x 제외) 등장하는 규칙 본문 목록 · cls 가 '-' 로 끝나면 접두 와일드카드(동적 bs-st-<상태>)
+  const rulesOf = cls => { const tail = /-$/.test(cls) ? String.raw`[a-z0-9-]*` : String.raw`(?![\w-])`; const re = new RegExp(String.raw`(^|[\s,}])\.` + cls + tail + String.raw`[^{]*\{([^}]*)\}`, 'g'); const out = []; let mm; while ((mm = re.exec(css))) out.push(mm[2]); return out; };
+  const tblRules = rulesOf('bs-tbl');
+  check('⑦ 커브 표 class = "wb-table bs-tbl" 유지 · .bs-tbl 규칙은 색/글자만(position/display/inset/background 0)', /<table class="wb-table bs-tbl">/.test(src) && tblRules.length > 0 && tblRules.every(r => !/\b(position|display|inset|background|z-index)\s*:/.test(r)), tblRules.join(' || '));
+  check('⑦ 모달 컨테이너 = .bs-modal(fixed) · bs-modal 이 wb- 공용 요소에 안 붙음', rulesOf('bs-modal').some(r => /position\s*:\s*fixed/.test(r)) && !/class="wb-[^"]*\bbs-modal(?![\w-])/.test(html) && !/class="wb-[^"]*\bbs-modal(?![\w-])/.test(src));
+  // 일반화: wb- 공용 요소에 붙은 모든 bs- 클래스는 레이아웃을 바꾸는 규칙(position fixed/absolute · inset)을 가지면 안 된다
+  const onWb = new Set(); const reWb = /class="wb-[^"]*?\b(bs-[a-z0-9-]+)/g; let mw; const corpusCls = html + '\n' + src; while ((mw = reWb.exec(corpusCls))) onWb.add(mw[1]);
+  const badCls = [...onWb].filter(c => rulesOf(c).some(r => /position\s*:\s*(fixed|absolute)|\binset\s*:/.test(r)));
+  check('⑦ wb- 요소에 붙은 bs- 클래스(' + [...onWb].join(',') + ') 중 fixed/absolute/inset 규칙 0', badCls.length === 0, badCls.join(','));
 
   // ④ 추천·신호·방향 제안 문구 0 (렌더 결과 + 탭 HTML + 스크립트)
   const view = (html.match(/<div id="view-bootstrap"[\s\S]*?<\/div><!-- \/bs-content -->/) || [''])[0];
