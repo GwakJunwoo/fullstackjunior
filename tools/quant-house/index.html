@@ -472,6 +472,12 @@
     .bs-sc td { padding: 3px 6px; text-align: right; border-bottom: 1px solid var(--wb-rule); font-variant-numeric: tabular-nums; }
     .bs-sc tr.is-head td { font-weight: 600; color: var(--wb-muted); background: var(--wb-subtle); text-align: left; }
     .bs-sub { font-size: 11px; color: var(--wb-muted); margin-top: var(--wb-s2); }
+    /* 판 기준(2026-10-29 잠금): 스냅샷 줄 배지 · B.basket 종목별 장벽 표 — 열 수 없음 행은 흐리게(사유는 경고색 그대로) */
+    .bs-std { display: inline-flex; align-items: center; gap: 6px; min-height: var(--wb-ctl); font-size: 12px; }
+    .bs-std .bs-std-viol { font-size: 11px; max-width: 520px; }
+    .bs-pbs td.code { text-align: left; }
+    .bs-pbs td.bs-pbs-st { text-align: left; }
+    .bs-pbs tr.is-closed td:not(.bs-pbs-st) { color: var(--wb-muted); }
     .bs-sticky { position: sticky; top: calc(var(--wb-shell-h) + var(--wb-filterbar-h) + 8px); }
     /* 내 게임 카드 · R 장벽 막대 */
     .bs-game { padding: var(--wb-inset); border-bottom: 1px solid var(--wb-rule); }
@@ -781,6 +787,7 @@
     </div>
     <div class="wb-filterbar">
       <div class="wb-field"><span class="wb-label">스냅샷</span><span class="wb-stepper-val" id="bsAsof">—</span></div>
+      <span id="bsStd" class="bs-std"></span><!-- 판 기준 배지(사용자 2026-10-29 잠금 · 엔진 최상위 standards 그대로 · ok=false 면 경고 + violations) -->
       <span id="bsMsg" class="wb-filterbar-status"></span>
       <div class="wb-filterbar-end"><button type="button" class="wb-btn wb-btn--primary" onclick="BS.load(true)">새로고침</button></div>
     </div>
@@ -4642,6 +4649,22 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
   function dash(v) { return v == null || v === '' ? '–' : esc(v); }
   function pick(o, keys) { for (var i = 0; i < keys.length; i++) if (o && o[keys[i]] != null) return o[keys[i]]; return null; }
   function badgeW(t) { return '<span class="wb-badge wb-badge--warn">' + esc(t) + '</span>'; }
+  // ── 판 기준(사용자 2026-10-29 확정·잠금 · 해동 c3672e80) — 엔진 최상위 standards · boards[].sigma_basis/sigma_unit/bundle_X_rule/per_bond_sigma 를 그대로 옮긴다(웹 계산 0)
+  var SIGMA_BASIS_KO = { full_accounting: '전체 회계' };
+  function basisKo(v) { return v == null ? '–' : (SIGMA_BASIS_KO[v] || String(v)); }
+  function stdOf() { var s = (_BS.snap || {}).standards; return s && typeof s === 'object' ? s : null; }
+  function basisMismatch(b) { var st = stdOf(); return !!(st && st.sigma_basis && b && b.sigma_basis && b.sigma_basis !== st.sigma_basis); }   // 판 σ 기저 ≠ 스냅샷 확정 기준 → 경고(엔진 ok/violations 와 별도로 화면에서도)
+  function barrierStd(b) {   // 장벽 ? 첫 줄 — 엔진 sigma_basis 를 한국어로만(없으면 빈 문자열 · 구 스냅샷에 기준 주장 0)
+    if (!b || !b.sigma_basis) return '';
+    var t = b.sigma_basis === 'full_accounting' ? '장벽 = 전체 회계 하루 손익 σ × k × √21' : ('장벽 σ 기저 = ' + b.sigma_basis + (basisMismatch(b) ? ' — 확정 기준(' + basisKo(stdOf().sigma_basis) + ')과 다름' : ''));
+    if (b.sigma_unit === 'bond') t += ' · 종목마다 그 종목 자체 σ' + (b.bundle_X_rule === 'harmonic' ? ' · 판 X = 오늘 종목 X 조화평균' : (b.bundle_X_rule ? ' · 묶음 X 규칙 ' + b.bundle_X_rule : ''));
+    return t;
+  }
+  // 본전 승률 표기 = 엔진 p_star_label 그대로('불가(>100%)' · '사실상 불가(99.89%)' · '81.6%') · 라벨 없는 구 스냅샷만 옛 표기(불가 / %) 폴백
+  function pLabel(be) { if (!be || be.p_star == null) return null; if (typeof be.p_star_label === 'string' && be.p_star_label) return be.p_star_label; return be.p_star_over_100 ? '불가' : pct(be.p_star); }
+  // 판 카드·테이블 헤더의 본전 = 오늘 X 기준(breakeven_today · 카드 X 와 같은 날 · 엔진 산출) 우선 · 없으면 breakeven(census 실측 또는 추정)
+  function beMain(b) { var bt = b && b.breakeven_today, be = b && b.breakeven; if (bt && typeof bt === 'object' && bt.p_star != null) return { be: bt, today: true }; if (be && typeof be === 'object') return { be: be, today: false }; return null; }
+  function perBondOf(b) { return b && Array.isArray(b.per_bond_sigma) && b.per_bond_sigma.length ? b.per_bond_sigma : null; }
   // ? 툴팁 = 공용 wb-shell 컴포넌트(.wb-help · data-help) 재사용 — 설명 문장은 전부 여기로(화면엔 숫자·라벨·표만). 새 컴포넌트 0.
   function helpBtn(text) { if (!text) return ''; if (window.WBShell && typeof WBShell.helpBtn === 'function') return WBShell.helpBtn(text); return '<button type="button" class="wb-help" data-help="' + esc(text) + '" aria-label="설명 보기"></button>'; }
   // 엔진 help 우선(boards[].help · risk.help · my_games.help · market.help — 문자열 또는 {key: 문장}) · 없으면 짧은 기본 문장
@@ -4699,7 +4722,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
   function renderEmpty(snap) {
     killCharts();
     var note = (snap && snap.note) || 'game_board_snapshot.json 미생성';
-    $('bsAsof').textContent = '스냅샷 없음';
+    $('bsAsof').textContent = '스냅샷 없음'; if ($('bsStd')) $('bsStd').innerHTML = '';
     setNotice('<b>스냅샷 없음</b> — <code>cli.py board snapshot</code> 실행 필요. ' + esc(note), 'warn');
     ['bsCurveTbl', 'bsRegime', 'bsMap', 'bsOpen', 'bsClosed', 'bsRiskGauge', 'bsSeason', 'bsCorr', 'bsNeff'].forEach(function (id) { var el = $(id); if (el) el.innerHTML = emptyHtml('자료 없음', '스냅샷이 생기면 표시'); });
     $('bsWeekly').innerHTML = ''; $('bsMapLegend').innerHTML = ''; $('bsDeleted').innerHTML = ''; $('bsNextDecision').innerHTML = ''; if ($('bsCurveChartBox')) $('bsCurveChartBox').innerHTML = ''; if ($('bsRiskChartBox')) $('bsRiskChartBox').innerHTML = '';
@@ -4743,6 +4766,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     killCharts();
     var s = _BS.snap;
     $('bsAsof').textContent = 'asof ' + (s.asof || '–') + ' · built ' + (s.built_at || '–') + ' · schema ' + (s.schema == null ? '–' : s.schema) + (s.elapsed_sec != null ? ' · ' + s.elapsed_sec + 's' : '');
+    renderStd(s);
     var lg = (s.my_games || {}).ledger;
     setNotice((_BS.sample ? '<b>더미 스냅샷</b> — 내 게임·상관 숫자는 가짜(개발·스모크 전용 · 로컬 <code>?bs_sample=1</code>). 실제 값은 <code>cli.py board snapshot</code> 이 만든다. 기록(POST)은 실제 API 로 간다.' : '') +
       (lg && lg.chain && lg.chain.ok === false ? (_BS.sample ? '<br>' : '') + '<b>원장 해시 체인 검증 실패</b> — ' + esc(JSON.stringify(lg.chain)) + (lg.chain_note ? helpBtn(lg.chain_note) : '') : ''), 'warn');
@@ -4753,6 +4777,31 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     renderRisk(s);
     if (_BS.sel && boardById(_BS.sel)) renderBoard(_BS.sel); else { _BS.sel = null; closeTable(); }   // 재렌더는 내용만(모달 열림 상태는 유지 · 새로 열지 않음)
     tocSpy();
+  }
+  // 스냅샷 줄 판 기준 배지(사용자 2026-10-29 잠금) — 엔진 standards 그대로: ok=true → "기준 전체 회계" · ok=false → 경고 배지 + violations 원문 · ok 없음 → "자체 대조 없음" 경고 ·
+  //   standards 자체가 없음(구 스냅샷) → "기준 미표기"(기준을 주장하지 않음) · ? = 공식·결정 id·미결 id·사전등록·σ 재검산 마지막/다음
+  function vioTxt(v) { if (v == null) return ''; if (typeof v === 'string') return v; try { return JSON.stringify(v); } catch (e) { return String(v); } }
+  function renderStd(s) {
+    var el = $('bsStd'); if (!el) return;
+    var st = s && s.standards && typeof s.standards === 'object' ? s.standards : null;
+    if (!st) { el.innerHTML = '<span class="wb-muted">기준 미표기(구 스냅샷 · standards 없음)</span>'; return; }
+    var rc = st.sigma_recheck && typeof st.sigma_recheck === 'object' ? st.sigma_recheck : {};
+    var ids = Array.isArray(st.decision_ids) ? st.decision_ids : [], oids = Array.isArray(st.open_decision_ids) ? st.open_decision_ids : [];
+    var vio = Array.isArray(st.violations) ? st.violations : [];
+    var help = [st.help || '',
+      st.X_formula ? '공식: ' + st.X_formula : '',
+      'σ 기저 ' + basisKo(st.sigma_basis) + (st.accounting ? ' · 회계 ' + st.accounting : '') + (st.sigma_unit_bbasket ? ' · B.basket σ 단위 ' + st.sigma_unit_bbasket : '') + (st.bundle_X_rule ? ' · 묶음 X ' + st.bundle_X_rule : '') + (st.young_bond_rule ? ' · 신규 종목 ' + st.young_bond_rule : '') + (st.sigma_window != null ? ' · σ 창 ' + st.sigma_window + '개' : '') + (st.horizon_days != null ? ' · √' + st.horizon_days : ''),
+      ids.length ? '결정 ' + ids.join(', ') : '', oids.length ? '미결 ' + oids.join(', ') : '', st.prereg ? '사전등록 ' + st.prereg : '',
+      (st.n_boards_checked != null ? '자체 대조 ' + st.n_boards_checked + '판' + (st.n_X_checked != null ? ' · X ' + st.n_X_checked + '개' : '') : ''),
+      rc.last_run ? 'σ 재검산 마지막 ' + rc.last_run + (rc.last_status ? ' (' + rc.last_status + ')' : '') + (Array.isArray(rc.invalidated) && rc.invalidated.length ? ' · 무효화 ' + rc.invalidated.join(', ') : '') : 'σ 재검산 기록 없음',
+      rc.next_due ? '다음 재검산 ' + rc.next_due + (rc.every_days ? '(' + rc.every_days + '일 주기)' : '') : ''].filter(Boolean).join('\n');
+    if (st.ok === false) {
+      el.innerHTML = '<span class="wb-badge wb-badge--warn">기준 위반 ' + vio.length + '건' + helpBtn(help) + '</span>' + (vio.length ? '<span class="wb-warn-text bs-std-viol">' + vio.slice(0, 3).map(function (v) { return esc(vioTxt(v)); }).join(' · ') + (vio.length > 3 ? ' 외 ' + (vio.length - 3) + '건' : '') + '</span>' : '');
+    } else if (st.ok === true) {
+      el.innerHTML = '<span class="wb-badge">기준 ' + esc(basisKo(st.sigma_basis)) + helpBtn(help) + '</span>' + (rc.due === true ? badgeW('σ 재검산 기한 도래') : '');
+    } else {
+      el.innerHTML = '<span class="wb-badge wb-badge--warn">기준 자체 대조 없음(ok 미기재)' + helpBtn(help) + '</span>';
+    }
   }
   // 엔진 help 문구가 스냅샷에 있으면 섹션 ? 를 그걸로 바꾼다(없으면 마크업의 짧은 기본 문장 유지)
   //   스키마 2(해동) 키: my_games.help{open, entry_date_default, season, main_games, next_size_R, closed_recent, deleted_recent, amend, ledger} ·
@@ -4950,14 +4999,41 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
       (legs.length ? ' → ' + legs.join(' · ') + (op.one_R_actual_won != null ? ' <span class="wb-muted">(반올림 후 1R ' + won(op.one_R_actual_won) + ')</span>' : '') + (Array.isArray(b.legs) && legs.length < b.legs.length && op.note ? ' <span class="wb-muted">— ' + esc(op.note) + '</span>' : '') : (op ? (op.note ? ' <span class="wb-muted">— ' + esc(op.note) + '</span>' : '') : ' <span class="wb-muted">→ 레그 액면 미생성(order_preview 없음)</span>')) +
       (isDefault ? ' <span class="wb-muted">(기본 D_R)</span>' : '') + (rule.shrunk ? ' ' + badgeW('크기 축소 중(E < 0)') : '') + warn + helpBtn(help);
   }
-  // 본전 승률 vs 기준선 승률 한 줄 · 불가면 "불가 · 필요 샤프 n" 만 · 기준선 없으면 그 칸 생략
+  // 본전 승률 vs 기준선 승률 한 줄 · 표기 = 엔진 p_star_label 그대로 · 주 숫자 = 오늘 X 기준(breakeven_today) · census 실측(breakeven)은 옆에 작게 병기(둘 다 엔진 산출 · 섞지 않음) ·
+  //   불가(>100%)면 "불가 · 필요 샤프 n" 만 · 기준선 없으면 그 칸 생략
+  function beHelpParts(be) { return 'r* ' + f(be.r_star, 2) + 'R · 비용 ' + f(be.cost_R, 3) + 'R' + (be.sharpe_needed != null ? ' · 필요 샤프 ' + f(be.sharpe_needed, 1) : '') + (be.max_concurrent != null ? ' · 동시 최대 ' + f(be.max_concurrent, 1) + '판' : '') + (be.games_per_year != null ? ' · 연 ' + f(be.games_per_year, 0) + '판' : '') + (be.limit_won_per_bp != null ? ' · 한도 ' + won(be.limit_won_per_bp) : ''); }
+  function beHelp(b, mm, bh) {
+    var be = mm.be, cen = mm.today && b.breakeven && typeof b.breakeven === 'object' && b.breakeven.p_star != null ? b.breakeven : null;
+    return [bh('breakeven', ''), be.formula || '',
+      mm.today ? '주 숫자 = 오늘 X 기준(breakeven_today) · 입력: 오늘 X ' + f(b.X_bp, 2) + 'bp · 오늘 비용 R · census 평균 길이 · ' + beHelpParts(be) : ((be.inputs ? '입력: ' + be.inputs + ' · ' : '') + beHelpParts(be)),
+      cen ? 'census 실측(breakeven · ' + (cen.inputs || 'X 평균·길이 평균·비용 R') + ') = ' + pLabel(cen) + ' · ' + beHelpParts(cen) : ''].filter(Boolean).join(' · ');
+  }
   function breakevenLine(b, bw, bh) {
-    var be = b.breakeven; if (!be || typeof be !== 'object') return '';
+    var mm = beMain(b); if (!mm) return '';
+    var be = mm.be;
     if (be.p_star == null) return be.note ? esc(be.note) : '';
-    var help = [bh('breakeven', ''), be.formula || '', be.inputs ? '입력: ' + be.inputs : '', 'r* ' + f(be.r_star, 2) + 'R · 비용 ' + f(be.cost_R, 3) + 'R' + (be.sharpe_needed != null ? ' · 필요 샤프 ' + f(be.sharpe_needed, 1) : '') + (be.max_concurrent != null ? ' · 동시 최대 ' + f(be.max_concurrent, 1) + '판' : '') + (be.games_per_year != null ? ' · 연 ' + f(be.games_per_year, 0) + '판' : '') + (be.limit_won_per_bp != null ? ' · 한도 ' + won(be.limit_won_per_bp) : '')].filter(Boolean).join(' · ');
-    if (be.p_star_over_100) return '본전 승률 <b>불가</b>' + (be.sharpe_needed != null ? ' · 필요 샤프 ' + f(be.sharpe_needed, 1) : '') + helpBtn(help);
+    var cen = mm.today && b.breakeven && typeof b.breakeven === 'object' && b.breakeven.p_star != null ? b.breakeven : null;
+    var tag = mm.today ? ' <span class="wb-muted">(오늘 X)</span>' : (be.estimated ? ' <span class="wb-muted">(추정)</span>' : '');
+    var cenTxt = cen ? ' <span class="wb-muted">· census ' + esc(pLabel(cen)) + '</span>' : '';
+    var help = beHelp(b, mm, bh);
+    if (be.p_star_over_100) return '본전 승률 <b>' + esc(pLabel(be)) + '</b>' + tag + cenTxt + (be.sharpe_needed != null ? ' · 필요 샤프 ' + f(be.sharpe_needed, 1) : '') + helpBtn(help);
     var base = (bw['+1'] != null || bw['-1'] != null) ? ' vs 기준선 승률 +1 <b>' + pct(bw['+1']) + '</b> · −1 <b>' + pct(bw['-1']) + '</b>' + helpBtn(bh('baseline_winrate', '기준선 승률 = 한쪽 고정(신호 없이 매일 진입) 승률 = 판의 기울기 · 신호 아님.')) : '';
-    return '본전 승률 p* <b>' + pct(be.p_star) + '</b>' + (be.estimated ? ' <span class="wb-muted">(추정)</span>' : '') + helpBtn(help) + base;
+    return '본전 승률 p* <b>' + esc(pLabel(be)) + '</b>' + tag + cenTxt + helpBtn(help) + base;
+  }
+  // B.basket 종목별 장벽 표(부록2 · 2026-10-29 사용자 결정) — boards[].per_bond_sigma 그대로 · ok=false 행 = "열 수 없음 — {엔진 reason}" · 판 X(조화평균)는 카드 장벽 줄
+  function perBondTable(b, bh) {
+    var pb = perBondOf(b); if (!pb) return '';
+    var st = stdOf() || {}, win = st.sigma_window, nOk = pb.filter(function (p) { return p.ok === true; }).length;
+    var ed = pb.map(function (p) { return p.entry_date; }).filter(Boolean)[0];
+    var h = '<div class="bs-subhead" style="padding-left:0">종목별 장벽' + helpBtn([bh('per_bond_sigma', ''), barrierStd(b), win != null ? 'σ = 진입 전날까지 그 종목 하루 손익 ' + win + '개 · 미달 = σ 없음 = 열 수 없음' : ''].filter(Boolean).join('\n')) +
+      ' <span class="wb-muted">' + nOk + '/' + pb.length + '종목 열 수 있음' + (ed ? ' · ' + esc(ed) + ' 진입 기준' : '') + '</span></div>';
+    h += '<table class="bs-sc bs-pbs"><thead><tr><th>종목</th><th>σ 하루</th><th>X</th><th>하루 손익 n' + (win != null ? ' (창 ' + esc(win) + ')' : '') + '</th><th>상태</th></tr></thead><tbody>';
+    pb.forEach(function (p) {
+      var closed = p.ok === false;
+      h += '<tr' + (closed ? ' class="is-closed"' : '') + '><td class="code">' + esc(p.bond) + '</td><td>' + (p.sigma_daily_bp != null ? f(p.sigma_daily_bp, 2) + 'bp' : '–') + '</td><td>' + (p.X_bp != null ? f(p.X_bp, 2) + 'bp' : '–') + '</td><td>' + (p.n_obs != null ? nfmt(p.n_obs) : '–') + '</td>' +
+        '<td class="bs-pbs-st">' + (closed ? '<span class="wb-warn-text">열 수 없음 — ' + esc(p.reason || '사유 미기재') + '</span>' : (p.ok === true ? '열 수 있음' : '–')) + '</td></tr>';
+    });
+    return h + '</tbody></table>';
   }
   // 이긴 뒤 / 진 뒤 — 엔진 conditional 두 꼴 모두: 스키마 2 = {'+1': {after_win, after_loss, by_year, streak_type, verdict_note …}, '-1': {…}} · 구형 = {after_win, after_loss, …} 최상위. {status:'미실측'} → 빈 문자열(호출자가 미실측 한 줄).
   function condDirs(c) {
@@ -5021,18 +5097,24 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     var kTxt = b.k != null ? f(b.k, 1) : (b.k_eff != null ? f(b.k_eff, 1) : '–');
     var bh = function (key, fb) { return hget(b, key, fb); };   // 필드별 ? = 엔진 boards[].help[field](스키마 2 · 해동) 우선 · 없으면 짧은 기본 문장
     var kHelp = b.provisional_k ? helpBtn(bh('k', 'k ' + kTxt + ' = 현행 기본값(config.k_provisional · 미실측/미통과 판의 표시용 · 통과 k 아님)') + ruleIdOf(b, 'k_provisional')) : '';
-    var xHelp = helpBtn([bh('X_bp', '장벽 X = k × σ21 · 1R = X.'), b.X_rule || (b.entry_date_default ? b.entry_date_default + ' 진입 기준' : '')].filter(Boolean).join(' · '));
+    var xHelp = helpBtn([barrierStd(b), bh('X_bp', '장벽 X = k × σ21 · 1R = X.'), b.X_rule || (b.entry_date_default ? b.entry_date_default + ' 진입 기준' : '')].filter(Boolean).join(' · '));   // ? 첫 줄 = 확정 기준(엔진 sigma_basis · 2026-10-29 잠금)
+    var xBundle = b.sigma_unit === 'bond' && b.X_bp != null ? ' <span class="wb-muted">(' + (b.bundle_X_rule === 'harmonic' ? '오늘 종목 X 조화평균' : '종목별 σ' + (b.bundle_X_rule ? ' · ' + esc(b.bundle_X_rule) : '')) + ')</span>' : '';
+    var xWarn = basisMismatch(b) ? ' ' + badgeW('σ 기저 ' + b.sigma_basis + ' ≠ 기준 ' + basisKo(stdOf().sigma_basis)) : '';
     var cardHelp = [b.desc || '', '레그 · 장벽 X · 비용 R · 주문 환산 · 본전 승률 vs 기준선 승률 · 성적표(측정 판만) — 전부 스냅샷 그대로.'].filter(Boolean).join('\n');
     var h = '<div class="wb-card-head"><span class="wb-card-title">' + esc(boardLabel(b)) + helpBtn(cardHelp) + '</span><span class="wb-badge bs-st-' + st + '"' + (b.status_note ? ' title="' + esc(b.status_note) + '"' : '') + '>' + STATUS_KO[st] + helpBtn([bh('status', ''), b.status_note || ''].filter(Boolean).join('\n')) + '</span><span class="wb-card-meta">' + esc(b.id) + (b.family_name ? ' · ' + esc(b.family_name) : '') + '</span></div><div class="wb-card-body">';
     h += legTable(b);
     if (b.legs_err) h += '<div class="bs-sub wb-warn-text">오늘 레그 오류: ' + esc(b.legs_err) + '</div>';
     h += kline('방향', '<b>+1</b> ' + esc(dirMeaning(b, 1)) + ' · <b>−1</b> ' + esc(dirMeaning(b, -1)));
-    h += kline('', '<i>장벽 X</i>' + (b.X_bp != null ? ('<b>' + f(b.X_bp, 1) + 'bp</b> <span class="wb-muted">= k ' + kTxt + ' × σ21 ' + f(b.sigma21_bp, 1) + 'bp</span>' + xHelp + kHelp) : ('미계산' + (b.sigma_err ? ' · ' + esc(b.sigma_err) : b.computable === false ? ' · 계산 불가' : ''))) +
+    h += kline('', '<i>장벽 X</i>' + (b.X_bp != null ? ('<b>' + f(b.X_bp, 1) + 'bp</b> <span class="wb-muted">= k ' + kTxt + ' × σ21 ' + f(b.sigma21_bp, 1) + 'bp</span>' + xBundle + xHelp + kHelp + xWarn) : ('미계산' + (b.sigma_err ? ' · ' + esc(b.sigma_err) : b.computable === false ? ' · 계산 불가' : ''))) +
       ' · <i>비용</i>' + (b.cost_bp != null ? (f(b.cost_bp, 2) + 'bp = <b>' + f(b.cost_R, 3) + 'R</b>' + helpBtn(bh('cost_R', ''))) : '미계산') +
       ' · <i>상한</i>' + (b.cap == null ? '–' : (String(b.cap) === 'LT' ? '만기(LT)' : esc(b.cap) + '거래일')));
+    h += perBondTable(b, bh);   // B.basket 만(per_bond_sigma 있을 때) · 없으면 빈 문자열
     var ol = orderLine(b, pbc, bh); if (ol) h += kline('주문 환산', ol);
     var bl = breakevenLine(b, bw, bh); if (bl) h += kline('', bl);
     if (sc) {
+      // 성적표 X 요약 단위 = 엔진 per_game.X_stat_unit(해동 M1): game → "X(평균)" · decision_harmonic(B.basket · 결정 단위 조화평균) → "X(묶음 조화평균)" · 그 외 값은 원문 병기
+      var xsu = get(dp, ['per_game', 'X_stat_unit']) || get(dm, ['per_game', 'X_stat_unit']);
+      var xStatLbl = !xsu || xsu === 'game' ? 'X(평균)' : (xsu === 'decision_harmonic' ? 'X(묶음 조화평균)' : 'X(' + xsu + ')');
       var rowsDef = [
         ['판 수(해결)', ['per_game', 'n'], function (v) { return String(v); }],
         ['순 R 합', ['per_game', 'pnl_sum_R'], function (v) { return sgn(v, 1); }],
@@ -5043,7 +5125,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
         ['길이 최단/중앙/평균/최장', ['per_game'], function (v) { return [v.len_min, v.len_median, v.len_mean != null ? f(v.len_mean, 1) : null, v.len_max].map(function (x) { return x == null ? '–' : x; }).join(' / '); }],
         ['꼬리 최악 / 1% / 5% R', ['per_game'], function (v) { return sgn(v.worst_R, 2) + ' / ' + sgn(v.R_q01, 2) + ' / ' + sgn(v.R_q05, 2); }],
         ['장벽 관통률', ['per_game', 'penetration'], pct],
-        ['비용 R(평균) · X(평균)', ['per_game'], function (v) { return f(v.cost_R_mean, 3) + 'R · ' + f(v.mean_X_bp, 1) + 'bp'; }],
+        ['비용 R(평균) · ' + xStatLbl, ['per_game'], function (v) { return f(v.cost_R_mean, 3) + 'R · ' + f(v.mean_X_bp, 1) + 'bp'; }],
         ['캐리 bp/일(가만히 있어도)', ['decomposition', 'carry_bp_per_day'], function (v) { return sgn(v, 3); }],
         ['비겹침 열: n · 승률 · MDD · 연패', ['nonoverlap'], function (v) { return dash(v.n) + ' · ' + pct(v.win_rate) + ' · ' + sgn(v.mdd_R, 1) + ' · ' + dash(v.max_loss_streak); }],
         ['종료일 묶음: MDD · 연패', ['by_exit_day'], function (v) { return sgn(v.mdd_R, 1) + ' · ' + dash(v.max_loss_streak); }],
@@ -5226,19 +5308,44 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
       '<button type="button" class="wb-btn wb-btn--sm" onclick="BS.clearChips()">치우기</button></div>';
     var isB = b.family === 'B', codes = isB ? (b.legs_today || []).map(function (l) { return l.code; }).filter(Boolean) : [];
     h += '<div class="bs-modal-form"><div class="wb-field"><span class="wb-label">날짜</span><input class="wb-input" id="bsTDate" type="date" value="' + esc(tf.date || entryDateFor(b.id)) + '" oninput="BS.tf(\'date\', this.value)"></div>' +
-      (isB ? '<div class="wb-field"><span class="wb-label">종목(바스켓 판)</span><input class="wb-input" id="bsTBond" type="text" list="bsTBondList" placeholder="코드 · 비우면 엔진 기본" value="' + esc(tf.bond || '') + '" oninput="BS.tf(\'bond\', this.value)"><datalist id="bsTBondList">' + codes.map(function (c) { return '<option value="' + esc(c) + '">'; }).join('') + '</datalist></div>' : '') +
+      (isB ? bondPick(b, codes, tf) : '') +
       '<div class="wb-field bs-wide"><span class="wb-label">메모(계산에 안 씀)</span><input class="wb-input" id="bsTMemo" type="text" placeholder="원장에만 남음" value="' + esc(tf.memo || '') + '" oninput="BS.tf(\'memo\', this.value)"></div>' +
       '<button type="button" class="wb-btn wb-btn--primary" id="bsTBet" onclick="BS.bet()"' + (st.dir && st.chips.length ? '' : ' disabled') + '>베팅' + (st.dir && st.chips.length ? ' ' + dirTxt(st.dir) + ' · ' + f(stackSum(b, st).R, 2) + 'R' : '') + '</button></div>';
     return h;
+  }
+  // 바스켓 판 종목 선택(부록2 · 2026-10-29): per_bond_sigma 있으면 select — ok=false 종목 = disabled + "열 수 없음" · 사유(엔진 reason 원문)는 아래 줄 · 엔진은 종목을 고르지 않으므로 빈 값 = "선택(필수)" ·
+  //   per_bond_sigma 없는 판(B.idx · 구 스냅샷) = 옛 입력(datalist · 비우면 엔진 기본)
+  function bondPick(b, codes, tf) {
+    var pb = perBondOf(b);
+    if (!pb) return '<div class="wb-field"><span class="wb-label">종목(바스켓 판)</span><input class="wb-input" id="bsTBond" type="text" list="bsTBondList" placeholder="코드 · 비우면 엔진 기본" value="' + esc(tf.bond || '') + '" oninput="BS.tf(\'bond\', this.value)"><datalist id="bsTBondList">' + codes.map(function (c) { return '<option value="' + esc(c) + '">'; }).join('') + '</datalist></div>';
+    var known = {}; pb.forEach(function (p) { known[p.bond] = p; });
+    if (tf.bond && known[tf.bond] && known[tf.bond].ok === false) tf.bond = '';   // 열 수 없는 종목이 남아 있으면 지운다(선택 불가 값 보존 0)
+    var extra = (b.legs_today || []).filter(function (l) { return l.kind === 'cash' && l.code && !known[l.code]; }).map(function (l) { return l.code; });   // 오늘 레그엔 있는데 per_bond_sigma 에 없는 종목 = 숨기지 않고 "σ 미표기"(최종 판정 = 엔진)
+    var closed = pb.filter(function (p) { return p.ok === false; });
+    var opts = '<option value=""' + (tf.bond ? '' : ' selected') + '>종목 선택(필수)</option>' +
+      pb.map(function (p) { var no = p.ok === false; return '<option value="' + esc(p.bond) + '"' + (no ? ' disabled' : '') + (!no && tf.bond === p.bond ? ' selected' : '') + '>' + esc(p.bond) + (no ? ' — 열 수 없음' : (p.X_bp != null ? ' · X ' + f(p.X_bp, 2) + 'bp' : '')) + '</option>'; }).join('') +
+      extra.map(function (c) { return '<option value="' + esc(c) + '"' + (tf.bond === c ? ' selected' : '') + '>' + esc(c) + ' · σ 미표기(엔진 판정)</option>'; }).join('');
+    return '<div class="wb-field' + (closed.length ? ' bs-wide' : '') + '"><span class="wb-label">종목(바스켓 판 · 필수)' + helpBtn([hget(b, 'per_bond_sigma', ''), barrierStd(b), '시스템은 종목을 고르지 않는다 — 사람이 고른다 · X = 그 종목 X(판 카드 X 는 조화평균)'].filter(Boolean).join('\n')) + '</span>' +
+      '<select class="wb-input" id="bsTBond" onchange="BS.tf(\'bond\', this.value)">' + opts + '</select>' +
+      (closed.length ? '<span class="bs-sub bs-bond-closed" style="margin-top:2px">' + closed.map(function (p) { return '<span class="wb-warn-text">' + esc(p.bond) + ' 열 수 없음 — ' + esc(p.reason || '사유 미기재') + '</span>'; }).join('<br>') + '</span>' : '') + '</div>';
+  }
+  function bondBlock(b, bond) {   // 베팅·기록 가드(웹 · 엔진 거부와 같은 내용을 먼저): per_bond_sigma 판에서 종목 비었거나 ok=false 면 사유 문자열 · 아니면 null
+    var pb = perBondOf(b); if (!pb) return null;
+    if (!bond) return '종목 선택 필요 — 바스켓 판은 엔진이 종목을 고르지 않는다(per_bond_sigma 중 열 수 있는 종목)';
+    for (var i = 0; i < pb.length; i++) if (pb[i].bond === bond && pb[i].ok === false) return bond + ' 열 수 없음 — ' + (pb[i].reason || '사유 미기재');
+    return null;
   }
   function tableHead(b) {
     var s = _BS.snap || {}, rk = s.risk || {}, se = (s.my_games || {}).season || {}, rd = roadOf(b), st = STATUS_ORDER.indexOf(b.status) >= 0 ? b.status : 'untested';
     var pbc = b.per_board_cap || ((rk.per_board_cap_won || {})[b.id]) || null, cap = num(b.allowed_max_size_R);
     var gameNo = null, gameLbl = '';
     if (rd) { if (rd.current && rd.current.n != null) { gameNo = rd.current.n; gameLbl = '진행 중'; } else { var ln = rd.games.length ? num(rd.games[rd.games.length - 1].n) : null; gameNo = ln != null ? ln + 1 : rd.games.length + 1; gameLbl = '다음'; } }
+    var bhh = function (key, fb) { return hget(b, key, fb); };
+    var xh = helpBtn([barrierStd(b), hget(b, 'X_bp', '장벽 X = k × σ21 · 1R = X.')].filter(Boolean).join(' · '));   // 장벽 ? = 확정 기준 + 엔진 help
+    var mm = beMain(b), beSpan = mm && mm.be.p_star != null ? '<span><i>본전 승률</i><b>' + esc(pLabel(mm.be)) + '</b>' + (mm.today ? ' <span class="wb-muted">(오늘 X)</span>' : (mm.be.estimated ? ' <span class="wb-muted">(추정)</span>' : '')) + helpBtn(beHelp(b, mm, bhh)) + '</span>' : '';
     return '<h3 id="bsTblTitle">테이블 · ' + esc(boardLabel(b)) + '</h3><span class="wb-badge bs-st-' + st + '">' + STATUS_KO[st] + '</span><span class="wb-muted" style="font-size:12px">' + esc(b.id) + (b.family_name ? ' · ' + esc(b.family_name) : '') + '</span>' +
       '<button type="button" class="wb-btn wb-btn--sm bs-modal-x" onclick="BS.closeTable()" aria-label="닫기">닫기 ✕</button>' +
-      '<div class="bs-kpis"><span><i>+1</i>' + esc(dirMeaning(b, 1)) + '</span><span><i>−1</i>' + esc(dirMeaning(b, -1)) + '</span><span><i>오늘 장벽</i><b>' + (b.X_bp != null ? '±' + f(b.X_bp, 1) + 'bp' : '미계산') + '</b>' + (b.entry_date_default ? ' <span class="wb-muted">(' + esc(b.entry_date_default) + ' 진입)</span>' : '') + '</span>' +
+      '<div class="bs-kpis"><span><i>+1</i>' + esc(dirMeaning(b, 1)) + '</span><span><i>−1</i>' + esc(dirMeaning(b, -1)) + '</span><span><i>오늘 장벽</i><b>' + (b.X_bp != null ? '±' + f(b.X_bp, 1) + 'bp' : '미계산') + '</b>' + (b.entry_date_default ? ' <span class="wb-muted">(' + esc(b.entry_date_default) + ' 진입' + (b.sigma_unit === 'bond' && b.X_bp != null ? ' · 종목 X 조화평균' : '') + ')</span>' : (b.sigma_unit === 'bond' && b.X_bp != null ? ' <span class="wb-muted">(종목 X 조화평균)</span>' : '')) + xh + (basisMismatch(b) ? ' ' + badgeW('σ 기저 ≠ 기준') : '') + '</span>' + beSpan +
       '<span><i>한도 사용</i>' + won(rk.one_side) + ' / ' + won(rk.limit) + (rk.usage_pct != null ? ' (' + f(rk.usage_pct, 1) + '%)' : '') + '</span><span><i>시즌(슈)</i>' + dash(se.start) + (se.unit ? ' · ' + esc(se.unit) : '') + (se.n_closed != null ? ' · 종료 ' + se.n_closed + '판' : '') + '</span>' +
       '<span><i>게임</i>' + (gameNo != null ? '#' + esc(gameNo) + ' <span class="wb-muted">(' + gameLbl + ' · 사슬 순번)</span>' : '–') + '</span></div>' +
       '<div class="bs-modal-minmax">Min 1R = ' + (b.one_R_won != null ? won(b.one_R_won) : '–') + ' · Max 판당 델타 상한 ' + (pbc && pbc.cap_won != null ? won(pbc.cap_won) + '/bp' : '–') + ' · 칩 상한 ' + (cap != null ? f(cap, 2) + 'R' : '–') + (b.cap != null ? ' · 게임 상한 ' + (String(b.cap) === 'LT' ? '만기(LT)' : esc(b.cap) + '거래일') : '') + '</div>';
@@ -5354,6 +5461,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     var sum = stackSum(b, st), cap = num(b.allowed_max_size_R);
     if (cap != null && sum.R > cap + 1e-9) { setMsg('합계 ' + f(sum.R, 2) + 'R > 상한 ' + f(cap, 2) + 'R' + (capWhy(b) ? ' · ' + capWhy(b) : ''), true); return; }
     var memo = ($('bsTMemo') && $('bsTMemo').value) || _BS.tform.memo || '', bond = (($('bsTBond') && $('bsTBond').value) || _BS.tform.bond || '').trim();
+    var bb = bondBlock(b, bond); if (bb) { setMsg(bb, true); return; }   // 바스켓 판: 종목 미선택 · 열 수 없는 종목 → POST 전에 사유(엔진 reason 원문)
     var ev = { event: 'open', board_id: b.id, dir: st.dir, date: date, size_R: sum.R, chips: st.chips.slice(), memo: memo, by: 'web' };   // 크기 = 칩 합계 · chips = 쌓은 배수(라우터가 엔진 open_game 이 받을 때만 전달) · paroli 인자 0
     if (bond) ev.bond = bond;
     if (b.status === 'blocked' && !confirm('이 판은 회계 경로가 없어 R 을 못 잰다(기록만 남음). 그래도 기록할까?')) return;
@@ -5491,6 +5599,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
   }
   function syncDir() {
     var bid = $('bsFBoard').value, b = boardById(bid); var el = $('bsFDirMeaning'); if (el) el.textContent = b ? dirMeaning(b, parseInt($('bsFDir').value, 10)) : '—';
+    var fbd = $('bsFBond'), pbx = perBondOf(b); if (fbd) { var clx = pbx ? pbx.filter(function (p) { return p.ok === false; }).map(function (p) { return p.bond; }) : []; fbd.placeholder = pbx ? '코드 · 필수(바스켓)' + (clx.length ? ' · 열 수 없음 ' + clx.join(', ') : '') : '코드 · 비우면 엔진 기본'; }   // 바스켓 판 = 종목 필수 · 열 수 없는 종목 안내(사유는 판 정보 종목별 장벽 표)
     // 날짜 기본값 = 엔진 entry_date_default(없으면 asof) · 정정 중엔 날짜를 바꾸지 않는다(amend 는 크기·종목·메모만)
     var d = $('bsFDate'); if (d && !_BS.amend && (!d.value || d.getAttribute('data-auto') === '1')) { var ed = entryDateFor(bid); if (ed) { d.value = ed; d.setAttribute('data-auto', '1'); } }
     // §8d 크기 기본값 = 엔진 next_size_R(있으면 · 크기 단위 R 일 때 · 사용자가 바꾸면 그대로 둠)
@@ -5545,6 +5654,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
       ok = await post(ev);
     } else {
       if (!bid || !date) { setMsg('판·날짜 필요', true); return; }
+      var fb = bondBlock(boardById(bid), bond); if (fb) { setMsg(fb, true); return; }   // 진입 기록 폼도 같은 가드(바스켓 판 종목 미선택 · 열 수 없음)
       ev = { event: 'open', board_id: bid, dir: dir, date: date, memo: memo, by: 'web' };
       if (bond) ev.bond = bond;
       var pk = $('bsFParoli'); if (pk && pk.checked && !pk.disabled) ev.paroli = true;   // §8e 사람이 켠 경우만

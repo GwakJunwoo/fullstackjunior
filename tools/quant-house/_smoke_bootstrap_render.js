@@ -108,7 +108,7 @@ function allHtml() { return Object.keys(ELS).map(k => ELS[k].innerHTML + ' ' + E
   B.show('S.slope.2_5');
   const b25 = SAMPLE.boards.find(b => b.id === 'S.slope.2_5'); let card = ELS.bsBoardCard.innerHTML;
   check('② 판 카드: 장벽 X · 비용 R · 상한 = 한 줄(엔진 X_bp · cost_R · cap)', card.indexOf(b25.X_bp.toFixed(1) + 'bp') >= 0 && card.indexOf(b25.cost_R.toFixed(3) + 'R') >= 0 && /장벽 X<\/i><b>[0-9.]+bp<\/b>[^]*?<i>비용<\/i>[^]*?<i>상한<\/i>63거래일/.test(card) && !/<dt>/.test(card));
-  check('② 판 카드: 본전 승률 p* vs 기준선 승률 = 한 줄(엔진 breakeven · baseline_winrate)', new RegExp('본전 승률 p\\* <b>' + (b25.breakeven.p_star * 100).toFixed(1) + '%</b>[^]*? vs 기준선 승률 \\+1 <b>' + (b25.breakeven.baseline_winrate['+1'] * 100).toFixed(1) + '%</b> · −1 <b>' + (b25.breakeven.baseline_winrate['-1'] * 100).toFixed(1) + '%</b>').test(card) && !/<dt>기준선 승률/.test(card));
+  check('② 판 카드: 본전 승률 p* vs 기준선 승률 = 한 줄 · 주 숫자 = 오늘 X(breakeven_today) · census(breakeven) 작게 병기 · p_star_label 없는 구 스냅샷 = % 폴백', new RegExp('본전 승률 p\\* <b>' + (b25.breakeven_today.p_star * 100).toFixed(1) + '%</b> <span class="wb-muted">\\(오늘 X\\)</span> <span class="wb-muted">· census ' + (b25.breakeven.p_star * 100).toFixed(1) + '%</span>[^]*? vs 기준선 승률 \\+1 <b>' + (b25.breakeven.baseline_winrate['+1'] * 100).toFixed(1) + '%</b> · −1 <b>' + (b25.breakeven.baseline_winrate['-1'] * 100).toFixed(1) + '%</b>').test(card) && !/<dt>기준선 승률/.test(card));
   check('② 판 카드: 레그 표 1개(레그·비율·오늘 종목코드·수익률·DV01/10억·액면(억)) · 옛 "오늘 레그" 표 0 · "레그" 줄 0', (card.match(/class="bs-sc bs-legs"/g) || []).length === 1 && /<th>레그<\/th><th>비율<\/th><th>오늘 종목코드<\/th><th>수익률<\/th><th>DV01\/10억<\/th><th>액면\(억\)<\/th>/.test(card) && /KR103501GG96/.test(card) && /×1\.00/.test(card) && /<td>920억<\/td>/.test(card) && /<td>370억<\/td>/.test(card) && !/오늘 레그\(코드 고정\)/.test(card) && !/<dt>레그/.test(card), (card.match(/<th>[^<]*<\/th>/g) || []).join(''));
   check('② 판 카드: 주문 환산 한 줄(해동 order_preview · 1R → 델타 → 레그 액면 롱/숏 · 반올림 후 1R) · measured 라 "(기본 D_R)" 없음', /주문 환산<\/i>1R <b>1\.53억<\/b> → 델타 <b>1,655만\/bp<\/b> → 2y 920억 롱 · 5y 370억 숏 <span class="wb-muted">\(반올림 후 1R 1\.52억\)<\/span>/.test(card) && !/기본 D_R/.test(stripHelp(card)), (card.match(/주문 환산<\/i>.{0,160}/) || [''])[0]);
   check('② 판 카드: 삭제된 줄 0 — 1R 금액 · 한계 사용량 · 판당 델타 상한 · 상태 메모 · 회계(비 blocked) · 기준선 승률 별도 줄 · 키-값 dl', !/1R 금액|한계 사용량|판당 델타 상한|상태 메모|<i>회계<\/i>|<dl|<dt>/.test(stripHelp(card)), (stripHelp(card).match(/1R 금액|한계 사용량|판당 델타 상한|상태 메모|<i>회계<\/i>/g) || []).join(','));
@@ -125,7 +125,7 @@ function allHtml() { return Object.keys(ELS).map(k => ELS[k].innerHTML + ' ' + E
   check('② 미실측 판(scorecard null): 성적표 · 이긴 뒤/진 뒤 · 요인 적재 없음 → "미실측" 한 줄 · evidence 없음/성적표 없음/빈 박스 0 · 사이즈 규칙 줄 0(열린 사이클 없음) · 잠정 0', /<span>미실측<\/span>/.test(card) && !/class="bs-sc"|bs-condtbl|요인 적재|evidence 없음|성적표 없음|사이즈 규칙|bs-cond-note/.test(card) && !/잠정/.test(stripEngineText(card.replace(/data-help="[^"]*"/g, ''))), (card.match(/<span>미실측<\/span>|evidence 없음|성적표 없음/g) || []).join(','));
   check('② 미실측 판: X 확정 숫자 · k 기본값 설명은 ? 안(k_provisional · 결정 id) · 본전 p* (추정) · 기준선 없으면 그 칸 생략("–" 0)', /장벽 X<\/i><b>[0-9.]+bp<\/b> <span class="wb-muted">= k 1\.0 × σ21/.test(card) && !/\(잠정\)/.test(card) && /data-help="k 1\.0 = 현행 기본값\(config\.k_provisional[^"]*결정 2026-10-27\.open\.spoke_s25_promotion/.test(card) && /본전 승률 p\* <b>65\.3%<\/b> <span class="wb-muted">\(추정\)<\/span>/.test(card) && !/기준선 승률/.test(stripHelp(card)) && !/–<\/b>/.test(card), (card.match(/본전 승률.{0,80}/) || [''])[0]);
   B.show('C.fly.2_3_5'); card = ELS.bsBoardCard.innerHTML;
-  check('② 미실측 판(본전 불가): "본전 승률 불가 · 필요 샤프 6.7" 만 · 주문 환산 "(기본 D_R)" 꼬리 · 레그 3행 액면 숏/롱/숏', /본전 승률 <b>불가<\/b> · 필요 샤프 6\.7/.test(card) && !/기준선 승률|p\* /.test(stripHelp(card)) && /2y 1140억 숏 · 3y 1660억 롱 · 5y 460억 숏/.test(card) && /\(기본 D_R\)/.test(card) && (card.match(/<tr><td>[+−] /g) || []).length === 3, (card.match(/본전 승률.{0,60}/) || [''])[0]);
+  check('② 미실측 판(본전 불가): "본전 승률 불가 (추정) · 필요 샤프 6.7" 만(p_star_label 없는 구 스냅샷 폴백 = "불가") · 주문 환산 "(기본 D_R)" 꼬리 · 레그 3행 액면 숏/롱/숏', /본전 승률 <b>불가<\/b> <span class="wb-muted">\(추정\)<\/span> · 필요 샤프 6\.7/.test(card) && !/기준선 승률|p\* /.test(stripHelp(card)) && /2y 1140억 숏 · 3y 1660억 롱 · 5y 460억 숏/.test(card) && /\(기본 D_R\)/.test(card) && (card.match(/<tr><td>[+−] /g) || []).length === 3, (card.match(/본전 승률.{0,60}/) || [''])[0]);
   B.show('S.irs.2_5'); card = ELS.bsBoardCard.innerHTML;
   check('② blocked 판: 회계 줄(회계 경로 없음 — R 측정 불가 · 기록만 · blocked 만) · 장벽 미계산 · 주문 환산 = 엔진 note(환산 불가) · 레그 표 = 레그·비율만(오늘 열 생략) · "미실측" 줄 0', /<i>회계<\/i>회계 경로 없음 — R 측정 불가 · 기록만/.test(card) && /장벽 X<\/i>미계산/.test(card) && /환산 불가/.test(card) && /<th>레그<\/th><th>비율<\/th><\/tr>/.test(card) && !/<span>미실측<\/span>|오늘 종목코드/.test(card), (card.match(/주문 환산<\/i>.{0,100}/) || [''])[0]);
   B.show('B.basket.3F'); card = ELS.bsBoardCard.innerHTML;
@@ -462,6 +462,74 @@ function allHtml() { return Object.keys(ELS).map(k => ELS[k].innerHTML + ' ' + E
   const onWb = new Set(); const reWb = /class="wb-[^"]*?\b(bs-[a-z0-9-]+)/g; let mw; const corpusCls = html + '\n' + src; while ((mw = reWb.exec(corpusCls))) onWb.add(mw[1]);
   const badCls = [...onWb].filter(c => rulesOf(c).some(r => /position\s*:\s*(fixed|absolute)|\binset\s*:/.test(r)));
   check('⑦ wb- 요소에 붙은 bs- 클래스(' + [...onWb].join(',') + ') 중 fixed/absolute/inset 규칙 0', badCls.length === 0, badCls.join(','));
+
+  // ⑧ 판 기준 잠금(사용자 2026-10-29 · 해동 c3672e80): 최상위 standards 배지 · 장벽 ? 기준 문장 · B.basket 종목별 장벽 표(per_bond_sigma) · 미달 종목 비활성+사유 ·
+  //    본전 = p_star_label 그대로(오늘 X 우선 · census 병기) · 성적표 X 단위(X_stat_unit) · 필드 부재 폴백(구 스냅샷 = 위 ②⑥ 그대로) · 기저 불일치 경고
+  {
+    const STD = { sigma_basis: 'full_accounting', sigma_unit_bbasket: 'bond', accounting: 'full', bundle_X_rule: 'harmonic', young_bond_rule: 'reject_below_126', sigma_window: 126, horizon_days: 21,
+      X_formula: 'X = k × σ × √21 (σ = t < 진입일 유효 하루 손익 126개 std · ddof 1)', decision_ids: ['2026-10-29.barrier_sigma_full_accounting', '2026-10-29.bbasket_barrier_per_bond_adopted'], open_decision_ids: ['2026-10-29.open.bbasket_young_bond_handling'],
+      prereg: '_barrier_full_accounting_prereg_20261029.md@17416a3e + addendum2@e40ab700', young_bond_reason_field: 'boards[].per_bond_sigma[].reason', n_boards_checked: 36, n_X_checked: 35, ok: true, violations: [],
+      sigma_recheck: { every_days: 7, last_run: '2026-10-29T15:02:11', last_status: 'ok', invalidated: [], due: false, next_due: '2026-11-05' }, help: '장벽 기준(사용자 2026-10-29 고정)' };
+    const PBS = [{ bond: 'KR103501GFC3', sigma_daily_bp: 0.9718317547535563, X_bp: 4.453492578919931, n_obs: 208, ok: true, entry_date: '2026-10-29', reason: null },
+      { bond: 'KR103501GG62', sigma_daily_bp: null, X_bp: null, n_obs: 91, ok: false, entry_date: '2026-10-29', reason: '종목 하루 손익 91/126개 — 이력 부족(신규 바스켓 종목) · σ 없음 = 열 수 없음' },
+      { bond: 'KR103503GG37', sigma_daily_bp: 1.1998441832097897, X_bp: 5.498376791711324, n_obs: 152, ok: true, entry_date: '2026-10-29', reason: null }];
+    const mkStd = (mut) => { const s = clone(SAMPLE); s.available = true; s.standards = clone(STD);
+      s.boards.forEach(b => { b.sigma_basis = 'full_accounting'; b.sigma_unit = 'board'; });
+      const bb = s.boards.find(b => b.id === 'B.basket.3F'); Object.assign(bb, { sigma_unit: 'bond', bundle_X_rule: 'harmonic', X_bp: 4.921081522684564, sigma21_bp: 4.921081522684564, per_bond_sigma: clone(PBS),
+        breakeven: Object.assign(bb.breakeven, { p_star: 1.0747395259156949, p_star_over_100: true, p_star_practically_impossible: true, p_star_label: '불가(>100%)', sharpe_needed: 5.555648856385305 }),
+        breakeven_today: Object.assign(bb.breakeven_today, { p_star: 0.9989100387448053, p_star_over_100: false, p_star_practically_impossible: true, p_star_label: '사실상 불가(99.89%)' }),
+        chips: [{ mult: 0.5, size_R: 0.5, dv01_won_per_bp: 19656121, label: '×0.5' }, { mult: 1, size_R: 1, dv01_won_per_bp: 39312243, label: '×1' }], allowed_max_size_R: 1 });
+      ['+1', '-1'].forEach(d => { if (bb.scorecard && bb.scorecard.directions[d]) bb.scorecard.directions[d].per_game.X_stat_unit = 'decision_harmonic'; });
+      const s25 = s.boards.find(b => b.id === 'S.slope.2_5'); s25.breakeven.p_star_label = '85.7%'; s25.breakeven_today.p_star_label = '82.0%'; ['+1', '-1'].forEach(d => { s25.scorecard.directions[d].per_game.X_stat_unit = 'game'; });
+      if (mut) mut(s); return s; };
+    B._setSnap(mkStd()); B.render();
+    const sb = ELS.bsStd.innerHTML, sbHelp = (sb.match(/data-help="([^"]*)"/) || ['', ''])[1];
+    check('⑧ 스냅샷 줄 배지 "기준 전체 회계"(standards.ok true) · ? = 공식·결정 id·미결 id·다음 재검산일', /<span class="wb-badge">기준 전체 회계/.test(sb) && !/wb-badge--warn/.test(sb) && /2026-10-29\.barrier_sigma_full_accounting/.test(sbHelp) && /2026-10-29\.bbasket_barrier_per_bond_adopted/.test(sbHelp) && /미결 2026-10-29\.open\.bbasket_young_bond_handling/.test(sbHelp) && /다음 재검산 2026-11-05/.test(sbHelp) && /σ 재검산 마지막 2026-10-29T15:02:11 \(ok\)/.test(sbHelp) && /X = k × σ × √21/.test(sbHelp), sb.replace(/data-help="[^"]*"/g, '').slice(0, 160));
+    B.show('B.basket.3F');
+    let cardB = ELS.bsBoardCard.innerHTML; const cardBv = stripHelp(cardB);
+    check('⑧ 3F 판 카드: 장벽 X 4.9bp (오늘 종목 X 조화평균) · 장벽 ? 첫 줄 = "장벽 = 전체 회계 하루 손익 σ × k × √21 · 종목마다 그 종목 자체 σ · 판 X = 오늘 종목 X 조화평균"', /장벽 X<\/i><b>4\.9bp<\/b>[^]*?\(오늘 종목 X 조화평균\)/.test(cardB) && /data-help="장벽 = 전체 회계 하루 손익 σ × k × √21 · 종목마다 그 종목 자체 σ · 판 X = 오늘 종목 X 조화평균/.test(cardB), (cardBv.match(/장벽 X.{0,120}/) || [''])[0]);
+    check('⑧ 3F 본전 = p_star_label 그대로: "사실상 불가(99.89%)" (오늘 X) · census "불가(>100%)" · 반올림 "99.9%" 0', /본전 승률 p\* <b>사실상 불가\(99\.89%\)<\/b> <span class="wb-muted">\(오늘 X\)<\/span> <span class="wb-muted">· census 불가\(&gt;100%\)<\/span>/.test(cardB) && !/99\.9%/.test(cardBv), (cardBv.match(/본전 승률.{0,140}/) || [''])[0]);
+    const pbsHtml = (cardB.match(/<table class="bs-sc bs-pbs">[\s\S]*?<\/table>/) || [''])[0];
+    check('⑧ 종목별 장벽 표 3행(bond · σ · X · n · 상태) · 2/3종목 열 수 있음 · GFC3 σ 0.97 X 4.45 n 208 · GG62 = "열 수 없음 — 종목 하루 손익 91/126개 …"(엔진 reason 원문) · 창 126', (pbsHtml.match(/<tr( class="is-closed")?><td class="code">/g) || []).length === 3 && /2\/3종목 열 수 있음 · 2026-10-29 진입 기준/.test(cardB) && /<td class="code">KR103501GFC3<\/td><td>0\.97bp<\/td><td>4\.45bp<\/td><td>208<\/td><td class="bs-pbs-st">열 수 있음<\/td>/.test(pbsHtml) && /<tr class="is-closed"><td class="code">KR103501GG62<\/td><td>–<\/td><td>–<\/td><td>91<\/td><td class="bs-pbs-st"><span class="wb-warn-text">열 수 없음 — 종목 하루 손익 91\/126개 — 이력 부족\(신규 바스켓 종목\) · σ 없음 = 열 수 없음<\/span>/.test(pbsHtml) && /하루 손익 n \(창 126\)/.test(pbsHtml), pbsHtml.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 260));
+    check('⑧ 성적표 X 단위: B.basket = "X(묶음 조화평균)"(X_stat_unit decision_harmonic) · "X(평균)" 0', /비용 R\(평균\) · X\(묶음 조화평균\)<\/td>/.test(cardB) && !/X\(평균\)<\/td>/.test(cardB));
+    const hdB = ELS.bsTblHead.innerHTML;
+    check('⑧ 테이블 헤더: 오늘 장벽 ±4.9bp (… 종목 X 조화평균) + ? 기준 문장 · 본전 승률 "사실상 불가(99.89%)" (오늘 X)', /오늘 장벽<\/i><b>±4\.9bp<\/b>[^]*?종목 X 조화평균\)<\/span><button[^>]*data-help="장벽 = 전체 회계 하루 손익 σ × k × √21/.test(hdB) && /본전 승률<\/i><b>사실상 불가\(99\.89%\)<\/b> <span class="wb-muted">\(오늘 X\)<\/span>/.test(hdB), stripHelp(hdB).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').slice(0, 260));
+    const betB = ELS.bsTblBet.innerHTML;
+    check('⑧ 베팅 패널 종목 선택 = select(필수) · GG62 option disabled "— 열 수 없음" · 열 수 있는 종목 X 병기 · 사유 줄(엔진 reason) · 선물 코드 0', /<select class="wb-input" id="bsTBond"/.test(betB) && /<option value="" selected>종목 선택\(필수\)<\/option>/.test(betB) && /<option value="KR103501GG62" disabled>KR103501GG62 — 열 수 없음<\/option>/.test(betB) && /<option value="KR103501GFC3">KR103501GFC3 · X 4\.45bp<\/option>/.test(betB) && /<option value="KR103503GG37">KR103503GG37 · X 5\.50bp<\/option>/.test(betB) && /<span class="wb-warn-text">KR103501GG62 열 수 없음 — 종목 하루 손익 91\/126개/.test(betB) && !/A656C000/.test((betB.match(/<select[\s\S]*?<\/select>/) || [''])[0]) && !/bsTBondList/.test(betB), (betB.match(/<select[\s\S]*?<\/select>/) || [''])[0].replace(/<[^>]+>/g, ' | ').replace(/\s+/g, ' '));
+    // 베팅 가드: 종목 미선택 → POST 0 + 사유 · 열 수 없는 종목(값 강제 주입) → POST 0 + 엔진 reason · 열 수 있는 종목 → POST bond
+    B.clearChips(); B.zone(1); B.addChip('1'); F('bsTBond').value = ''; B.tf('bond', '');
+    let nP = CALLS.post.length; await B.bet();
+    check('⑧ 베팅 가드: 종목 미선택 → POST 0 · "종목 선택 필요 — 바스켓 판은 엔진이 종목을 고르지 않는다"', CALLS.post.length === nP && /종목 선택 필요 — 바스켓 판은 엔진이 종목을 고르지 않는다/.test(ELS.bsTblMsg.textContent), ELS.bsTblMsg.textContent);
+    F('bsTBond').value = 'KR103501GG62'; await B.bet();
+    check('⑧ 베팅 가드: 열 수 없는 종목(GG62) → POST 0 · 엔진 reason 원문', CALLS.post.length === nP && /KR103501GG62 열 수 없음 — 종목 하루 손익 91\/126개/.test(ELS.bsTblMsg.textContent), ELS.bsTblMsg.textContent);
+    B.tf('bond', 'KR103501GG62'); B.show('B.basket.3F');
+    check('⑧ 남아 있던 열 수 없는 종목 값은 재렌더 때 지움(선택 불가 값 보존 0)', /<option value="" selected>종목 선택/.test(ELS.bsTblBet.innerHTML) && !/KR103501GG62" disabled selected/.test(ELS.bsTblBet.innerHTML) && B._state.tform.bond === '');
+    POST_RESULT = new Error('서버 오류 400 — smoke 거부'); F('bsTBond').value = 'KR103501GFC3'; B.zone(1); B.addChip('1'); await B.bet();
+    const evB = CALLS.post[nP] && CALLS.post[nP].body;
+    check('⑧ 열 수 있는 종목(GFC3) → POST open bond = KR103501GFC3(엔진이 그 종목 X 를 PIT 로 박음)', !!evB && evB.event === 'open' && evB.board_id === 'B.basket.3F' && evB.bond === 'KR103501GFC3', JSON.stringify(evB));
+    // 진입 기록 폼 가드(같은 bondBlock) · placeholder
+    F('bsFBoard').value = 'B.basket.3F'; B.syncDir();
+    check('⑧ 진입 기록 폼: 바스켓 판 종목 placeholder "코드 · 필수(바스켓) · 열 수 없음 KR103501GG62"', F('bsFBond').placeholder === '코드 · 필수(바스켓) · 열 수 없음 KR103501GG62', F('bsFBond').placeholder);
+    F('bsFDir').value = '1'; F('bsFDate').value = '2026-10-29'; F('bsFSize').value = '1'; F('bsFBond').value = 'KR103501GG62'; nP = CALLS.post.length; await B.submit();
+    check('⑧ 진입 기록 폼: GG62 → POST 0 · 사유', CALLS.post.length === nP && /KR103501GG62 열 수 없음/.test(ELS.bsMsg.textContent), ELS.bsMsg.textContent);
+    F('bsFBond').value = ''; F('bsFSize').value = '';
+    F('bsFBoard').value = 'S.slope.2_5'; B.syncDir();
+    check('⑧ 진입 기록 폼: 비바스켓 판 placeholder = 옛 문구(비우면 엔진 기본)', F('bsFBond').placeholder === '코드 · 비우면 엔진 기본');
+    B.show('S.slope.2_5'); const c25 = ELS.bsBoardCard.innerHTML;
+    check('⑧ 다른 판: 본전 label 그대로("82.0%" 오늘 X · census "85.7%") · 성적표 "X(평균)"(X_stat_unit game) · 종목별 표 0 · 조화평균 문구 0 · 장벽 ? = 전체 회계 기준', /본전 승률 p\* <b>82\.0%<\/b> <span class="wb-muted">\(오늘 X\)<\/span> <span class="wb-muted">· census 85\.7%<\/span>/.test(c25) && /X\(평균\)<\/td>/.test(c25) && !/bs-pbs|조화평균\)/.test(stripHelp(c25)) && /data-help="장벽 = 전체 회계 하루 손익 σ × k × √21 · 장벽 X = k × σ21/.test(c25));
+    // ok=false → 경고 배지 + violations 원문(화면에 보임) · 판 σ 기저 불일치 → 카드/헤더 경고 배지
+    B._setSnap(mkStd(s => { s.standards.ok = false; s.standards.violations = ['B.basket.3F: sigma_basis=price ≠ full_accounting', { board: 'L.cash.2y', field: 'X_bp', diff: 0.1 }]; s.boards.find(b => b.id === 'B.basket.3F').sigma_basis = 'price'; })); B.render(); B.show('B.basket.3F');
+    const sbBad = ELS.bsStd.innerHTML;
+    check('⑧ standards.ok=false → 경고 배지 "기준 위반 2건" + violations 원문 화면 표시(문자열·객체) · 정상 배지 0', /wb-badge wb-badge--warn">기준 위반 2건/.test(sbBad) && /B\.basket\.3F: sigma_basis=price ≠ full_accounting/.test(sbBad) && /&quot;board&quot;:&quot;L\.cash\.2y&quot;/.test(sbBad) && !/<span class="wb-badge">기준 전체 회계/.test(sbBad), stripHelp(sbBad).replace(/<[^>]+>/g, ' ').slice(0, 200));
+    check('⑧ 판 σ 기저 ≠ 기준 → 카드 장벽 줄 경고 배지 · 장벽 ? = "장벽 σ 기저 = price — 확정 기준(전체 회계)과 다름" · 헤더 경고 배지', /σ 기저 price ≠ 기준 전체 회계/.test(ELS.bsBoardCard.innerHTML) && /data-help="장벽 σ 기저 = price — 확정 기준\(전체 회계\)과 다름/.test(ELS.bsBoardCard.innerHTML) && /σ 기저 ≠ 기준/.test(ELS.bsTblHead.innerHTML));
+    B._setSnap(mkStd(s => { delete s.standards.ok; })); B.render();
+    check('⑧ standards.ok 없음 → "기준 자체 대조 없음" 경고(정상 배지로 보이지 않음)', /wb-badge--warn">기준 자체 대조 없음/.test(ELS.bsStd.innerHTML));
+    // 필드 부재 폴백(구 스냅샷 = SAMPLE): 배지 "기준 미표기" · 종목별 표 0 · datalist 입력(위 ⑥) · 본전 = 옛 표기 · 성적표 "X(평균)" · 장벽 ? 에 기준 문장 0(주장 0)
+    B._setSnap(clone(SAMPLE)); B._state.snap.available = true; B.render(); B.show('B.basket.3F');
+    const cOld = ELS.bsBoardCard.innerHTML;
+    check('⑧ 부재 폴백: 배지 "기준 미표기(구 스냅샷)" · 종목별 표 0 · 본전 "불가" 옛 표기 · "X(평균)" · 장벽 ? 에 "전체 회계" 주장 0 · 헤더 ? 동일', /기준 미표기\(구 스냅샷/.test(ELS.bsStd.innerHTML) && !/wb-badge/.test(ELS.bsStd.innerHTML) && !/bs-pbs|종목별 장벽/.test(cOld) && /본전 승률 <b>불가<\/b> <span class="wb-muted">\(오늘 X\)<\/span> <span class="wb-muted">· census 불가<\/span>/.test(cOld) && /X\(평균\)<\/td>/.test(cOld) && !/전체 회계 하루 손익/.test(cOld) && !/전체 회계 하루 손익/.test(ELS.bsTblHead.innerHTML), (stripHelp(cOld).match(/본전 승률.{0,120}/) || [''])[0]);
+    B._setSnap(clone(SAMPLE)); B._state.snap.available = true; B.render(); B.show('S.slope.2_5'); POST_RESULT = null;
+  }
 
   // ④ 추천·신호·방향 제안 문구 0 (렌더 결과 + 탭 HTML + 스크립트)
   const view = (html.match(/<div id="view-bootstrap"[\s\S]*?<\/div><!-- \/bs-content -->/) || [''])[0];
