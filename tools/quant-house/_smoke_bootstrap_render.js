@@ -441,7 +441,8 @@ function allHtml() { return Object.keys(ELS).map(k => ELS[k].innerHTML + ' ' + E
   (function () { const r = ELS.bsTblRoad.innerHTML, bead = r.slice(r.indexOf('bs-rd-bead'), r.indexOf('bs-rd-big')), big = r.slice(r.indexOf('bs-rd-big'), r.indexOf('bs-rd-tally'));
     check('⑥ fut 회귀(B.basket.3F · 1,−1,0): 구슬 원 안 10 / 6 / 63 · 빅 로드 3칸 = (1,1)+10 · (2,1)−6 · (2,2) 초록 원 63(−1 열 아래 · 열 안 넘김) · 진행 중 없음 → 점선 원 0 · 열 2', /bs-rd-p"[^>]*title="#1 [^"]*"><b class="bs-rd-n">10<\/b>/.test(bead) && /bs-rd-m"[^>]*title="#2 [^"]*"><b class="bs-rd-n">6<\/b>/.test(bead) && /bs-rd-t"[^>]*title="#3 [^"]*"><b class="bs-rd-n">63<\/b>/.test(bead) && (big.match(/<b class="bs-rd-n">/g) || []).length === 3 && /bs-rd bs-rd-p" style="grid-column:1;grid-row:1"/.test(big) && /bs-rd bs-rd-m" style="grid-column:2;grid-row:1"/.test(big) && /bs-rd bs-rd-t" style="grid-column:2;grid-row:2" data-rp-b="B\.basket\.3F" data-rp-n="3"[^>]*><b class="bs-rd-n">63<\/b>/.test(big) && !/bs-rd-cur/.test(big) && /repeat\(2,22px\)/.test(big), big.replace(/<[^>]+>/g, ' ').slice(0, 120)); })();
   (function () { const s5 = clone(SAMPLE); s5.available = true; const bb = s5.boards.find(b => b.id === 'B.basket.3F'); bb.chips = [{ mult: 1, size_R: 1, dv01_won_per_bp: 5000000, label: '×1' }]; bb.allowed_max_size_R = 1; B._setSnap(s5); B.render(); B.show('B.basket.3F');
-    check('⑥ B 판 + chips → 종목 입력(datalist = legs_today 코드) · 베팅 POST 에 bond', /id="bsTBond"[^>]*list="bsTBondList"/.test(ELS.bsTblBet.innerHTML) && /<datalist id="bsTBondList">(<option value="[^"]+">)+<\/datalist>/.test(ELS.bsTblBet.innerHTML)); })();
+    const dl = (ELS.bsTblBet.innerHTML.match(/<datalist id="bsTBondList">[\s\S]*?<\/datalist>/) || [''])[0];
+    check('⑥ B 판 + chips(옛 스냅샷 · bond_input 없음) → 종목 입력 datalist = legs_today 현물 코드만(3종 · 선물 A656C000 섞임 0)', /id="bsTBond"[^>]*list="bsTBondList"/.test(ELS.bsTblBet.innerHTML) && (dl.match(/<option value="KR[^"]+">/g) || []).length === 3 && !/A656C000/.test(dl), dl); })();
   check('⑥ 모달 열림 → body.bs-modal-lock', document.body.classList.contains('bs-modal-lock'));
   B.closeTable();
   check('⑥ 닫기 → hidden', F('bsTable').hidden === true);
@@ -529,6 +530,75 @@ function allHtml() { return Object.keys(ELS).map(k => ELS[k].innerHTML + ' ' + E
     const cOld = ELS.bsBoardCard.innerHTML;
     check('⑧ 부재 폴백: 배지 "기준 미표기(구 스냅샷)" · 종목별 표 0 · 본전 "불가" 옛 표기 · "X(평균)" · 장벽 ? 에 "전체 회계" 주장 0 · 헤더 ? 동일', /기준 미표기\(구 스냅샷/.test(ELS.bsStd.innerHTML) && !/wb-badge/.test(ELS.bsStd.innerHTML) && !/bs-pbs|종목별 장벽/.test(cOld) && /본전 승률 <b>불가<\/b> <span class="wb-muted">\(오늘 X\)<\/span> <span class="wb-muted">· census 불가<\/span>/.test(cOld) && /X\(평균\)<\/td>/.test(cOld) && !/전체 회계 하루 손익/.test(cOld) && !/전체 회계 하루 손익/.test(ELS.bsTblHead.innerHTML), (stripHelp(cOld).match(/본전 승률.{0,120}/) || [''])[0]);
     B._setSnap(clone(SAMPLE)); B._state.snap.available = true; B.render(); B.show('S.slope.2_5'); POST_RESULT = null;
+  }
+
+  // ⑨ 종목 입력 방식(2026-10-29 · 해동 93107935 B.idx open 가드 수선): boards[].bond_input required(B.basket select 유지) | fixed(B.idx — 입력 칸 0 · bond_fixed.code 표시만 · POST bond 0) | none(칸 숨김)
+  //    · ? = help.bond_input + help.bond_fixed + bond_fixed.rule · 옛 스냅샷(필드 없음) = datalist 폴백(현물 코드만) · 라이브 스냅샷 2026-10-28 값(3y KR103501GG62 · 10y KR103503GG60 · prev_close)
+  {
+    const H_IN = '종목 입력 방식 — required = B.basket(사람이 바스켓 종목을 고른다 · per_bond_sigma 중 열 수 있는 종목 · 없으면 open 거부) · fixed = B.idx(엔진이 지표 종목코드를 자동 고정 · 입력 없음 · bond 를 안 보내거나 bond_fixed.code 와 같은 값만) · none = 그 밖 판.';
+    const H_FX = 'B.idx 종목 = 진입일 지표 종목코드 자동 고정(판 정의 · 사람이 고르지 않는다) · 진입일(entry_date_default) 종가가 아직 없으면 직전 거래일(label_date) 지표 코드로 고정(basis=prev_close) · open 이 이 코드를 원장 bond 로 기록하고 경로 재생도 이 코드(라벨 추적 0).';
+    const RULE = 'B.idx 종목 = 진입일 지표 종목코드 시스템 자동 고정(판 정의 · census build_bidx_path · resolver _spot_label_codes 라벨→코드) — 사람이 고르지 않는다 · 진입일 종가 미도착(pending)이면 직전 거래일 지표 코드로 고정 · 이후 라벨 추적 0';
+    const CHIPS = [{ mult: 0.5, size_R: 0.5, dv01_won_per_bp: 1000000, label: '×0.5' }, { mult: 1, size_R: 1, dv01_won_per_bp: 2000000, label: '×1' }];
+    const mkBond = (mut) => { const s = clone(SAMPLE); s.available = true;
+      s.boards.forEach(b => { b.help = Object.assign({}, b.help || {}, { bond_input: H_IN }); b.bond_input = b.id.startsWith('B.basket') ? 'required' : (b.id.startsWith('B.idx') ? 'fixed' : 'none'); });
+      [['B.idx.3y_3F', 'KR103501GG62', 3], ['B.idx.10y_10F', 'KR103503GG60', 10]].forEach(([id, code, yrs]) => { const b = s.boards.find(x => x.id === id);
+        b.help.bond_fixed = H_FX; b.bond_fixed = { code, basis: 'prev_close', label_date: '2026-10-28', entry_date: '2026-10-29', years: yrs, rule: RULE }; b.entry_date_default = '2026-10-29'; b.chips = clone(CHIPS); b.allowed_max_size_R = 1; });
+      if (mut) mut(s); return s; };
+    POST_RESULT = new Error('서버 오류 400 — smoke 거부');   // 재조회(load) 로 스냅샷이 SAMPLE 로 덮이지 않게 POST 는 거부로(본문만 캡처)
+    B._setSnap(mkBond()); B.render(); B.show('B.idx.3y_3F');
+    let bet9 = ELS.bsTblBet.innerHTML; const fx9 = (bet9.match(/<span class="bs-bond-fixed" id="bsTBondFixed">[\s\S]*?<\/span><\/span>/) || [''])[0];
+    const fxHelp = ((bet9.match(/종목\(지표 · 자동 고정\)<button[^>]*data-help="([^"]*)"/) || ['', ''])[1]);
+    check('⑨ B.idx.3y_3F 테이블: 종목 입력 칸 0(input/select/datalist bsTBond 없음) · 표시 = KR103501GG62 · "자동 고정 · 2026-10-28 직전 거래일 지표(2026-10-29 종가 전)" · 선물 코드 0', !/id="bsTBond"/.test(bet9) && !/bsTBondList/.test(bet9) && /<b>KR103501GG62<\/b><span class="wb-muted">자동 고정 · 2026-10-28 직전 거래일 지표\(2026-10-29 종가 전\)<\/span>/.test(fx9) && !/A656C000/.test(fx9), fx9.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' '));
+    check('⑨ B.idx ? = help.bond_input + help.bond_fixed + bond_fixed.rule(엔진 원문)', fxHelp.indexOf('종목 입력 방식 — required = B.basket') === 0 && fxHelp.indexOf('B.idx 종목 = 진입일 지표 종목코드 자동 고정(판 정의') > 0 && fxHelp.indexOf('census build_bidx_path') > 0, fxHelp.slice(0, 80));
+    B.clearChips(); B.zone(1); B.addChip('1'); B.tf('bond', 'KR999STALE'); let nP9 = CALLS.post.length; await B.bet();
+    const ev9 = CALLS.post[nP9] && CALLS.post[nP9].body;
+    check('⑨ B.idx 베팅 POST open = bond 키 없음(남은 tform.bond 무시 · 엔진이 지표 코드 자동 고정)', !!ev9 && ev9.event === 'open' && ev9.board_id === 'B.idx.3y_3F' && !('bond' in ev9) && ev9.size_R === 1, JSON.stringify(ev9));
+    B._state.tform.bond = '';
+    B.show('B.idx.10y_10F'); bet9 = ELS.bsTblBet.innerHTML;
+    check('⑨ B.idx.10y_10F 테이블 표시 = KR103503GG60 · 입력 칸 0', /<b>KR103503GG60<\/b><span class="wb-muted">자동 고정 · 2026-10-28 직전 거래일 지표/.test(bet9) && !/id="bsTBond"/.test(bet9));
+    // 진입 기록 폼: fixed = 입력 숨김 + 코드 표시 · 값이 남아 있어도 POST bond 0
+    F('bsFBoard').value = 'B.idx.3y_3F'; F('bsFBond').value = 'KR999STALE'; B.syncDir();
+    check('⑨ 진입 기록 폼 B.idx: 입력 hidden · 값 비움 · 표시칸 = KR103501GG62 · 라벨 "종목(지표 · 자동 고정)" + ?', F('bsFBond').hidden === true && F('bsFBond').value === '' && F('bsFBondFixed').hidden === false && /<b>KR103501GG62<\/b>/.test(F('bsFBondFixed').innerHTML) && /^종목\(지표 · 자동 고정\)<button[^>]*data-help="종목 입력 방식/.test(F('bsFBondLbl').innerHTML) && F('bsFBondWrap').hidden === false);
+    F('bsFDir').value = '-1'; F('bsFDate').value = '2026-10-29'; F('bsFSize').value = '1'; F('bsFBond').value = 'KR999STALE'; nP9 = CALLS.post.length; await B.submit();
+    const evF = CALLS.post[nP9] && CALLS.post[nP9].body;
+    check('⑨ 진입 기록 폼 B.idx submit → POST open bond 키 없음', !!evF && evF.event === 'open' && evF.board_id === 'B.idx.3y_3F' && evF.dir === -1 && !('bond' in evF), JSON.stringify(evF));
+    // 정정: B.idx 게임 = 원장 고정 코드 표시(정정 불가) · amend 이벤트 bond 0
+    B._setSnap(mkBond(s => { s.my_games.open.push({ game_id: 'B.idx.3y_3F-1@2026-10-29#1', board_id: 'B.idx.3y_3F', dir: -1, entry_date: '2026-10-29', bond: 'KR103501GG62', size_R: 1, X_bp: 3.1 }); })); B.render();
+    B.amend('B.idx.3y_3F-1@2026-10-29#1');
+    check('⑨ B.idx 정정: 표시 = 원장 고정 코드 KR103501GG62 · "종목 정정 불가" · 입력 hidden', F('bsFBond').hidden === true && /<b>KR103501GG62<\/b><span class="wb-muted">원장 고정 코드 · 종목 정정 불가<\/span>/.test(F('bsFBondFixed').innerHTML), F('bsFBondFixed').innerHTML);
+    F('bsFSize').value = '1.5'; F('bsFBond').value = 'KR999STALE'; nP9 = CALLS.post.length; await B.submit();
+    const evA = CALLS.post[nP9] && CALLS.post[nP9].body;
+    check('⑨ B.idx 정정 POST amend = 크기만 · bond 키 없음', !!evA && evA.event === 'amend' && evA.size_R === 1.5 && !('bond' in evA), JSON.stringify(evA));
+    B.cancelAmend();
+    // none = 칸 숨김 · bond 0
+    F('bsFBoard').value = 'S.slope.2_5'; F('bsFBond').value = 'KR999STALE'; B.syncDir();
+    check('⑨ none 판(S.slope.2_5): 진입 기록 폼 종목 칸 숨김 · 값 비움 · 테이블 종목 칸 0', F('bsFBondWrap').hidden === true && F('bsFBond').value === '' && (B.show('S.slope.2_5'), !/bsTBond/.test(ELS.bsTblBet.innerHTML)));
+    F('bsFDir').value = '1'; F('bsFDate').value = '2026-10-29'; F('bsFSize').value = '1'; F('bsFBond').value = 'KR999STALE'; nP9 = CALLS.post.length; await B.submit();
+    const evN = CALLS.post[nP9] && CALLS.post[nP9].body;
+    check('⑨ none 판 submit → POST open bond 키 없음', !!evN && evN.board_id === 'S.slope.2_5' && !('bond' in evN), JSON.stringify(evN));
+    // required(B.basket) = 기존 그대로: per_bond_sigma 없으면 datalist(현물만 · 필수 표기) + 빈 값 가드 · 진입 기록 폼 칸 보임
+    B.show('B.basket.3F');
+    F('bsFBoard').value = 'B.basket.3F'; B.syncDir();
+    check('⑨ required 판 진입 기록 폼: 칸 보임 · placeholder "코드 · 필수(바스켓)" · 라벨 "종목(바스켓 · 필수)" · 표시칸 hidden', F('bsFBondWrap').hidden === false && F('bsFBond').hidden === false && F('bsFBond').placeholder === '코드 · 필수(바스켓)' && /^종목\(바스켓 · 필수\)/.test(F('bsFBondLbl').innerHTML) && F('bsFBondFixed').hidden === true, F('bsFBond').placeholder);
+    F('bsFDir').value = '1'; F('bsFDate').value = '2026-10-29'; F('bsFSize').value = '1'; F('bsFBond').value = ''; nP9 = CALLS.post.length; await B.submit();
+    check('⑨ required 판(per_bond_sigma 없음) 종목 비움 → POST 0 · "종목 선택 필요"', CALLS.post.length === nP9 && /종목 선택 필요 — 바스켓 판은 엔진이 종목을 고르지 않는다/.test(ELS.bsMsg.textContent), ELS.bsMsg.textContent);
+    B._setSnap(mkBond(s => { const bb = s.boards.find(b => b.id === 'B.basket.3F'); bb.chips = clone(CHIPS); bb.allowed_max_size_R = 1; })); B.render(); B.show('B.basket.3F');
+    const dlR = (ELS.bsTblBet.innerHTML.match(/<datalist id="bsTBondList">[\s\S]*?<\/datalist>/) || [''])[0];
+    check('⑨ required 판 테이블(per_bond_sigma 없음): 입력 칸 유지 · 필수 표기 · datalist 현물 3종만(선물 0)', /종목\(바스켓 판 · 필수\)/.test(ELS.bsTblBet.innerHTML) && /placeholder="코드 · 필수\(바스켓\)"/.test(ELS.bsTblBet.innerHTML) && (dlR.match(/<option value="KR[^"]+">/g) || []).length === 3 && !/A656C000/.test(dlR), dlR);
+    B._setSnap(mkBond(s => { const bb = s.boards.find(b => b.id === 'B.basket.3F'); bb.chips = clone(CHIPS); bb.allowed_max_size_R = 1;
+      bb.per_bond_sigma = [{ bond: 'KR103501GFC3', X_bp: 4.45, n_obs: 208, ok: true, reason: null }, { bond: 'KR103501GG62', X_bp: null, n_obs: 91, ok: false, reason: '이력 부족' }]; })); B.render(); B.show('B.basket.3F');
+    check('⑨ required + per_bond_sigma(라이브 모양) → select 유지(필수 · 열 수 없음 disabled) · 표시칸 0', /<select class="wb-input" id="bsTBond"/.test(ELS.bsTblBet.innerHTML) && /<option value="KR103501GG62" disabled>/.test(ELS.bsTblBet.innerHTML) && !/bs-bond-fixed/.test(ELS.bsTblBet.innerHTML));
+    // 엔진 bond_fixed 산출 실패(code null + err) → 경고 원문 · 가짜 코드 0
+    B._setSnap(mkBond(s => { const b = s.boards.find(x => x.id === 'B.idx.3y_3F'); b.bond_fixed = { code: null, err: 'LookupError: 라벨 없음', entry_date: '2026-10-29', rule: RULE }; })); B.render(); B.show('B.idx.3y_3F');
+    check('⑨ bond_fixed.code null → "지표 코드 미산출 — LookupError: 라벨 없음" · 코드 표시 0 · 입력 칸 0', /<span class="wb-warn-text">지표 코드 미산출 — LookupError: 라벨 없음<\/span>/.test(ELS.bsTblBet.innerHTML) && !/<b>KR1035/.test((ELS.bsTblBet.innerHTML.match(/bs-bond-fixed[\s\S]*?<\/span><\/span>/) || [''])[0]) && !/id="bsTBond"/.test(ELS.bsTblBet.innerHTML));
+    // 옛 스냅샷(bond_input 없음) B.idx = 옛 datalist 폴백 · 현물 코드만
+    B._setSnap((() => { const s = clone(SAMPLE); s.available = true; const b = s.boards.find(x => x.id === 'B.idx.3y_3F'); b.chips = clone(CHIPS); b.allowed_max_size_R = 1; return s; })()); B.render(); B.show('B.idx.3y_3F');
+    const dlO = (ELS.bsTblBet.innerHTML.match(/<datalist id="bsTBondList">[\s\S]*?<\/datalist>/) || [''])[0];
+    check('⑨ 옛 스냅샷 B.idx(필드 없음) → 옛 datalist 입력 폴백 · 후보 = KR103501GG62 1종(선물 A656C000 0) · 표시칸 0', /id="bsTBond"[^>]*list="bsTBondList"/.test(ELS.bsTblBet.innerHTML) && dlO === '<datalist id="bsTBondList"><option value="KR103501GG62"></datalist>' && !/bs-bond-fixed/.test(ELS.bsTblBet.innerHTML), dlO);
+    F('bsFBoard').value = 'B.idx.3y_3F'; B.syncDir();
+    check('⑨ 옛 스냅샷 진입 기록 폼: 칸 보임 · 옛 placeholder · 라벨 "종목(선택)"', F('bsFBondWrap').hidden === false && F('bsFBond').hidden === false && F('bsFBond').placeholder === '코드 · 비우면 엔진 기본' && F('bsFBondLbl').innerHTML === '종목(선택)' && F('bsFBondFixed').hidden === true);
+    POST_RESULT = null; F('bsFBond').value = ''; F('bsFSize').value = '';
+    B._setSnap(clone(SAMPLE)); B._state.snap.available = true; B.render(); F('bsFBoard').value = 'S.slope.2_5'; B.syncDir(); B.show('S.slope.2_5');
   }
 
   // ④ 추천·신호·방향 제안 문구 0 (렌더 결과 + 탭 HTML + 스크립트)

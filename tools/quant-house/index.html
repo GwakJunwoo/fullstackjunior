@@ -478,6 +478,10 @@
     .bs-pbs td.code { text-align: left; }
     .bs-pbs td.bs-pbs-st { text-align: left; }
     .bs-pbs tr.is-closed td:not(.bs-pbs-st) { color: var(--wb-muted); }
+    /* 종목 입력 방식(2026-10-29 · 해동 93107935): B.idx = 지표 코드 자동 고정 → 입력 칸 대신 표시만 · hidden 이 .wb-field/.wb-input display 에 지지 않게 */
+    .bs-bond-fixed { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; min-height: var(--wb-ctl); padding: 0 4px; border-bottom: 1px solid var(--wb-rule-strong); font-size: 12px; }
+    .bs-bond-fixed b { font-variant-numeric: tabular-nums; }
+    .bs-form [hidden], .bs-modal-form [hidden] { display: none !important; }
     .bs-sticky { position: sticky; top: calc(var(--wb-shell-h) + var(--wb-filterbar-h) + 8px); }
     /* 내 게임 카드 · R 장벽 막대 */
     .bs-game { padding: var(--wb-inset); border-bottom: 1px solid var(--wb-rule); }
@@ -873,7 +877,7 @@
               <button type="button" data-m="one_R_won" aria-pressed="false" onclick="BS.sizeMode('one_R_won')">1R 금액(원)</button>
             </div></div>
           <div class="wb-field"><span class="wb-label" id="bsFSizeLbl">크기(R)</span><input class="wb-input" id="bsFSize" type="number" step="any" placeholder="예: 1" oninput="this.removeAttribute('data-auto')"><span class="bs-sub" id="bsFSizeHint" style="margin-top:2px"></span></div>
-          <div class="wb-field"><span class="wb-label">종목(선택)</span><input class="wb-input" id="bsFBond" type="text" placeholder="코드 · 비우면 엔진 기본"></div>
+          <div class="wb-field" id="bsFBondWrap"><span class="wb-label" id="bsFBondLbl">종목(선택)</span><input class="wb-input" id="bsFBond" type="text" placeholder="코드 · 비우면 엔진 기본"><span class="bs-bond-fixed" id="bsFBondFixed" hidden></span></div>
           <div class="wb-field"><span class="wb-label">역마팅게일(파롤리)<button type="button" class="wb-help" id="bsHelpParoli" data-help="사람이 켠다 · 기본 off · 직전 같은 판 게임이 승일 때만 켤 수 있음(최종 허용/거부는 엔진) · 배수 = config.paroli_mult." aria-label="설명 보기"></button></span>
             <label class="wb-chip" id="bsFParoliWrap"><input type="checkbox" id="bsFParoli" disabled onchange="BS.paroli()"> <span id="bsFParoliTxt">끔</span></label></div>
           <div class="wb-field bs-wide"><span class="wb-label">메모(계산에 안 씀)</span><input class="wb-input" id="bsFMemo" type="text" placeholder="원장에만 남음"></div>
@@ -5306,18 +5310,39 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     h += '<div class="bs-tray"><span class="wb-label">칩 트레이' + helpBtn([hget(b, 'chips', ''), hget(b, 'allowed_max_size_R', '')].filter(Boolean).join('\n')) + '</span><div class="bs-chips">' + chips.map(function (c) { return chipBtn(c, b, st); }).join('') + '</div>' +
       '<span class="bs-sub" style="margin:0">상한 ' + (cap != null ? '<b>' + f(cap, 2) + 'R</b>' : '엔진 미지정(최종 판정 = 엔진)') + (why ? ' · ' + esc(why) : '') + (b.one_R_won != null ? ' · 1R = ' + won(b.one_R_won) : '') + '</span>' +
       '<button type="button" class="wb-btn wb-btn--sm" onclick="BS.clearChips()">치우기</button></div>';
-    var isB = b.family === 'B', codes = isB ? (b.legs_today || []).map(function (l) { return l.code; }).filter(Boolean) : [];
     h += '<div class="bs-modal-form"><div class="wb-field"><span class="wb-label">날짜</span><input class="wb-input" id="bsTDate" type="date" value="' + esc(tf.date || entryDateFor(b.id)) + '" oninput="BS.tf(\'date\', this.value)"></div>' +
-      (isB ? bondPick(b, codes, tf) : '') +
+      bondField(b, tf) +
       '<div class="wb-field bs-wide"><span class="wb-label">메모(계산에 안 씀)</span><input class="wb-input" id="bsTMemo" type="text" placeholder="원장에만 남음" value="' + esc(tf.memo || '') + '" oninput="BS.tf(\'memo\', this.value)"></div>' +
       '<button type="button" class="wb-btn wb-btn--primary" id="bsTBet" onclick="BS.bet()"' + (st.dir && st.chips.length ? '' : ' disabled') + '>베팅' + (st.dir && st.chips.length ? ' ' + dirTxt(st.dir) + ' · ' + f(stackSum(b, st).R, 2) + 'R' : '') + '</button></div>';
     return h;
   }
+  // ★종목 입력 방식(2026-10-29 · 해동 93107935 · 계약 BOOTSTRAP_TAB_SPEC §3): 엔진 boards[].bond_input 그대로 —
+  //   required = B.basket(사람이 고름 · 아래 select) | fixed = B.idx(엔진이 지표 코드 자동 고정 · 입력 칸 없음 · bond_fixed.code 표시만 · POST 에 bond 0) | none = 그 밖(입력 없음)
+  //   필드 없음(옛 스냅샷) = null → 옛 폴백(B 판 = datalist 입력 · 후보 = 현물 레그 코드만)
+  function bondMode(b) { var m = b && b.bond_input; return (m === 'required' || m === 'fixed' || m === 'none') ? m : null; }
+  function cashCodes(b) { return ((b && b.legs_today) || []).filter(function (l) { return l && l.kind === 'cash' && l.code; }).map(function (l) { return l.code; }); }   // 선물 코드 섞임 0
+  var BOND_BASIS_KO = { entry: '진입일 지표', prev_close: '직전 거래일 지표' };
+  function bondFixedHelp(b) { var bf = (b && b.bond_fixed) || {}; return [hget(b, 'bond_input', ''), hget(b, 'bond_fixed', ''), bf.rule || ''].filter(Boolean).join('\n'); }
+  function bondFixedHtml(b, ledgerCode) {   // ledgerCode = 정정 중 원장 g.bond(열 때 고정된 코드) · 없으면 엔진 bond_fixed.code(오늘 진입 기준)
+    var bf = (b && b.bond_fixed) || {};
+    if (ledgerCode) return '<b>' + esc(ledgerCode) + '</b><span class="wb-muted">원장 고정 코드 · 종목 정정 불가</span>';
+    if (!bf.code) return '<span class="wb-warn-text">지표 코드 미산출' + (bf.err ? ' — ' + esc(bf.err) : '') + '</span><span class="wb-muted">기록 때 엔진이 고정(최종 판정 = 엔진)</span>';
+    var why = bf.basis === 'prev_close' ? (bf.label_date ? esc(bf.label_date) + ' ' : '') + '직전 거래일 지표' + (bf.entry_date ? '(' + esc(bf.entry_date) + ' 종가 전)' : '')
+      : bf.basis === 'entry' ? esc(bf.label_date || bf.entry_date || '') + ' 진입일 지표' : 'basis ' + esc(bf.basis == null ? '미표기' : bf.basis);
+    return '<b>' + esc(bf.code) + '</b><span class="wb-muted">자동 고정 · ' + why + '</span>';
+  }
+  function bondField(b, tf) {   // 테이블 모달 베팅 폼 종목 칸
+    var bm = bondMode(b);
+    if (bm === 'fixed') return '<div class="wb-field bs-wide"><span class="wb-label">종목(지표 · 자동 고정)' + helpBtn(bondFixedHelp(b)) + '</span><span class="bs-bond-fixed" id="bsTBondFixed">' + bondFixedHtml(b) + '</span></div>';
+    if (bm === 'none') return '';
+    if (bm === 'required' || (bm == null && b.family === 'B')) return bondPick(b, cashCodes(b), tf);
+    return '';
+  }
   // 바스켓 판 종목 선택(부록2 · 2026-10-29): per_bond_sigma 있으면 select — ok=false 종목 = disabled + "열 수 없음" · 사유(엔진 reason 원문)는 아래 줄 · 엔진은 종목을 고르지 않으므로 빈 값 = "선택(필수)" ·
-  //   per_bond_sigma 없는 판(B.idx · 구 스냅샷) = 옛 입력(datalist · 비우면 엔진 기본)
+  //   per_bond_sigma 없는 판(구 스냅샷) = 옛 입력(datalist · 후보 = 현물 레그 코드만 · bond_input required 면 필수 표기)
   function bondPick(b, codes, tf) {
-    var pb = perBondOf(b);
-    if (!pb) return '<div class="wb-field"><span class="wb-label">종목(바스켓 판)</span><input class="wb-input" id="bsTBond" type="text" list="bsTBondList" placeholder="코드 · 비우면 엔진 기본" value="' + esc(tf.bond || '') + '" oninput="BS.tf(\'bond\', this.value)"><datalist id="bsTBondList">' + codes.map(function (c) { return '<option value="' + esc(c) + '">'; }).join('') + '</datalist></div>';
+    var pb = perBondOf(b), req = bondMode(b) === 'required';
+    if (!pb) return '<div class="wb-field"><span class="wb-label">종목(바스켓 판' + (req ? ' · 필수' : '') + ')' + (req ? helpBtn(hget(b, 'bond_input', '')) : '') + '</span><input class="wb-input" id="bsTBond" type="text" list="bsTBondList" placeholder="' + (req ? '코드 · 필수(바스켓)' : '코드 · 비우면 엔진 기본') + '" value="' + esc(tf.bond || '') + '" oninput="BS.tf(\'bond\', this.value)"><datalist id="bsTBondList">' + codes.map(function (c) { return '<option value="' + esc(c) + '">'; }).join('') + '</datalist></div>';
     var known = {}; pb.forEach(function (p) { known[p.bond] = p; });
     if (tf.bond && known[tf.bond] && known[tf.bond].ok === false) tf.bond = '';   // 열 수 없는 종목이 남아 있으면 지운다(선택 불가 값 보존 0)
     var extra = (b.legs_today || []).filter(function (l) { return l.kind === 'cash' && l.code && !known[l.code]; }).map(function (l) { return l.code; });   // 오늘 레그엔 있는데 per_bond_sigma 에 없는 종목 = 숨기지 않고 "σ 미표기"(최종 판정 = 엔진)
@@ -5330,7 +5355,9 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
       (closed.length ? '<span class="bs-sub bs-bond-closed" style="margin-top:2px">' + closed.map(function (p) { return '<span class="wb-warn-text">' + esc(p.bond) + ' 열 수 없음 — ' + esc(p.reason || '사유 미기재') + '</span>'; }).join('<br>') + '</span>' : '') + '</div>';
   }
   function bondBlock(b, bond) {   // 베팅·기록 가드(웹 · 엔진 거부와 같은 내용을 먼저): per_bond_sigma 판에서 종목 비었거나 ok=false 면 사유 문자열 · 아니면 null
-    var pb = perBondOf(b); if (!pb) return null;
+    var bm = bondMode(b); if (bm === 'fixed' || bm === 'none') return null;   // B.idx = 엔진 자동 고정 · 그 밖 = 종목 없음(bond 를 안 보낸다)
+    var pb = perBondOf(b);
+    if (!pb) return (bm === 'required' && !bond) ? '종목 선택 필요 — 바스켓 판은 엔진이 종목을 고르지 않는다' : null;
     if (!bond) return '종목 선택 필요 — 바스켓 판은 엔진이 종목을 고르지 않는다(per_bond_sigma 중 열 수 있는 종목)';
     for (var i = 0; i < pb.length; i++) if (pb[i].bond === bond && pb[i].ok === false) return bond + ' 열 수 없음 — ' + (pb[i].reason || '사유 미기재');
     return null;
@@ -5460,7 +5487,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
     var date = ($('bsTDate') && $('bsTDate').value) || _BS.tform.date || entryDateFor(b.id); if (!date) { setMsg('날짜 필요', true); return; }
     var sum = stackSum(b, st), cap = num(b.allowed_max_size_R);
     if (cap != null && sum.R > cap + 1e-9) { setMsg('합계 ' + f(sum.R, 2) + 'R > 상한 ' + f(cap, 2) + 'R' + (capWhy(b) ? ' · ' + capWhy(b) : ''), true); return; }
-    var memo = ($('bsTMemo') && $('bsTMemo').value) || _BS.tform.memo || '', bond = (($('bsTBond') && $('bsTBond').value) || _BS.tform.bond || '').trim();
+    var bmT = bondMode(b), memo = ($('bsTMemo') && $('bsTMemo').value) || _BS.tform.memo || '', bond = (bmT === 'fixed' || bmT === 'none') ? '' : (($('bsTBond') && $('bsTBond').value) || _BS.tform.bond || '').trim();   // B.idx(fixed)·그 밖(none) = bond 안 보냄(엔진이 지표 코드 자동 고정)
     var bb = bondBlock(b, bond); if (bb) { setMsg(bb, true); return; }   // 바스켓 판: 종목 미선택 · 열 수 없는 종목 → POST 전에 사유(엔진 reason 원문)
     var ev = { event: 'open', board_id: b.id, dir: st.dir, date: date, size_R: sum.R, chips: st.chips.slice(), memo: memo, by: 'web' };   // 크기 = 칩 합계 · chips = 쌓은 배수(라우터가 엔진 open_game 이 받을 때만 전달) · paroli 인자 0
     if (bond) ev.bond = bond;
@@ -5599,7 +5626,13 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
   }
   function syncDir() {
     var bid = $('bsFBoard').value, b = boardById(bid); var el = $('bsFDirMeaning'); if (el) el.textContent = b ? dirMeaning(b, parseInt($('bsFDir').value, 10)) : '—';
-    var fbd = $('bsFBond'), pbx = perBondOf(b); if (fbd) { var clx = pbx ? pbx.filter(function (p) { return p.ok === false; }).map(function (p) { return p.bond; }) : []; fbd.placeholder = pbx ? '코드 · 필수(바스켓)' + (clx.length ? ' · 열 수 없음 ' + clx.join(', ') : '') : '코드 · 비우면 엔진 기본'; }   // 바스켓 판 = 종목 필수 · 열 수 없는 종목 안내(사유는 판 정보 종목별 장벽 표)
+    var fbd = $('bsFBond'), pbx = perBondOf(b), bmF = bondMode(b); if (fbd) { var clx = pbx ? pbx.filter(function (p) { return p.ok === false; }).map(function (p) { return p.bond; }) : []; fbd.placeholder = (pbx || bmF === 'required') ? '코드 · 필수(바스켓)' + (clx.length ? ' · 열 수 없음 ' + clx.join(', ') : '') : '코드 · 비우면 엔진 기본'; }   // 바스켓 판 = 종목 필수 · 열 수 없는 종목 안내(사유는 판 정보 종목별 장벽 표)
+    // 종목 입력 방식(엔진 bond_input): fixed(B.idx) = 입력 칸 숨김 + 지표 코드 표시만(정정 중 = 원장 고정 코드) · none = 칸 자체 숨김 · required/필드 없음 = 입력 칸
+    var fbw = $('bsFBondWrap'), fbl = $('bsFBondLbl'), fbx = $('bsFBondFixed'), agF = _BS.amend ? findOpen(_BS.amend) : null;
+    if (fbw) fbw.hidden = bmF === 'none';
+    if (fbd) { fbd.hidden = bmF === 'fixed'; if (bmF === 'fixed' || bmF === 'none') fbd.value = ''; }
+    if (fbl) fbl.innerHTML = bmF === 'fixed' ? '종목(지표 · 자동 고정)' + helpBtn(bondFixedHelp(b)) : (bmF === 'required' ? '종목(바스켓 · 필수)' + helpBtn(hget(b, 'bond_input', '')) : '종목(선택)');
+    if (fbx) { fbx.hidden = bmF !== 'fixed'; fbx.innerHTML = bmF === 'fixed' ? bondFixedHtml(b, agF && agF.board_id === bid ? agF.bond : null) : ''; }
     // 날짜 기본값 = 엔진 entry_date_default(없으면 asof) · 정정 중엔 날짜를 바꾸지 않는다(amend 는 크기·종목·메모만)
     var d = $('bsFDate'); if (d && !_BS.amend && (!d.value || d.getAttribute('data-auto') === '1')) { var ed = entryDateFor(bid); if (ed) { d.value = ed; d.setAttribute('data-auto', '1'); } }
     // §8d 크기 기본값 = 엔진 next_size_R(있으면 · 크기 단위 R 일 때 · 사용자가 바꾸면 그대로 둠)
@@ -5644,6 +5677,7 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
   async function submit() {
     if (!_BS.snap) { setMsg('스냅샷 없음 — 기록 불가(엔진 스냅샷이 먼저 있어야 판 목록이 선다)', true); return; }
     var bid = $('bsFBoard').value, dir = parseInt($('bsFDir').value, 10), date = $('bsFDate').value, size = num($('bsFSize').value), memo = $('bsFMemo').value || '', bond = ($('bsFBond') && $('bsFBond').value || '').trim();
+    var bmS = bondMode(boardById(bid)); if (bmS === 'fixed' || bmS === 'none') bond = '';   // B.idx = 엔진 자동 고정(open·정정 모두 bond 0 · 엔진이 다른 코드 거부) · 그 밖 = 종목 없음
     var ev, ok;
     if (_BS.amend) {
       // 정정 = 크기·종목·메모만(방향·날짜·상태는 보내지 않는다 — 엔진 amend 허용 필드 · 거부 사유는 엔진)
