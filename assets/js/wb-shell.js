@@ -54,16 +54,27 @@
     //   BOOTSTRAP_PUBLIC=true + tools/quant-house/index.html 의 data-bootstrap-private 제거. private 플래그는 비공개 복원 경로로 남긴다.
     { id: 'bootstrap', label: '부트스트랩', pages: [
       { id: 'bootstrap', label: '부트스트랩', href: '/tools/quant-house/#bootstrap', contest: true, private: true,
-        desc: '시장 흐름 · 판 지도 · 내 게임 · 한도·본전 — 스냅샷 그대로 · 판 추천 0', kw: 'bootstrap board game 판 게임 부트스트랩 한도 본전 시장 흐름' } ] }
+        desc: '시장 흐름 · 판 지도 · 내 게임 · 한도·본전 — 스냅샷 그대로 · 판 추천 0', kw: 'bootstrap board game 판 게임 부트스트랩 한도 본전 시장 흐름' } ] },
+    // 2026-11-04 장외 호가(kbond_quote 관찰 도구 · tools/otc/) — ★비공개(keyOnly): 데이터 API 전부 X-QH-KEY.
+    //   메뉴·Ctrl K 노출 = localStorage 'qh_ops_key'(운용 콘솔과 같은 키 이름)가 있거나 로컬호스트일 때만(BOOTSTRAP_PUBLIC 과 무관).
+    //   직접 URL 은 열리지만 키 없으면 데이터 0. 팀 탭 이름은 화면이 /otc/meta 에서 받아 바꾼다(이 파일엔 이름 없음).
+    { id: 'otc', label: '장외 호가', pages: [
+      { id: 'otc-bond', label: '종목 분석', href: '/tools/otc/#bond', contest: true, keyOnly: true,
+        desc: '장외 호가 타임라인 · 사자선/팔자선/미드 · 호가 스트림 · 브로커 랭킹', kw: 'otc kbond quote 장외 호가 종목 메신저 사자 팔자' },
+      { id: 'otc-broker', label: '브로커 분석', href: '/tools/otc/#broker', contest: true, keyOnly: true,
+        desc: '브로커·팀 KPI · 일별/시간대 분포 · 종목 커버 · 최근 호가', kw: 'otc broker 브로커 장외 커버' },
+      { id: 'otc-team', label: '팀 해부', href: '/tools/otc/#team', contest: true, keyOnly: true,
+        desc: '기간 요약 · 종목×일 지도 · 장중 에피소드·체결 표시 · 종목 시계열 · 일봉', kw: 'otc team 팀 해부 에피소드 체결 일봉 장중' } ] }
   ];
   var BOOTSTRAP_PUBLIC = true;    // 2026-10-27 사용자 지시 = 공개(false 로 되돌리면 로컬에서만 메뉴 노출)
   function isLocalHost() { var h = (location && location.hostname) || ''; return /^(127\.0\.0\.1|localhost|\[::1\])$/.test(h); }
+  function hasOpsKey() { try { return !!window.localStorage.getItem('qh_ops_key'); } catch (e) { return false; } }   // keyOnly 화면 노출 조건(값은 안 읽음 · 있는지만)
 
   function contest() { return root.hasAttribute('data-contest'); }
   function visibleAreas() {
     var c = contest(), loc = isLocalHost();
     return AREAS.map(function (a) {
-      return { id: a.id, label: a.label, pages: a.pages.filter(function (p) { return (!c || p.contest) && (!p.private || BOOTSTRAP_PUBLIC || loc); }) };
+      return { id: a.id, label: a.label, pages: a.pages.filter(function (p) { return (!c || p.contest) && (!p.private || BOOTSTRAP_PUBLIC || loc) && (!p.keyOnly || loc || hasOpsKey()); }) };
     }).filter(function (a) { return a.pages.length > 0; });
   }
 

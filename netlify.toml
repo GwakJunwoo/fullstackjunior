@@ -112,6 +112,11 @@
   to     = "/tools/regime/"
   status = 301
 
+[[redirects]]
+  from   = "/tools/otc"
+  to     = "/tools/otc/"
+  status = 301
+
 # 새 도구 추가 시 아래 패턴으로 추가:
 # [[redirects]]
 #   from   = "/tools/cofix"

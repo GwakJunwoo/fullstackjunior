@@ -9,6 +9,7 @@ from .routers.beta import router as beta_router
 from .routers.rv_position import router as rv_position_router
 from .routers.quant_house import router as quant_house_router
 from .routers.qh_ops import router as qh_ops_router
+from .routers.otc import router as otc_router   # 장외 호가 데스크(otcdesk 전달 · 전부 X-QH-KEY)
 
 
 def create_app() -> FastAPI:
@@ -29,5 +30,6 @@ def create_app() -> FastAPI:
     app.include_router(rv_position_router)
     app.include_router(quant_house_router)
     app.include_router(qh_ops_router)
+    app.include_router(otc_router)
 
     return app

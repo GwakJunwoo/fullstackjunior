@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<!-- 2026-11-04 사용자 지시: 장외 호가 탭 — kbond_quote(장외 메신저 호가) 관찰 도구.
+     화면 셋 = #bond 종목 분석 · #broker 브로커 분석 · #team 팀 해부(1차 장중 · 2차 일봉).
+     데이터 = /otc/* (fullstackjunior/server/app/routers/otc.py → BQH otcdesk.api 그대로 · 재계산 0).
+     ★공개 범위 = 사이트 탭·비공개: 데이터 API 는 전부 X-QH-KEY(GET 포함). 이 파일·JS 에는 사람 이름·회사 이름이 없다 —
+       팀 라벨·명단은 전부 /otc/meta 응답에서 받아 그린다(키 없으면 빈 껍데기 + 키 안내만).
+     로직 = /assets/js/wb-otc.js. -->
+<html lang="ko" data-contest="1" data-wb>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex, nofollow">
+  <script>/* wb 기본 테마 선적용(첫 페인트 깜빡임 방지) — 저장값 없으면 어두움 · wb-shell.js 와 같은 규칙 */try{var t=localStorage.getItem('wb-theme');document.documentElement.setAttribute('data-theme',t==='light'||t==='dark'?t:'dark')}catch(e){document.documentElement.setAttribute('data-theme','dark')}</script>
+  <title>장외 호가 · Bond Quant House</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%9B%EF%B8%8F%3C/text%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/assets/css/wb.css?v=20261022c">
+  <script src="/assets/js/wb-shell.js?v=20261104a"></script>
+  <style>
+    /* ═══ 장외 호가 — 표현만(wb 토큰 · 카드 · 표) · 사자 = 파랑(--wb-down) · 팔자 = 빨강(--wb-up) ═══ */
+    .otc-head { align-items: center; }
+    .otc-head-meta { margin-left: auto; font-size: var(--wb-fs-label); color: var(--wb-muted); }
+    .otc-view[hidden] { display: none !important; }
+    .otc-gate { max-width: 640px; margin: var(--wb-s6) auto; }
+    .otc-gate .wb-btn { margin-top: var(--wb-s3); }
+    .otc-fb .wb-field .wb-input { width: 140px; }
+    .otc-fb .wb-field .wb-input.otc-w-lg { width: 200px; }
+    .otc-fb input[type="date"].wb-input { width: 140px; }
+    .otc-fb select.wb-input { width: 150px; background: var(--wb-bg); }
+    .otc-fb select#tmMember { width: 210px; }
+    .otc-fb .otc-btns { display: flex; align-items: flex-end; gap: 6px; }
+    .otc-sum { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 6px; min-height: var(--wb-ctl); font-size: 12px; color: var(--wb-muted); }
+    .otc-sum b { color: var(--wb-ink); font-weight: 600; }
+    .otc-chip-basket { color: var(--wb-basket); border-color: color-mix(in srgb, var(--wb-basket) 45%, transparent); }
+    .otc-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: var(--wb-gap); align-items: start; margin-top: var(--wb-gap); }
+    .otc-grid--55 { grid-template-columns: minmax(0, 11fr) minmax(0, 9fr); }
+    .otc-grid--3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .otc-card-body { padding: var(--wb-s2) var(--wb-s4) var(--wb-s3); min-width: 0; }
+    .otc-chart { position: relative; height: 380px; }
+    .otc-chart--sm { height: 96px; }
+    .otc-chart--md { height: 220px; }
+    .otc-chart--lg { height: 420px; }
+    .otc-cap { font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-muted); margin: 4px 0 2px; display: flex; align-items: center; gap: 4px; }
+    .otc-scroll { overflow: auto; max-height: 520px; }
+    .otc-scroll--sm { max-height: 320px; }
+    .otc-scroll--lg { max-height: 680px; }
+    .otc-t td, .otc-t th { padding: 0 6px 0 8px; }
+    .otc-t td { height: 28px; font-size: 12px; }
+    .otc-t .lt { text-align: left; }
+    .otc-t .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; }
+    .otc-t td.raw { white-space: normal; min-width: 160px; max-width: 420px; overflow-wrap: anywhere; color: var(--wb-muted); line-height: 16px; padding-top: 3px; padding-bottom: 3px; }
+    .otc-t th.grp { text-align: center; border-bottom: 1px solid var(--wb-rule); }
+    .otc-t thead tr:nth-child(2) th { top: var(--wb-th); }
+    .otc-t td.day, .otc-t th.day { background: color-mix(in srgb, var(--wb-series-1) 7%, var(--wb-surface)); }
+    .otc-t tbody tr.is-muted td { color: var(--wb-faint); }
+    .otc-t tbody tr.is-muted td.day { color: var(--wb-faint); }
+    .otc-t tbody tr.is-team td:first-child { box-shadow: inset 2px 0 0 var(--wb-accent); }
+    .otc-t tbody tr.is-team { background: var(--wb-accent-soft); }
+    .otc-t tbody tr.is-click { cursor: pointer; }
+    .otc-t tbody tr.otc-sep td { border-top: 1px solid var(--wb-rule-strong); }
+    .otc-buy { color: var(--wb-down); }
+    .otc-sell { color: var(--wb-up); }
+    .otc-sub { display: block; font-size: 11px; line-height: 13px; color: var(--wb-muted); }
+    .otc-tag { display: inline-flex; align-items: center; height: 16px; padding: 0 4px; margin-left: 4px; font-size: 10px; line-height: 14px; border: 1px solid var(--wb-rule-strong); border-radius: 3px; color: var(--wb-muted); vertical-align: 1px; }
+    .otc-tag--team { color: var(--wb-accent); border-color: color-mix(in srgb, var(--wb-accent) 50%, transparent); }
+    .otc-tag--done { color: var(--wb-open); border-color: color-mix(in srgb, var(--wb-open) 45%, transparent); }
+    .otc-tag--rst { color: var(--wb-warn); border-color: color-mix(in srgb, var(--wb-warn) 45%, transparent); }
+    .otc-share { display: inline-flex; width: 56px; height: 8px; border-radius: 2px; overflow: hidden; vertical-align: middle; background: var(--wb-up); }
+    .otc-share > i { display: block; height: 100%; background: var(--wb-down); }
+    .otc-mix { display: inline-flex; width: 84px; height: 8px; border-radius: 2px; overflow: hidden; vertical-align: middle; background: var(--wb-subtle); }
+    .otc-mix > i { display: block; height: 100%; }
+    .otc-legend-row { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: var(--wb-fs-label); color: var(--wb-muted); padding: 4px 0; }
+    .otc-legend-row i { display: inline-block; width: 10px; height: 8px; border-radius: 2px; margin-right: 4px; vertical-align: 0; }
+    .otc-kpis { padding: var(--wb-s3) var(--wb-s4); }
+    .otc-kpis .wb-kpi-val { font-size: 20px; line-height: 26px; }
+    .otc-kpis .wb-kpi { min-width: 110px; padding: 0 var(--wb-s4); }
+    .otc-kpis .wb-kpi:first-child { padding-left: 0; }
+    .otc-tabs { margin: 0 0 var(--wb-s3); }
+    .otc-sec[hidden] { display: none !important; }
+    .otc-toolbar { display: flex; align-items: flex-end; flex-wrap: wrap; gap: 6px 12px; padding: var(--wb-s2) var(--wb-s4) 0; }
+    .otc-toolbar .wb-input { width: 110px; }
+    .otc-toolbar select.wb-input { background: var(--wb-surface); }
+    .otc-more { display: block; margin: 6px auto 4px; }
+    .otc-err { padding: var(--wb-s3) var(--wb-s4); border: 1px solid var(--wb-rule); border-left: 2px solid var(--wb-warn); border-radius: var(--wb-r-ctl); background: var(--wb-subtle); font-size: 13px; overflow-wrap: anywhere; }
+    .otc-err b { color: var(--wb-warn); font-weight: 600; margin-right: 6px; }
+    .otc-skel { padding: var(--wb-s4); }
+    .otc-empty { padding: var(--wb-s3) 0; font-size: 12px; color: var(--wb-muted); }
+    .otc-details > summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: 4px; padding: var(--wb-s2) var(--wb-s4); font-size: 13px; font-weight: 600; }
+    .otc-details > summary::-webkit-details-marker { display: none; }
+    .otc-details > summary::before { content: '▸'; font-size: 10px; color: var(--wb-muted); margin-right: 2px; }
+    .otc-details[open] > summary::before { content: '▾'; }
+    .otc-details > summary .otc-sub { display: inline; font-weight: 400; margin-left: 6px; }
+    /* 종목×일 지도 */
+    .otc-map { display: flex; min-width: 0; border-top: 1px solid var(--wb-rule); }
+    .otc-map-lab { flex: none; width: 132px; border-right: 1px solid var(--wb-rule); }
+    .otc-map-lab > div { height: 16px; line-height: 16px; font-size: 11px; padding: 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
+    .otc-map-lab > div:hover { background: var(--wb-subtle); }
+    .otc-map-lab > div.sep { box-shadow: inset 0 1px 0 var(--wb-rule-strong); }
+    .otc-map-lab > div.hd { cursor: default; color: var(--wb-muted); }
+    .otc-map-lab > div.hd:hover { background: none; }
+    .otc-map-lab small { color: var(--wb-faint); margin-left: 4px; }
+    .otc-map-canvas { flex: 1; min-width: 0; overflow-x: auto; overflow-y: hidden; }
+    .otc-map-canvas canvas { display: block; cursor: crosshair; }
+    .otc-hov { position: fixed; z-index: 150; pointer-events: none; padding: 6px 10px; background: var(--wb-surface); border: 1px solid var(--wb-rule-strong); border-radius: var(--wb-r-ctl); font-size: 12px; line-height: 18px; white-space: nowrap; }
+    .otc-hov[hidden] { display: none; }
+    .otc-kv { display: grid; grid-template-columns: auto auto auto auto; gap: 0; }
+    .otc-mt { margin-top: var(--wb-gap); }
+    .otc-foot { padding: var(--wb-s2) 0 0; font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-muted); }
+    @media (max-width: 1180px) { .otc-grid, .otc-grid--55, .otc-grid--3 { grid-template-columns: minmax(0, 1fr); } }
+    @media (max-width: 720px) {
+      .otc-chart { height: 300px; } .otc-chart--lg { height: 320px; }
+      .otc-head-meta { margin-left: 0; width: 100%; }
+      .otc-map-lab { width: 96px; }
+    }
+  </style>
+</head>
+<body>
+<header id="wb-shell" data-area="otc" data-page="otc-bond"></header>
+
+<main class="wb-main" id="otcMain">
+  <div class="wb-pagehead otc-head">
+    <h1>장외 호가</h1><span class="wb-help" role="button" tabindex="0" aria-label="설명 보기"><template><p><b>장외 메신저 호가(kbond_quote) 관찰 도구.</b> 종목 분석 · 브로커 분석 · 팀 해부(장중 → 일봉).</p><p>숫자는 엔진(otcdesk) 산출 그대로 — 웹에서 다시 계산하지 않음.</p><p>호가 ≠ 체결 · 체결 = ㅎㅈ/확정/거래 표시만 · 액면은 적힌 것만 · 관찰 전용(추천 0).</p><p>복원 = 2025-06~11 등 kbond_quote 금리 빈 행을 원문+전일민평 정수부로 복원(검증 정확 일치 98.8%).</p><p>비공개: 데이터는 키(X-QH-KEY)가 있어야 보인다.</p></template></span>
+    <span class="wb-badge">관찰 전용</span><span class="wb-badge wb-badge--warn">비공개 · 키</span>
+    <span class="otc-head-meta" id="otcMeta"></span>
+  </div>
+
+  <!-- 키 없음 / 거부 — 데이터 0 -->
+  <div class="wb-notice wb-notice--warn otc-gate" id="otcGate" hidden>
+    <div id="otcGateMsg">이 화면은 키(X-QH-KEY)가 있어야 데이터가 보입니다.</div>
+    <button type="button" class="wb-btn wb-btn--primary" id="otcKeyBtn">키 입력</button>
+  </div>
+  <div id="otcFatal" hidden></div>
+
+  <!-- ══ (A) 종목 분석 ══ -->
+  <section class="otc-view" id="vBond" data-view="bond" hidden aria-label="종목 분석">
+    <div class="wb-filterbar otc-fb">
+      <label class="wb-field"><span class="wb-label">종목</span><input class="wb-input" id="bdAlias" list="otcBonds" autocomplete="off" spellcheck="false" placeholder="예: 26-3"></label>
+      <label class="wb-field"><span class="wb-label">날짜</span><input class="wb-input" type="date" id="bdDate"></label>
+      <div class="otc-btns">
+        <button type="button" class="wb-btn wb-btn--icon" id="bdPrev" title="전 영업일" aria-label="전 영업일">‹</button>
+        <button type="button" class="wb-btn wb-btn--icon" id="bdNext" title="다음 영업일" aria-label="다음 영업일">›</button>
+        <button type="button" class="wb-btn" id="bdLatest">최신</button>
+        <button type="button" class="wb-btn wb-btn--primary" id="bdLoad">LOAD</button>
+      </div>
+      <div class="wb-filterbar-end"><div class="otc-sum" id="bdSum"></div></div>
+    </div>
+    <section class="wb-card">
+      <div class="wb-card-head"><span class="wb-card-title" id="bdChartTitle">호가 타임라인</span><span class="wb-card-meta" id="bdLegend"></span></div>
+      <div class="otc-card-body">
+        <div class="otc-chart" id="bdChartBox"><canvas id="bdChart"></canvas></div>
+        <div class="otc-cap" id="bdSprCap"></div>
+        <div class="otc-chart otc-chart--sm"><canvas id="bdSpr"></canvas></div>
+      </div>
+    </section>
+    <div class="otc-grid otc-grid--55">
+      <section class="wb-card" id="bdStream"></section>
+      <section class="wb-card" id="bdRank"></section>
+    </div>
+  </section>
+
+  <!-- ══ (B) 브로커 분석 ══ -->
+  <section class="otc-view" id="vBroker" data-view="broker" hidden aria-label="브로커 분석">
+    <div class="wb-filterbar otc-fb">
+      <label class="wb-field"><span class="wb-label">브로커 · 팀</span><input class="wb-input otc-w-lg" id="brName" list="otcBrokers" autocomplete="off" spellcheck="false" placeholder="이름 또는 팀"></label>
+      <label class="wb-field"><span class="wb-label">기준일</span><input class="wb-input" type="date" id="brAsof"></label>
+      <label class="wb-field"><span class="wb-label">기간</span><select class="wb-input" id="brPeriod"></select></label>
+      <div class="otc-btns">
+        <button type="button" class="wb-btn" id="brLatest">최신</button>
+        <button type="button" class="wb-btn wb-btn--primary" id="brLoad">LOAD</button>
+      </div>
+      <div class="wb-filterbar-end"><div class="otc-sum" id="brSum"></div></div>
+    </div>
+    <section class="wb-card" id="brKpi"></section>
+    <div class="otc-grid">
+      <section class="wb-card"><div class="wb-card-head"><span class="wb-card-title">일별 메시지</span><span class="wb-card-meta" id="brDailyMeta"></span></div><div class="otc-card-body"><div class="otc-chart otc-chart--md"><canvas id="brDaily"></canvas></div></div></section>
+      <section class="wb-card"><div class="wb-card-head"><span class="wb-card-title">시간대 분포</span><span class="wb-card-meta">메시지 · 시(時)</span></div><div class="otc-card-body"><div class="otc-chart otc-chart--md"><canvas id="brHourly"></canvas></div></div></section>
+    </div>
+    <div class="otc-grid otc-grid--55">
+      <section class="wb-card" id="brCover"></section>
+      <section class="wb-card" id="brRecent"></section>
+    </div>
+  </section>
+
+  <!-- ══ (C) 팀 해부 ══ -->
+  <section class="otc-view" id="vTeam" data-view="team" hidden aria-label="팀 해부">
+    <div class="wb-filterbar otc-fb">
+      <label class="wb-field"><span class="wb-label">멤버</span><select class="wb-input" id="tmMember"></select></label>
+      <div class="wb-field"><span class="wb-label">기간</span><div class="wb-seg" id="tmPeriod" role="group" aria-label="기간 프리셋"></div></div>
+      <label class="wb-field"><span class="wb-label">시작(선택)</span><input class="wb-input" type="date" id="tmStart"></label>
+      <label class="wb-field"><span class="wb-label">끝(기준일)</span><input class="wb-input" type="date" id="tmEnd"></label>
+      <div class="otc-btns"><button type="button" class="wb-btn wb-btn--primary" id="tmLoad">LOAD</button></div>
+      <div class="wb-filterbar-end"><div class="otc-sum" id="tmSum"></div></div>
+    </div>
+    <div class="wb-seg otc-tabs" id="tmTabs" role="tablist" aria-label="팀 해부 화면">
+      <button type="button" data-sec="sum">1 기간 요약</button>
+      <button type="button" data-sec="map">2 종목×일 지도</button>
+      <button type="button" data-sec="intra">3 장중 행태</button>
+      <button type="button" data-sec="bond">4 종목 시계열</button>
+      <button type="button" data-sec="daily">5 일봉</button>
+    </div>
+    <div class="otc-sec" id="tmSecSum" data-sec="sum" hidden></div>
+    <div class="otc-sec" id="tmSecMap" data-sec="map" hidden></div>
+    <div class="otc-sec" id="tmSecIntra" data-sec="intra" hidden></div>
+    <div class="otc-sec" id="tmSecBond" data-sec="bond" hidden></div>
+    <div class="otc-sec" id="tmSecDaily" data-sec="daily" hidden></div>
+  </section>
+
+  <datalist id="otcBonds"></datalist>
+  <datalist id="otcBrokers"></datalist>
+  <div class="otc-hov" id="otcHov" hidden></div>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="/assets/js/api.js"></script>
+<script src="/assets/js/wb-chart.js?v=20261022c"></script>
+<script src="/assets/js/wb-otc.js?v=20261104a"></script>
+</body>
+</html>
