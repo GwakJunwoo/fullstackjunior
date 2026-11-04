@@ -90,6 +90,7 @@
     if (v === 2) return '<span class="otc-tag otc-tag--fix" title="' + esc(ysrcTxt(2) || '교정') + '">교정</span>';
     return '';
   }
+  function outTag(r) { return r && r.out ? '<span class="otc-tag otc-tag--out" title="' + esc(RU('outlier') || '이상치') + '">이상치</span>' : ''; }
   function epDef() { return '에피소드 = 같은 날·같은 종목·같은 방향의 연속 호가(호가 간격 ' + ruMin('episode_gap_min', '엔진 기준') + ' 이내)'; }
   function chip(txt, cls) { return '<span class="wb-badge' + (cls ? ' ' + cls : '') + '">' + txt + '</span>'; }
   function emsg(e) { return (e && (e.message || e.detail)) ? String(e.message || e.detail) : String(e); }
@@ -100,8 +101,6 @@
       (sub ? '<span class="wb-card-sub">' + sub + '</span>' : '') + (meta ? '<span class="wb-card-meta">' + meta + '</span>' : '') + '</div>';
   }
   function skelCard(title) { return cardHead(title) + skel(4); }
-  function hms(t) { var a = String(t).split(':'); return (+a[0]) * 3600 + (+a[1] || 0) * 60 + (+a[2] || 0); }
-  function hmLab(x) { x = Math.round(x); var h = Math.floor(x / 3600), m = Math.floor((x % 3600) / 60); return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m; }
   function cssv(n) { return window.WBChart ? WBChart.css(n) : ''; }
   function tk(c, a) { return WBChart.tok(c, a); }
   function mixBar(mix) {
@@ -136,27 +135,304 @@
     return S.charts[key];
   }
   function kill(key) { if (S.charts[key]) { try { S.charts[key].destroy(); } catch (e) { /* noop */ } delete S.charts[key]; } }
-  // 툴팁 = 가장 가까운 '호가 점'만(계단선·밴드는 제외) — 데이터셋에 otcPts:true
-  function regMode() {
-    if (!window.Chart || !Chart.Interaction || !Chart.Interaction.modes || Chart.Interaction.modes.otcPt) return;
-    Chart.Interaction.modes.otcPt = function (chart, e, options, useFinal) {
-      var pos = (Chart.helpers && Chart.helpers.getRelativePosition) ? Chart.helpers.getRelativePosition(e, chart) : { x: e.x, y: e.y };
-      var best = null, bd = Infinity;
-      chart.getSortedVisibleDatasetMetas().forEach(function (meta) {
-        var ds = chart.data.datasets[meta.index];
-        if (!ds || !ds.otcPts) return;
-        meta.data.forEach(function (el, idx) {
-          if (!el || el.skip) return;
-          var p = el.getProps(['x', 'y'], useFinal), dx = p.x - pos.x, dy = p.y - pos.y, dd = dx * dx + dy * dy;
-          if (dd < bd) { bd = dd; best = { element: el, datasetIndex: meta.index, index: idx }; }
-        });
-      });
-      return best && bd <= 36 * 36 ? [best] : [];
-    };
+  // 작은 차트 공통(막대·선): 십자선(otcCross) + index 툴팁 + 범례 오른쪽 위 한 줄
+  function regPlugins() {
+    if (!window.Chart || S.plugOk) return;
+    S.plugOk = true;
+    Chart.register({
+      id: 'otcCross', defaults: { on: false },
+      afterDatasetsDraw: function (ch, args, o) {
+        if (!o || !o.on || !ch.tooltip || !ch.tooltip.getActiveElements) return;
+        var act = ch.tooltip.getActiveElements(); if (!act.length) return;
+        var x = Math.round(act[0].element.x) + 0.5, ca = ch.chartArea, ctx = ch.ctx;
+        ctx.save(); ctx.strokeStyle = cssv('--wb-mark'); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(x, ca.top); ctx.lineTo(x, ca.bottom); ctx.stroke(); ctx.restore();
+      }
+    });
   }
-  function baseOpts(extra) {
-    var o = { responsive: true, maintainAspectRatio: false, animation: false, plugins: { legend: { display: false } } };
-    return Object.assign(o, extra || {});
+  var LEG = { display: true, position: 'top', align: 'end', labels: { usePointStyle: true, pointStyle: 'rectRounded', boxWidth: 10, boxHeight: 8, padding: 12 } };
+  function baseOpts(extra) {   // 막대·선 공통 톤: 세로 십자선 + index 툴팁 + 범례(있으면) 오른쪽 위 한 줄
+    regPlugins();
+    extra = extra || {};
+    var pl = Object.assign({ legend: { display: false } }, extra.plugins || {});
+    if (pl.legend && pl.legend.display) pl.legend = LEG;
+    pl.otcCross = { on: true };
+    pl.tooltip = Object.assign({ mode: 'index', intersect: false }, pl.tooltip || {});
+    var o = Object.assign({ responsive: true, maintainAspectRatio: false, animation: false, interaction: { mode: 'index', intersect: false } }, extra);
+    o.plugins = pl;
+    return o;
+  }
+
+  // ══ 이벤트 축 호가 타임라인(참고 화면 문법) ═════════════════════════════
+  // x = 호가 이벤트 순번(같은 간격 · 실시각 아님 → 점심·장마감 공백 사라짐) · 눈금 = 그 이벤트 시각(솎음)
+  // 사자선/팔자선/미드/괴리/전일민평 = 엔진이 준 '그 이벤트 직후 상태' 그대로의 계단 — 값 변형 0 · 보이는 범위(창)만 조절
+  // 십자선·툴팁 = 메인/괴리 패널 동기 · 날 경계(day_start) = 선 끊김 + 세로 구분선 + 날짜 라벨
+  S.ev = {};
+  function evSeries(arr, ds, n) {   // 전체 계단 점열(한 번만) — 날 경계에서 끊김(앞날 마지막 상태는 경계까지)
+    var out = [], last = null;
+    for (var i = 0; i < n; i++) {
+      if (ds && ds[i] && i > 0) { if (last != null) out.push({ x: i - 0.5, y: last }); out.push({ x: i - 0.5, y: null }); last = null; }
+      var v = isNum(arr[i]) ? arr[i] : null;
+      out.push({ x: i, y: v }); last = v;
+    }
+    return out;
+  }
+  function lowerX(a, x) { var lo = 0, hi = a.length; while (lo < hi) { var m = (lo + hi) >> 1; if (a[m].x < x) lo = m + 1; else hi = m; } return lo; }
+  function evSlice(a, lo, hi) {
+    var out = a.slice(lowerX(a, lo - 0.25), lowerX(a, hi + 0.25));
+    var last = out.length ? out[out.length - 1].y : null;
+    if (last != null) out.push({ x: hi + 0.5, y: last });   // 마지막 상태를 창 끝까지(값 그대로)
+    return out;
+  }
+  function evLegend(key, nOut, outLabel) {
+    return '<span class="otc-leg">' +
+      '<span><b class="otc-sell">▼</b>팔자</span><span><b class="otc-buy">▲</b>사자</span>' +
+      '<span><i class="ln" style="border-color:var(--wb-down)"></i>사자선</span>' +
+      '<span><i class="ln" style="border-color:var(--wb-up)"></i>팔자선</span>' +
+      '<span><i class="ln dash" style="border-color:var(--wb-ink)"></i>미드</span>' +
+      '<span><i class="blk"></i>사자−팔자(bp)</span>' +
+      '<span><i class="ln dot" style="border-color:var(--wb-muted)"></i>전일민평</span>' +
+      (nOut ? '<button type="button" class="wb-chip otc-outbtn" data-evout="' + esc(key) + '" aria-pressed="false">' + esc(outLabel || '이상치') + ' ' + n0(nOut) + '건 보기</button>' + help(RU('outlier') || '이상치 = 엔진 판정') : '') +
+      '</span>';
+  }
+  function killEv(key) { if (S.ev[key]) S.ev[key].destroy(); }
+  function evChart(key, host, src, opt) {
+    opt = opt || {};
+    killEv(key);
+    if (!window.Chart) { host.innerHTML = '<div class="otc-empty">차트 라이브러리를 못 불러옴</div>'; return null; }
+    regPlugins();
+    var n = src.n;
+    host.innerHTML = '<div class="otc-ev-box" style="height:' + (opt.h || 400) + 'px"><canvas></canvas><canvas class="otc-ev-ov"></canvas></div>' +
+      '<div class="otc-cap">사자−팔자 괴리(bp)' + help('그 이벤트 직후 사자선 − 팔자선(bp) · 엔진 값 그대로(음수 = 사자선이 팔자선보다 낮은 교차 상태)') + '</div>' +
+      '<div class="otc-ev-box" style="height:' + (opt.hs || 110) + 'px"><canvas></canvas><canvas class="otc-ev-ov"></canvas></div>' +
+      (opt.nav ? '<div class="otc-ev-nav" title="드래그 = 보여 줄 구간 고르기 · 창 안 드래그 = 옮기기 · 창 가장자리 = 넓히기/좁히기 · 클릭 = 그 자리로"><canvas></canvas></div>' : '');
+    var boxes = host.querySelectorAll('.otc-ev-box');
+    var cvM = boxes[0].children[0], ovM = boxes[0].children[1], cvS = boxes[1].children[0], ovS = boxes[1].children[1];
+    var navCv = opt.nav ? host.querySelector('.otc-ev-nav canvas') : null;
+    var full = { bid: evSeries(src.bid, src.ds, n), ask: evSeries(src.ask, src.ds, n), mid: evSeries(src.mid, src.ds, n),
+      spr: evSeries(src.spr, src.ds, n), mp: src.mp ? evSeries(src.mp, src.ds, n) : null };
+    var byX = function (a, b) { return a.x - b.x; };
+    var buyM = src.marks.filter(function (m) { return m.side === 1; }).sort(byX);
+    var sellM = src.marks.filter(function (m) { return m.side === -1; }).sort(byX);
+    var outM = (src.outs || []).slice().sort(byX);
+    var dsIdx = [0];
+    if (src.ds) for (var k = 1; k < n; k++) if (src.ds[k]) dsIdx.push(k);
+    var w0 = opt.win || [0, n - 1];
+    var ctl = { key: key, lo: Math.max(0, w0[0]), hi: Math.min(n - 1, w0[1]), showOut: false, src: src, cur: null, dsIdx: dsIdx };
+    function daysIn() { var c = 1; for (var j = 0; j < dsIdx.length; j++) if (dsIdx[j] > ctl.lo && dsIdx[j] <= ctl.hi) c++; return c; }
+    function mSlice(a) { return a.slice(lowerX(a, ctl.lo - 0.5), lowerX(a, ctl.hi + 0.51)); }
+    function tickLab(v) {
+      var i = Math.round(v); if (i < 0 || i >= n) return '';
+      return (src.multiDay && ctl.nd > 5) ? mmdd(src.day[i]) : src.hm[i];
+    }
+    function xScale() {
+      return { type: 'linear', min: ctl.lo - 0.5, max: ctl.hi + 0.5, grid: { display: false },
+        afterBuildTicks: function (ax) {
+          var w = ax.maxWidth || ax.width || 800, maxL = Math.max(2, Math.floor(w / 68)), t = [], i;
+          ctl.nd = src.multiDay ? daysIn() : 1;
+          if (src.multiDay && ctl.nd > 5) {   // 긴 창 = 날짜 눈금(날 시작) 솎음
+            var ds = dsIdx.filter(function (x) { return x >= ctl.lo && x <= ctl.hi; });
+            if (!ds.length || ds[0] > ctl.lo) ds.unshift(ctl.lo);
+            var span = ctl.hi - ctl.lo + 1, lastPx = -1e9;   // 날 시작 눈금을 픽셀 간격으로 솎음(이벤트 적은 날이 몰려도 안 겹치게)
+            for (i = 0; i < ds.length; i++) { var px = (ds[i] - ctl.lo + 0.5) / span * w; if (px - lastPx >= 66) { t.push({ value: ds[i] }); lastPx = px; } }
+          } else {
+            var step = Math.max(1, Math.ceil((ctl.hi - ctl.lo + 1) / maxL));
+            for (i = ctl.lo; i <= ctl.hi; i += step) t.push({ value: i });
+          }
+          var seen = null; ax.ticks = t.filter(function (o) { var l = tickLab(o.value); if (l === seen) return false; seen = l; return true; });   // 같은 라벨 연속 = 하나만
+        },
+        ticks: { autoSkip: false, maxRotation: 0, callback: function (v) { return tickLab(v); } } };
+    }
+    function yFit(sc) { sc.width = 62; }   // 두 패널 x 픽셀 정렬(십자선 동기)
+    var dayPlug = { id: 'otcDays', beforeDatasetsDraw: function (ch) {
+      if (!src.multiDay) return;
+      var xs = ch.scales.x, ca = ch.chartArea, ctx = ch.ctx, lastLx = -1e9, isMain = ch.canvas === cvM;
+      ctx.save(); ctx.font = '600 10px ' + (cssv('--wb-font') || 'sans-serif'); ctx.textBaseline = 'top';
+      var col = cssv('--wb-rule-strong'), mut = cssv('--wb-muted');
+      function lab(i, x) { if (!isMain || x - lastLx < 44) return; ctx.fillStyle = mut; ctx.fillText(mmdd(src.day[i]), x + 3, ca.top + 2); lastLx = x; }
+      lab(ctl.lo, ca.left);
+      ctx.strokeStyle = col; ctx.lineWidth = 1;
+      var monthOnly = (ca.right - ca.left) / Math.max(1, ctl.nd || 1) < 10;   // 하루 폭 < 10px = 달 경계만(빗금 방지)
+      for (var j = 0; j < dsIdx.length; j++) {
+        var i = dsIdx[j]; if (i <= ctl.lo || i > ctl.hi) continue;
+        if (monthOnly && String(src.day[i]).slice(0, 7) === String(src.day[i - 1]).slice(0, 7)) continue;
+        var x = Math.round(xs.getPixelForValue(i - 0.5)) + 0.5;
+        ctx.beginPath(); ctx.moveTo(x, ca.top); ctx.lineTo(x, ca.bottom); ctx.stroke(); lab(i, x);
+      }
+      ctx.restore();
+    } };
+    function markDs(label, data, side) {
+      var col = side === 1 ? '--wb-down' : '--wb-up';
+      return { type: 'scatter', label: label, data: data, order: 0, pointStyle: 'triangle', pointRotation: side === 1 ? 0 : 180,
+        pointRadius: function (c) { var m = c.raw || {}; return m.r || 5.5; },
+        pointBackgroundColor: function (c) { var m = c.raw || {}; return m.hollow ? cssv('--wb-surface') : WBChart.alpha(col, 0.92); },
+        pointBorderColor: function (c) { var m = c.raw || {}; return m.team && !src.multiDay ? cssv('--wb-ink') : cssv(col); },
+        pointBorderWidth: function (c) { var m = c.raw || {}; return m.team && !src.multiDay ? 2.2 : (m.hollow ? 1.8 : 1.2); } };
+    }
+    function lineDs(label, col, a, w, dash) {
+      return { type: 'line', label: label, data: a, stepped: true, borderColor: tk(col, col === '--wb-muted' ? 0.95 : 1), borderWidth: w, borderDash: dash || [],
+        pointRadius: 0, pointHoverRadius: 0, pointHitRadius: 0, spanGaps: false, fill: false };
+    }
+    var common = { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, normalized: true, events: [],
+      plugins: { legend: { display: false }, tooltip: { enabled: false } }, layout: { padding: { right: 6 } } };
+    var main = new Chart(cvM, { type: 'line', plugins: [dayPlug], data: { datasets: [
+      lineDs('사자선', '--wb-down', [], 2.2), lineDs('팔자선', '--wb-up', [], 2.2), lineDs('미드', '--wb-ink', [], 1.5, [5, 4]),
+      lineDs('전일민평', '--wb-muted', [], 1.4, [2, 4]),
+      markDs('사자', [], 1), markDs('팔자', [], -1),
+      { type: 'scatter', label: '이상치', data: [], order: 0, pointStyle: 'crossRot', pointRadius: 6.5, pointBorderWidth: 2.2,
+        pointBorderColor: tk('--wb-muted'), pointBackgroundColor: 'transparent' }] },
+      options: Object.assign({}, common, { onResize: function () { requestAnimationFrame(function () { drawCross(ctl.cur); drawNav(); }); },
+        scales: { x: xScale(), y: { grace: '6%', afterFit: yFit, ticks: { callback: function (v) { return fy(v); } } } } }) });
+    var spr = new Chart(cvS, { type: 'line', plugins: [dayPlug], data: { datasets: [
+      { type: 'line', label: '사자−팔자(bp)', data: [], stepped: true, fill: 'origin', borderColor: tk('--wb-legacy-purple'), backgroundColor: tk('--wb-legacy-purple', 0.3),
+        borderWidth: 1.6, pointRadius: 0, pointHitRadius: 0, spanGaps: false }] },
+      options: Object.assign({}, common, { scales: { x: xScale(), y: { afterFit: yFit, ticks: { maxTicksLimit: 4, callback: function (v) { return fbp(v, 1); } } } } }) });
+    ctl.main = main; ctl.spr = spr;
+    function fill() {
+      var d = main.data.datasets, lo = ctl.lo, hi = ctl.hi;
+      d[0].data = evSlice(full.bid, lo, hi); d[1].data = evSlice(full.ask, lo, hi); d[2].data = evSlice(full.mid, lo, hi);
+      d[3].data = full.mp ? evSlice(full.mp, lo, hi) : [];
+      d[4].data = mSlice(buyM); d[5].data = mSlice(sellM); d[6].data = ctl.showOut ? mSlice(outM) : [];
+      spr.data.datasets[0].data = evSlice(full.spr, lo, hi);
+      [main, spr].forEach(function (c) { c.options.scales.x.min = lo - 0.5; c.options.scales.x.max = hi + 0.5; });
+    }
+    function sizeOv(cv, ov) {
+      var dpr = window.devicePixelRatio || 1, w = cv.clientWidth, h = cv.clientHeight;
+      if (ov.width !== Math.round(w * dpr) || ov.height !== Math.round(h * dpr)) {
+        ov.width = Math.round(w * dpr); ov.height = Math.round(h * dpr); ov.style.width = w + 'px'; ov.style.height = h + 'px';
+      }
+      var ctx = ov.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+      return ctx;
+    }
+    function dot(ctx, x, y, col) { ctx.beginPath(); ctx.arc(x, y, 3.6, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = cssv('--wb-surface'); ctx.stroke(); }
+    function drawCross(i) {
+      [[main, ovM], [spr, ovS]].forEach(function (p) {
+        var ch = p[0], ctx = sizeOv(ch.canvas, p[1]);
+        if (i == null || !ch.chartArea) return;
+        var ca = ch.chartArea, x = Math.round(ch.scales.x.getPixelForValue(i)) + 0.5;
+        ctx.strokeStyle = cssv('--wb-mark'); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(x, ca.top); ctx.lineTo(x, ca.bottom); ctx.stroke(); ctx.setLineDash([]);
+        var ys = ch.scales.y;
+        if (ch === main) {
+          if (isNum(src.mid[i])) dot(ctx, x, ys.getPixelForValue(src.mid[i]), cssv('--wb-ink'));
+          if (isNum(src.ask[i])) dot(ctx, x, ys.getPixelForValue(src.ask[i]), cssv('--wb-up'));
+          if (isNum(src.bid[i])) dot(ctx, x, ys.getPixelForValue(src.bid[i]), cssv('--wb-down'));
+        } else if (isNum(src.spr[i])) dot(ctx, x, ys.getPixelForValue(src.spr[i]), cssv('--wb-legacy-purple'));
+      });
+    }
+    function idxAt(ch, ev) {
+      if (!ch.chartArea) return null;
+      var r = ch.canvas.getBoundingClientRect(), px = ev.clientX - r.left, xs = ch.scales.x;
+      if (px < xs.left - 2 || px > xs.right + 2) return null;
+      return Math.max(ctl.lo, Math.min(ctl.hi, Math.round(xs.getValueForPixel(px))));
+    }
+    var hovRaf = 0, hovEv = null;
+    function onMove(ev) {
+      var ch = ev.currentTarget === cvM ? main : spr;
+      hovEv = { i: idxAt(ch, ev), x: ev.clientX, y: ev.clientY };
+      if (hovRaf) return;
+      hovRaf = requestAnimationFrame(function () {
+        hovRaf = 0; var h = hovEv; if (!h) return;
+        if (h.i == null) { onLeave(); return; }
+        ctl.cur = h.i; drawCross(h.i); showHov(src.tip(h.i, ctl), h.x, h.y);
+      });
+    }
+    function onLeave() { hovEv = null; ctl.cur = null; drawCross(null); hideHov(); }
+    [cvM, cvS].forEach(function (cv) { cv.addEventListener('mousemove', onMove); cv.addEventListener('mouseleave', onLeave); });
+    if (opt.onClick) { cvM.style.cursor = 'pointer'; cvM.addEventListener('click', function (ev) { var i = idxAt(main, ev); if (i != null) { hideHov(); opt.onClick(i); } }); }
+    // ── 내비게이터(전체 축약 + 창) ──
+    var navCache = null, drag = null, winRaf = 0, pend = null;
+    function navW() { return navCv ? navCv.clientWidth : 0; }
+    function drawNav() {
+      if (!navCv) return;
+      var dpr = window.devicePixelRatio || 1, w = navCv.clientWidth, h = navCv.clientHeight; if (!w || !h) return;
+      if (navCv.width !== Math.round(w * dpr) || navCv.height !== Math.round(h * dpr)) { navCv.width = Math.round(w * dpr); navCv.height = Math.round(h * dpr); navCache = null; }
+      var ctx = navCv.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h);
+      if (!navCache || navCache.w !== w) {
+        var mn = [], mx = [], gmin = Infinity, gmax = -Infinity, c, v;
+        for (c = 0; c < w; c++) { mn.push(Infinity); mx.push(-Infinity); }
+        for (var i = 0; i < n; i++) {
+          v = isNum(src.mid[i]) ? src.mid[i] : isNum(src.bid[i]) ? src.bid[i] : src.ask[i];
+          if (!isNum(v)) continue;
+          c = n > 1 ? Math.min(w - 1, Math.floor(i / (n - 1) * (w - 1))) : 0;
+          if (v < mn[c]) mn[c] = v; if (v > mx[c]) mx[c] = v; if (v < gmin) gmin = v; if (v > gmax) gmax = v;
+        }
+        navCache = { w: w, mn: mn, mx: mx, gmin: gmin, gmax: gmax };
+      }
+      var NC = navCache, top = 3, bot = h - 13, rng = (NC.gmax - NC.gmin) || 1;
+      var Y = function (v) { return top + (1 - (v - NC.gmin) / rng) * (bot - top); };
+      ctx.fillStyle = cssv('--wb-subtle'); ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = cssv('--wb-muted'); ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (var cc = 0; cc < w; cc++) { if (!isFinite(NC.mn[cc])) continue; var y1 = Y(NC.mx[cc]), y2 = Y(NC.mn[cc]); ctx.moveTo(cc + 0.5, y1); ctx.lineTo(cc + 0.5, Math.max(y2, y1 + 1)); }
+      ctx.stroke();
+      var x0 = n > 1 ? ctl.lo / (n - 1) * w : 0, x1 = n > 1 ? ctl.hi / (n - 1) * w : w;
+      ctx.fillStyle = WBChart.alpha('--wb-series-1', 0.22); ctx.fillRect(x0, 0, Math.max(3, x1 - x0), h);
+      ctx.strokeStyle = cssv('--wb-mark'); ctx.lineWidth = 1.2; ctx.strokeRect(Math.round(x0) + 0.5, 0.5, Math.max(3, Math.round(x1 - x0)), h - 1);
+      ctx.fillStyle = cssv('--wb-mark'); ctx.fillRect(Math.round(x0) - 1, h / 2 - 7, 3, 14); ctx.fillRect(Math.round(x1) - 1, h / 2 - 7, 3, 14);
+      ctx.font = '10px ' + (cssv('--wb-font') || 'sans-serif'); ctx.textBaseline = 'bottom'; ctx.fillStyle = cssv('--wb-muted');
+      if (src.day) { ctx.fillText(mmdd(src.day[0]), 3, h - 1); var e = mmdd(src.day[n - 1]); ctx.fillText(e, w - ctx.measureText(e).width - 3, h - 1); }
+    }
+    function setWindow(lo, hi, silent) {
+      lo = Math.max(0, Math.min(n - 1, Math.round(lo))); hi = Math.max(lo, Math.min(n - 1, Math.round(hi)));
+      ctl.lo = lo; ctl.hi = hi; fill(); main.update('none'); spr.update('none'); drawNav(); drawCross(null);
+      if (opt.onWindow && !silent) opt.onWindow(ctl);
+    }
+    function schedule(lo, hi) { pend = [lo, hi]; if (winRaf) return; winRaf = requestAnimationFrame(function () { winRaf = 0; if (pend) setWindow(pend[0], pend[1]); pend = null; }); }
+    function cl(v, a, b) { return Math.max(a, Math.min(b, v)); }
+    function onDrag(ev) {
+      if (!drag) return;
+      var x = ev.clientX - drag.left, di = Math.round((x - drag.x) / drag.w * (n - 1)), MIN = Math.min(n - 1, 20), lo = drag.lo, hi = drag.hi;
+      if (Math.abs(x - drag.x) > 2) drag.moved = true;
+      if (drag.mode === 'pan') { var sp = hi - lo; lo = cl(lo + di, 0, n - 1 - sp); hi = lo + sp; }
+      else if (drag.mode === 'l') lo = cl(lo + di, 0, hi - MIN);
+      else if (drag.mode === 'r') hi = cl(hi + di, lo + MIN, n - 1);
+      else {
+        var a = cl(Math.round(drag.x / drag.w * (n - 1)), 0, n - 1), b = cl(Math.round(x / drag.w * (n - 1)), 0, n - 1);
+        lo = Math.min(a, b); hi = Math.max(a, b);
+        if (hi - lo < MIN) { hi = Math.min(n - 1, lo + MIN); lo = Math.max(0, hi - MIN); }
+        if (!drag.moved) return;
+      }
+      schedule(lo, hi);
+    }
+    function onUp() {
+      window.removeEventListener('mousemove', onDrag); window.removeEventListener('mouseup', onUp);
+      if (drag && drag.mode === 'new' && !drag.moved) {   // 클릭 = 지금 창 폭 그대로 그 자리로
+        var sp = drag.hi - drag.lo, c = Math.round(drag.x / drag.w * (n - 1)), lo = cl(c - Math.round(sp / 2), 0, Math.max(0, n - 1 - sp));
+        schedule(lo, lo + sp);
+      }
+      drag = null;
+    }
+    if (navCv) {
+      navCv.addEventListener('mousedown', function (ev) {
+        ev.preventDefault();
+        var r = navCv.getBoundingClientRect(), x = ev.clientX - r.left, w = r.width || 1;
+        var x0 = n > 1 ? ctl.lo / (n - 1) * w : 0, x1 = n > 1 ? ctl.hi / (n - 1) * w : w;
+        var mode = Math.abs(x - x0) <= 6 ? 'l' : Math.abs(x - x1) <= 6 ? 'r' : (x > x0 && x < x1) ? 'pan' : 'new';
+        drag = { mode: mode, x: x, lo: ctl.lo, hi: ctl.hi, w: w, left: r.left, moved: false };
+        window.addEventListener('mousemove', onDrag); window.addEventListener('mouseup', onUp);
+      });
+      navCv.addEventListener('mousemove', function (ev) {
+        if (drag) return;
+        var r = navCv.getBoundingClientRect(), x = ev.clientX - r.left, w = r.width || 1;
+        var x0 = n > 1 ? ctl.lo / (n - 1) * w : 0, x1 = n > 1 ? ctl.hi / (n - 1) * w : w;
+        navCv.style.cursor = (Math.abs(x - x0) <= 6 || Math.abs(x - x1) <= 6) ? 'ew-resize' : (x > x0 && x < x1) ? 'grab' : 'crosshair';
+      });
+    }
+    ctl.setWindow = setWindow;
+    ctl.setOut = function (on) { ctl.showOut = !!on; fill(); main.update('none'); };
+    ctl.redraw = function () { navCache = null; drawNav(); drawCross(null); };
+    ctl.dayLo = function (k) { return dsIdx[Math.max(0, dsIdx.length - k)]; };   // 마지막 k 일의 첫 이벤트
+    ctl.destroy = function () {
+      try { main.destroy(); } catch (e) { /* noop */ }
+      try { spr.destroy(); } catch (e) { /* noop */ }
+      window.removeEventListener('mousemove', onDrag); window.removeEventListener('mouseup', onUp);
+      if (S.ev[key] === ctl) delete S.ev[key];
+    };
+    S.ev[key] = ctl;
+    setWindow(ctl.lo, ctl.hi, true);
+    if (opt.onWindow) opt.onWindow(ctl);
+    return ctl;
   }
 
   // ══ 키 · 호출 ══════════════════════════════════════════════════════════
@@ -265,6 +541,7 @@
     } catch (e) { /* noop */ }
     $('otcMeta').innerHTML = esc((m.coverage || {}).start || '') + ' ~ ' + esc((m.coverage || {}).end || '') +
       ' · 최신 영업일 <b>' + esc(m.latest || '–') + '</b> · 캐시 ' + n0(m.rows) + '행(복원 ' + n0(m.restored_rows) + (isNum(m.corrected_rows) ? ' · 교정 ' + n0(m.corrected_rows) : '') + ')' + help(srcNote()) +
+      (isNum(m.outlier_rows) ? ' · 이상치 ' + n0(m.outlier_rows) + help(RU('outlier') || '') : '') +
       ' · 갱신 ' + esc(String(m.refreshed || '').replace('T', ' ').slice(5, 16));
     $('otcBonds').innerHTML = (m.bonds || []).map(function (b) {
       return '<option value="' + esc(b.alias) + '">' + esc([b.nick, b.btype, isNum(b.rem) ? '잔존 ' + b.rem + '년' : '', '30일 ' + n0(b.n30) + '건'].filter(Boolean).join(' · ')) + '</option>';
@@ -321,7 +598,7 @@
       $('bdSum').innerHTML = '<span class="wb-error">불러오기 실패</span>';
       $('bdStream').innerHTML = cardHead('당일 호가 스트림(최신순)') + '<div class="otc-card-body">' + errBox('종목 분석', e) + '</div>';
       $('bdRank').innerHTML = cardHead('서식 브로커 랭킹');
-      kill('bd'); kill('bdSpr');
+      killEv('bd'); $('bdEv').innerHTML = ''; $('bdLegend').innerHTML = '';
       return;
     }
     if (seq !== S.seq.bond) return;
@@ -343,102 +620,66 @@
     if (h.basket) chips.push(chip(esc(h.basket), 'otc-chip-basket'));
     if (h.restored) chips.push(chip('복원 ' + n0(h.restored) + '건' + help(srcNote()), 'wb-badge--warn'));
     if (h.corrected) chips.push(chip('교정 ' + n0(h.corrected) + '건' + help(srcNote()), 'otc-chip-fix'));
+    if (h.n_out) chips.push(chip('이상치 ' + n0(h.n_out) + '건' + help(RU('outlier') || ''), 'otc-chip-out'));
     $('bdSum').innerHTML = '<b>' + esc(h.alias) + '</b> · ' + esc(h.date || '') + ' · 호가 <b>' + n0(h.n_quotes) + '</b>건' +
       (h.n_valid !== h.n_quotes ? '(금리 ' + n0(h.n_valid) + ')' : '') +
       ' · 전일민평(참고) <b>' + fy(h.mp) + '</b>' + help(DEF.vsmp + (h.mp_date ? '\n이 화면 전일민평 = ' + h.mp_date + ' 값' : '')) + ' ' + chips.join(' ');
-    $('bdChartTitle').innerHTML = esc(h.alias) + ' 호가 타임라인 · ' + esc(h.date || '') + help(DEF.lines + '\n점 = 브로커 호가(▲ 사자 파랑 · ▼ 팔자 빨강 · 진한 테두리 = 팀 멤버)\n회색 점선 = 전일민평(참고)\n' + NOTE.obs);
+    $('bdChartTitle').innerHTML = esc(h.alias) + ' 호가 타임라인 · ' + esc(h.date || '') + help('가로 = 호가 이벤트 순서(금리 있는 호가 하나 = 한 칸 · 같은 간격 · 실시각 아님 → 점심·장마감 공백 없음) · 눈금 = 그 이벤트 시각\n' + DEF.lines + '\n▲ 사자 · ▼ 팔자(진한 테두리 = 팀 멤버) · 회색 점선 = 전일민평(참고)\n이상치는 선·미드·괴리에서 빠져 있음(엔진) — 오른쪽 위 버튼으로 × 표시\n' + NOTE.obs);
     renderBondChart(d);
     renderStream(d);
     renderRank(d);
   }
   function renderBondChart(d) {
-    var pts = d.points || [], st = d.steps || [], h = d.head || {};
-    var box = $('bdChartBox');
-    var old = box.querySelector('.otc-empty'); if (old) old.remove();
-    $('bdLegend').innerHTML = '<span class="otc-buy">▲ 사자</span> · <span class="otc-sell">▼ 팔자</span> · 계단 = 사자선/팔자선 · 점선 = 미드 · 회색 = 전일민평';
+    var pts = d.points || [], st = d.steps || [], h = d.head || {}, outs = d.outliers || [];
+    var host = $('bdEv');
     if (!pts.length) {
-      kill('bd'); kill('bdSpr');
-      var em = doc.createElement('div'); em.className = 'otc-empty'; em.textContent = '이 날 금리가 있는 호가가 없습니다(문의·원 단위 호가만 있거나 거래 없음).';
-      box.appendChild(em); $('bdSprCap').textContent = '';
+      killEv('bd'); $('bdLegend').innerHTML = '';
+      host.innerHTML = '<div class="otc-empty">이 날 금리가 있는 호가가 없습니다(문의·원 단위 호가만 있거나 거래 없음).</div>';
       return;
     }
-    var xs = pts.map(function (p) { return hms(p.t); });
-    var x0 = Math.floor((Math.min.apply(null, xs) - 300) / 1800) * 1800, x1 = Math.ceil((Math.max.apply(null, xs) + 300) / 1800) * 1800;
-    var buy = [], sell = [];
-    pts.forEach(function (p, i) { var o = { x: xs[i], y: p.y, i: i }; if (p.side === 1) buy.push(o); else if (p.side === -1) sell.push(o); });
-    function stepLine(k) {
-      var a = st.map(function (s) { return { x: hms(s.t), y: isNum(s[k]) ? s[k] : null }; });
-      if (a.length && a[a.length - 1].y != null) a.push({ x: x1, y: a[a.length - 1].y });   // 마지막 상태가 장 끝까지 유지(계단 끝 연장 · 값 무변형)
-      return a;
-    }
-    function ptOpt(side) {
-      var col = side === 1 ? '--wb-down' : '--wb-up';
-      return {
-        type: 'scatter', otcPts: true, data: side === 1 ? buy : sell, label: side === 1 ? '사자' : '팔자', order: 1,
-        pointStyle: 'triangle', pointRotation: side === 1 ? 0 : 180,
-        pointRadius: function (c) { var p = c.raw && pts[c.raw.i]; return p && p.team ? 6 : 4; },
-        pointHoverRadius: function (c) { var p = c.raw && pts[c.raw.i]; return p && p.team ? 8 : 6; },
-        pointBackgroundColor: tk(col, 0.85),
-        pointBorderColor: function (c) { var p = c.raw && pts[c.raw.i]; return p && p.team ? cssv('--wb-ink') : cssv(col); },
-        pointBorderWidth: function (c) { var p = c.raw && pts[c.raw.i]; return p && p.team ? 2 : 1; }
-      };
-    }
-    var ds = [ptOpt(1), ptOpt(-1),
-      { type: 'line', label: '사자선', data: stepLine('bid'), stepped: true, borderColor: tk('--wb-down', 0.9), borderWidth: 1.5, pointRadius: 0, pointHitRadius: 0, spanGaps: false, order: 3 },
-      { type: 'line', label: '팔자선', data: stepLine('ask'), stepped: true, borderColor: tk('--wb-up', 0.9), borderWidth: 1.5, pointRadius: 0, pointHitRadius: 0, spanGaps: false, order: 3 },
-      { type: 'line', label: '미드', data: stepLine('mid'), stepped: true, borderColor: tk('--wb-ink', 0.85), borderDash: [4, 3], borderWidth: 1, pointRadius: 0, pointHitRadius: 0, spanGaps: false, order: 2 }];
-    if (isNum(h.mp)) ds.push({ type: 'line', label: '전일민평', data: [{ x: x0, y: h.mp }, { x: x1, y: h.mp }], borderColor: tk('--wb-muted', 0.8), borderDash: [2, 4], borderWidth: 1, pointRadius: 0, pointHitRadius: 0, order: 4 });
-    regMode();
-    mk('bd', $('bdChart'), {
-      type: 'scatter', data: { datasets: ds },
-      options: baseOpts({
-        interaction: { mode: 'otcPt', intersect: false },
-        scales: {
-          x: { type: 'linear', min: x0, max: x1, ticks: { stepSize: 1800, callback: function (v) { return hmLab(v); } } },
-          y: { ticks: { callback: function (v) { return fy(v); } } }
-        },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            callbacks: {
-              title: function (items) { var p = items[0] && pts[items[0].raw.i]; return p ? p.t : ''; },
-              label: function (it) {
-                var p = pts[it.raw.i]; if (!p) return '';
-                return sideTxt(p.side) + ' ' + fy(p.y) + ' · ' + p.broker + (p.firm ? ' (' + p.firm + ')' : '') + (p.team ? ' · 팀' : '');
-              },
-              afterBody: function (items) {
-                var s = items[0] && st[items[0].raw.i]; if (!s) return '';
-                return ['사자선 ' + fy(s.bid) + ' · 팔자선 ' + fy(s.ask), '미드 ' + fy(s.mid) + (isNum(s.spr) ? ' · 괴리 ' + fbp(s.spr, 2) + 'bp' : '')];
-              }
-            }
-          }
-        }
-      })
+    // 이벤트 = 금리 있는 호가 하나(points[i] ↔ steps[i] 1:1 · 이상치 제외 = 엔진)
+    var n = pts.length;
+    var marks = [];
+    pts.forEach(function (p, i) { if (p.side === 1 || p.side === -1) marks.push({ x: i, y: p.y, side: p.side, team: !!p.team, r: p.team ? 6.5 : 5.5 }); });
+    var om = outs.map(function (o) {   // 이상치 = 그 시각 위치(직전 이벤트 다음 칸 사이)
+      var slot = -1; for (var i = 0; i < n; i++) { if (pts[i].t <= o.t) slot = i; else break; }
+      return { x: slot + 0.5, y: o.y, side: o.side, slot: slot, o: o };
     });
-    $('bdSprCap').innerHTML = '사자−팔자 괴리(bp)' + help('그 시각 사자선 − 팔자선(bp) · 사자선/팔자선 = 모든 브로커의 마지막 사자/팔자 금리');
-    var spr = st.map(function (s) { return { x: hms(s.t), y: isNum(s.spr) ? s.spr : null }; });
-    if (spr.length && spr[spr.length - 1].y != null) spr.push({ x: x1, y: spr[spr.length - 1].y });
-    mk('bdSpr', $('bdSpr'), {
-      type: 'line', data: { datasets: [{ label: '사자−팔자 괴리(bp)', data: spr, stepped: true, fill: 'origin', borderColor: tk('--wb-legacy-purple'), backgroundColor: tk('--wb-legacy-purple', 0.22), borderWidth: 1.2, pointRadius: 0, spanGaps: false }] },
-      options: baseOpts({
-        interaction: { mode: 'nearest', axis: 'x', intersect: false },
-        scales: { x: { type: 'linear', min: x0, max: x1, ticks: { stepSize: 1800, callback: function (v) { return hmLab(v); } } }, y: { ticks: { maxTicksLimit: 3 } } },
-        plugins: { legend: { display: false }, tooltip: { callbacks: { title: function (it) { return it[0] ? hmLab(it[0].parsed.x) : ''; }, label: function (it) { return '괴리 ' + fbp(it.parsed.y, 2) + 'bp'; } } } }
-      })
-    });
+    var src = {
+      n: n, multiDay: false, day: null, ds: null,
+      hm: pts.map(function (p) { return String(p.t).slice(0, 5); }),
+      bid: st.map(function (s) { return s.bid; }), ask: st.map(function (s) { return s.ask; }),
+      mid: st.map(function (s) { return s.mid; }), spr: st.map(function (s) { return s.spr; }),
+      mp: isNum(h.mp) ? pts.map(function () { return h.mp; }) : null,
+      marks: marks, outs: om,
+      tip: function (i, ctl) {
+        var p = pts[i], s = st[i] || {};
+        var t = '<b>' + esc(p.t) + '</b> · <span class="' + sideCls(p.side) + '">' + sideTxt(p.side) + ' ' + fy(p.y) + '</span> · ' + esc(p.broker) +
+          (p.firm ? ' <span class="wb-muted">' + esc(p.firm) + '</span>' : '') + (p.team ? ' ' + tag('팀', 'team') : '');
+        t += '<br>사자선 <span class="otc-buy">' + fy(s.bid) + '</span> · 팔자선 <span class="otc-sell">' + fy(s.ask) + '</span> · 미드 ' + fy(s.mid) +
+          ' · 사자−팔자 ' + (isNum(s.spr) ? fbp(s.spr, 2) + 'bp' : '–');
+        if (isNum(h.mp)) t += '<br><span class="wb-muted">전일민평 ' + fy(h.mp) + ' · 이벤트 ' + (i + 1) + ' / ' + n + '</span>';
+        if (ctl.showOut) om.forEach(function (m) {
+          if (m.slot === i) t += '<br><span class="wb-muted">× 이상치 ' + esc(m.o.t) + ' ' + sideTxt(m.o.side) + ' ' + fy(m.o.y) + ' · ' + esc(m.o.broker) + ' · 미드 대비 ' + fbp(m.o.vm) + 'bp</span>';
+        });
+        return t;
+      }
+    };
+    $('bdLegend').innerHTML = evLegend('bd', outs.length, '이상치');
+    evChart('bd', host, src, { h: 400, hs: 110 });
   }
   function renderStream(d) {
     var rows = d.stream || [], h = d.head || {};
     var nTeam = rows.filter(function (r) { return r.team; }).length, nDone = rows.filter(function (r) { return r.done; }).length;
-    var html = cardHead('당일 호가 스트림(최신순)', DEF.vsmid + '\n' + DEF.done + '\n배지 복원/교정 = 금리 출처\n' + srcNote(),
+    var html = cardHead('당일 호가 스트림(최신순)', DEF.vsmid + '\n' + DEF.done + '\n배지 복원/교정 = 금리 출처\n' + srcNote() + '\n이상치 배지(흐린 행) = ' + (RU('outlier') || '') + ' · 금리·vs Mid 는 원값',
       n0(rows.length) + '건' + (nTeam ? ' · 팀 ' + n0(nTeam) : '') + (nDone ? ' · 체결 표시 ' + n0(nDone) : ''));
     if (!rows.length) return void ($('bdStream').innerHTML = html + '<div class="otc-card-body"><div class="otc-empty">' + esc(h.date || '') + ' 호가 없음</div></div>');
     html += '<div class="wb-table-wrap otc-scroll otc-scroll--lg"><table class="wb-table otc-t"><thead><tr>' +
       '<th>시각</th><th>방향</th><th class="num">호가</th><th class="num">vs Mid' + help(DEF.vsmid) + '</th><th>브로커</th><th>소속</th><th>원문</th></tr></thead><tbody>';
     rows.forEach(function (r) {
-      html += '<tr class="' + (r.team ? 'is-team ' : '') + 'is-click" data-broker="' + esc(r.broker) + '">' +
+      html += '<tr class="' + (r.team ? 'is-team ' : '') + (r.out ? 'is-out ' : '') + 'is-click" data-broker="' + esc(r.broker) + '">' +
         '<td class="mono">' + esc(r.t) + '</td><td>' + sideSpan(r.side, r.st) + '</td>' +
-        '<td class="num">' + fy(r.y) + (r.done ? tag('✓ 체결', 'done') : '') + srcTag(r) +
+        '<td class="num">' + fy(r.y) + (r.done ? tag('✓ 체결', 'done') : '') + srcTag(r) + outTag(r) +
         (isNum(r.size) ? '<span class="otc-sub">' + n0(r.size) + '억</span>' : '') + '</td>' +
         bpTd(r.vs_mid, 1) + '<td>' + esc(r.broker) + (r.team ? tag('팀', 'team') : '') + '</td><td class="wb-muted">' + esc(r.firm || '') + '</td>' +
         '<td class="raw">' + esc(r.content || '') + '</td></tr>';
@@ -523,12 +764,12 @@
     var dl = d.daily || [], hl = d.hourly || [];
     $('brDailyMeta').textContent = (k.period_label || '') + ' · 메시지';
     mk('brD', $('brDaily'), {
-      type: 'bar', data: { labels: dl.map(function (x) { return mmdd(x.d); }), datasets: [{ label: '메시지', data: dl.map(function (x) { return x.n; }), backgroundColor: tk('--wb-series-1', 0.75), borderWidth: 0 }] },
+      type: 'bar', data: { labels: dl.map(function (x) { return mmdd(x.d); }), datasets: [{ label: '메시지', data: dl.map(function (x) { return x.n; }), backgroundColor: tk('--wb-series-1', 0.88), borderWidth: 0 }] },
       options: baseOpts({ scales: { x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true } }, y: { beginAtZero: true, ticks: { precision: 0 } } },
         plugins: { legend: { display: false }, tooltip: { callbacks: { title: function (it) { return dl[it[0].dataIndex] ? dl[it[0].dataIndex].d : ''; } } } } })
     });
     mk('brH', $('brHourly'), {
-      type: 'bar', data: { labels: hl.map(function (x) { return x.h + '시'; }), datasets: [{ label: '메시지', data: hl.map(function (x) { return x.n; }), backgroundColor: tk('--wb-series-4', 0.75), borderWidth: 0 }] },
+      type: 'bar', data: { labels: hl.map(function (x) { return x.h + '시'; }), datasets: [{ label: '메시지', data: hl.map(function (x) { return x.n; }), backgroundColor: tk('--wb-series-4', 0.88), borderWidth: 0 }] },
       options: baseOpts({ scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { precision: 0 } } } })
     });
     renderCover(d);
@@ -557,16 +798,16 @@
     var multi = !!(k.is_team && (k.members || []).length > 1);
     var f = (S.broker.filter || '').trim();
     var rows = f ? all.filter(function (r) { return String(r.alias || '').indexOf(f) >= 0; }) : all;
-    var html = cardHead('최근 호가', 'vsD−1 = ' + DEF.vsmp + '\n' + DEF.done + '\n최근 ' + all.length + '건까지(엔진 상한)',
+    var html = cardHead('최근 호가', 'vsD−1 = ' + DEF.vsmp + '\n' + DEF.done + '\n최근 ' + all.length + '건까지(엔진 상한)\n이상치 배지(흐린 행) = ' + (RU('outlier') || ''),
       (f ? n0(rows.length) + ' / ' : '') + n0(all.length) + '건') +
       '<div class="otc-toolbar"><label class="wb-field"><span class="wb-label">종목 필터</span><input class="wb-input" id="brFilter" value="' + esc(f) + '" placeholder="예: 26-3" autocomplete="off"></label></div>';
     if (!rows.length) { $('brRecent').innerHTML = html + '<div class="otc-card-body"><div class="otc-empty">' + (f ? '필터에 맞는 호가 없음' : '기간 안 호가 없음') + '</div></div>'; bindRecentFilter(); return; }
     html += '<div class="wb-table-wrap otc-scroll otc-scroll--lg"><table class="wb-table otc-t"><thead><tr><th>시각</th>' + (multi ? '<th>브로커</th>' : '') +
       '<th>종목</th><th>방향</th><th class="num">호가</th><th class="num">vsD−1' + help(DEF.vsmp) + '</th><th>원문</th></tr></thead><tbody>';
     rows.forEach(function (r) {
-      html += '<tr class="is-click" data-alias="' + esc(r.alias) + '" data-date="' + esc(r.date) + '"><td class="mono">' + esc(r.t) + '</td>' + (multi ? '<td>' + esc(r.broker) + '</td>' : '') +
+      html += '<tr class="is-click' + (r.out ? ' is-out' : '') + '" data-alias="' + esc(r.alias) + '" data-date="' + esc(r.date) + '"><td class="mono">' + esc(r.t) + '</td>' + (multi ? '<td>' + esc(r.broker) + '</td>' : '') +
         '<td class="mono">' + esc(r.alias || '–') + '</td><td>' + sideSpan(r.side, r.st) + '</td>' +
-        '<td class="num">' + fy(r.y) + (r.done ? tag('✓ 체결', 'done') : '') + srcTag(r) + '</td>' +
+        '<td class="num">' + fy(r.y) + (r.done ? tag('✓ 체결', 'done') : '') + srcTag(r) + outTag(r) + '</td>' +
         bpTd(r.dev_mp, 1) + '<td class="raw">' + esc(r.content || '') + '</td></tr>';
     });
     $('brRecent').innerHTML = html + '</tbody></table></div>';
@@ -764,9 +1005,9 @@
     if (mix.length) {
       mk('tmMix', $('tmMixC'), {
         type: 'bar', data: { labels: mix.map(function (r) { return r.bucket; }), datasets: [
-          { label: '사자', data: mix.map(function (r) { return r.buy; }), backgroundColor: tk('--wb-down', 0.75), stack: 'q', order: 2 },
-          { label: '팔자', data: mix.map(function (r) { return r.sell; }), backgroundColor: tk('--wb-up', 0.75), stack: 'q', order: 2 },
-          { label: '체결 표시', type: 'line', data: mix.map(function (r) { return r.done; }), borderColor: tk('--wb-ink'), backgroundColor: tk('--wb-ink'), pointRadius: 3, borderWidth: 1.5, order: 1 }] },
+          { label: '사자', data: mix.map(function (r) { return r.buy; }), backgroundColor: tk('--wb-down', 0.88), stack: 'q', order: 2 },
+          { label: '팔자', data: mix.map(function (r) { return r.sell; }), backgroundColor: tk('--wb-up', 0.88), stack: 'q', order: 2 },
+          { label: '체결 표시', type: 'line', data: mix.map(function (r) { return r.done; }), borderColor: tk('--wb-ink'), backgroundColor: tk('--wb-ink'), pointRadius: 3, pointHoverRadius: 5, borderWidth: 2.2, order: 1 }] },
         options: baseOpts({ scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } },
           plugins: { legend: { display: true, position: 'top', align: 'end' }, tooltip: { mode: 'index', intersect: false } } })
       });
@@ -786,7 +1027,7 @@
       n0(bonds.length) + '종목 × ' + n0(dates.length) + '일') +
       '<div class="otc-card-body" style="padding-bottom:4px"><div class="otc-legend-row"><span><i style="background:var(--wb-down)"></i>사자 우위</span><span><i style="background:var(--wb-up)"></i>팔자 우위</span><span><i style="background:var(--wb-mark)"></i>같음</span><span>진하기 = 건수</span><span>● = 체결 표시</span></div></div>';
     if (!bonds.length) { el.innerHTML = html + '<div class="otc-card-body"><div class="otc-empty">기간 안 팀 호가 없음</div></div></section>'; kill('tmPos'); return; }
-    html += '<div class="otc-map"><div class="otc-map-lab" id="tmMapLab"></div><div class="otc-map-canvas" id="tmMapScroll"><canvas id="tmMapC"></canvas></div></div></section>';
+    html += '<div class="otc-map"><div class="otc-map-lab" id="tmMapLab"></div><div class="otc-map-canvas" id="tmMapScroll"><div class="otc-map-inner"><canvas id="tmMapC"></canvas><div class="otc-map-hl" id="tmMapHR" hidden></div><div class="otc-map-hl" id="tmMapHC" hidden></div></div></div></div></section>';
     html += '<section class="wb-card otc-mt">' + cardHead('추정 누적(체결 표시 기준 · 호가≠체결)', '종목별 체결 표시의 누적 — 기간 안 첫 체결일부터 0 에서 시작\n액면 = 적힌 것만(안 적힌 체결은 0 으로 더함 → 건수 선과 같이 볼 것)\n+ = 사자(매수) 우위 · − = 팔자(매도) 우위\n실제 보유·포지션이 아님(호가방 밖 거래·미표시 체결 모름)') +
       '<div class="otc-toolbar"><label class="wb-field"><span class="wb-label">종목</span><select class="wb-input" id="tmPosSel">' +
       posKeys.map(function (k) { return '<option value="' + esc(k) + '">' + esc(k) + '</option>'; }).join('') + '</select></label><span class="otc-cap" id="tmPosCap"></span></div>' +
@@ -869,13 +1110,14 @@
       var g = MAP.geo; if (!g) return;
       var rc = cv.getBoundingClientRect(), x = ev.clientX - rc.left, y = ev.clientY - rc.top;
       var ci = Math.floor(x / g.CW), r = Math.floor((y - g.HEAD) / g.RH);
-      if (y < g.HEAD || r < 0 || r >= g.bonds.length || ci < 0 || ci >= g.dates.length) { hideHov(); return; }
+      if (y < g.HEAD || r < 0 || r >= g.bonds.length || ci < 0 || ci >= g.dates.length) { mapHl(null); hideHov(); return; }
+      mapHl(r, ci);
       var b = g.bonds[r], dt = g.dates[ci], c = g.grid[r + ':' + ci];
       var h = '<b>' + esc(b.alias) + '</b>' + (b.nick ? ' ' + esc(b.nick) : '') + ' · ' + esc(dt) + '<br>';
       h += c ? '호가 사자 <span class="otc-buy">' + n0(c.b) + '</span> · 팔자 <span class="otc-sell">' + n0(c.s) + '</span><br>체결 표시 사 ' + n0(c.db) + ' · 팔 ' + n0(c.ds) + ' · 순체결 액면 ' + netSide(c.szn) + (c.szn ? '억' : '') : '<span class="wb-muted">팀 호가 없음</span>';
       showHov(h, ev.clientX, ev.clientY);
     };
-    cv.onmouseleave = hideHov;
+    cv.onmouseleave = function () { mapHl(null); hideHov(); };
     cv.onclick = function (ev) {
       var g = MAP.geo; if (!g) return;
       var rc = cv.getBoundingClientRect(), x = ev.clientX - rc.left, y = ev.clientY - rc.top;
@@ -885,14 +1127,23 @@
     };
     scr.scrollLeft = scr.scrollWidth;   // 최근 날짜가 보이게
   }
+  function mapHl(r, ci) {   // 호버 행·열 띠 + 라벨 강조(표현만)
+    var g = MAP.geo, hr = $('tmMapHR'), hc = $('tmMapHC'), lab = $('tmMapLab'); if (!g || !hr || !hc) return;
+    var prev = lab && lab.querySelector('.is-hl'); if (prev) prev.classList.remove('is-hl');
+    if (r == null) { hr.hidden = true; hc.hidden = true; return; }
+    var W = g.CW * g.dates.length, H = g.HEAD + g.RH * g.bonds.length;
+    hr.style.cssText = 'left:0;top:' + (g.HEAD + r * g.RH) + 'px;width:' + W + 'px;height:' + g.RH + 'px'; hr.hidden = false;
+    hc.style.cssText = 'left:' + (ci * g.CW) + 'px;top:0;width:' + g.CW + 'px;height:' + H + 'px'; hc.hidden = false;
+    var li = lab && lab.children[r + 1]; if (li) li.classList.add('is-hl');
+  }
   function drawPos(alias) {
     var ser = (MAP.d && MAP.d.pos && MAP.d.pos[alias]) || [];
     var last = ser[ser.length - 1];
     $('tmPosCap').innerHTML = last ? '마지막 ' + esc(last[0]) + ' · 누적 액면 ' + netSide(last[1]) + (last[1] ? '억' : '') + ' · 누적 건수 ' + fbp(last[2], 0) : '';
     mk('tmPos', $('tmPosC'), {
       type: 'line', data: { labels: ser.map(function (r) { return mmdd(r[0]); }), datasets: [
-        { label: '누적 순체결 액면(억)', data: ser.map(function (r) { return r[1]; }), stepped: true, borderColor: tk('--wb-series-1'), backgroundColor: tk('--wb-series-1', 0.12), fill: 'origin', borderWidth: 1.5, pointRadius: 0, yAxisID: 'y' },
-        { label: '누적 순체결 건수', data: ser.map(function (r) { return r[2]; }), stepped: true, borderColor: tk('--wb-series-3'), borderDash: [4, 3], borderWidth: 1.5, pointRadius: 0, yAxisID: 'y1' }] },
+        { label: '누적 순체결 액면(억)', data: ser.map(function (r) { return r[1]; }), stepped: true, borderColor: tk('--wb-series-1'), backgroundColor: tk('--wb-series-1', 0.12), fill: 'origin', borderWidth: 2.2, pointRadius: 0, pointHoverRadius: 4, yAxisID: 'y' },
+        { label: '누적 순체결 건수', data: ser.map(function (r) { return r[2]; }), stepped: true, borderColor: tk('--wb-series-3'), borderDash: [4, 3], borderWidth: 2.2, pointRadius: 0, pointHoverRadius: 4, yAxisID: 'y1' }] },
       options: baseOpts({ interaction: { mode: 'index', intersect: false },
         scales: { x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true } }, y: { position: 'left', title: { display: true, text: '억' } }, y1: { position: 'right', grid: { display: false }, title: { display: true, text: '건' }, ticks: { precision: 0 } } },
         plugins: { legend: { display: true, position: 'top', align: 'end' }, tooltip: { callbacks: { title: function (it) { return it[0] && ser[it[0].dataIndex] ? ser[it[0].dataIndex][0] : ''; } } } } })
@@ -988,9 +1239,9 @@
     if (tod.length) {
       mk('tmTod', $('tmTodC'), {
         type: 'bar', data: { labels: tod.map(function (r) { return r.lab; }), datasets: [
-          { label: '사자', data: tod.map(function (r) { return r.buy; }), backgroundColor: tk('--wb-down', 0.75), stack: 'q', order: 2 },
-          { label: '팔자', data: tod.map(function (r) { return r.sell; }), backgroundColor: tk('--wb-up', 0.75), stack: 'q', order: 2 },
-          { label: '체결 표시', type: 'line', data: tod.map(function (r) { return r.done; }), borderColor: tk('--wb-ink'), backgroundColor: tk('--wb-ink'), pointRadius: 2, borderWidth: 1.5, order: 1 }] },
+          { label: '사자', data: tod.map(function (r) { return r.buy; }), backgroundColor: tk('--wb-down', 0.88), stack: 'q', order: 2 },
+          { label: '팔자', data: tod.map(function (r) { return r.sell; }), backgroundColor: tk('--wb-up', 0.88), stack: 'q', order: 2 },
+          { label: '체결 표시', type: 'line', data: tod.map(function (r) { return r.done; }), borderColor: tk('--wb-ink'), backgroundColor: tk('--wb-ink'), pointRadius: 2, pointHoverRadius: 5, borderWidth: 2.2, order: 1 }] },
         options: baseOpts({ scales: { x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true } }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0 } } },
           plugins: { legend: { display: true, position: 'top', align: 'end' }, tooltip: { mode: 'index', intersect: false } } })
       });
@@ -999,7 +1250,7 @@
 
   // ── ④ 종목 시계열 ──
   function renderTBond(d) {
-    var el = $('tmSecBond'), h = d.head || {}, pts = d.points || [], daily = d.daily || [];
+    var el = $('tmSecBond'), h = d.head || {}, daily = d.daily || [], ev = d.events || [];
     var opts = [], seen = {};
     function addOpt(a, lab) { if (a && !seen[a]) { seen[a] = 1; opts.push('<option value="' + esc(a) + '">' + esc(lab || '') + '</option>'); } }
     var sum = S.team.d.sum && S.team.d.sum.data;
@@ -1010,91 +1261,83 @@
     if (h.bucket) chips.push(chip(esc(h.bucket)));
     if (isNum(h.rem)) chips.push(chip('잔존 ' + esc(h.rem) + '년'));
     if (h.basket) chips.push(chip(esc(h.basket), 'otc-chip-basket'));
-    var html = '<section class="wb-card">' + cardHead('종목 시계열', '가로 = 기간 전체 시각(장 시간 08~18시만 · 하루 = 한 칸 · 세로 선 = 날짜 경계)\n점 = 팀 호가(▲ 사자 파랑 · ▼ 팔자 빨강 · 채운 큰 점 = 체결 표시 · 빈 점 = 호가만)\n회색 계단 = 일별 전일민평 · 짧은 가로 막대 = 그날 종가 미드(전 브로커 마지막 사자·팔자 평균)\n옅은 띠 = 그날 전 브로커(팀 포함) 사자 범위(파랑) · 팔자 범위(빨강)\n' + NOTE.obs) +
+    var nOut = 0; ev.forEach(function (e) { if (e.qs != null && e.qo) nOut++; });
+    var nDays = 0; ev.forEach(function (e, i) { if (i === 0 || e.day_start) nDays++; });
+    var html = '<section class="wb-card">' + cardHead('종목 시계열',
+      '가로 = 호가 이벤트 순서(같은 간격 · 실시각 아님) — 이벤트 = 시장 상태(사자선·팔자선)가 바뀐 호가 ∪ 팀 호가(엔진 events · 전 브로커 · 이상치 제외 · 날마다 새로 시작)\n' +
+      DEF.lines + '\n세로 선 = 날짜 경계(선 끊김) · 회색 점선 = 그날 전일민평\n▲▼ = 팀 호가(채운 큰 마커 = 체결 표시 · 속 빈 = 호가만)\n아래 띠 = 전체 기간 축약 — 드래그로 보여 줄 구간 선택(값은 그대로 · 범위만)\n클릭 = 그날 종목 분석\n' + NOTE.obs,
+      evLegend('tb', nOut, '팀 호가 이상치')) +
       '<div class="otc-toolbar"><label class="wb-field"><span class="wb-label">종목</span><input class="wb-input" id="tmBondIn" list="otcTmBonds" value="' + esc(S.team.alias) + '" autocomplete="off"></label>' +
       '<button type="button" class="wb-btn wb-btn--sm" id="tmBondGo">보기</button><datalist id="otcTmBonds">' + opts.join('') + '</datalist>' +
       '<span class="otc-sum"><b>' + esc(h.alias || '') + '</b> · 팀 호가 ' + n0(h.n) + '건 · 체결 표시 ' + n0(h.n_done) + '건 · ' + esc((h.start || '') + ' ~ ' + (h.end || '')) + ' ' + chips.join(' ') +
       ' · <a href="' + esc(hashOf('bond', { alias: h.alias || S.team.alias, date: h.end || '' })) + '">종목 분석 ›</a></span></div>' +
-      '<div class="otc-card-body">' + (pts.length || daily.length ? '<div class="otc-chart otc-chart--lg"><canvas id="tmBondC"></canvas></div>' : '<div class="otc-empty">기간 안 이 종목 팀 호가·시장 호가 없음</div>') + '</div></section>';
+      (ev.length ? '<div class="otc-toolbar"><div class="wb-field"><span class="wb-label">보여 줄 구간</span><div class="wb-seg" id="tmEvWin" role="group" aria-label="보여 줄 구간">' +
+        [[1, '1일'], [5, '5일'], [20, '20일'], [0, '전체']].filter(function (o) { return o[0] === 0 || o[0] < nDays; }).map(function (o) { return '<button type="button" data-evwin="' + o[0] + '">' + o[1] + '</button>'; }).join('') +
+        '</div></div><span class="otc-cap" id="tmEvStat"></span></div>' : '') +
+      '<div class="otc-card-body">' + (ev.length ? '<div id="tmEv"></div>' : '<div class="otc-empty">기간 안 이 종목 시장 호가 없음</div>') + '</div>';
+    if (daily.length) {
+      html += '<details class="otc-details"><summary>일별 시장 요약 ' + n0(daily.length) + '일' + help('전 브로커(팀 포함) 그날 호가 기준 · 엔진 daily 그대로 — 종가 미드 = 그날 마지막 사자·팔자 평균 · 사자/팔자 범위 = 그날 호가 최저~최고') + '</summary>' +
+        '<div class="wb-table-wrap otc-scroll otc-scroll--sm"><table class="wb-table otc-t"><thead><tr><th>날짜</th><th class="num">전일민평</th><th class="num">종가 미드</th><th class="num">사자 범위</th><th class="num">팔자 범위</th><th class="num">시장 호가</th><th class="num">팀 호가</th></tr></thead><tbody>' +
+        daily.slice().reverse().map(function (r) {
+          return '<tr class="is-click" data-alias="' + esc(h.alias || S.team.alias) + '" data-date="' + esc(r.d) + '"><td class="mono">' + esc(r.d) + '</td><td class="num">' + fy(r.mp) + '</td><td class="num">' + fy(r.close_mid) + '</td>' +
+            '<td class="num otc-buy">' + fy(r.bid_lo) + '~' + fy(r.bid_hi) + '</td><td class="num otc-sell">' + fy(r.ask_lo) + '~' + fy(r.ask_hi) + '</td><td class="num">' + n0(r.n_mkt) + '</td><td class="num">' + n0(r.n_team) + '</td></tr>';
+        }).join('') + '</tbody></table></div></details>';
+    }
+    html += '</section>';
     var eps = d.episodes || [], dn = d.done || [];
     html += '<div class="otc-grid"><section class="wb-card">' + cardHead('이 종목 에피소드', DEF.conc, n0(eps.length) + '건') + '<div id="tmBEpTbl">' + epRows('bep', eps, { noAlias: true }) + '</div></section>' +
       '<section class="wb-card">' + cardHead('이 종목 체결 표시', DEF.done, n0(dn.length) + '건') + '<div id="tmBDoneTbl">' + doneRows('bdone', dn) + '</div></section></div>';
+    killEv('tb');
     el.innerHTML = html;
     var inp = $('tmBondIn');
     function goBond() { var a = inp.value.trim(); if (!a) return; S.team.alias = a; S.tbl.bep = null; S.tbl.bdone = null; teamStamp(); loadSec('bond', false); }
     $('tmBondGo').addEventListener('click', goBond);
     inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') goBond(); });
-    if (pts.length || daily.length) drawTBond(d); else kill('tmBond');
+    if (ev.length) drawTBond(d);
   }
   function drawTBond(d) {
-    var pts = d.points || [], daily = d.daily || [];
-    var days = {}; daily.forEach(function (r) { days[r.d] = 1; }); pts.forEach(function (p) { days[p.d] = 1; });
-    var dl = Object.keys(days).sort(), di = {}; dl.forEach(function (x, i) { di[x] = i; });
-    var T0 = 8 * 3600, TS = 10 * 3600;
-    function xOf(iso) { var dd = iso.slice(0, 10), s = hms(iso.slice(11, 19)); var f = Math.max(0, Math.min(1, (s - T0) / TS)); return di[dd] + 0.04 + f * 0.92; }
-    var buy = [], sell = [];
-    pts.forEach(function (p, i) { if (!isNum(p.y)) return; var o = { x: xOf(p.t), y: p.y, i: i }; if (p.side === 1) buy.push(o); else if (p.side === -1) sell.push(o); });
-    var mp = [], cm = [];
-    daily.forEach(function (r) {
-      var i = di[r.d];
-      if (isNum(r.mp)) { mp.push({ x: i, y: r.mp }); mp.push({ x: i + 1, y: r.mp }); mp.push({ x: i + 1, y: null }); }
-      if (isNum(r.close_mid)) cm.push({ x: i + 0.97, y: r.close_mid, r: r });
+    var ev = d.events || [], n = ev.length, alias = (d.head && d.head.alias) || S.team.alias;
+    var marks = [], outs = [];
+    ev.forEach(function (e, i) {
+      if (e.qs !== 1 && e.qs !== -1) return;
+      var m = { x: i, y: e.qy, side: e.qs, team: true, hollow: !e.qd, r: e.qd ? 7 : 5.2 };
+      if (e.qo) outs.push(m); else marks.push(m);
     });
-    function ptDs(side) {
-      var col = side === 1 ? '--wb-down' : '--wb-up';
-      return { type: 'scatter', otcPts: true, label: side === 1 ? '팀 사자' : '팀 팔자', data: side === 1 ? buy : sell, order: 1,
-        pointStyle: 'triangle', pointRotation: side === 1 ? 0 : 180,
-        pointRadius: function (c) { var p = c.raw && pts[c.raw.i]; return p && p.done ? 6 : 3.5; },
-        pointHoverRadius: function (c) { var p = c.raw && pts[c.raw.i]; return p && p.done ? 8 : 6; },
-        pointBackgroundColor: function (c) { var p = c.raw && pts[c.raw.i]; return p && p.done ? cssv(col) : 'transparent'; },
-        pointBorderColor: tk(col), pointBorderWidth: function (c) { var p = c.raw && pts[c.raw.i]; return p && p.done ? 1.5 : 1.2; } };
-    }
-    var bandPlugin = {
-      id: 'otcBand',
-      beforeDatasetsDraw: function (chart) {
-        var xa = chart.scales.x, ya = chart.scales.y, ctx = chart.ctx, ca = chart.chartArea;
-        ctx.save(); ctx.beginPath(); ctx.rect(ca.left, ca.top, ca.right - ca.left, ca.bottom - ca.top); ctx.clip();
-        daily.forEach(function (r) {
-          var i = di[r.d], xl = xa.getPixelForValue(i), xr = xa.getPixelForValue(i + 1);
-          if (isNum(r.bid_lo) && isNum(r.bid_hi)) { ctx.fillStyle = WBChart.alpha('--wb-down', 0.08); var y1 = ya.getPixelForValue(r.bid_hi), y2 = ya.getPixelForValue(r.bid_lo); ctx.fillRect(xl, Math.min(y1, y2), xr - xl, Math.max(1, Math.abs(y2 - y1))); }
-          if (isNum(r.ask_lo) && isNum(r.ask_hi)) { ctx.fillStyle = WBChart.alpha('--wb-up', 0.08); var y3 = ya.getPixelForValue(r.ask_hi), y4 = ya.getPixelForValue(r.ask_lo); ctx.fillRect(xl, Math.min(y3, y4), xr - xl, Math.max(1, Math.abs(y4 - y3))); }
-        });
-        ctx.fillStyle = cssv('--wb-rule');
-        for (var k = 1; k < dl.length; k++) { var xx = Math.round(xa.getPixelForValue(k)); ctx.fillRect(xx, ca.top, 1, ca.bottom - ca.top); }
-        ctx.restore();
+    var pick = function (k) { return ev.map(function (e) { return e[k]; }); };
+    var src = {
+      n: n, multiDay: true, day: pick('d'), ds: ev.map(function (e, i) { return i > 0 && !!e.day_start; }),
+      hm: ev.map(function (e) { return String(e.t).slice(11, 16); }),
+      bid: pick('bid'), ask: pick('ask'), mid: pick('mid'), spr: pick('spr'), mp: pick('mp'),
+      marks: marks, outs: outs,
+      tip: function (i, ctl) {
+        var e = ev[i];
+        var t = '<b>' + esc(mmdd(e.d) + ' ' + String(e.t).slice(11, 19)) + '</b>';
+        if (e.qs === 1 || e.qs === -1) {
+          if (e.qo && !ctl.showOut) t += ' · <span class="wb-muted">팀 호가 이상치(숨김)</span>';
+          else t += ' · 팀 <span class="' + sideCls(e.qs) + '">' + sideTxt(e.qs) + ' ' + fy(e.qy) + '</span> · ' + esc(e.qb || '') + ' · ' +
+            (e.qo ? tag('이상치', 'out') : e.qd ? tag('✓ 체결 표시', 'done') : '<span class="wb-muted">호가만</span>');
+        } else t += ' · <span class="wb-muted">시장 상태 변경</span>';
+        t += '<br>사자선 <span class="otc-buy">' + fy(e.bid) + '</span> · 팔자선 <span class="otc-sell">' + fy(e.ask) + '</span> · 미드 ' + fy(e.mid) +
+          ' · 사자−팔자 ' + (isNum(e.spr) ? fbp(e.spr, 2) + 'bp' : '–');
+        t += '<br><span class="wb-muted">전일민평 ' + fy(e.mp) + ' · 이벤트 ' + n0(i + 1) + ' / ' + n0(n) + ' · 클릭 = 그날 종목 분석</span>';
+        return t;
       }
     };
-    var step = Math.max(1, Math.ceil(dl.length / 14));
-    // y 범위 = 데이터셋(팀 호가 · 민평 · 종가 미드)만으로 자동 — 밴드(플러그인)의 먼 꼬리는 잘림 · 잘린 값은 툴팁에 그대로
-    regMode();
-    mk('tmBond', $('tmBondC'), {
-      type: 'scatter', plugins: [bandPlugin],
-      data: { datasets: [ptDs(1), ptDs(-1),
-        { type: 'line', label: '전일민평', data: mp, borderColor: tk('--wb-muted', 0.9), borderDash: [3, 3], borderWidth: 1.2, pointRadius: 0, pointHitRadius: 0, spanGaps: false, order: 3 },
-        { type: 'scatter', label: '종가 미드', data: cm, pointStyle: 'line', pointRadius: 7, pointBorderWidth: 2, pointBorderColor: tk('--wb-ink'), pointHitRadius: 0, order: 2 }] },
-      options: baseOpts({
-        interaction: { mode: 'otcPt', intersect: false },
-        scales: {
-          x: { type: 'linear', min: 0, max: dl.length, grid: { display: false },
-            afterBuildTicks: function (ax) { var t = []; for (var i = 0; i < dl.length; i += step) t.push({ value: i + 0.5 }); ax.ticks = t; },
-            ticks: { autoSkip: false, maxRotation: 0, callback: function (v) { return mmdd(dl[Math.floor(v)] || ''); } } },
-          y: { grace: '4%', ticks: { callback: function (v) { return fy(v); } } }
-        },
-        plugins: { legend: { display: false }, tooltip: { callbacks: {
-          title: function (it) { var p = it[0] && pts[it[0].raw.i]; return p ? p.t.replace('T', ' ') : ''; },
-          label: function (it) {
-            var p = pts[it.raw.i]; if (!p) return '';
-            return [sideTxt(p.side) + ' ' + fy(p.y) + ' · ' + p.broker + (p.done ? ' · ✓ 체결 표시' : '') + (isNum(p.size) ? ' · ' + p.size + '억' : ''),
-              'vs 타사 ' + fbp(p.vx) + ' · vs Mid ' + fbp(p.vs_mid) + ' · vs 민평 ' + fbp(p.dev_mp) + 'bp',
-              '그 시각 타사 사자 ' + fy(p.bid_x) + ' · 팔자 ' + fy(p.ask_x)];
-          },
-          afterBody: function (it) {
-            var p = it[0] && pts[it[0].raw.i]; if (!p) return '';
-            var r = daily.filter(function (x) { return x.d === p.d; })[0]; if (!r) return '';
-            return ['그날 전일민평 ' + fy(r.mp) + ' · 종가 미드 ' + fy(r.close_mid), '전 브로커 사자 ' + fy(r.bid_lo) + '~' + fy(r.bid_hi) + ' · 팔자 ' + fy(r.ask_lo) + '~' + fy(r.ask_hi), '시장 호가 ' + n0(r.n_mkt) + '건(팀 ' + n0(r.n_team) + ')'];
-          } } } }
-      })
-    });
+    var nDays = 1; src.ds.forEach(function (x) { if (x) nDays++; });
+    var kDef = S.team.evWin != null ? S.team.evWin : (nDays > 5 ? 5 : 0);
+    function stat(ctl) {
+      var a = ev[ctl.lo], b = ev[ctl.hi];
+      $('tmEvStat').textContent = mmdd(a.d) + ' ' + String(a.t).slice(11, 16) + ' ~ ' + mmdd(b.d) + ' ' + String(b.t).slice(11, 16) +
+        ' · 이벤트 ' + n0(ctl.hi - ctl.lo + 1) + ' / ' + n0(n) + ' · 전체 ' + n0(nDays) + '일';
+      var k = S.team.evWin;
+      Array.prototype.forEach.call(($('tmEvWin') || {}).children || [], function (bt) {
+        var kk = +bt.getAttribute('data-evwin');
+        bt.classList.toggle('is-active', k != null && kk === k && ctl.hi === n - 1 && ctl.lo === (kk ? ctl.dayLo(kk) : 0));
+      });
+    }
+    var ctl = evChart('tb', $('tmEv'), src, { h: 400, hs: 100, nav: true, win: [0, n - 1], onWindow: stat,
+      onClick: function (i) { go('bond', { alias: alias, date: ev[i].d }); } });
+    if (ctl) { S.team.evWin = kDef; ctl.setWindow(kDef ? ctl.dayLo(kDef) : 0, n - 1); }
   }
 
   // ── ⑤ 일봉 ──
@@ -1127,8 +1370,8 @@
     function bars(id, key, a, b) {
       mk(key, $(id), {
         type: 'bar', data: { labels: labels, datasets: [
-          { label: '사자', data: asc.map(function (r) { return r[a]; }), backgroundColor: tk('--wb-down', 0.75), stack: 's' },
-          { label: '팔자', data: asc.map(function (r) { return r[b]; }), backgroundColor: tk('--wb-up', 0.75), stack: 's' }] },
+          { label: '사자', data: asc.map(function (r) { return r[a]; }), backgroundColor: tk('--wb-down', 0.88), stack: 's' },
+          { label: '팔자', data: asc.map(function (r) { return r[b]; }), backgroundColor: tk('--wb-up', 0.88), stack: 's' }] },
         options: baseOpts({ scales: { x: { stacked: true, grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true } }, y: { stacked: true, beginAtZero: true, ticks: { precision: 0, maxTicksLimit: 4 } } },
           plugins: { legend: { display: false }, tooltip: { mode: 'index', intersect: false, callbacks: { title: function (it) { return it[0] ? lab(asc[it[0].dataIndex]) : ''; } } } } })
       });
@@ -1184,7 +1427,15 @@
     $('vTeam').addEventListener('input', tblFilter);
     $('vTeam').addEventListener('change', tblFilter);
     window.addEventListener('hashchange', route);
-    doc.addEventListener('wb-themechange', function () { if (S.view === 'team' && S.team.sec === 'map') drawMap(); });
+    doc.addEventListener('click', function (e) {
+      var ob = e.target.closest && e.target.closest('[data-evout]');
+      if (ob) { var c = S.ev[ob.getAttribute('data-evout')]; if (!c) return; var on = ob.getAttribute('aria-pressed') !== 'true';
+        c.setOut(on); ob.setAttribute('aria-pressed', on ? 'true' : 'false'); ob.classList.toggle('is-active', on);
+        ob.textContent = ob.textContent.replace(on ? '보기' : '숨기기', on ? '숨기기' : '보기'); return; }
+      var wb = e.target.closest && e.target.closest('[data-evwin]');
+      if (wb) { var t = S.ev.tb; if (!t) return; var k = +wb.getAttribute('data-evwin'); S.team.evWin = k; t.setWindow(k ? t.dayLo(k) : 0, t.src.n - 1); }
+    });
+    doc.addEventListener('wb-themechange', function () { if (S.view === 'team' && S.team.sec === 'map') drawMap(); Object.keys(S.ev).forEach(function (k) { S.ev[k].redraw(); }); });
     var rt = null;
     window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { if (S.view === 'team' && S.team.sec === 'map') drawMap(); }, 200); }, { passive: true });
   }

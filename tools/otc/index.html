@@ -64,6 +64,27 @@
     .otc-tag--team { color: var(--wb-accent); border-color: color-mix(in srgb, var(--wb-accent) 50%, transparent); }
     .otc-tag--done { color: var(--wb-open); border-color: color-mix(in srgb, var(--wb-open) 45%, transparent); }
     .otc-tag--rst { color: var(--wb-warn); border-color: color-mix(in srgb, var(--wb-warn) 45%, transparent); }
+    .otc-tag--out { color: var(--wb-muted); border-style: dashed; }
+    .otc-chip-out { color: var(--wb-muted); border-style: dashed; }
+    .otc-t tbody tr.is-out td { color: var(--wb-faint); }
+    .otc-t tbody tr.is-out td .otc-buy, .otc-t tbody tr.is-out td .otc-sell, .otc-t tbody tr.is-out td.wb-up, .otc-t tbody tr.is-out td.wb-down { opacity: .55; }
+    /* 이벤트 축 타임라인 */
+    .otc-ev-box { position: relative; }
+    .otc-ev-box > canvas.otc-ev-ov { position: absolute; left: 0; top: 0; pointer-events: none; }
+    .otc-ev-nav { height: 46px; margin-top: 8px; border: 1px solid var(--wb-rule); border-radius: var(--wb-r-ctl); overflow: hidden; }
+    .otc-ev-nav > canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
+    .otc-leg { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 11px; color: var(--wb-muted); }
+    .otc-leg > span { display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+    .otc-leg b { font-size: 11px; line-height: 1; }
+    .otc-leg i.ln { display: inline-block; width: 18px; height: 0; border-top: 2px solid; }
+    .otc-leg i.ln.dash { border-top-style: dashed; border-top-width: 2px; }
+    .otc-leg i.ln.dot { border-top-style: dotted; border-top-width: 2px; }
+    .otc-leg i.blk { display: inline-block; width: 14px; height: 9px; border-radius: 2px; background: color-mix(in srgb, var(--wb-legacy-purple) 45%, transparent); border-top: 1.5px solid var(--wb-legacy-purple); }
+    .otc-outbtn { height: 22px; }
+    .otc-map-inner { position: relative; width: max-content; }
+    .otc-map-hl { position: absolute; pointer-events: none; background: color-mix(in srgb, var(--wb-ink) 9%, transparent); outline: 1px solid color-mix(in srgb, var(--wb-mark) 35%, transparent); }
+    .otc-map-hl[hidden] { display: none; }
+    .otc-map-lab > div.is-hl { background: var(--wb-subtle); color: var(--wb-ink); font-weight: 600; }
     .otc-tag--fix { color: var(--wb-series-4); border-color: color-mix(in srgb, var(--wb-series-4) 50%, transparent); }
     .otc-chip-fix { color: var(--wb-series-4); border-color: color-mix(in srgb, var(--wb-series-4) 45%, transparent); }
     .otc-share { display: inline-flex; width: 56px; height: 8px; border-radius: 2px; overflow: hidden; vertical-align: middle; background: var(--wb-up); }
@@ -147,11 +168,7 @@
     </div>
     <section class="wb-card">
       <div class="wb-card-head"><span class="wb-card-title" id="bdChartTitle">호가 타임라인</span><span class="wb-card-meta" id="bdLegend"></span></div>
-      <div class="otc-card-body">
-        <div class="otc-chart" id="bdChartBox"><canvas id="bdChart"></canvas></div>
-        <div class="otc-cap" id="bdSprCap"></div>
-        <div class="otc-chart otc-chart--sm"><canvas id="bdSpr"></canvas></div>
-      </div>
+      <div class="otc-card-body"><div id="bdEv"></div></div>
     </section>
     <div class="otc-grid otc-grid--55">
       <section class="wb-card" id="bdStream"></section>
@@ -214,6 +231,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/wb-chart.js?v=20261022c"></script>
-<script src="/assets/js/wb-otc.js?v=20261104c"></script>
+<script src="/assets/js/wb-otc.js?v=20261104d"></script>
 </body>
 </html>
