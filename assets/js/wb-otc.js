@@ -937,11 +937,12 @@
     var html = '<div class="otc-grid"><section class="wb-card">' + cardHead('시간대', '30분 버킷(엔진) · 막대 = 호가 사자/팔자 · 선 = 체결 표시\n' + NOTE.obs) +
       '<div class="otc-card-body"><div class="otc-chart otc-chart--md" style="height:300px"><canvas id="tmTodC"></canvas></div></div></section>' +
       '<section class="wb-card">' + epStatsCard(d.ep_stats) + '</section></div>';
-    var eps = d.episodes || [];
-    html += '<section class="wb-card otc-mt">' + cardHead('에피소드', '에피소드 = 같은 날·같은 종목·같은 방향의 연속 호가\n양보 bp = ' + DEF.conc + '\n행 클릭 = 그 종목 · 그날 종목 분석', n0(eps.length) + '건(최신 ' + n0(eps.length) + '건까지 · 엔진 상한)') +
+    var eps = d.episodes || [], epTot = d.ep_stats && d.ep_stats.all ? d.ep_stats.all.n : null;
+    html += '<section class="wb-card otc-mt">' + cardHead('에피소드', '에피소드 = 같은 날·같은 종목·같은 방향의 연속 호가\n양보 bp = ' + DEF.conc + '\n엔진은 최신부터 상한까지만 행을 보냄(통계 표는 전체 기준)\n행 클릭 = 그 종목 · 그날 종목 분석',
+      isNum(epTot) && epTot > eps.length ? '행 ' + n0(eps.length) + ' / 전체 ' + n0(epTot) + '건(최신부터 · 엔진 상한)' : n0(eps.length) + '건') +
       '<div id="tmEpTbl">' + epRows('ep', eps) + '</div></section>';
     var dn = d.done || [];
-    html += '<section class="wb-card otc-mt">' + cardHead('체결 표시', DEF.done + '\n액면 출처 = 체결 뒤 "N억" 또는 호가 원문\n상대 = 체결 뒤 짧은 메시지(없으면 빈칸)\n행 클릭 = 그 종목 · 그날 종목 분석', n0(dn.length) + '건') +
+    html += '<section class="wb-card otc-mt">' + cardHead('체결 표시', DEF.done + '\n엔진은 최신부터 상한까지만 행을 보냄 — 긴 기간은 기간 요약 KPI 의 체결 수와 비교\n액면 출처 = 체결 뒤 "N억" 또는 호가 원문\n상대 = 체결 뒤 짧은 메시지(없으면 빈칸)\n행 클릭 = 그 종목 · 그날 종목 분석', n0(dn.length) + '건') +
       '<div id="tmDoneTbl">' + doneRows('done', dn) + '</div>';
     var un = d.done_unlinked;
     if (un && isNum(un.n)) {
