@@ -64,6 +64,8 @@
     .otc-tag--team { color: var(--wb-accent); border-color: color-mix(in srgb, var(--wb-accent) 50%, transparent); }
     .otc-tag--done { color: var(--wb-open); border-color: color-mix(in srgb, var(--wb-open) 45%, transparent); }
     .otc-tag--rst { color: var(--wb-warn); border-color: color-mix(in srgb, var(--wb-warn) 45%, transparent); }
+    .otc-tag--fix { color: var(--wb-series-4); border-color: color-mix(in srgb, var(--wb-series-4) 50%, transparent); }
+    .otc-chip-fix { color: var(--wb-series-4); border-color: color-mix(in srgb, var(--wb-series-4) 45%, transparent); }
     .otc-share { display: inline-flex; width: 56px; height: 8px; border-radius: 2px; overflow: hidden; vertical-align: middle; background: var(--wb-up); }
     .otc-share > i { display: block; height: 100%; background: var(--wb-down); }
     .otc-mix { display: inline-flex; width: 84px; height: 8px; border-radius: 2px; overflow: hidden; vertical-align: middle; background: var(--wb-subtle); }
@@ -118,7 +120,7 @@
 
 <main class="wb-main" id="otcMain">
   <div class="wb-pagehead otc-head">
-    <h1>장외 호가</h1><span class="wb-help" role="button" tabindex="0" aria-label="설명 보기"><template><p><b>장외 메신저 호가(kbond_quote) 관찰 도구.</b> 종목 분석 · 브로커 분석 · 팀 해부(장중 → 일봉).</p><p>숫자는 엔진(otcdesk) 산출 그대로 — 웹에서 다시 계산하지 않음.</p><p>호가 ≠ 체결 · 체결 = ㅎㅈ/확정/거래 표시만 · 액면은 적힌 것만 · 관찰 전용(추천 0).</p><p>복원 = 2025-06~11 등 kbond_quote 금리 빈 행을 원문+전일민평 정수부로 복원(검증 정확 일치 98.8%).</p><p>비공개: 데이터는 키(X-QH-KEY)가 있어야 보인다.</p></template></span>
+    <h1>장외 호가</h1><span class="wb-help" role="button" tabindex="0" aria-label="설명 보기"><template><p><b>장외 메신저 호가(kbond_quote) 관찰 도구.</b> 종목 분석 · 브로커 분석 · 팀 해부(장중 → 일봉).</p><p>숫자는 엔진(otcdesk) 산출 그대로 — 웹에서 다시 계산하지 않음.</p><p>호가 ≠ 체결 · 체결 = ㅎㅈ/확정/거래 표시만 · 액면은 적힌 것만 · 관찰 전용(추천 0).</p><p>복원 = 2025-06~11 등 kbond_quote 금리 빈 행을 원문+전일민평 정수부로 복원(검증 정확 일치 98.8%).<br>근거 = 검증 2.8만 행(금리 있는 행 지우고 복원 후 대조).<br>금리 출처(복원 · 교정) 설명 = 오른쪽 캐시 행의 ? (엔진 규칙 문장 그대로).</p><p>비공개: 데이터는 키(X-QH-KEY)가 있어야 보인다.</p></template></span>
     <span class="wb-badge">관찰 전용</span><span class="wb-badge wb-badge--warn">비공개 · 키</span>
     <span class="otc-head-meta" id="otcMeta"></span>
   </div>
@@ -212,6 +214,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/wb-chart.js?v=20261022c"></script>
-<script src="/assets/js/wb-otc.js?v=20261104b"></script>
+<script src="/assets/js/wb-otc.js?v=20261104c"></script>
 </body>
 </html>

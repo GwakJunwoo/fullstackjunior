@@ -25,7 +25,8 @@
   };
   var NOTE = {
     obs: '호가 ≠ 체결 · 체결 = ㅎㅈ/확정/거래 표시만 · 액면은 적힌 것만 · 관찰 전용(추천 0)',
-    rst: '복원 = 2025-06~11 등 kbond_quote 금리 빈 행을 원문+전일민평 정수부로 복원(검증 정확 일치 98.8%)'
+    rst: '복원 = 2025-06~11 등 kbond_quote 금리 빈 행을 원문+전일민평 정수부로 복원(검증 정확 일치 98.8%)',
+    rstWhy: '근거 = 검증 2.8만 행(금리 있는 행 지우고 복원 후 대조)'
   };
   // 테너 버킷 → 표시 색(표현 전용 팔레트 · 데이터 아님 · 모르는 버킷 = 회색)
   var MIX_COLOR = { '통안': '--wb-series-5', '1년': '--wb-series-6', '2년': '--wb-series-1', '3년': '--wb-series-4', '5년': '--wb-series-3',
@@ -71,6 +72,25 @@
   function netSide(v) { return !isNum(v) ? '–' : v > 0 ? '<span class="otc-buy">사 ' + n0(v) + '</span>' : v < 0 ? '<span class="otc-sell">팔 ' + n0(-v) + '</span>' : '0'; }
   function mmdd(d) { return d ? String(d).slice(5, 10) : ''; }
   function tag(txt, kind) { return '<span class="otc-tag' + (kind ? ' otc-tag--' + kind : '') + '">' + esc(txt) + '</span>'; }
+  // ── 엔진 규칙(meta.rules) — 툴팁 숫자 · 금리 출처(y_src) 문장 그대로 ──
+  function RU(k) { var r = S.meta && S.meta.rules; return r && r[k] != null ? r[k] : null; }
+  function ruMin(k, alt) { var v = RU(k); return isNum(v) ? v + '분' : alt; }
+  function tailTxt() { var v = RU('done_tail_sec'); return isNum(v) ? v + '초' : '짧은 시간'; }
+  function ysrcTxt(v) { var r = RU('y_src'); return r && r[String(v)] ? String(r[String(v)]) : ''; }
+  function srcNote() {
+    var a = [];
+    [0, 1, 2].forEach(function (v) { var t = ysrcTxt(v); if (t) a.push('금리 출처 ' + v + ' = ' + t); });
+    a.push(NOTE.rst); a.push(NOTE.rstWhy);
+    var md = RU('max_dev_pct'); if (isNum(md)) a.push('복원 금리가 전일민평과 ' + md + '%p 넘게 떨어지면 금리 버림(엔진 가드)');
+    return a.join('\n');
+  }
+  function srcTag(r) {   // y_src 1 = 복원 · 2 = 교정 (y_src 없는 옛 응답 = restored 불리언 → 복원)
+    var v = isNum(r.y_src) ? r.y_src : (r.restored ? 1 : 0);
+    if (v === 1) return '<span class="otc-tag otc-tag--rst" title="' + esc(ysrcTxt(1) || '복원') + '">복원</span>';
+    if (v === 2) return '<span class="otc-tag otc-tag--fix" title="' + esc(ysrcTxt(2) || '교정') + '">교정</span>';
+    return '';
+  }
+  function epDef() { return '에피소드 = 같은 날·같은 종목·같은 방향의 연속 호가(호가 간격 ' + ruMin('episode_gap_min', '엔진 기준') + ' 이내)'; }
   function chip(txt, cls) { return '<span class="wb-badge' + (cls ? ' ' + cls : '') + '">' + txt + '</span>'; }
   function emsg(e) { return (e && (e.message || e.detail)) ? String(e.message || e.detail) : String(e); }
   function errBox(title, e) { return '<div class="otc-err"><b>' + esc(title) + '</b>' + esc(emsg(e)) + '</div>'; }
@@ -237,12 +257,14 @@
   }
   function applyMeta(m) {
     var team = m.team || {};
+    var dl = (m.rules || {}).done_link_min;
+    if (isNum(dl)) DEF.done = '체결(ㅎㅈ) = 호가 원문 안 ㅎㅈ/확정/거래 또는 ' + dl + '분 안 자기 직전 호가에 붙는 단독 ㅎㅈ — 호가 ≠ 체결, 표시된 것만';
     // 2차 내비 '팀 해부' 라벨 = meta.team.label(정적 파일엔 이름 없음 · 키 있는 사람에게만 보임)
     try {
       (WBShell.allAreas() || []).forEach(function (a) { (a.pages || []).forEach(function (p) { if (p.id === 'otc-team' && team.label) p.label = team.label; }); });
     } catch (e) { /* noop */ }
     $('otcMeta').innerHTML = esc((m.coverage || {}).start || '') + ' ~ ' + esc((m.coverage || {}).end || '') +
-      ' · 최신 영업일 <b>' + esc(m.latest || '–') + '</b> · 캐시 ' + n0(m.rows) + '행(복원 ' + n0(m.restored_rows) + ')' + help(NOTE.rst) +
+      ' · 최신 영업일 <b>' + esc(m.latest || '–') + '</b> · 캐시 ' + n0(m.rows) + '행(복원 ' + n0(m.restored_rows) + (isNum(m.corrected_rows) ? ' · 교정 ' + n0(m.corrected_rows) : '') + ')' + help(srcNote()) +
       ' · 갱신 ' + esc(String(m.refreshed || '').replace('T', ' ').slice(5, 16));
     $('otcBonds').innerHTML = (m.bonds || []).map(function (b) {
       return '<option value="' + esc(b.alias) + '">' + esc([b.nick, b.btype, isNum(b.rem) ? '잔존 ' + b.rem + '년' : '', '30일 ' + n0(b.n30) + '건'].filter(Boolean).join(' · ')) + '</option>';
@@ -319,7 +341,8 @@
     if (h.bucket) chips.push(chip(esc(h.bucket)));
     if (h.btype && h.btype !== '국고채') chips.push(chip(esc(h.btype)));
     if (h.basket) chips.push(chip(esc(h.basket), 'otc-chip-basket'));
-    if (h.restored) chips.push(chip('복원 ' + n0(h.restored) + '건' + help(NOTE.rst), 'wb-badge--warn'));
+    if (h.restored) chips.push(chip('복원 ' + n0(h.restored) + '건' + help(srcNote()), 'wb-badge--warn'));
+    if (h.corrected) chips.push(chip('교정 ' + n0(h.corrected) + '건' + help(srcNote()), 'otc-chip-fix'));
     $('bdSum').innerHTML = '<b>' + esc(h.alias) + '</b> · ' + esc(h.date || '') + ' · 호가 <b>' + n0(h.n_quotes) + '</b>건' +
       (h.n_valid !== h.n_quotes ? '(금리 ' + n0(h.n_valid) + ')' : '') +
       ' · 전일민평(참고) <b>' + fy(h.mp) + '</b>' + help(DEF.vsmp + (h.mp_date ? '\n이 화면 전일민평 = ' + h.mp_date + ' 값' : '')) + ' ' + chips.join(' ');
@@ -407,7 +430,7 @@
   function renderStream(d) {
     var rows = d.stream || [], h = d.head || {};
     var nTeam = rows.filter(function (r) { return r.team; }).length, nDone = rows.filter(function (r) { return r.done; }).length;
-    var html = cardHead('당일 호가 스트림(최신순)', DEF.vsmid + '\n' + DEF.done + '\n복원 배지 = ' + NOTE.rst,
+    var html = cardHead('당일 호가 스트림(최신순)', DEF.vsmid + '\n' + DEF.done + '\n배지 복원/교정 = 금리 출처\n' + srcNote(),
       n0(rows.length) + '건' + (nTeam ? ' · 팀 ' + n0(nTeam) : '') + (nDone ? ' · 체결 표시 ' + n0(nDone) : ''));
     if (!rows.length) return void ($('bdStream').innerHTML = html + '<div class="otc-card-body"><div class="otc-empty">' + esc(h.date || '') + ' 호가 없음</div></div>');
     html += '<div class="wb-table-wrap otc-scroll otc-scroll--lg"><table class="wb-table otc-t"><thead><tr>' +
@@ -415,7 +438,7 @@
     rows.forEach(function (r) {
       html += '<tr class="' + (r.team ? 'is-team ' : '') + 'is-click" data-broker="' + esc(r.broker) + '">' +
         '<td class="mono">' + esc(r.t) + '</td><td>' + sideSpan(r.side, r.st) + '</td>' +
-        '<td class="num">' + fy(r.y) + (r.done ? tag('✓ 체결', 'done') : '') + (r.restored ? tag('복원', 'rst') : '') +
+        '<td class="num">' + fy(r.y) + (r.done ? tag('✓ 체결', 'done') : '') + srcTag(r) +
         (isNum(r.size) ? '<span class="otc-sub">' + n0(r.size) + '억</span>' : '') + '</td>' +
         bpTd(r.vs_mid, 1) + '<td>' + esc(r.broker) + (r.team ? tag('팀', 'team') : '') + '</td><td class="wb-muted">' + esc(r.firm || '') + '</td>' +
         '<td class="raw">' + esc(r.content || '') + '</td></tr>';
@@ -543,7 +566,7 @@
     rows.forEach(function (r) {
       html += '<tr class="is-click" data-alias="' + esc(r.alias) + '" data-date="' + esc(r.date) + '"><td class="mono">' + esc(r.t) + '</td>' + (multi ? '<td>' + esc(r.broker) + '</td>' : '') +
         '<td class="mono">' + esc(r.alias || '–') + '</td><td>' + sideSpan(r.side, r.st) + '</td>' +
-        '<td class="num">' + fy(r.y) + (r.done ? tag('✓ 체결', 'done') : '') + (r.restored ? tag('복원', 'rst') : '') + '</td>' +
+        '<td class="num">' + fy(r.y) + (r.done ? tag('✓ 체결', 'done') : '') + srcTag(r) + '</td>' +
         bpTd(r.dev_mp, 1) + '<td class="raw">' + esc(r.content || '') + '</td></tr>';
     });
     $('brRecent').innerHTML = html + '</tbody></table></div>';
@@ -670,8 +693,8 @@
     ['공동(멤버 2명+)', 'multi_mem', 0, 'n', '서로 다른 멤버가 같이 낸 에피소드 수(팀 단위 에피소드에서만 의미)']
   ];
   function epStatsCard(es, title) {
-    var html = cardHead(title || '에피소드 통계', '에피소드 = 같은 날·같은 종목·같은 방향의 연속 호가(간격이 엔진 기준 이내 · 팀 전체 = 멤버 섞임 가능 · 멤버 선택 = 그 멤버만)\n중앙 = 중앙값\n' + DEF.conc + '\n' + DEF.vx + '\n' + DEF.done);
-    if (!es || !es.all) return html + '<div class="otc-card-body"><div class="otc-empty">에피소드 없음</div></div>';
+    var html = cardHead(title || '에피소드 통계', epDef() + ' · 팀 전체 = 멤버 섞임 가능 · 멤버 선택 = 그 멤버만\n중앙 = 중앙값\n' + DEF.conc + '\n' + DEF.vx + '\n' + DEF.done);
+    if (!es || !es.all || !es.all.n) return html + '<div class="otc-card-body"><div class="otc-empty">에피소드 없음</div></div>';
     html += '<div class="wb-table-wrap otc-scroll"><table class="wb-table otc-t"><thead><tr><th>지표</th><th class="num">전체</th><th class="num otc-buy">사자</th><th class="num otc-sell">팔자</th></tr></thead><tbody>';
     EP_ROWS.forEach(function (r) {
       html += '<tr><td>' + esc(r[0]) + help(r[4]) + '</td>';
@@ -693,10 +716,10 @@
       ['체결 표시 사/팔', bs(k.done_buy, k.done_sell), '합 ' + n0(k.n_done), DEF.done],
       ['체결 액면 사/팔(억)', bs(k.done_size_buy, k.done_size_sell), '액면 적힌 체결 ' + n0(k.done_size_known) + ' / ' + n0(k.n_done) + '건', '액면은 적힌 것만 합(체결 뒤 "N억" 또는 호가 원문의 액면) — 안 적힌 체결은 빠짐'],
       ['활동일', n0(k.active_days) + '<span class="wb-kpi-sub"> / ' + n0(k.n_days) + '</span>', '', '기간 영업일 중 호가가 있던 날'],
-      ['에피소드', n0(k.n_episodes), '체결률 ' + pct(k.ep_done_rate), '에피소드 = 같은 날·같은 종목·같은 방향의 연속 호가'],
+      ['에피소드', n0(k.n_episodes), '체결률 ' + pct(k.ep_done_rate), epDef()],
       ['공동 에피소드', n0(k.multi_mem_eps), '멤버 2명+', '']
     ];
-    var html = '<section class="wb-card">' + cardHead('기간 요약', NOTE.obs + '\n' + DEF.done, esc((k.start || '') + ' ~ ' + (k.end || '')) + (k.restored ? ' · ' + tag('복원 ' + n0(k.restored), 'rst') + help(NOTE.rst) : '')) +
+    var html = '<section class="wb-card">' + cardHead('기간 요약', NOTE.obs + '\n' + DEF.done, esc((k.start || '') + ' ~ ' + (k.end || '')) + (k.restored ? ' · ' + tag('복원 ' + n0(k.restored), 'rst') + help(srcNote()) : '')) +
       '<dl class="wb-kpis otc-kpis">' + kp.map(function (x) {
         return '<div class="wb-kpi"><dt>' + esc(x[0]) + help(x[3]) + '</dt><dd><span class="wb-kpi-val">' + x[1] + '</span>' + (x[2] ? '<span class="wb-kpi-sub">' + x[2] + '</span>' : '') + '</dd></div>';
       }).join('') + '</dl></section>';
@@ -934,15 +957,15 @@
   // ── ③ 장중 행태 ──
   function renderIntra(d) {
     var el = $('tmSecIntra'), tod = d.tod || [];
-    var html = '<div class="otc-grid"><section class="wb-card">' + cardHead('시간대', '30분 버킷(엔진) · 막대 = 호가 사자/팔자 · 선 = 체결 표시\n' + NOTE.obs) +
+    var html = '<div class="otc-grid"><section class="wb-card">' + cardHead('시간대', ruMin('tod_bucket_min', '엔진') + ' 버킷 · 막대 = 호가 사자/팔자 · 선 = 체결 표시\n' + NOTE.obs) +
       '<div class="otc-card-body"><div class="otc-chart otc-chart--md" style="height:300px"><canvas id="tmTodC"></canvas></div></div></section>' +
       '<section class="wb-card">' + epStatsCard(d.ep_stats) + '</section></div>';
     var eps = d.episodes || [], epTot = d.ep_stats && d.ep_stats.all ? d.ep_stats.all.n : null;
-    html += '<section class="wb-card otc-mt">' + cardHead('에피소드', '에피소드 = 같은 날·같은 종목·같은 방향의 연속 호가\n양보 bp = ' + DEF.conc + '\n엔진은 최신부터 상한까지만 행을 보냄(통계 표는 전체 기준)\n행 클릭 = 그 종목 · 그날 종목 분석',
+    html += '<section class="wb-card otc-mt">' + cardHead('에피소드', epDef() + '\n양보 bp = ' + DEF.conc + '\n엔진은 최신부터 상한까지만 행을 보냄(통계 표는 전체 기준)\n행 클릭 = 그 종목 · 그날 종목 분석',
       isNum(epTot) && epTot > eps.length ? '행 ' + n0(eps.length) + ' / 전체 ' + n0(epTot) + '건(최신부터 · 엔진 상한)' : n0(eps.length) + '건') +
       '<div id="tmEpTbl">' + epRows('ep', eps) + '</div></section>';
     var dn = d.done || [];
-    html += '<section class="wb-card otc-mt">' + cardHead('체결 표시', DEF.done + '\n엔진은 최신부터 상한까지만 행을 보냄 — 긴 기간은 기간 요약 KPI 의 체결 수와 비교\n액면 출처 = 체결 뒤 "N억" 또는 호가 원문\n상대 = 체결 뒤 짧은 메시지(없으면 빈칸)\n행 클릭 = 그 종목 · 그날 종목 분석', n0(dn.length) + '건') +
+    html += '<section class="wb-card otc-mt">' + cardHead('체결 표시', DEF.done + '\n엔진은 최신부터 상한까지만 행을 보냄 — 긴 기간은 기간 요약 KPI 의 체결 수와 비교\n액면 출처 = 체결 뒤 ' + tailTxt() + ' 안 "N억" 또는 호가 원문\n상대 = 체결 뒤 ' + tailTxt() + ' 안 짧은 메시지(없으면 빈칸)\n행 클릭 = 그 종목 · 그날 종목 분석', n0(dn.length) + '건') +
       '<div id="tmDoneTbl">' + doneRows('done', dn) + '</div>';
     var un = d.done_unlinked;
     if (un && isNum(un.n)) {
@@ -952,10 +975,10 @@
     html += '</section>';
     var coord = d.coord || [], cps = d.counterparties || [];
     html += '<div class="otc-grid otc-grid--3">' +
-      '<section class="wb-card">' + cardHead('멤버 공조 쌍', '같은 날·같은 종목·같은 방향 호가를 서로 다른 두 멤버가 엔진 공조 창(분) 안에 이어 낸 횟수', n0(coord.length) + '쌍') +
+      '<section class="wb-card">' + cardHead('멤버 공조 쌍', '같은 날·같은 종목·같은 방향 호가를 서로 다른 두 멤버가 ' + ruMin('coord_win_min', '엔진 공조 창') + ' 안에 이어 낸 횟수', n0(coord.length) + '쌍') +
       (coord.length ? '<div class="wb-table-wrap otc-scroll otc-scroll--sm"><table class="wb-table otc-t"><thead><tr><th>멤버 A</th><th>멤버 B</th><th class="num">횟수</th></tr></thead><tbody>' +
         coord.map(function (r) { return '<tr><td>' + esc(r.a) + '</td><td>' + esc(r.b) + '</td><td class="num">' + n0(r.n) + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="otc-card-body"><div class="otc-empty">공조 없음(멤버 1명 선택이면 항상 비어 있음)</div></div>') + '</section>' +
-      '<section class="wb-card">' + cardHead('체결 상대', '체결 뒤 짧은 메시지로 적힌 상대 · (미상) = 안 적힘\n액면 = 적힌 것만 합(억)', n0(cps.length) + '곳') +
+      '<section class="wb-card">' + cardHead('체결 상대', '체결 뒤 ' + tailTxt() + ' 안 짧은 메시지로 적힌 상대 · (미상) = 안 적힘\n액면 = 적힌 것만 합(억)', n0(cps.length) + '곳') +
       (cps.length ? '<div class="wb-table-wrap otc-scroll otc-scroll--sm"><table class="wb-table otc-t"><thead><tr><th>상대</th><th class="num">건</th><th class="num">사/팔</th><th class="num">액면(억)</th></tr></thead><tbody>' +
         cps.map(function (r) { return '<tr><td>' + esc(r.cp) + '</td><td class="num">' + n0(r.n) + '</td><td class="num">' + bs(r.buy, r.sell) + '</td><td class="num">' + n0(r.size) + '</td></tr>'; }).join('') + '</tbody></table></div>' : '<div class="otc-card-body"><div class="otc-empty">없음</div></div>') + '</section>' +
       '<section class="wb-card">' + cardHead('교체 · 문의 원문', '교체 = 원문에 "교체" 또는 두 종목 ± 가 같이 있는 메시지 · 문의 = 파서가 문의로 읽은 메시지 · 최신 300건까지') +
