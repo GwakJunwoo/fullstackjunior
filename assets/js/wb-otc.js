@@ -905,23 +905,20 @@
     var l = $('rbLegsBtn'); l.setAttribute('aria-pressed', RB.legs ? 'true' : 'false'); l.classList.toggle('is-active', RB.legs);
     var rf = $('rbRefBtn'); rf.setAttribute('aria-pressed', RB.ref ? 'true' : 'false'); rf.classList.toggle('is-active', RB.ref);
   }
-  function rbSide(d, kind) {   // 큰 숫자 = 주 표시(혼합) · 전부 장내 호가 값은 작게 참고
+  function rbSide(d, kind) {   // 제목 한 줄 + 큰 숫자만(사용자 2026-11-05) — 정의·문턱·참고 값은 ? 툴팁으로
     var mix = rbMix(d), x = d[kind + (mix ? '_mix' : '')] || {}, alt = mix ? d[kind] : null;
     var ref = d[kind === 'sell' ? 'ref_sell' : 'ref_buy'] || {}, th = d.thresholds || {}, defs = d.defs || {};
     var enter = kind === 'sell' ? th.sell_enter : th.buy_enter, exit = (kind === 'sell' ? th.sell_exit : th.buy_exit) || [];
-    var dist = (x.ok && isNum(x.under) && isNum(enter)) ? (kind === 'sell' ? x.under - enter : enter - x.under) : null;
-    var tip = (defs[kind] || '') + '\n' + (defs.mix || '') + '\n' + (defs.ref || '') + '\n진입 문턱까지 거리 = ' + (kind === 'sell' ? 'U − 문턱' : '문턱 − Ub') + '(웹에서 뺀 값 · 0 이하 = 문턱을 넘음)' +
-      (exit.length ? '\n청산 문턱 ' + exit.join(' ~ ') : '') + '\n' + (defs.limits || '') + '\n관찰 전용 — 추천·주문 아님';
     var how = kind === 'sell' ? (mix ? '선물 매도호가 · 현물 매수: 지표물 = 장내 호가 · 비지표 = 장외 메신저 호가(사자선)' : '선물 매도호가 · 현물 매수호가(장내)')
       : (mix ? '선물 매수호가 · 현물 매도: 지표물 = 장내 호가 · 비지표 = 장외 메신저 호가(팔자선)' : '선물 매수호가 · 현물 매도호가(장내)');
-    return '<div class="otc-rb-lab">' + (kind === 'sell' ? '매도차익 저평 U' : '매수차익 저평 Ub') + help(tip) +
-      '<span class="otc-sub">' + how + ' · 조달 ' + (isNum((d.funding || {})[kind]) ? fnum(d.funding[kind], 4) + '%' : '–') + '</span></div>' +
-      (x.ok ? '<div class="otc-rb-val ' + sgn(x.under) + '">' + fjn(x.under) + '<small>전</small></div>' : '<div class="otc-rb-val wb-muted">–</div>') +
-      (x.ok ? '<div class="otc-rb-sub">진입 문턱 ' + fjn(enter, 1) + ' 까지 <b class="' + (isNum(dist) && dist <= 0 ? 'otc-rb-hit' : '') + '">' + fjn(dist) + '</b>전</div>' +
-        '<div class="otc-rb-sub">선물 ' + fp(x.fut) + ' · 이론가 ' + fnum(x.theo, 4) + ' · 평균 선도수익률 ' + fnum(x.avg_fwd_ytm, 4) + '</div>'
-        : '<div class="otc-rb-sub">' + esc(x.why || '값 없음 — 아래 사유') + '</div>') +
-      '<div class="otc-rb-sub">' + (alt ? '참고 · 전부 장내 호가 <b>' + (alt.ok ? fjn(alt.under) : '–') + '</b> · ' : '') +
-        '<span' + (ref.ok ? '' : ' title="' + esc(ref.why || '') + '"') + '>참고(현재가) <b>' + (ref.ok ? fjn(ref.under) : '–') + '</b></span></div>';
+    var tip = how + ' · 조달 ' + (isNum((d.funding || {})[kind]) ? fnum(d.funding[kind], 4) + '%' : '–') + '\n' + (defs[kind] || '') + '\n' + (defs.mix || '') +
+      (x.ok ? '\n지금: 선물 ' + fp(x.fut) + ' · 이론가 ' + fnum(x.theo, 4) + ' · 평균 선도수익률 ' + fnum(x.avg_fwd_ytm, 4) : '') +
+      (isNum(enter) ? '\n진입 문턱 ' + fjn(enter, 1) + (exit.length ? ' · 청산 문턱 ' + exit.join(' ~ ') : '') : '') +
+      '\n참고 · 전부 장내 호가 ' + ((alt && alt.ok) ? fjn(alt.under) : '–') + ' · 현재가 ' + (ref.ok ? fjn(ref.under) : '–') + ' — ' + (defs.ref || '') +
+      '\n' + (defs.limits || '') + '\n관찰 전용 — 추천·주문 아님';
+    return '<div class="otc-rb-lab">' + (kind === 'sell' ? '매도차익 저평 U' : '매수차익 저평 Ub') + help(tip) + '</div>' +
+      (x.ok ? '<div class="otc-rb-val ' + sgn(x.under) + '">' + fjn(x.under) + '<small>전</small></div>'
+        : '<div class="otc-rb-val wb-muted">–</div><div class="otc-rb-sub">' + esc(x.why || '값 없음 — 아래 사유') + '</div>');
   }
   function rbLegs(d) {
     var mix = rbMix(d), sl = {}, bl = {}, defs = d.defs || {};
@@ -947,15 +944,15 @@
     if (!(d.basket || []).length) h += '<tr><td colspan="11" class="wb-muted">바스켓 정보 없음</td></tr>';
     return h + '</tbody></table>';
   }
-  function rbChart(d) {
+  function rbChart(d) {   // 왼쪽 축 = 저평(전 · 그려진 선에 맞춰 좁게) · 오른쪽 축 = 3선 선물 가격
     var s = d.series || {}, t = s.t || [], box = $('rbChartBox');
     if (!t.length) {
       kill('rb'); RB.hasChart = false;
       box.innerHTML = '<div class="otc-bo-ph" style="height:110px">오늘 저평 시계열이 아직 없습니다 — 엑셀(장내 실시간)이 열려 있는 동안만 쌓입니다</div>';
       return;
     }
-    var th = d.thresholds || {}, flat = function (v) { return isNum(v) ? t.map(function () { return v; }) : []; };
-    var line = function (label, data, col, w, dash, a) { return { label: label, data: data || [], borderColor: tk(col, a == null ? 1 : a), backgroundColor: tk(col, a == null ? 1 : a), borderWidth: w, borderDash: dash || [], pointRadius: 0, pointHoverRadius: 4, spanGaps: false }; };
+    var th = d.thresholds || {}, flat = function (v) { return t.map(function () { return v; }); };
+    var line = function (label, data, col, w, dash, a) { return { label: label, data: data || [], yAxisID: 'y', borderColor: tk(col, a == null ? 1 : a), backgroundColor: tk(col, a == null ? 1 : a), borderWidth: w, borderDash: dash || [], pointRadius: 0, pointHoverRadius: 4, spanGaps: false }; };
     var mix = rbMix(d) && !!(s.U_mix || s.Ub_mix);
     var ds = [line('매도차익 저평 U', mix ? s.U_mix : s.U, '--wb-down', 2.4), line('매수차익 저평 Ub', mix ? s.Ub_mix : s.Ub, '--wb-up', 2.4)];
     if (RB.ref) {   // 참고 선(토글): 전부 장내 호가로 낸 U/Ub · 현재가 U
@@ -968,20 +965,57 @@
       ds.push(line(b.alias + ' 매도 좌표' + tail, ((lm ? s.legs_sell_mix : s.legs_sell) || {})[b.alias], col, 1.3));
       ds.push(line(b.alias + ' 매수 좌표' + tail, ((lm ? s.legs_buy_mix : s.legs_buy) || {})[b.alias], col, 1.3, [5, 3]));
     });
+    // 왼쪽 축 범위 = 그려진 저평 선의 최소~최대 + 여백(범위의 15% · 최소 폭 1전) — 문턱·0선 때문에 넓히지 않는다(표현만 · 값 그대로)
+    var mn = Infinity, mx = -Infinity;
+    ds.forEach(function (o) { (o.data || []).forEach(function (v) { if (isNum(v)) { if (v < mn) mn = v; if (v > mx) mx = v; } }); });
+    var ax = { ymin: undefined, ymax: undefined, step: undefined, fmin: undefined, fmax: undefined, hasFut: false };
+    if (isFinite(mn)) {
+      var w = mx - mn, pad = Math.max(w * 0.15, (1 - w) / 2, 0.1);
+      ax.ymin = Math.floor((mn - pad) * 2) / 2; ax.ymax = Math.ceil((mx + pad) * 2) / 2;
+      var span = ax.ymax - ax.ymin; ax.step = span <= 7 ? 0.5 : span <= 16 ? 1 : undefined;   // 눈금 0.5전 / 1전(더 넓으면 자동)
+      if (ax.step !== 0.5) { ax.ymin = Math.floor(ax.ymin); ax.ymax = Math.ceil(ax.ymax); }
+    }
+    // 문턱 점선 · 0선 = 범위 안에 들어올 때만 · 범위 밖 문턱은 축 가장자리에 작은 표시
+    var edge = [];
     [[th.sell_enter, '--wb-down', '매도 진입 문턱'], [th.buy_enter, '--wb-up', '매수 진입 문턱'], [0, '--wb-rule-strong', '0']].forEach(function (r) {
-      var o = line(r[2], flat(r[0]), r[1], 1, r[2] === '0' ? [] : [6, 4], r[2] === '0' ? 1 : 0.75); o.rbRef = true; o.pointHoverRadius = 0; ds.push(o);
+      if (!isNum(r[0])) return;
+      if (ax.ymin == null || (r[0] >= ax.ymin && r[0] <= ax.ymax)) {
+        var o = line(r[2], flat(r[0]), r[1], 1, r[2] === '0' ? [] : [6, 4], r[2] === '0' ? 1 : 0.75); o.rbRef = true; o.pointHoverRadius = 0; ds.push(o);
+      } else if (r[2] !== '0') edge.push({ up: r[0] > ax.ymax, text: r[2] + ' ' + fjn(r[0], 0) + (r[0] > ax.ymax ? ' ↑' : ' ↓'), col: r[1] });
     });
-    $('rbChartCap').textContent = '점선 = 진입 문턱 ' + fjn(th.sell_enter, 0) + ' / ' + fjn(th.buy_enter, 0) + ' · ' + t[0] + ' ~ ' + t[t.length - 1] + ' · ' + n0(t.length) + '점(5초 솎음)';
+    RB.edge = edge;
+    // 오른쪽 축 = 3선 선물 현재가(엔진 series.fut) — 값에 맞춰 좁게
+    var fut = s.fut || [], fmn = Infinity, fmx = -Infinity;
+    fut.forEach(function (v) { if (isNum(v)) { if (v < fmn) fmn = v; if (v > fmx) fmx = v; } });
+    if (isFinite(fmn)) {
+      var fw = fmx - fmn, fpad = Math.max(fw * 0.15, (0.04 - fw) / 2, 0.005);
+      ax.hasFut = true; ax.fmin = Math.floor((fmn - fpad) * 100) / 100; ax.fmax = Math.ceil((fmx + fpad) * 100) / 100;
+      ds.push({ label: '3선', data: fut, yAxisID: 'y1', rbFut: true, borderColor: tk('--wb-series-5'), backgroundColor: tk('--wb-series-5'), borderWidth: 1.6, stepped: true, pointRadius: 0, pointHoverRadius: 4, spanGaps: false });
+    }
+    $('rbChartCap').textContent = '왼쪽 = 저평(전) · 오른쪽 = 3선 가격 · 점선 = 진입 문턱 ' + fjn(th.sell_enter, 0) + ' / ' + fjn(th.buy_enter, 0) + '(범위 안일 때만) · ' + t[0] + ' ~ ' + t[t.length - 1] + ' · ' + n0(t.length) + '점(5초 솎음)';
+    var setAx = function (sc) {
+      sc.y.min = ax.ymin; sc.y.max = ax.ymax; sc.y.ticks.stepSize = ax.step;
+      sc.y1.display = ax.hasFut; sc.y1.min = ax.fmin; sc.y1.max = ax.fmax;
+    };
     var ch = S.charts.rb;
-    if (RB.hasChart && ch) { ch.data.labels = t; ch.data.datasets = ds; ch.update('none'); return; }
-    box.innerHTML = '<div class="otc-chart" style="height:190px"><canvas id="rbChart"></canvas></div>';
+    if (RB.hasChart && ch) { ch.data.labels = t; ch.data.datasets = ds; setAx(ch.options.scales); ch.update('none'); return; }
+    box.innerHTML = '<div class="otc-chart" style="height:250px"><canvas id="rbChart"></canvas></div>';
     var o = baseOpts({
       scales: { x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12, callback: function (v) { return String(this.getLabelForValue(v)).slice(0, 5); } } },
-        y: { title: { display: true, text: '전' }, ticks: { callback: function (v) { return fjn(v, 0); } } } },
-      plugins: { legend: { display: true }, tooltip: { filter: function (it) { return !it.dataset.rbRef; }, callbacks: { label: function (it) { return it.dataset.label + ' ' + fjn(it.parsed.y) + '전'; } } } }
+        y: { position: 'left', title: { display: true, text: '저평(전)' }, ticks: { includeBounds: false, maxTicksLimit: 18, callback: function (v) { return fjn(v, Math.abs(v * 2 - Math.round(v * 2)) < 1e-9 && Math.abs(v - Math.round(v)) > 1e-9 ? 1 : 0); } } },
+        y1: { position: 'right', display: false, grid: { drawOnChartArea: false }, title: { display: true, text: '3선' }, ticks: { maxTicksLimit: 7, includeBounds: false, callback: function (v) { return fp(v); } } } },
+      plugins: { legend: { display: true }, tooltip: { filter: function (it) { return !it.dataset.rbRef; },
+        callbacks: { label: function (it) { return it.dataset.rbFut ? '3선 ' + fp(it.parsed.y) : it.dataset.label + ' ' + fjn(it.parsed.y) + '전'; } } } }
     });
+    setAx(o.scales);
     o.plugins.legend = Object.assign({}, LEG, { labels: Object.assign({}, LEG.labels, { filter: function (it, data) { return !data.datasets[it.datasetIndex].rbRef; } }) });
-    mk('rb', $('rbChart'), { type: 'line', data: { labels: t, datasets: ds }, options: o });
+    mk('rb', $('rbChart'), { type: 'line', data: { labels: t, datasets: ds }, options: o, plugins: [{ id: 'rbEdge', afterDatasetsDraw: function (c) {
+      var e = RB.edge || [], ca = c.chartArea; if (!e.length || !ca) return;
+      var ctx = c.ctx, up = 0, dn = 0;
+      ctx.save(); ctx.font = '600 10px ' + (cssv('--wb-font') || 'sans-serif'); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+      e.forEach(function (m) { ctx.fillStyle = cssv(m.col); ctx.fillText(m.text, ca.left + 6, m.up ? ca.top + 8 + 12 * (up++) : ca.bottom - 8 - 12 * (dn++)); });
+      ctx.restore();
+    } }] });
     RB.hasChart = true;
   }
   function rbRender(full) {
