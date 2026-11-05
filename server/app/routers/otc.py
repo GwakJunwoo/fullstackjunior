@@ -19,7 +19,7 @@ import threading
 from pathlib import Path
 from urllib.parse import unquote
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import Response
 
 from .qh_ops import _require_key
@@ -171,3 +171,11 @@ def otc_board_detail(request: Request, alias: str = Query(...), days: str | None
 def otc_basis(request: Request, x_otc_since: str | None = Header(default=None, alias="X-OTC-Since")):
     """실시간 집행 가능 저평(3선) — api.rt_basis(since) 그대로(엑셀이 닫혀 있으면 ok:false + why 를 엔진이 준다 · 보정 0)."""
     return _send(request, _api().rt_basis, since=_since(x_otc_since))
+
+
+@router.post("/basis/keyin")
+def otc_basis_keyin(request: Request, body: dict | None = Body(default=None)):
+    """3선 선물 가격 키인(사용자 2026-11-05) — api.rt_basis_keyin(price) 그대로. 이 라우터의 유일한 쓰기 경로.
+    본문 {"price": number|null} · null/생략 = 해제(_send 가 None 인자를 빼고 부르므로 엔진 기본값 = 해제).
+    허용 시각(15:45 이후)·범위·숫자 여부는 엔진이 판정해 ok:false + why 로 답한다 — 라우터 검증·보정 0."""
+    return _send(request, _api().rt_basis_keyin, price=(body or {}).get("price"))

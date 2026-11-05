@@ -518,7 +518,7 @@
   }
   function KeyErr(msg, denied) { this.message = msg; this.nokey = true; this.denied = !!denied; }
   async function detailOf(res) { try { var j = await res.json(); return (j && j.detail) ? String(j.detail) : ''; } catch (e) { return ''; } }
-  async function xget(path, extra) {   // 공통: 키 · 주소 · 터널 회전 1회 재시도 · 403 = 저장 키 폐기
+  async function xget(path, extra, init) {   // 공통: 키 · 주소 · 터널 회전 1회 재시도 · 403 = 저장 키 폐기 · init = fetch 옵션(POST 등)
     var key = getKey() || S.memKey || '';
     if (!key) throw new KeyErr('키 없음');
     if (!S.baseP) S.baseP = getApiBase();            // 첫 화면의 동시 호출(meta · board · basis)이 api_base.txt 를 한 번만 읽게
@@ -526,7 +526,7 @@
     if (!base) { S.baseP = null; base = await getApiBase(true); }
     if (!base) throw new Error('API 주소 없음 — /assets/api_base.txt 비었거나 서버·터널이 꺼짐');
     var hd = Object.assign({ 'X-QH-KEY': key, 'ngrok-skip-browser-warning': '1' }, extra || {});
-    var call = function (b) { return fetch(b + path, { headers: hd }); };   // cache:'no-store' 를 주면 Chromium 이 CORS 사전요청 캐시도 건너뛴다(5초마다 OPTIONS) — 응답 헤더가 no-store 라 저장은 안 된다
+    var call = function (b) { return fetch(b + path, Object.assign({ headers: hd }, init || {})); };   // cache:'no-store' 를 주면 Chromium 이 CORS 사전요청 캐시도 건너뛴다(5초마다 OPTIONS) — 응답 헤더가 no-store 라 저장은 안 된다
     var res;
     try { res = await call(base); }
     catch (e) {
@@ -552,6 +552,7 @@
   // 폴링(보드): 직전 응답의 cursor 를 쿼리가 아니라 헤더로 — URL 이 매번 같아야 브라우저가 CORS 사전요청을 캐시한다.
   // 헤더는 처음부터 늘 붙인다('-' = 없음) → 사전요청이 허용한 헤더 목록이 바뀌지 않는다. 값은 한글 별칭 대비 encodeURIComponent.
   function pget(path, since) { return xget(path, { 'X-OTC-Since': since ? encodeURIComponent(since) : '-' }); }
+  function xpost(path, body) { return xget(path, { 'Content-Type': 'application/json' }, { method: 'POST', body: JSON.stringify(body) }); }   // 유일한 쓰기 = 3선 키인
   function dropCache(prefix) { Object.keys(S.cache).forEach(function (k) { if (k.indexOf(prefix) === 0) delete S.cache[k]; }); }
   function keyErr(e) {
     if (!e || !e.nokey) return false;
@@ -883,7 +884,8 @@
   // ── 실시간 저평(3선) 패널 — /otc/basis (엔진 rt_basis 그대로) ──
   //   웹이 하는 계산은 '진입 문턱까지 거리' 뺄셈 한 줄뿐(엔진 under 와 엔진 thresholds) — 나머지 숫자는 전부 응답 값 그대로.
   //   엑셀(장내 실시간)이 닫혀 있으면 엔진이 ok:false + why 를 준다 → 숫자 자리에 그대로 보여 준다(가짜 값 없음).
-  var RB = B.rb = { cursor: '', data: null, busy: false, open: true, legs: false, ref: false, exch: null, now: '', err: '' };
+  var RB = B.rb = { cursor: '', data: null, busy: false, open: true, legs: false, ref: false, exch: null, now: '', err: '',
+    seq: 0, minSeq: 0, kBusy: false, kDirty: false, kMsg: null };   // seq/minSeq = 키인 직후 늦게 온 옛 응답 버리기 · kMsg = 엔진 why 그대로
   // 주 표시 = 응답 primary 가 'mix' 면 혼합(지표물 = 장내 호가 · 비지표 = 장외 메신저 호가 · 사용자 2026-11-05 확정) — 전부 장내 호가 값(sell/buy)은 작게 참고
   function rbMix(d) { return !!(d && d.primary === 'mix' && (d.sell_mix || d.buy_mix)); }
   (function () {
@@ -893,7 +895,9 @@
   function rbFetch(user) {
     if (!S.on || S.view !== 'board' || (!user && RB.busy)) return;
     RB.busy = true;
+    var my = ++RB.seq;
     pget('/otc/basis', RB.data ? RB.cursor : '').then(function (d) {
+      if (my < RB.minSeq) return;                                          // 키인 적용/해제 전에 떠난 응답 — 버림
       RB.err = ''; if (d.exch) RB.exch = d.exch; RB.now = d.now || '';
       if (!d.same) { RB.data = d; RB.cursor = d.cursor; }
       rbRender(!d.same);
@@ -905,12 +909,68 @@
     var l = $('rbLegsBtn'); l.setAttribute('aria-pressed', RB.legs ? 'true' : 'false'); l.classList.toggle('is-active', RB.legs);
     var rf = $('rbRefBtn'); rf.setAttribute('aria-pressed', RB.ref ? 'true' : 'false'); rf.classList.toggle('is-active', RB.ref);
   }
+  // ── 3선 선물 키인(사용자 2026-11-05) — 허용 시각·범위·숫자 판정은 전부 엔진(session.keyin · POST 응답 why 그대로) ──
+  function rbSess(d) { return (d && d.session) || null; }
+  function rbKeySync() {
+    var d = RB.data, ss = rbSess(d), k = (ss && ss.keyin) || null, defs = (d && d.defs) || {};
+    var allowed = !!(k && k.allowed), act = !!(k && k.active), inp = $('rbKeyIn');
+    inp.disabled = !allowed || RB.kBusy;
+    $('rbKeyApply').disabled = !allowed || RB.kBusy;
+    $('rbKeyClear').disabled = !allowed || !act || RB.kBusy;
+    if (k && k.range && k.range.length === 2) { inp.min = k.range[0]; inp.max = k.range[1]; }
+    var fu = (d && d.inputs && d.inputs.fut_used) || {};
+    inp.placeholder = isNum(fu.last) ? fp(fu.last) : '';
+    if (doc.activeElement !== inp && !RB.kDirty) inp.value = (act && isNum(k.price)) ? fp(k.price) : '';
+    var bd = $('rbKeyBadge');
+    bd.hidden = !act; bd.textContent = act ? '선물 키인 ' + fp(k.price) + (k.t ? ' · ' + k.t : '') : '';
+    $('rbCard').classList.toggle('is-keyin', act);
+    var note = '';
+    if (d && !ss) note = '이 응답에 키인 정보 없음 — 엔진 갱신(서버 재시작) 전';
+    else if (ss) {
+      note = (allowed ? '' : esc((k && k.cutoff) || ss.cutoff || '') + ' 이후 키인 가능 — 지금은 장내 엑셀 가격 · ') +
+        '계산 선물 = ' + esc(ss.fut_src || '–') +
+        help((defs.after_close || '') + (ss.bond_rule ? '\n바스켓: ' + ss.bond_rule : '') + (k && k.range ? '\n키인 범위(엔진): ' + k.range[0] + ' ~ ' + k.range[1] : ''));
+    }
+    $('rbKeyNote').innerHTML = note;
+    var m = $('rbKeyMsg');
+    m.textContent = RB.kBusy ? '보내는 중…' : (RB.kMsg ? RB.kMsg.text : '');
+    m.classList.toggle('is-err', !RB.kBusy && !!(RB.kMsg && RB.kMsg.err));
+  }
+  function rbKeySend(price) {
+    if (RB.kBusy) return;
+    RB.kBusy = true; RB.kMsg = null; rbKeySync();
+    xpost('/otc/basis/keyin', { price: price }).then(function (r) {
+      if (r && r.ok) RB.kDirty = false;                                    // 거절이면 친 값은 칸에 남겨 둔다(고쳐서 다시)
+      RB.kMsg = (r && r.ok) ? null : { err: true, text: (r && r.why) || '엔진이 받지 않음(사유 없음)' };
+    }).catch(function (e) {
+      if (keyErr(e)) return;
+      RB.kMsg = { err: true, text: '키인 전송 실패 — ' + emsg(e) };
+    }).then(function () {
+      RB.kBusy = false;
+      RB.minSeq = RB.seq + 1; RB.cursor = '';                             // 엔진이 그 자리에서 다시 계산해 둔다 → 바로 다시 받기
+      rbKeySync(); rbFetch(true);
+    });
+  }
+  function rbKeyApply() {
+    var inp = $('rbKeyIn');
+    if (inp.disabled) return;
+    var v = String(inp.value || '').trim();
+    if (!v) {   // type=number 는 숫자가 아니면 값을 비운다 → 빈 값을 '해제'로 보내지 않는다(해제는 [해제] 버튼만)
+      RB.kMsg = { err: true, text: (inp.validity && inp.validity.badInput) ? '숫자가 아닙니다' : '가격을 넣으세요 — 키인을 끄려면 [해제]' };
+      rbKeySync(); return;
+    }
+    inp.blur();
+    rbKeySend(Number(v));
+  }
+  function rbKeyClear() { if (!$('rbKeyClear').disabled) { RB.kDirty = false; rbKeySend(null); } }
   function rbSide(d, kind) {   // 제목 한 줄 + 큰 숫자만(사용자 2026-11-05) — 정의·문턱·참고 값은 ? 툴팁으로
     var mix = rbMix(d), x = d[kind + (mix ? '_mix' : '')] || {}, alt = mix ? d[kind] : null;
     var ref = d[kind === 'sell' ? 'ref_sell' : 'ref_buy'] || {}, th = d.thresholds || {}, defs = d.defs || {};
     var enter = kind === 'sell' ? th.sell_enter : th.buy_enter, exit = (kind === 'sell' ? th.sell_exit : th.buy_exit) || [];
-    var how = kind === 'sell' ? (mix ? '선물 매도호가 · 현물 매수: 지표물 = 장내 호가 · 비지표 = 장외 메신저 호가(사자선)' : '선물 매도호가 · 현물 매수호가(장내)')
-      : (mix ? '선물 매수호가 · 현물 매도: 지표물 = 장내 호가 · 비지표 = 장외 메신저 호가(팔자선)' : '선물 매수호가 · 현물 매도호가(장내)');
+    var ss = rbSess(d), kin = (ss && ss.keyin) || {}, fs = (ss && ss.fut_src) ? '(' + ss.fut_src + ')' : '';
+    var rule = (ss && ss.bond_rule) || '지표물 = 장내 호가 · 비지표 = 장외 메신저 호가';   // 15:45 전/후 규칙 문장 = 엔진 session.bond_rule
+    var how = kind === 'sell' ? (mix ? '선물 매도호가' + fs + ' · 현물 매수(사자선): ' + rule : '선물 매도호가' + fs + ' · 현물 매수호가(장내)')
+      : (mix ? '선물 매수호가' + fs + ' · 현물 매도(팔자선): ' + rule : '선물 매수호가' + fs + ' · 현물 매도호가(장내)');
     var pc = d.prev_close || {};
     var tip = how + ' · 조달 ' + (isNum((d.funding || {})[kind]) ? fnum(d.funding[kind], 4) + '%' : '–') + '\n' + (defs[kind] || '') + '\n' + (defs.mix || '') + (defs.d_prev ? '\n' + defs.d_prev : '') +
       (pc.ok ? '\n전일(' + (pc.date || '') + ') 종가: 선물 ' + fp(pc.fut) + ' · U ' + fjn(pc.U) + ' · Ub ' + fjn(pc.Ub) + (isNum(pc.d_fut) ? ' · 선물 전일 대비 ' + fjn(pc.d_fut, 0) + '틱' : '') : '') +
@@ -918,7 +978,8 @@
       (isNum(enter) ? '\n진입 문턱 ' + fjn(enter, 1) + (exit.length ? ' · 청산 문턱 ' + exit.join(' ~ ') : '') : '') +
       '\n참고 · 전부 장내 호가 ' + ((alt && alt.ok) ? fjn(alt.under) : '–') + ' · 현재가 ' + (ref.ok ? fjn(ref.under) : '–') + ' — ' + (defs.ref || '') +
       '\n' + (defs.limits || '') + '\n관찰 전용 — 추천·주문 아님';
-    return '<div class="otc-rb-lab">' + (kind === 'sell' ? '매도차익 저평 U' : '매수차익 저평 Ub') + help(tip) + '</div>' +
+    return '<div class="otc-rb-lab">' + (kind === 'sell' ? '매도차익 저평 U' : '매수차익 저평 Ub') + help(tip) +
+        (kin.active ? '<span class="otc-tag otc-tag--key" title="' + esc('선물 가격 = 키인 ' + fp(kin.price) + (kin.t ? ' (' + kin.t + ')' : '') + ' — 매도·매수 좌표 모두') + '">키인 기준</span>' : '') + '</div>' +
       (x.ok ? '<div class="otc-rb-val ' + sgn(x.under) + '">' + fjn(x.under) + '<small>전</small></div>' +
           (isNum(x.d_prev) ? '<div class="otc-rb-sub otc-rb-dp">전일 대비 <b class="' + sgn(x.d_prev) + '">' + fjn(x.d_prev) + '</b>전 <span class="wb-muted">· 전일 종가 ' + fjn(x.prev) + (pc.date ? '(' + esc(mmdd(pc.date)) + ')' : '') + '</span></div>' : '')
         : '<div class="otc-rb-val wb-muted">–</div><div class="otc-rb-sub">' + esc(x.why || '값 없음 — 아래 사유') + '</div>');
@@ -956,7 +1017,9 @@
     var s = d.series || {}, t = s.t || [], box = $('rbChartBox');
     if (!t.length) {
       kill('rb'); RB.hasChart = false;
-      box.innerHTML = '<div class="otc-bo-ph" style="height:110px">오늘 저평 시계열이 아직 없습니다 — 엑셀(장내 실시간)이 열려 있는 동안만 쌓입니다</div>';
+      var ss0 = rbSess(d);
+      box.innerHTML = '<div class="otc-bo-ph" style="height:110px">오늘 저평 시계열이 아직 없습니다 — ' +
+        ((ss0 && ss0.after_close) ? esc(ss0.cutoff || '') + ' 이후엔 장외 호가·키인이 바뀔 때마다 쌓입니다' : '엑셀(장내 실시간)이 열려 있는 동안 쌓입니다') + '</div>';
       return;
     }
     var th = d.thresholds || {}, flat = function (v) { return t.map(function () { return v; }); };
@@ -1000,7 +1063,7 @@
       ax.hasFut = true; ax.fmin = Math.floor((fmn - fpad) * 100) / 100; ax.fmax = Math.ceil((fmx + fpad) * 100) / 100;
       ds.push({ label: '3선', data: fut, yAxisID: 'y1', rbFut: true, borderColor: tk('--wb-series-5'), backgroundColor: tk('--wb-series-5'), borderWidth: 1.6, stepped: true, pointRadius: 0, pointHoverRadius: 4, spanGaps: false });
     }
-    $('rbChartCap').textContent = '왼쪽 = 저평(전) · 오른쪽 = 3선 가격 · 점선 = 진입 문턱 ' + fjn(th.sell_enter, 0) + ' / ' + fjn(th.buy_enter, 0) + '(범위 안일 때만) · ' + t[0] + ' ~ ' + t[t.length - 1] + ' · ' + n0(t.length) + '점(5초 솎음)';
+    $('rbChartCap').textContent = '왼쪽 = 저평(전) · 오른쪽 = 3선 가격' + (rbSess(d) ? '(계산에 쓴 값 · 키인 포함)' : '') + ' · 점선 = 진입 문턱 ' + fjn(th.sell_enter, 0) + ' / ' + fjn(th.buy_enter, 0) + '(범위 안일 때만) · ' + t[0] + ' ~ ' + t[t.length - 1] + ' · ' + n0(t.length) + '점(5초 솎음)';
     var setAx = function (sc) {
       sc.y.min = ax.ymin; sc.y.max = ax.ymax; sc.y.ticks.stepSize = ax.step;
       sc.y1.display = ax.hasFut; sc.y1.min = ax.fmin; sc.y1.max = ax.fmax;
@@ -1033,10 +1096,14 @@
     boQuick();
     if (!d) { if (RB.err) $('rbWhy').innerHTML = errBox('실시간 저평', { message: RB.err }); return; }
     if (!full) return;
+    var ss = rbSess(d), kin = (ss && ss.keyin) || {};
+    var sub = $('rbSub'); if (RB.subDef == null) RB.subDef = sub.textContent;
+    sub.textContent = (ss && ss.bond_rule) ? '집행 가능한 값 · ' + ss.bond_rule + ' · 우리 조달' : RB.subDef;   // 15:45 전/후 규칙 = 엔진 문장 그대로(없으면 원래 문구)
+    rbKeySync();
     var s = d[rbMix(d) ? 'sell_mix' : 'sell'] || {}, b = d[rbMix(d) ? 'buy_mix' : 'buy'] || {}, defs = d.defs || {};
     var dp = function (z) { return (z.ok && isNum(z.d_prev)) ? ' <small class="' + sgn(z.d_prev) + '" title="전일 대비(전)">(' + fjn(z.d_prev) + ')</small>' : ''; };
-    $('rbMini').innerHTML = d.ok ? 'U <b class="' + sgn(s.under) + '">' + (s.ok ? fjn(s.under) : '–') + '</b>' + dp(s) + ' · Ub <b class="' + sgn(b.under) + '">' + (b.ok ? fjn(b.under) : '–') + '</b>' + dp(b) + '전' + (d.t ? ' <span class="wb-muted">' + esc(d.t) + '</span>' : '')
-      : '<span class="wb-muted">값 없음 — ' + esc(d.why || x.status || '입력 부족') + '</span>';
+    $('rbMini').innerHTML = (kin.active ? '<span class="otc-tag otc-tag--key">키인 ' + esc(fp(kin.price)) + '</span> ' : '') + (d.ok ? 'U <b class="' + sgn(s.under) + '">' + (s.ok ? fjn(s.under) : '–') + '</b>' + dp(s) + ' · Ub <b class="' + sgn(b.under) + '">' + (b.ok ? fjn(b.under) : '–') + '</b>' + dp(b) + '전' + (d.t ? ' <span class="wb-muted">' + esc(d.t) + '</span>' : '')
+      : '<span class="wb-muted">값 없음 — ' + esc(d.why || x.status || '입력 부족') + '</span>');
     $('rbSell').innerHTML = rbSide(d, 'sell');
     $('rbBuy').innerHTML = rbSide(d, 'buy');
     $('rbLegs').innerHTML = rbLegs(d);
@@ -1049,16 +1116,18 @@
         ((d.missing || []).length ? '<ul>' + d.missing.map(function (m) { return '<li>' + esc(m) + '</li>'; }).join('') + '</ul>' : '');
     }
     rbChart(d);
-    var f = d.funding || {}, inp = d.inputs || {}, fu = inp.fut || {}, ck = d.check;
+    var f = d.funding || {}, inp = d.inputs || {}, fu = inp.fut || {}, fz = inp.fut_used, ck = d.check;
     var parts = ['계약 <b>' + esc(d.contract || '–') + '</b> · 만기 ' + esc(d.expiry || '–') + ' · 잔존 ' + (isNum(d.t_days) ? d.t_days + '일' : '–'),
-      '조달 매도 <b>' + fnum(f.sell, 4) + '</b>%(' + esc(f.sell_note || '') + (isNum(f.cp_prev_month_avg) ? ' = ' + fnum(f.cp_prev_month_avg, 4) + ' − ' + f.lending_fee : '') + ') / 매수 <b>' + fnum(f.buy, 4) + '</b>%(' + esc(f.buy_note || '') + ')',
-      '입력 선물 매수 <b class="otc-buy">' + fp(fu.bid) + '</b> / 매도 <b class="otc-sell">' + fp(fu.ask) + '</b>' +
+      '조달 매도 <b>' + fnum(f.sell, 4) + '</b>%(' + esc(f.sell_note || '') + (isNum(f.cp_prev_month_avg) ? ' = ' + fnum(f.cp_prev_month_avg, 4) + ' − ' + f.lending_fee : '') + ') / 매수 <b>' + fnum(f.buy, 4) + '</b>%(' + esc(f.buy_note || '') + ')'];
+    if (fz) parts.push('계산에 쓴 선물 매수 <b class="otc-buy">' + fp(fz.bid) + '</b> / 매도 <b class="otc-sell">' + fp(fz.ask) + '</b> / 현재 <b>' + fp(fz.last) + '</b>' + (ss && ss.fut_src ? ' · ' + esc(ss.fut_src) : ''));
+    parts.push(
+      '엑셀 선물 매수 <b class="otc-buy">' + fp(fu.bid) + '</b> / 매도 <b class="otc-sell">' + fp(fu.ask) + '</b>' +
         (inp.bonds || []).map(function (r) { return ' · ' + esc(r.alias) + ' 매수 <b class="otc-buy">' + fy(r.bid) + '</b> / 매도 <b class="otc-sell">' + fy(r.ask) + '</b>'; }).join(''),
       '정본 대조 ' + (ck ? '최대차 <b>' + (isNum(ck.max_diff) ? ck.max_diff.toExponential(1) : '–') + '</b>' + (ck.ok === false ? ' <span class="wb-error">불일치</span>' : '') + (ck.t ? '(' + esc(ck.t) + (isNum(ck.n) ? ' · ' + ck.n + '건' : '') + ')' : '') : '아직 없음') +
-        help('엔진이 1분마다 빠른 계산(C)과 파이썬 정본 프라이서 결과를 대조한 최대 차이(전) — 엔진 값 그대로')];
+        help('엔진이 1분마다 빠른 계산(C)과 파이썬 정본 프라이서 결과를 대조한 최대 차이(전) — 엔진 값 그대로'));
     if (d.basket_date) parts.push('바스켓 기준 ' + esc(d.basket_date));
     $('rbStat').innerHTML = parts.map(function (p) { return '<span>' + p + '</span>'; }).join('');
-    $('rbTitleHelp').innerHTML = help((defs.sell || '') + '\n' + (defs.buy || '') + '\n' + (defs.leg || '') + '\n' + (defs.mix || '') + '\n' + (defs.ref || '') + '\n' + (defs.limits || '') + '\n5초 갱신이 켜져 있는 동안 계속 갱신 · 관찰 전용(추천·주문 아님)');
+    $('rbTitleHelp').innerHTML = help((defs.sell || '') + '\n' + (defs.buy || '') + '\n' + (defs.leg || '') + '\n' + (defs.mix || '') + '\n' + (defs.ref || '') + (defs.after_close ? '\n' + defs.after_close : '') + '\n' + (defs.limits || '') + '\n5초 갱신이 켜져 있는 동안 계속 갱신 · 관찰 전용(추천·주문 아님)');
   }
   // ── 엑셀에 있는 종목 빠른 넣기(칩) + 엑셀 상태 점 ──
   function boQuick() {
@@ -2292,6 +2361,13 @@
     $('rbFold').addEventListener('click', function () { RB.open = !RB.open; boSave(); rbFoldSync(); if (RB.open && RB.data) { RB.hasChart = false; rbChart(RB.data); } boResize(); });
     $('rbLegsBtn').addEventListener('click', function () { RB.legs = !RB.legs; boSave(); rbFoldSync(); if (RB.data) rbChart(RB.data); });
     $('rbRefBtn').addEventListener('click', function () { RB.ref = !RB.ref; boSave(); rbFoldSync(); if (RB.data) rbChart(RB.data); });
+    $('rbKeyApply').addEventListener('click', rbKeyApply);
+    $('rbKeyClear').addEventListener('click', rbKeyClear);
+    $('rbKeyIn').addEventListener('input', function () { RB.kDirty = true; if (RB.kMsg) { RB.kMsg = null; rbKeySync(); } });
+    $('rbKeyIn').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); rbKeyApply(); }
+      else if (e.key === 'Escape') { e.stopPropagation(); RB.kDirty = false; RB.kMsg = null; e.target.blur(); rbKeySync(); }   // 친 값 버리고 엔진 키인값으로(서랍 닫기 Esc 와 분리)
+    });
     $('boQuick').addEventListener('click', function (e) { var b = e.target.closest('button[data-boadd]'); if (b) boAdd(b.getAttribute('data-boadd')); });
     $('boRows').addEventListener('focusin', function (e) { var inp = e.target.closest('input[data-boslot]'); if (inp) boSel(+inp.getAttribute('data-boslot')); });
     $('boRows').addEventListener('change', function (e) { var inp = e.target.closest('input[data-boslot]'); if (inp) boSetSlot(+inp.getAttribute('data-boslot'), inp.value); });

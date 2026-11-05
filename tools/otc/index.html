@@ -182,6 +182,17 @@
     .otc-rb-why[hidden] { display: none; }
     .otc-rb-why b { font-weight: 600; }
     .otc-rb-why ul { margin: 4px 0 0; padding-left: 18px; }
+    /* 3선 선물 키인(사용자 2026-11-05 · 엔진 session.keyin 이 허용할 때만 활성) */
+    .otc-rb-key { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px 16px 0; font-size: 12px; line-height: 18px; color: var(--wb-muted); }
+    .otc-rb-klab { font-weight: 600; color: var(--wb-ink); }
+    .otc-rb-key .wb-input { width: 92px; font-variant-numeric: tabular-nums; }
+    .otc-rb-key .wb-input:disabled { opacity: .5; cursor: not-allowed; }
+    .otc-rb-kbadge { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border: 1px solid var(--wb-warn); border-radius: 3px; background: color-mix(in srgb, var(--wb-warn) 14%, var(--wb-surface)); color: var(--wb-warn); font-size: 13px; font-weight: 600; font-variant-numeric: tabular-nums; }
+    .otc-rb-kbadge[hidden] { display: none; }
+    .otc-rb-kmsg { overflow-wrap: anywhere; }
+    .otc-rb-kmsg.is-err { color: var(--wb-up); }
+    .otc-tag--key { color: var(--wb-warn); border-color: var(--wb-warn); font-weight: 600; }
+    .otc-rb.is-keyin .otc-rb-big { box-shadow: inset 3px 0 0 var(--wb-warn); }
     .otc-rb-stat { display: flex; flex-wrap: wrap; gap: 2px 18px; padding: 4px 16px 10px; font-size: 11px; line-height: 17px; color: var(--wb-muted); }
     .otc-rb-stat b { color: var(--wb-ink); font-weight: 600; }
     .otc-rb-stat b.otc-buy { color: var(--wb-down); } .otc-rb-stat b.otc-sell { color: var(--wb-up); }
@@ -276,13 +287,22 @@
     <section class="wb-card otc-rb" id="rbCard" aria-label="실시간 저평">
       <div class="wb-card-head otc-rb-head">
         <span class="wb-card-title">실시간 저평(3선)<span id="rbTitleHelp"></span></span>
-        <span class="wb-card-sub">집행 가능한 값 · 지표물 = 장내 호가 · 비지표 = 장외 메신저 호가(사자선/팔자선) · 우리 조달</span>
+        <span class="wb-card-sub" id="rbSub">집행 가능한 값 · 지표물 = 장내 호가 · 비지표 = 장외 메신저 호가(사자선/팔자선) · 우리 조달</span>
         <span class="otc-rb-mini" id="rbMini"></span>
         <span class="wb-card-meta" id="rbMeta"></span>
         <button type="button" class="wb-btn wb-btn--sm" id="rbFold" aria-expanded="true" aria-controls="rbBody">접기 ▴</button>
       </div>
       <div id="rbBody">
         <div class="otc-rb-why" id="rbWhy" hidden></div>
+        <div class="otc-rb-key" id="rbKey">
+          <span class="otc-rb-kbadge" id="rbKeyBadge" hidden></span>
+          <span class="otc-rb-klab">3선 키인</span>
+          <input class="wb-input" id="rbKeyIn" type="number" step="0.01" inputmode="decimal" autocomplete="off" disabled aria-label="3선 선물 가격 키인(Enter = 적용)">
+          <button type="button" class="wb-btn wb-btn--sm" id="rbKeyApply" disabled>적용</button>
+          <button type="button" class="wb-btn wb-btn--sm" id="rbKeyClear" disabled>해제</button>
+          <span id="rbKeyNote"></span>
+          <span class="otc-rb-kmsg" id="rbKeyMsg"></span>
+        </div>
         <div class="otc-rb-top">
           <div class="otc-rb-big" id="rbSell"><div class="otc-rb-lab">매도차익 저평 U</div><div class="otc-rb-val wb-muted">–</div><div class="otc-rb-sub"><span class="wb-loading">불러오는 중…</span></div></div>
           <div class="otc-rb-big" id="rbBuy"><div class="otc-rb-lab">매수차익 저평 Ub</div><div class="otc-rb-val wb-muted">–</div></div>
@@ -390,6 +410,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/wb-chart.js?v=20261022c"></script>
-<script src="/assets/js/wb-otc.js?v=20261105h"></script>
+<script src="/assets/js/wb-otc.js?v=20261105i"></script>
 </body>
 </html>
