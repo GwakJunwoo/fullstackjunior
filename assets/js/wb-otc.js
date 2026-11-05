@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    wb-otc.js — 장외 호가 탭(2026-11-04 사용자 지시) · 화면 = tools/otc/index.html
    ───────────────────────────────────────────────────────────────────────────
-   화면 셋(해시): #bond 종목 분석 · #broker 브로커 분석 · #team 팀 해부(① 요약 ② 종목×일 ③ 장중 ④ 종목 시계열 ⑤ 일봉)
+   화면 셋(해시): #bond 종목 분석 · #broker 브로커 분석 · #team 팀 해부(① 요약 ② 종목×일 ③ 장중 ④ 종목 시계열 ⑤ 일봉 ⑥ 포지션 추정)
    ■ 데이터 = /otc/* (server/app/routers/otc.py → BQH otcdesk.api 그대로). 숫자 = 엔진 값 그대로(재계산 0).
      웹이 하는 일 = 고르기 · 표 배치 · 표기(− 기호 · 비율 → % 자리 이동 · 소수 자리 채우기)뿐.
    ■ 비공개: 모든 GET 에 X-QH-KEY(localStorage 'qh_ops_key' = quant-house 운용 콘솔과 같은 키 이름).
@@ -33,7 +33,7 @@
     '10년': '--wb-series-2', '20년': '--wb-ramp-6', '30년': '--wb-legacy-purple', '50년': '--wb-accent', '기타': '--wb-faint' };
   var MIX_ORDER = Object.keys(MIX_COLOR);
   function mixSort(keys) { return keys.slice().sort(function (a, b) { var x = MIX_ORDER.indexOf(a), y = MIX_ORDER.indexOf(b); return (x < 0 ? 99 : x) - (y < 0 ? 99 : y); }); }
-  var TEAM_SECS = ['sum', 'map', 'intra', 'bond', 'daily'];
+  var TEAM_SECS = ['sum', 'map', 'intra', 'bond', 'daily', 'pos'];
 
   var S = window.WB_OTC = {
     meta: null, view: null, charts: {}, cache: {}, seq: { bond: 0, broker: 0, team: 0 },
@@ -825,7 +825,7 @@
   // ══════════════════════════════════════════════════════════════════════
   // (C) 팀 해부
   // ══════════════════════════════════════════════════════════════════════
-  var SEC_EL = { sum: 'tmSecSum', map: 'tmSecMap', intra: 'tmSecIntra', bond: 'tmSecBond', daily: 'tmSecDaily' };
+  var SEC_EL = { sum: 'tmSecSum', map: 'tmSecMap', intra: 'tmSecIntra', bond: 'tmSecBond', daily: 'tmSecDaily', pos: 'tmSecPos' };
   function teamEnter(p) {
     var T = S.team;
     if (p.has('sec') && TEAM_SECS.indexOf(p.get('sec')) >= 0) T.sec = p.get('sec');
@@ -876,6 +876,7 @@
     if (sec === 'map') return '/otc/team/heatmap?' + qs;
     if (sec === 'intra') return '/otc/team/intraday?' + qs;
     if (sec === 'bond') return '/otc/team/bond?alias=' + enc(T.alias) + '&' + qs;
+    if (sec === 'pos') return '/otc/team/position?' + qs;
     return '/otc/team/daily?' + qs + '&agg=' + enc(T.agg || 'D');
   }
   async function loadSec(sec, fresh) {
@@ -900,7 +901,7 @@
     T.d[sec] = { path: path, data: d };
     renderSec(sec, d);
   }
-  function secName(sec) { return { sum: '기간 요약', map: '종목×일 지도', intra: '장중 행태', bond: '종목 시계열', daily: '일봉' }[sec] || sec; }
+  function secName(sec) { return { sum: '기간 요약', map: '종목×일 지도', intra: '장중 행태', bond: '종목 시계열', daily: '일봉', pos: '포지션 추정' }[sec] || sec; }
   function renderSec(sec, d) {
     var k = d.kpi || d.head || d;
     var s = k.start, e = k.end, nd = k.n_days;
@@ -912,6 +913,7 @@
     else if (sec === 'map') renderMap(d);
     else if (sec === 'intra') renderIntra(d);
     else if (sec === 'bond') renderTBond(d);
+    else if (sec === 'pos') renderPos(d);
     else renderDaily(d);
   }
   function defaultTeamBond() {
@@ -1380,6 +1382,273 @@
     bars('tmDd', 'tmDd', 'done_buy', 'done_sell');
   }
 
+  // ── ⑥ 포지션 추정(엔진 team_position 그대로 · 재계산 0 — 웹은 고르기·배치·표기만) ──
+  // 버킷 → 표시 색(표현 전용 · MIX_COLOR 와 같은 계열: 3년 = series-4 · 10년 = series-2 · 30년 = 보라 · 통안 = series-5)
+  var POS_COLOR = { B3: '--wb-series-4', B10: '--wb-series-2', B30: '--wb-legacy-purple', IDX: '--wb-series-1', MSB: '--wb-series-5', OTH: '--wb-series-6' };
+  var POS_MK = [   // 보조축(시장 · 오른쪽) — [market 키, 라벨, 색, 점선]
+    ['jp3', '3선 저평', '--wb-warn', [6, 4]], ['U', '3선 U', '--wb-open', [2, 3]], ['jp10', '10선 저평', '--wb-legacy-purple', [6, 4]]
+  ];
+  var FUT_TAG = '추정(듀레이션 헤지 가정)';
+  var POS = { d: null, mode: 'dv01', alias: '', hid: {} };
+  function psg(v, dec) {   // 부호 표기(+ / −) · 자리 채우기만(값 무변형)
+    if (!isNum(v)) return '–';
+    dec = dec || 0;
+    var a = Math.abs(v);
+    if (+a.toFixed(dec) === 0) return (0).toFixed(dec);
+    return (v > 0 ? '+' : MINUS) + a.toLocaleString('ko-KR', { minimumFractionDigits: dec, maximumFractionDigits: dec });
+  }
+  function fraw(v) { return isNum(v) ? (v < 0 ? MINUS : '') + Math.abs(v) : '–'; }   // 엔진 값 그대로(자리 손대지 않음)
+  function pcls(v) { return !isNum(v) || v === 0 ? '' : v > 0 ? 'otc-buy' : 'otc-sell'; }   // + = 매수(롱) 파랑 · − = 매도 빨강
+  function pSpan(v, dec) { return '<span class="' + pcls(v) + '">' + psg(v, dec) + '</span>'; }
+  function pTd(v, dec) { return '<td class="num ' + pcls(v) + '">' + psg(v, dec) + '</td>'; }
+  function tickSg(v) { return (v > 0 ? '+' : v < 0 ? MINUS : '') + Math.abs(v).toLocaleString('ko-KR', { maximumFractionDigits: 2 }); }
+  function posDef(k) { var d = POS.d; return (d && d.defs && d.defs[k]) ? String(d.defs[k]) : ''; }
+  function sw(gid) { return '<i class="otc-sw" style="background:var(' + (POS_COLOR[gid] || '--wb-faint') + ')"></i>'; }
+  function nz(a) { return (a || []).some(function (v) { return isNum(v) && v !== 0; }); }
+  function unitTxt(v) { return isNum(v) ? (Math.abs(v - Math.round(v)) < 1e-9 ? String(Math.round(v)) : String(v)) : '–'; }
+  function multiYear(dates) { return !!(dates.length && String(dates[0]).slice(0, 4) !== String(dates[dates.length - 1]).slice(0, 4)); }
+  function dShort(x, my) { return !x ? '' : my ? String(x).slice(2).replace(/-/g, '.') : mmdd(x); }   // 한 해 안 = MM-DD · 해 넘김 = YY.MM.DD
+  function posRolls(m, dates) {   // 선물 롤(계약 코드 바뀐 날) — 3선/10선 · 날짜 → 라벨
+    var o = {};
+    [['roll3', '3선'], ['roll10', '10선']].forEach(function (r) {
+      (m[r[0]] || []).forEach(function (dt) { var i = dates.indexOf(dt); if (i < 0) return; (o[i] = o[i] || []).push(r[1]); });
+    });
+    return o;
+  }
+  function rollPlug(rolls) {
+    return { id: 'otcRoll', beforeDatasetsDraw: function (ch) {
+      var keys = Object.keys(rolls); if (!keys.length || !ch.chartArea) return;
+      var xs = ch.scales.x, ca = ch.chartArea, ctx = ch.ctx;
+      ctx.save(); ctx.strokeStyle = cssv('--wb-muted'); ctx.lineWidth = 1; ctx.setLineDash([2, 3]);
+      ctx.font = '10px ' + (cssv('--wb-font') || 'sans-serif'); ctx.fillStyle = cssv('--wb-muted'); ctx.textBaseline = 'top';
+      keys.forEach(function (k) {
+        var x = Math.round(xs.getPixelForValue(+k)) + 0.5;
+        ctx.beginPath(); ctx.moveTo(x, ca.top); ctx.lineTo(x, ca.bottom); ctx.stroke();
+        ctx.fillText('롤 ' + rolls[k].join('·'), x + 3, ca.top + 2);
+      });
+      ctx.restore();
+    } };
+  }
+  function renderPos(d) {
+    var el = $('tmSecPos'), h = d.head || {}, t = d.total || {}, groups = d.groups || [];
+    POS.d = d;
+    var G = {}; groups.forEach(function (g) { G[g.id] = g; });
+    var dates = d.dates || [], my = multiYear(dates);
+    var hasFill = isNum(h.n_done) && h.n_done > 0 && !!(t.dv01 && t.dv01.length);
+    var lim = d.limits || [];
+    // 0) 한계 — 엔진 문장 그대로 · 접지 않음
+    var html = '<section class="wb-card">' + cardHead('한계', '엔진 limits 문장 그대로', n0(lim.length) + '개') +
+      (lim.length ? '<ol class="otc-lim">' + lim.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join('') + '</ol>'
+        : '<div class="otc-card-body"><div class="otc-empty">엔진이 한계 문장을 보내지 않음</div></div>') + '</section>';
+    // 1) KPI
+    var netFace = (t.face && t.face.length) ? t.face[t.face.length - 1] : null;
+    var fe = t.fut_ct_end || {}, futs = groups.filter(function (g) { return g.fut; });
+    var futTxt = futs.map(function (g) { return esc(g.fut) + ' ' + pSpan(fe[g.id], 0); }).join(' <span class="wb-muted">·</span> ');
+    var kp = [
+      ['기간', esc((h.start || '–') + ' ~ ' + (h.end || '–')), n0(h.n_days) + '영업일' + ((h.members || []).length ? ' · ' + esc(h.members.join('·')) : ''), '', 1],
+      ['체결 표시', n0(h.n_done), '액면 기재 ' + n0(h.n_size_known) + ' · ' + unitTxt(h.unit_eok) + '억 가정 ' + n0(h.n_size_assumed), posDef('net')],
+      ['누적 액면 매수/매도(억)', bs(h.face_buy, h.face_sell), isNum(netFace) ? '순 ' + pSpan(netFace, 0) + '억(끝)' : '순 –', posDef('net')],
+      ['DV01 합(백만원/bp)', pSpan(t.dv01_end, 2), '끝값 · + = 롱 듀레이션', posDef('dv01')],
+      ['선물 계약(끝)', futTxt || '–', FUT_TAG, posDef('fut_ct'), 1]
+    ];
+    var be = t.dv01_by_group_end || {};
+    html += '<section class="wb-card otc-mt">' + cardHead('포지션 추정 — 체결 표시 누적', posDef('net') + '\n' + NOTE.obs + '\n색: + = 매수(롱) 파랑 · − = 매도 빨강', esc((h.start || '') + ' ~ ' + (h.end || ''))) +
+      '<dl class="wb-kpis otc-kpis">' + kp.map(function (x) {
+        return '<div class="wb-kpi"><dt>' + esc(x[0]) + help(x[3]) + '</dt><dd><span class="wb-kpi-val"' + (x[4] ? ' style="font-size:16px"' : '') + '>' + x[1] + '</span>' + (x[2] ? '<span class="wb-kpi-sub">' + x[2] + '</span>' : '') + '</dd></div>';
+      }).join('') + '</dl>' +
+      '<div class="otc-cap" style="padding:6px 16px 0">버킷별 DV01 끝값(백만원/bp)' + help(posDef('group')) + '</div>' +
+      '<dl class="wb-kpis otc-kpis otc-kpis--sm">' + groups.map(function (g) {
+        return '<div class="wb-kpi"><dt>' + sw(g.id) + esc(g.label) + '</dt><dd><span class="wb-kpi-val">' + pSpan(be[g.id], 2) + '</span></dd></div>';
+      }).join('') + '</dl></section>';
+    // 2) 메인 차트 — 버킷별 누적 DV01 / 추정 선물 계약 + 보조축 저평·U
+    html += '<section class="wb-card otc-mt"><div class="wb-card-head"><span class="wb-card-title" id="tmPosTitle"></span>' +
+      '<span class="wb-card-meta">' + n0(dates.length) + '일' + (dates.length ? ' · ' + esc(dates[0]) + ' ~ ' + esc(dates[dates.length - 1]) : '') + '</span></div>' +
+      '<div class="otc-toolbar"><div class="wb-seg" id="tmPosMode" role="group" aria-label="보기"><button type="button" data-posmode="dv01">DV01</button><button type="button" data-posmode="fut">추정 선물 계약</button></div>' +
+      '<span class="otc-cap" id="tmPosNote"></span></div>' +
+      '<div class="otc-card-body">' + (hasFill ? '<div class="otc-chart otc-chart--lg"><canvas id="tmPosMain"></canvas></div>'
+        : '<div class="otc-empty">기간 안 팀 체결 표시 없음 — 누적 시계열 없음(엔진 series 비어 있음)</div>') + '</div></section>';
+    // 3) 종목별 누적 표 + 행 클릭 미니 차트
+    var bonds = d.bonds || [], nSer = Object.keys(d.bond_series || {}).length;
+    if (!bonds.some(function (b) { return b.alias === POS.alias; })) POS.alias = bonds.length ? bonds[0].alias : '';
+    html += '<section class="wb-card otc-mt">' + cardHead('종목별 누적', posDef('net') + '\n' + posDef('dv01') + '\n' + posDef('group') +
+        '\n정렬 = |DV01| 큰 순(엔진) · 기재/가정 = 액면 적힌 체결 / ' + unitTxt(h.unit_eok) + '억 가정 체결\nu = 3선 바스켓 종목별 u(BQH 차익 모니터 · 마지막 값과 그 날짜)\n행 클릭 = 위 미니 차트 종목 바꾸기 · 시계열은 |DV01| 상위 ' + nSer + '종목만(엔진 상한)',
+        n0(bonds.length) + '종목') +
+      '<div class="otc-toolbar"><span class="otc-cap" id="tmPosBCap"></span></div>' +
+      '<div class="otc-card-body"><div class="otc-chart otc-chart--md" id="tmPosBBox"><canvas id="tmPosB"></canvas></div><div class="otc-empty" id="tmPosBNone" hidden></div></div>' +
+      '<div class="wb-table-wrap otc-scroll"><table class="wb-table otc-t" id="tmPosTbl"><thead><tr><th>종목</th><th>버킷</th><th>바스켓</th><th class="num">건</th><th class="num">사/팔</th><th class="num">순건</th>' +
+      '<th class="num">액면 사/팔(억)</th><th class="num">순액면(억)</th><th class="num">기재/가정</th><th class="num">DV01' + help(posDef('dv01')) + '</th><th class="num">1억당 DV01</th>' +
+      '<th class="num">잔존(년)</th><th class="num">u</th><th>최초 ~ 최근</th><th>멤버</th></tr></thead><tbody>';
+    bonds.forEach(function (b) {
+      var g = G[b.grp];
+      html += '<tr class="is-click' + (b.alias === POS.alias ? ' is-sel' : '') + '" data-posb="' + esc(b.alias) + '"><td><span class="mono">' + esc(b.alias) + '</span>' + (b.nick ? '<span class="otc-sub">' + esc(b.nick) + '</span>' : '') + '</td>' +
+        '<td>' + (g ? sw(g.id) + esc(g.label) : esc(b.grp || '–')) + (b.btype && b.btype !== '국고채' ? '<span class="otc-sub">' + esc(b.btype) + '</span>' : '') + '</td>' +
+        '<td>' + (b.basket ? tag(b.basket) : '') + '</td><td class="num">' + n0(b.n) + '</td><td class="num">' + bs(b.buy, b.sell) + '</td>' + pTd(b.net_cnt, 0) +
+        '<td class="num">' + bs(b.face_buy, b.face_sell) + '</td>' + pTd(b.net_face, 0) + '<td class="num">' + n0(b.known) + '<span class="wb-muted">/</span>' + n0(b.assumed) + '</td>' +
+        pTd(b.dv01, 2) + '<td class="num">' + fnum(b.dv01_eok, 4) + '</td><td class="num">' + fnum(b.rem, 2) + '</td>' +
+        '<td class="num">' + (isNum(b.u) ? fraw(b.u) + '<span class="otc-sub">' + esc(dShort(b.u_date, my)) + '</span>' : '–') + '</td>' +
+        '<td class="mono">' + esc(dShort(b.first, my)) + ' ~ ' + esc(dShort(b.last, my)) + '</td><td class="wb-muted">' + esc(b.members || '') + '</td></tr>';
+    });
+    if (!bonds.length) html += '<tr><td colspan="15" class="wb-muted">기간 안 팀 체결 표시 없음</td></tr>';
+    html += '</tbody></table></div></section>';
+    // 4) 교체 스프레드 — 작은 배수
+    var sp = d.spreads || [];
+    html += '<section class="wb-card otc-mt">' + cardHead('교체 스프레드', posDef('spread') + '\n선 = 스프레드(bp · 왼쪽 축) · 막대 = 그날 팀 순액면(억 · 오른쪽 축 · + 매수 / − 매도) — a(바스켓 종목) · b(지표) 다른 색\n변화 = 기간 안 마지막 − 처음 스프레드(값 있는 날 · 엔진 chg)\n체결 = 기간 안 팀 체결 표시 건수(a · b)\n최대 8쌍 · 체결 많은 순(엔진)', n0(sp.length) + '쌍') +
+      '<div class="otc-card-body" style="padding-bottom:0"><span class="otc-leg"><span><i class="ln" style="border-color:var(--wb-ink)"></i>스프레드 a−b(bp)</span>' +
+      '<span><i style="display:inline-block;width:10px;height:8px;border-radius:2px;background:var(--wb-series-1)"></i>a 순액면</span>' +
+      '<span><i style="display:inline-block;width:10px;height:8px;border-radius:2px;background:var(--wb-series-3)"></i>b 순액면</span></span></div>' +
+      (sp.length ? '<div class="otc-sm-grid">' + sp.map(function (s, i) {
+        return '<div class="otc-sm-cell"><div class="otc-sm-title"><span class="mono">' + esc(s.pair) + '</span><span class="otc-sub">' + esc([s.basket, s.b_nick].filter(Boolean).join(' · ')) + '</span>' +
+          '<span class="otc-sub">변화 ' + bpSpan(s.chg, 1) + 'bp · 체결 ' + n0(s.n_a) + ' · ' + n0(s.n_b) + '</span></div>' +
+          '<div class="otc-chart otc-chart--xs"><canvas id="tmPosSp' + i + '"></canvas></div></div>';
+      }).join('') + '</div>' : '<div class="otc-card-body"><div class="otc-empty">교체 스프레드 없음(엔진 spreads 비어 있음)</div></div>') + '</section>';
+    // 5) 장중 짝 검사
+    var it = d.intraday || {};
+    html += '<div class="otc-grid">' + ['3선', '10선'].map(function (k) { return '<section class="wb-card">' + posIntraCard(k, it[k]) + '</section>'; }).join('') + '</div>';
+    html += '<section class="wb-card otc-mt"><div class="otc-read">' +
+      (it.rule ? '<p><b>규칙</b>' + esc(it.rule) + '</p>' : '') + (it.read ? '<p><b>읽는 법</b>' + esc(it.read) + '</p>' : '') +
+      (!it.rule && !it.read ? '<p class="wb-muted">엔진이 규칙·읽는 법 문장을 보내지 않음</p>' : '') + '</div></section>';
+    Object.keys(S.charts).forEach(function (k) { if (k.indexOf('tmPos') === 0) kill(k); });
+    el.innerHTML = html;
+    posModeSync();
+    if (hasFill) posMain();
+    posBond();
+    var lab = function (i) { return dShort(dates[i], my); };
+    sp.forEach(function (s, i) { posSpread(i, s, dates, lab); });
+  }
+  function posIntraCard(k, x) {
+    var meta = x ? n0(x.n_days) + '일 · 분봉 ' + n0(x.n_minutes) + ' · sdev 표준편차 ' + fraw(x.sdev_sd) + 'bp' : '';
+    var head = cardHead(k + ' 장중 짝 검사' + (x && x.idx ? ' · ' + x.idx : ''), 'sdev(bp) 매수/매도 평균 · t · 매수−매도 차 · 무작위 대조 p · z — 엔진 값 그대로\n규칙 · 읽는 법 = 아래 문장(엔진 그대로)\n방향 배지 = 매수−매도 차가 짝 방향(음수)과 같은지 — 같은 방향 쏠림 관찰이지 짝 확인이 아님', meta);
+    if (!x || (!x.done && !x.quote)) return head + '<div class="otc-card-body"><div class="otc-empty">엔진 결과 없음</div></div>';
+    var tb = '<div class="wb-table-wrap"><table class="wb-table otc-t"><thead><tr><th rowspan="2">기준</th><th class="num" rowspan="2">n</th><th class="grp otc-buy" colspan="3">매수</th><th class="grp otc-sell" colspan="3">매도</th>' +
+      '<th class="num" rowspan="2">매수−매도(bp)</th><th class="num" rowspan="2">p</th><th class="num" rowspan="2">z</th><th rowspan="2">방향</th></tr>' +
+      '<tr><th class="num">n</th><th class="num">평균 sdev</th><th class="num">t</th><th class="num">n</th><th class="num">평균 sdev</th><th class="num">t</th></tr></thead><tbody>';
+    [['체결', x.done], ['호가', x.quote]].forEach(function (r) {
+      var v = r[1] || {}, b = v.buy || {}, s = v.sell || {};
+      tb += '<tr><td>' + r[0] + '</td><td class="num">' + n0(v.n) + '</td><td class="num">' + n0(b.n) + '</td>' + bpTd(b.mean, 3) + '<td class="num">' + fnum(b.t, 2) + '</td>' +
+        '<td class="num">' + n0(s.n) + '</td>' + bpTd(s.mean, 3) + '<td class="num">' + fnum(s.t, 2) + '</td>';
+      if (isNum(v.diff) && isNum(v.p)) {
+        tb += bpTd(v.diff, 3) + '<td class="num" title="' + esc('무작위 대조 ' + n0(v.sims) + '회 · 대조 차 표준편차 ' + fraw(v.null_sd) + 'bp') + '">' + fraw(v.p) + '</td><td class="num">' + fnum(v.z, 2) + '</td>' +
+          '<td>' + (v.pair_dir === true ? '<span class="otc-pair">짝 방향과 같음</span>' : v.pair_dir === false ? '<span class="otc-pair">짝 방향과 다름</span>' : '–') + '</td>';
+      } else tb += '<td class="na" colspan="4">' + (isNum(v.n) && v.n > 0 ? '매수·매도 한쪽만 — 검사 불가' : '이벤트 없음 — 검사 불가') + '</td>';
+      tb += '</tr>';
+    });
+    tb += '</tbody></table></div>';
+    var ex = x.excluded_days || [];
+    return head + tb + '<div class="otc-foot" style="padding:6px 16px 10px">제외일 ' + (ex.length ? esc(ex.join(', ')) : '없음') + ' · 기간 ' + n0(x.n_days) + '일</div>';
+  }
+  function posModeSync() {
+    var fut = POS.mode === 'fut';
+    Array.prototype.forEach.call(($('tmPosMode') || {}).children || [], function (b) { b.classList.toggle('is-active', b.getAttribute('data-posmode') === POS.mode); });
+    var ti = $('tmPosTitle'); if (!ti) return;
+    var tip = (fut ? posDef('fut_ct') : posDef('dv01') + '\n' + posDef('group') + '\n굵은 선 = 합계') +
+      '\n보조축(오른쪽) = 3선 저평 · 3선 U · 10선 저평 — 범례 클릭으로 켜고 끄기(U 는 값 없는 구간 끊김)\n' + posDef('jp') +
+      '\n세로 점선 = 선물 롤(계약 코드 바뀐 날 · 3선/10선)\n전 기간 0 인 선은 생략(위 표기) · 십자선 툴팁 = 그날 버킷별 DV01 · 계약 · 저평 · U · Ub';
+    ti.innerHTML = esc(fut ? '추정 선물 계약 · ' + FUT_TAG : '버킷별 누적 DV01(백만원/bp)') + help(tip);
+  }
+  function posTipHtml(i) {
+    var d = POS.d, dates = d.dates || [], ser = d.series || {}, tot = d.total || {}, m = d.market || {}, groups = d.groups || [];
+    var h = '<b>' + esc(dates[i] || '') + '</b><br><span class="wb-muted">DV01(백만원/bp)</span>';
+    groups.forEach(function (g) {
+      var s = ser[g.id]; if (!s || !s.dv01) return;
+      h += '<br>' + sw(g.id) + esc(g.label) + ' ' + pSpan(s.dv01[i], 2) + (s.no_dv01 && s.no_dv01[i] ? ' <span class="wb-muted">(DV01 못 낸 종목 ' + n0(s.no_dv01[i]) + ')</span>' : '');
+    });
+    if (tot.dv01) h += '<br><b>합계 ' + pSpan(tot.dv01[i], 2) + '</b>' + (tot.day_face ? ' <span class="wb-muted">· 그날 순액면</span> ' + pSpan(tot.day_face[i], 0) + '억' : '');
+    var fx = groups.filter(function (g) { return g.fut && ser[g.id] && ser[g.id].fut_ct; });
+    if (fx.length) h += '<br><span class="wb-muted">선물 계약 · ' + FUT_TAG + '</span><br>' + fx.map(function (g) { return esc(g.fut) + ' ' + pSpan(ser[g.id].fut_ct[i], 0); }).join(' · ');
+    var at = function (k) { return m[k] ? m[k][i] : null; };
+    h += '<br><span class="wb-muted">시장</span><br>3선 저평 ' + fraw(at('jp3')) + ' · U ' + fraw(at('U')) + ' · Ub ' + fraw(at('Ub')) + ' · 10선 저평 ' + fraw(at('jp10'));
+    var rl = posRolls(m, dates)[i]; if (rl) h += '<br><span class="wb-muted">선물 롤 ' + esc(rl.join('·')) + '</span>';
+    return h;
+  }
+  function posMain() {
+    var d = POS.d, cv = $('tmPosMain'); if (!d || !cv) return;
+    var dates = d.dates || [], groups = d.groups || [], ser = d.series || {}, tot = d.total || {}, m = d.market || {};
+    var my = multiYear(dates), fut = POS.mode === 'fut', ds = [], zero = [], noDv = false;
+    groups.forEach(function (g) {
+      var s = ser[g.id]; if (!s) return;
+      if (s.no_dv01 && s.no_dv01.some(function (v) { return v > 0; })) noDv = true;
+      var arr = fut ? s.fut_ct : s.dv01; if (!arr) return;   // 선물 없는 버킷 = fut_ct 없음
+      var nm = fut ? g.fut + ' 계약' : g.label;
+      if (!nz(arr)) { zero.push(nm); return; }
+      var c = POS_COLOR[g.id] || '--wb-faint';
+      ds.push({ type: 'line', label: nm, data: arr, borderColor: tk(c), backgroundColor: tk(c), borderWidth: 2, pointRadius: 0, pointHoverRadius: 3, spanGaps: false, yAxisID: 'y', order: 1 });
+    });
+    if (!fut && tot.dv01) ds.push({ type: 'line', label: '합계', data: tot.dv01, borderColor: tk('--wb-ink'), backgroundColor: tk('--wb-ink'), borderWidth: 3.4, pointRadius: 0, pointHoverRadius: 4, yAxisID: 'y', order: 0 });
+    POS_MK.forEach(function (k) {
+      var a = m[k[0]]; if (!a) return;
+      ds.push({ type: 'line', label: k[1], data: a, _mk: k[0], hidden: !!POS.hid[k[0]], borderColor: tk(k[2], 0.95), backgroundColor: tk(k[2]), borderWidth: 1.4, borderDash: k[3],
+        pointRadius: 0, pointHoverRadius: 2, spanGaps: false, yAxisID: 'y1', order: 2 });
+    });
+    var note = [];
+    if (zero.length) note.push('전 기간 0(선 생략): ' + zero.join(' · '));
+    if (noDv) note.push('DV01 못 낸 종목 있는 날 = 툴팁에 표시');
+    $('tmPosNote').textContent = note.join(' · ');
+    var o = baseOpts({
+      scales: {
+        x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12, callback: function (v) { return dShort(dates[v], my); } } },
+        y: { position: 'left', title: { display: true, text: fut ? '계약 · ' + FUT_TAG : 'DV01(백만원/bp)' }, ticks: { callback: tickSg } },
+        y1: { position: 'right', grid: { display: false }, title: { display: true, text: '저평 · U' }, ticks: { maxTicksLimit: 6, callback: tickSg } }
+      },
+      plugins: { legend: { display: true }, tooltip: { enabled: false, external: function (c) {
+        var tt = c.tooltip;
+        if (!tt || tt.opacity === 0 || !tt.dataPoints || !tt.dataPoints.length) { hideHov(); return; }
+        var r = c.chart.canvas.getBoundingClientRect();
+        showHov(posTipHtml(tt.dataPoints[0].dataIndex), r.left + tt.caretX, r.top + tt.caretY);
+      } } }
+    });
+    o.plugins.legend = Object.assign({}, LEG, { onClick: function (e, item, legend) {
+      Chart.defaults.plugins.legend.onClick.call(this, e, item, legend);
+      var x = legend.chart.data.datasets[item.datasetIndex];
+      if (x && x._mk) POS.hid[x._mk] = !legend.chart.isDatasetVisible(item.datasetIndex);
+    } });
+    mk('tmPosMain', cv, { type: 'line', data: { labels: dates, datasets: ds }, options: o, plugins: [rollPlug(posRolls(m, dates))] });
+  }
+  function posBond() {
+    var d = POS.d; if (!d) return;
+    var al = POS.alias, ser = (d.bond_series || {})[al], u = (d.u_slot || {})[al], dates = d.dates || [], my = multiYear(dates);
+    var box = $('tmPosBBox'), none = $('tmPosBNone'), cap = $('tmPosBCap'); if (!box) return;
+    var b = (d.bonds || []).filter(function (x) { return x.alias === al; })[0], nSer = Object.keys(d.bond_series || {}).length;
+    cap.innerHTML = al ? '<b class="mono">' + esc(al) + '</b>' + (b && b.nick ? ' ' + esc(b.nick) : '') +
+      (b ? ' · 순액면 ' + pSpan(b.net_face, 0) + '억 · DV01 ' + pSpan(b.dv01, 2) : '') + ' · 행 클릭 = 종목 바꾸기' : '';
+    if (!ser) {
+      kill('tmPosB'); box.hidden = true; none.hidden = false;
+      none.textContent = al ? al + ' — 시계열은 |DV01| 상위 ' + nSer + '종목만(엔진 상한) · 이 종목은 표 숫자만' : '기간 안 팀 체결 표시 없음';
+      return;
+    }
+    box.hidden = false; none.hidden = true;
+    var ds = [
+      { type: 'bar', label: '그날 순액면(억)', data: ser.day_face, backgroundColor: tk('--wb-series-6', 0.55), yAxisID: 'y', order: 3 },
+      { type: 'line', label: '누적 액면(억)', data: ser.face, stepped: true, borderColor: tk('--wb-series-1'), backgroundColor: tk('--wb-series-1', 0.12), fill: 'origin', borderWidth: 2.2, pointRadius: 0, pointHoverRadius: 3, yAxisID: 'y', order: 1 },
+      { type: 'line', label: 'DV01(백만원/bp)', data: ser.dv01, borderColor: tk('--wb-ink'), backgroundColor: tk('--wb-ink'), borderWidth: 1.8, borderDash: [5, 3], pointRadius: 0, pointHoverRadius: 3, spanGaps: false, yAxisID: 'y1', order: 0 }
+    ];
+    var sc = {
+      x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10, callback: function (v) { return dShort(dates[v], my); } } },
+      y: { position: 'left', title: { display: true, text: '억' }, ticks: { callback: tickSg } },
+      y1: { position: 'right', grid: { display: false }, title: { display: true, text: 'DV01' }, ticks: { callback: tickSg } }
+    };
+    if (u) {
+      ds.push({ type: 'line', label: 'u(3선 모니터)', data: u, borderColor: tk('--wb-open'), backgroundColor: tk('--wb-open'), borderWidth: 1.5, borderDash: [2, 3], pointRadius: 0, pointHoverRadius: 3, spanGaps: false, yAxisID: 'y2', order: 0 });
+      sc.y2 = { position: 'right', grid: { display: false }, title: { display: true, text: 'u' }, ticks: { maxTicksLimit: 5 } };
+    }
+    mk('tmPosB', $('tmPosB'), { type: 'bar', data: { labels: dates, datasets: ds },
+      options: baseOpts({ scales: sc, plugins: { legend: { display: true }, tooltip: { callbacks: {
+        title: function (it) { return it[0] ? dates[it[0].dataIndex] : ''; },
+        label: function (c) { var v = c.raw; return c.dataset.label + ' ' + (c.dataset.yAxisID === 'y2' ? fraw(v) : psg(v, c.dataset.yAxisID === 'y1' ? 2 : 0)); } } } } }) });
+  }
+  function posSpread(i, s, dates, lab) {
+    mk('tmPosSp' + i, $('tmPosSp' + i), { type: 'bar', data: { labels: dates, datasets: [
+      { type: 'line', label: '스프레드(bp)', data: s.spr, borderColor: tk('--wb-ink'), backgroundColor: tk('--wb-ink'), borderWidth: 1.8, pointRadius: 0, pointHoverRadius: 3, spanGaps: false, yAxisID: 'y', order: 0 },
+      { type: 'bar', label: s.a + ' 순액면(억)', data: s.face_a, backgroundColor: tk('--wb-series-1', 0.85), yAxisID: 'y1', order: 1 },
+      { type: 'bar', label: s.b + ' 순액면(억)', data: s.face_b, backgroundColor: tk('--wb-series-3', 0.85), yAxisID: 'y1', order: 1 }] },
+      options: baseOpts({ scales: {
+        x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 4, callback: function (v) { return lab(v); } } },
+        y: { position: 'left', ticks: { maxTicksLimit: 4, callback: tickSg } },
+        y1: { position: 'right', grid: { display: false }, ticks: { maxTicksLimit: 4, callback: tickSg } } },
+        plugins: { legend: { display: false }, tooltip: { callbacks: {
+          title: function (it) { return it[0] ? dates[it[0].dataIndex] : ''; },
+          label: function (c) { return c.dataset.label + ' ' + (c.dataset.yAxisID === 'y' ? fraw(c.raw) : psg(c.raw, 0)); } } } } }) });
+  }
+
   // ══ 떠 있는 툴팁(지도) ═════════════════════════════════════════════════
   function showHov(html, cx, cy) {
     var el = $('otcHov'); el.innerHTML = html; el.hidden = false;
@@ -1456,7 +1725,15 @@
     if (mb) { var key = mb.getAttribute('data-more'); var st = S.tbl[key]; if (st) { st.lim += 300; rerenderTbl(key); } return; }
     var ag = e.target.closest('button[data-agg]');
     if (ag) { S.team.agg = ag.getAttribute('data-agg'); teamStamp(); loadSec('daily', false); return; }
+    var pm = e.target.closest('button[data-posmode]');
+    if (pm) { POS.mode = pm.getAttribute('data-posmode') === 'fut' ? 'fut' : 'dv01'; hideHov(); posModeSync(); posMain(); return; }
     if (e.target.closest('a, button')) return;
+    var pb = e.target.closest('tr[data-posb]');
+    if (pb) {
+      POS.alias = pb.getAttribute('data-posb');
+      Array.prototype.forEach.call(pb.parentNode.children, function (r) { r.classList.toggle('is-sel', r === pb); });
+      posBond(); return;
+    }
     var t = e.target.closest('[data-tbond]');
     if (t) { S.team.alias = t.getAttribute('data-tbond'); S.tbl.bep = null; S.tbl.bdone = null; showSec('bond', false); return; }
     var m = e.target.closest('tr[data-member]');

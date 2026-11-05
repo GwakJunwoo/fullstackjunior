@@ -133,3 +133,10 @@ def otc_team_intraday(request: Request, member: str | None = None, start: str | 
 def otc_team_daily(request: Request, member: str | None = None, start: str | None = None,
                    end: str | None = None, period: str | None = None, agg: str | None = None):
     return _send(request, _api().team_daily, member=member, start=start, end=end, period=period, agg=agg)
+
+
+@router.get("/team/position")
+def otc_team_position(request: Request, member: str | None = None, start: str | None = None,
+                      end: str | None = None, period: str | None = None):
+    """포지션 추정(체결 표시 누적 · DV01 · 추정 선물 계약 · 장중 짝 검사) — api.team_position 그대로(보정·계산 0)."""
+    return _send(request, _api().team_position, member=member, start=start, end=end, period=period)
