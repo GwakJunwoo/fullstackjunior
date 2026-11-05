@@ -911,37 +911,45 @@
     var enter = kind === 'sell' ? th.sell_enter : th.buy_enter, exit = (kind === 'sell' ? th.sell_exit : th.buy_exit) || [];
     var how = kind === 'sell' ? (mix ? '선물 매도호가 · 현물 매수: 지표물 = 장내 호가 · 비지표 = 장외 메신저 호가(사자선)' : '선물 매도호가 · 현물 매수호가(장내)')
       : (mix ? '선물 매수호가 · 현물 매도: 지표물 = 장내 호가 · 비지표 = 장외 메신저 호가(팔자선)' : '선물 매수호가 · 현물 매도호가(장내)');
-    var tip = how + ' · 조달 ' + (isNum((d.funding || {})[kind]) ? fnum(d.funding[kind], 4) + '%' : '–') + '\n' + (defs[kind] || '') + '\n' + (defs.mix || '') +
+    var pc = d.prev_close || {};
+    var tip = how + ' · 조달 ' + (isNum((d.funding || {})[kind]) ? fnum(d.funding[kind], 4) + '%' : '–') + '\n' + (defs[kind] || '') + '\n' + (defs.mix || '') + (defs.d_prev ? '\n' + defs.d_prev : '') +
+      (pc.ok ? '\n전일(' + (pc.date || '') + ') 종가: 선물 ' + fp(pc.fut) + ' · U ' + fjn(pc.U) + ' · Ub ' + fjn(pc.Ub) + (isNum(pc.d_fut) ? ' · 선물 전일 대비 ' + fjn(pc.d_fut, 0) + '틱' : '') : '') +
       (x.ok ? '\n지금: 선물 ' + fp(x.fut) + ' · 이론가 ' + fnum(x.theo, 4) + ' · 평균 선도수익률 ' + fnum(x.avg_fwd_ytm, 4) : '') +
       (isNum(enter) ? '\n진입 문턱 ' + fjn(enter, 1) + (exit.length ? ' · 청산 문턱 ' + exit.join(' ~ ') : '') : '') +
       '\n참고 · 전부 장내 호가 ' + ((alt && alt.ok) ? fjn(alt.under) : '–') + ' · 현재가 ' + (ref.ok ? fjn(ref.under) : '–') + ' — ' + (defs.ref || '') +
       '\n' + (defs.limits || '') + '\n관찰 전용 — 추천·주문 아님';
     return '<div class="otc-rb-lab">' + (kind === 'sell' ? '매도차익 저평 U' : '매수차익 저평 Ub') + help(tip) + '</div>' +
-      (x.ok ? '<div class="otc-rb-val ' + sgn(x.under) + '">' + fjn(x.under) + '<small>전</small></div>'
+      (x.ok ? '<div class="otc-rb-val ' + sgn(x.under) + '">' + fjn(x.under) + '<small>전</small></div>' +
+          (isNum(x.d_prev) ? '<div class="otc-rb-sub otc-rb-dp">전일 대비 <b class="' + sgn(x.d_prev) + '">' + fjn(x.d_prev) + '</b>전 <span class="wb-muted">· 전일 종가 ' + fjn(x.prev) + (pc.date ? '(' + esc(mmdd(pc.date)) + ')' : '') + '</span></div>' : '')
         : '<div class="otc-rb-val wb-muted">–</div><div class="otc-rb-sub">' + esc(x.why || '값 없음 — 아래 사유') + '</div>');
   }
-  function rbLegs(d) {
-    var mix = rbMix(d), sl = {}, bl = {}, defs = d.defs || {};
+  function rbLegs(d) {   // 종목별 저평 · 전일 대비 — 원인 종목(엔진 driver) 행 = 노랑 강조
+    var mix = rbMix(d), sl = {}, bl = {}, defs = d.defs || {}, drv = (d.driver && d.driver.alias) || null;
     var sub = function (b, l) {   // 비지표인데 오늘 장외 호가가 없어 장내로 대체된 종목(엔진 legs[].fallback) = 눈에 띄게
       return (l && l.fallback === true) ? ' ' + tag('장외 호가 없음 → 장내', 'rst') : '';
     };
     (((d[mix ? 'sell_mix' : 'sell'] || {}).legs) || []).forEach(function (l) { sl[l.alias] = l; });
     (((d[mix ? 'buy_mix' : 'buy'] || {}).legs) || []).forEach(function (l) { bl[l.alias] = l; });
     var cell = function (l, c, warn) {
-      return l ? '<td class="' + c + 'num ' + sgn(l.under) + '"><b>' + fjn(l.under) + '</b></td><td class="' + c + 'num">' + fy(l.ytm) + '</td>' +
+      return l ? '<td class="' + c + 'num ' + sgn(l.under) + '"><b>' + fjn(l.under) + '</b></td>' +
+          '<td class="' + c + 'num ' + sgn(l.d_prev) + '"' + (isNum(l.prev) ? ' title="전일 종가 저평 ' + esc(fjn(l.prev)) + '"' : '') + '><b>' + fjn(l.d_prev) + '</b></td>' +
+          '<td class="' + c + 'num">' + fy(l.ytm) + (isNum(l.d_ytm_bp) ? ' <small class="otc-rb-dy ' + sgn(l.d_ytm_bp) + '" title="쓴 수익률 − 전일 민평 종가(bp)">' + fbp(l.d_ytm_bp) + '</small>' : '') + '</td>' +
           '<td class="' + c + 'lt">' + (l.src ? esc(l.src) + (l.src_t ? ' <span class="wb-muted">' + esc(l.src_t) + '</span>' : '') + (warn || '') : '<span class="wb-muted">–</span>') + '</td>' +
           '<td class="' + c + 'num">' + fy(l.fwd_ytm) + '</td><td class="' + c + 'num">' + fnum(l.theo, 4) + '</td>'
-        : '<td class="' + c + 'num wb-muted">–</td><td class="' + c + 'num wb-muted">–</td><td class="' + c + 'wb-muted">–</td><td class="' + c + 'num wb-muted">–</td><td class="' + c + 'num wb-muted">–</td>';
+        : '<td class="' + c + 'num wb-muted">–</td><td class="' + c + 'num wb-muted">–</td><td class="' + c + 'num wb-muted">–</td><td class="' + c + 'wb-muted">–</td><td class="' + c + 'num wb-muted">–</td><td class="' + c + 'num wb-muted">–</td>';
     };
-    var h = '<table class="wb-table otc-t otc-rb-t"><thead><tr><th rowspan="2">바스켓 종목' + help((defs.leg || '') + '\n' + (defs.mix || '') + (defs.cpn_yn ? '\n' + defs.cpn_yn : '') + '\n쓴 수익률: 매도 좌표 = 현물 매수호가(사자) · 매수 좌표 = 현물 매도호가(팔자)\n출처 = 그 수익률을 가져온 곳(장내 호가 · 장외 선 + 그 호가 시각)\n함의 가격 = 그 종목 선도수익률이 함의하는 표준물 가격') + '</th>' +
-      '<th class="grp day" colspan="5">매도 좌표 · 현물 매수(사자)' + (mix ? '' : ' · 전부 장내 호가') + '</th><th class="grp" colspan="5">매수 좌표 · 현물 매도(팔자)' + (mix ? '' : ' · 전부 장내 호가') + '</th></tr>' +
-      '<tr><th class="num day">저평(전)</th><th class="num day">쓴 수익률</th><th class="day">출처</th><th class="num day">선도</th><th class="num day">함의 가격</th>' +
-      '<th class="num">저평(전)</th><th class="num">쓴 수익률</th><th>출처</th><th class="num">선도</th><th class="num">함의 가격</th></tr></thead><tbody>';
+    var h = '<table class="wb-table otc-t otc-rb-t"><thead><tr><th rowspan="2">바스켓 종목' + help((defs.leg || '') + '\n' + (defs.d_prev || '') + '\n' + (defs.driver || '') + '\n' + (defs.mix || '') + (defs.cpn_yn ? '\n' + defs.cpn_yn : '') +
+      '\n쓴 수익률: 매도 좌표 = 현물 매수호가(사자) · 매수 좌표 = 현물 매도호가(팔자) · 옆 작은 ±bp = 쓴 수익률 − 전일 민평 종가\n출처 = 그 수익률을 가져온 곳(장내 호가 · 장외 선 + 그 호가 시각)\n함의 가격 = 그 종목 선도수익률이 함의하는 표준물 가격') + '</th>' +
+      '<th class="grp day" colspan="6">매도 좌표 · 현물 매수(사자)' + (mix ? '' : ' · 전부 장내 호가') + '</th><th class="grp" colspan="6">매수 좌표 · 현물 매도(팔자)' + (mix ? '' : ' · 전부 장내 호가') + '</th></tr>' +
+      '<tr><th class="num day">저평(전)</th><th class="num day">전일 대비</th><th class="num day">쓴 수익률</th><th class="day">출처</th><th class="num day">선도</th><th class="num day">함의 가격</th>' +
+      '<th class="num">저평(전)</th><th class="num">전일 대비</th><th class="num">쓴 수익률</th><th>출처</th><th class="num">선도</th><th class="num">함의 가격</th></tr></thead><tbody>';
     (d.basket || []).forEach(function (b) {
-      h += '<tr title="' + esc('표면 ' + b.coupon + '% · 만기 ' + b.mat + ' · 전일 종가수익률 ' + b.close_ytm + ' · ' + b.code) + '"><td>' + chip(esc(b.tag), 'otc-chip-basket') + ' <b class="mono">' + esc(b.alias) + '</b></td>' +
+      var isD = drv != null && b.alias === drv;
+      h += '<tr' + (isD ? ' class="is-driver"' : '') + ' title="' + esc('표면 ' + b.coupon + '% · 만기 ' + b.mat + ' · 전일 종가수익률 ' + b.close_ytm + ' · ' + b.code) + '"><td>' + chip(esc(b.tag), 'otc-chip-basket') + ' <b class="mono">' + esc(b.alias) + '</b>' +
+        (isD ? ' <span class="otc-tag otc-tag--drv">원인</span>' + help((defs.driver || '원인 종목 = 엔진이 고른 종목') + (isNum(d.driver.score) ? '\n점수 ' + d.driver.score : '')) : '') + '</td>' +
         cell(sl[b.alias], 'day ', sub(b, sl[b.alias])) + cell(bl[b.alias], '', sub(b, bl[b.alias])) + '</tr>';
     });
-    if (!(d.basket || []).length) h += '<tr><td colspan="11" class="wb-muted">바스켓 정보 없음</td></tr>';
+    if (!(d.basket || []).length) h += '<tr><td colspan="13" class="wb-muted">바스켓 정보 없음</td></tr>';
     return h + '</tbody></table>';
   }
   function rbChart(d) {   // 왼쪽 축 = 저평(전 · 그려진 선에 맞춰 좁게) · 오른쪽 축 = 3선 선물 가격
@@ -1026,7 +1034,8 @@
     if (!d) { if (RB.err) $('rbWhy').innerHTML = errBox('실시간 저평', { message: RB.err }); return; }
     if (!full) return;
     var s = d[rbMix(d) ? 'sell_mix' : 'sell'] || {}, b = d[rbMix(d) ? 'buy_mix' : 'buy'] || {}, defs = d.defs || {};
-    $('rbMini').innerHTML = d.ok ? 'U <b class="' + sgn(s.under) + '">' + (s.ok ? fjn(s.under) : '–') + '</b> · Ub <b class="' + sgn(b.under) + '">' + (b.ok ? fjn(b.under) : '–') + '</b>전' + (d.t ? ' <span class="wb-muted">' + esc(d.t) + '</span>' : '')
+    var dp = function (z) { return (z.ok && isNum(z.d_prev)) ? ' <small class="' + sgn(z.d_prev) + '" title="전일 대비(전)">(' + fjn(z.d_prev) + ')</small>' : ''; };
+    $('rbMini').innerHTML = d.ok ? 'U <b class="' + sgn(s.under) + '">' + (s.ok ? fjn(s.under) : '–') + '</b>' + dp(s) + ' · Ub <b class="' + sgn(b.under) + '">' + (b.ok ? fjn(b.under) : '–') + '</b>' + dp(b) + '전' + (d.t ? ' <span class="wb-muted">' + esc(d.t) + '</span>' : '')
       : '<span class="wb-muted">값 없음 — ' + esc(d.why || x.status || '입력 부족') + '</span>';
     $('rbSell').innerHTML = rbSide(d, 'sell');
     $('rbBuy').innerHTML = rbSide(d, 'buy');
