@@ -199,7 +199,9 @@
   function evChart(key, host, src, opt) {
     // opt: h · hs(괴리 패널 높이) · noSpr(괴리 패널 없음) · nav(축약 내비) · win · onWindow · onClick
     //      fitY(y 범위 = 선·호가 마커만으로 · 흐린(fade) 마커는 범위에서 뺌) · endLabels(오른쪽 끝 최신 사자/팔자 값)
-    // 마커: {x, y, side, r, hollow(속 빔), ink(진한 테두리), fade(흐리게), bw}
+    // 마커: {x, y, side, r, a(채움 투명도), ink(배경과 구분되는 테두리), bw(테두리 굵기), ring(바깥 고리 = 체결 표시), fade(흐리게), hollow(속 빔), z(맨 위 층)}
+    // 그리는 순서(Chart.js: order 가 작을수록 위): 선 3 → 점·이상치 2 → 체결 고리 1 → 맨 위 층(z) 0.
+    // 팀 화살표 = 전부 속 채움(사자 파랑 · 팔자 빨강) + 얇은 ink 테두리 · 체결 표시 = 굵은 테두리 + 바깥 고리.
     opt = opt || {};
     killEv(key);
     if (!window.Chart) { host.innerHTML = '<div class="otc-empty">차트 라이브러리를 못 불러옴</div>'; return null; }
@@ -214,16 +216,19 @@
     var cvS = hasSpr ? boxes[1].children[0] : null, ovS = hasSpr ? boxes[1].children[1] : null;
     var navCv = opt.nav ? host.querySelector('.otc-ev-nav canvas') : null;
     var byX = function (a, b) { return a.x - b.x; };
-    var full, buyM, sellM, outM, dsIdx;
+    var full, buyM, sellM, outM, ringM, topB, topS, dsIdx;
     var w0 = opt.win || [0, n - 1];
     var ctl = { key: key, lo: Math.max(0, w0[0]), hi: Math.min(n - 1, w0[1]), showOut: false, src: src, cur: null, dsIdx: null };
     function build() {   // src → 계단 점열·마커(한 번) — setSrc 로 데이터만 갈아 끼울 때도 여기
       n = src.n;
       full = { bid: evSeries(src.bid, src.ds, n), ask: evSeries(src.ask, src.ds, n), mid: evSeries(src.mid, src.ds, n),
         spr: hasSpr ? evSeries(src.spr, src.ds, n) : [], mp: src.mp ? evSeries(src.mp, src.ds, n) : null };
-      buyM = src.marks.filter(function (m) { return m.side === 1; }).sort(byX);
-      sellM = src.marks.filter(function (m) { return m.side === -1; }).sort(byX);
+      buyM = src.marks.filter(function (m) { return m.side === 1 && !m.z; }).sort(byX);
+      topB = src.marks.filter(function (m) { return m.side === 1 && m.z; }).sort(byX);
+      topS = src.marks.filter(function (m) { return m.side === -1 && m.z; }).sort(byX);
+      sellM = src.marks.filter(function (m) { return m.side === -1 && !m.z; }).sort(byX);
       outM = (src.outs || []).slice().sort(byX);
+      ringM = src.marks.filter(function (m) { return m.ring; }).sort(byX);
       dsIdx = [0];
       if (src.ds) for (var k = 1; k < n; k++) if (src.ds[k]) dsIdx.push(k);
       ctl.dsIdx = dsIdx; ctl.src = src;
@@ -284,16 +289,16 @@
       it.forEach(function (o) { ctx.fillStyle = o.c; ctx.fillText(o.t, ca.right + 6, Math.max(ca.top + 6, Math.min(ca.bottom - 6, o.y))); });
       ctx.restore();
     } };
-    function markDs(label, data, side) {
+    function markDs(label, data, side, ord) {
       var col = side === 1 ? '--wb-down' : '--wb-up';
-      return { type: 'scatter', label: label, data: data, order: 0, pointStyle: 'triangle', pointRotation: side === 1 ? 0 : 180,
+      return { type: 'scatter', label: label, data: data, order: ord == null ? 2 : ord, pointStyle: 'triangle', pointRotation: side === 1 ? 0 : 180,
         pointRadius: function (c) { var m = c.raw || {}; return m.r || 5.5; },
-        pointBackgroundColor: function (c) { var m = c.raw || {}; return m.hollow ? cssv('--wb-surface') : WBChart.alpha(col, m.fade ? 0.3 : 0.92); },
-        pointBorderColor: function (c) { var m = c.raw || {}; return m.fade ? WBChart.alpha(col, 0.45) : m.ink ? cssv('--wb-ink') : cssv(col); },
+        pointBackgroundColor: function (c) { var m = c.raw || {}; return m.hollow ? cssv('--wb-surface') : WBChart.alpha(col, m.fade ? 0.28 : (m.a != null ? m.a : 0.96)); },
+        pointBorderColor: function (c) { var m = c.raw || {}; return m.fade ? WBChart.alpha(col, 0.45) : m.ink ? WBChart.alpha('--wb-ink', m.a != null ? 0.6 : 1) : cssv(col); },
         pointBorderWidth: function (c) { var m = c.raw || {}; return m.bw || (m.ink ? 2.2 : m.hollow ? 1.8 : 1.2); } };
     }
     function lineDs(label, col, a, w, dash) {
-      return { type: 'line', label: label, data: a, stepped: true, borderColor: tk(col, col === '--wb-muted' ? 0.95 : 1), borderWidth: w, borderDash: dash || [],
+      return { type: 'line', label: label, data: a, stepped: true, order: 3, borderColor: tk(col, col === '--wb-muted' ? 0.95 : 1), borderWidth: w, borderDash: dash || [],
         pointRadius: 0, pointHoverRadius: 0, pointHitRadius: 0, spanGaps: false, fill: false };
     }
     var common = { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, normalized: true, events: [],
@@ -302,8 +307,11 @@
       lineDs('사자선', '--wb-down', [], 2.2), lineDs('팔자선', '--wb-up', [], 2.2), lineDs('미드', '--wb-ink', [], 1.5, [5, 4]),
       lineDs('전일민평', '--wb-muted', [], 1.4, [2, 4]),
       markDs('사자', [], 1), markDs('팔자', [], -1),
-      { type: 'scatter', label: '이상치', data: [], order: 0, pointStyle: 'crossRot', pointRadius: 6.5, pointBorderWidth: 2.2,
-        pointBorderColor: tk('--wb-muted'), pointBackgroundColor: 'transparent' }] },
+      { type: 'scatter', label: '이상치', data: [], order: 2, pointStyle: 'crossRot', pointRadius: 6.5, pointBorderWidth: 2.2,
+        pointBorderColor: tk('--wb-muted'), pointBackgroundColor: 'transparent' },
+      { type: 'scatter', label: '체결 표시 고리', data: [], order: 1, pointStyle: 'circle', pointBackgroundColor: 'transparent', pointBorderColor: tk('--wb-ink'), pointBorderWidth: 1.6,
+        pointRadius: function (c) { var m = c.raw || {}; return (m.r || 6) + 5; } },
+      markDs('팀 사자', [], 1, 0), markDs('팀 팔자', [], -1, 0)] },
       options: Object.assign({}, common, { onResize: function () { requestAnimationFrame(function () { drawCross(ctl.cur); drawNav(); }); },
         scales: { x: xScale(), y: { grace: opt.fitY ? 0 : '6%', afterFit: yFit, ticks: { includeBounds: !opt.fitY, maxTicksLimit: opt.fitY ? 6 : 11, callback: function (v) { return fy(v); } } } } }) });
     var spr = hasSpr ? new Chart(cvS, { type: 'line', plugins: [dayPlug], data: { datasets: [
@@ -316,12 +324,12 @@
       var d = main.data.datasets, lo = ctl.lo, hi = ctl.hi;
       d[0].data = evSlice(full.bid, lo, hi); d[1].data = evSlice(full.ask, lo, hi); d[2].data = evSlice(full.mid, lo, hi);
       d[3].data = full.mp ? evSlice(full.mp, lo, hi) : [];
-      d[4].data = mSlice(buyM); d[5].data = mSlice(sellM); d[6].data = ctl.showOut ? mSlice(outM) : [];
+      d[4].data = mSlice(buyM); d[5].data = mSlice(sellM); d[6].data = ctl.showOut ? mSlice(outM) : []; d[7].data = mSlice(ringM); d[8].data = mSlice(topB); d[9].data = mSlice(topS);
       if (spr) spr.data.datasets[0].data = evSlice(full.spr, lo, hi);
       charts.forEach(function (c) { c.options.scales.x.min = lo - 0.5; c.options.scales.x.max = hi + 0.5; });
       if (opt.fitY) {   // y 범위 = 보이는 선 + 마커(흐린 것 제외) · 여백 12%
         var mn = Infinity, mx = -Infinity, ys = main.options.scales.y;
-        [d[0].data, d[1].data, d[2].data, d[3].data, d[4].data, d[5].data].forEach(function (arr) {
+        [d[0].data, d[1].data, d[2].data, d[3].data, d[4].data, d[5].data, d[8].data, d[9].data].forEach(function (arr) {
           for (var q = 0; q < arr.length; q++) { var p = arr[q]; if (p.fade || !isNum(p.y)) continue; if (p.y < mn) mn = p.y; if (p.y > mx) mx = p.y; }
         });
         if (isFinite(mn)) { var pad = Math.max((mx - mn) * 0.12, 0.003); ys.min = mn - pad; ys.max = mx + pad; }
@@ -713,7 +721,8 @@
         if (q.np || !isNum(y)) y = isNum(b.mid[li]) ? b.mid[li] : isNum(b.bid[li]) ? b.bid[li] : isNum(b.ask[li]) ? b.ask[li] : b.mp;
         (tqAt[gi] = tqAt[gi] || []).push(q);
         if (!isNum(y)) return;
-        marks.push({ x: gi, y: y, side: q.side, r: (q.np ? 5 : q.done ? 11 : 9) * rs, hollow: !q.done, ink: !!q.done && !q.out, bw: q.np ? 1.5 : q.done ? 1.6 : 2.4, fade: !!q.out });
+        marks.push(q.np ? { x: gi, y: y, side: q.side, r: 6 * rs, a: 0.45, ink: true, bw: 1, fade: !!q.out, z: 1 }
+          : { x: gi, y: y, side: q.side, r: (q.done ? 11.5 : 10) * rs, ink: true, bw: q.done ? 2.6 : 1.2, ring: !!q.done && !q.out, fade: !!q.out, z: 1 });
       });
     });
     var multi = blocks.length > 1;
@@ -853,7 +862,8 @@
         var idx = ev.length;
         ev.push({ t: b.t[i], d: b.d, side: b.side[i], y: b.y[i], bk: bk, done: !!b.done[i], bid: b.bid[i], ask: b.ask[i], mid: b.mid[i], spr: b.spr[i], mp: b.mp, ds: first && idx > 0 });
         first = false; last = idx;
-        if ((b.side[i] === 1 || b.side[i] === -1) && isNum(b.y[i])) marks.push({ x: idx, y: b.y[i], side: b.side[i], ink: !!bk.team, r: bk.team ? pr + 2.5 : pr, bw: bk.team ? 2 : (pr < 4 ? 0.8 : 1.2) });
+        if ((b.side[i] === 1 || b.side[i] === -1) && isNum(b.y[i])) marks.push(bk.team ? { x: idx, y: b.y[i], side: b.side[i], r: pr + (b.done[i] ? 5.5 : 4.5), ink: true, bw: b.done[i] ? 2.6 : 1.2, ring: !!b.done[i], z: 1 }
+          : { x: idx, y: b.y[i], side: b.side[i], r: pr, a: 0.8, bw: pr < 4 ? 0.8 : 1.2 });
       }
     });
     var n = ev.length, pick = function (k) { return ev.map(function (e) { return e[k]; }); };
@@ -1624,7 +1634,7 @@
     var nDays = 0; ev.forEach(function (e, i) { if (i === 0 || e.day_start) nDays++; });
     var html = '<section class="wb-card">' + cardHead('종목 시계열',
       '가로 = 호가 이벤트 순서(같은 간격 · 실시각 아님) — 이벤트 = 시장 상태(사자선·팔자선)가 바뀐 호가 ∪ 팀 호가(엔진 events · 전 브로커 · 이상치 제외 · 날마다 새로 시작)\n' +
-      DEF.lines + '\n세로 선 = 날짜 경계(선 끊김) · 회색 점선 = 그날 전일민평\n▲▼ = 팀 호가(채운 큰 마커 = 체결 표시 · 속 빈 = 호가만)\n아래 띠 = 전체 기간 축약 — 드래그로 보여 줄 구간 선택(값은 그대로 · 범위만)\n클릭 = 그날 종목 분석\n' + NOTE.obs,
+      DEF.lines + '\n세로 선 = 날짜 경계(선 끊김) · 회색 점선 = 그날 전일민평\n▲▼ = 팀 호가(전부 속 채움 · 굵은 테두리 + 바깥 고리 = 체결 표시 · 이상치는 오른쪽 위 버튼으로 ×)\n아래 띠 = 전체 기간 축약 — 드래그로 보여 줄 구간 선택(값은 그대로 · 범위만)\n클릭 = 그날 종목 분석\n' + NOTE.obs,
       evLegend('tb', nOut, '팀 호가 이상치')) +
       '<div class="otc-toolbar"><label class="wb-field"><span class="wb-label">종목</span><input class="wb-input" id="tmBondIn" list="otcTmBonds" value="' + esc(S.team.alias) + '" autocomplete="off"></label>' +
       '<button type="button" class="wb-btn wb-btn--sm" id="tmBondGo">보기</button><datalist id="otcTmBonds">' + opts.join('') + '</datalist>' +
@@ -1659,7 +1669,7 @@
     var marks = [], outs = [];
     ev.forEach(function (e, i) {
       if (e.qs !== 1 && e.qs !== -1) return;
-      var m = { x: i, y: e.qy, side: e.qs, team: true, hollow: !e.qd, r: e.qd ? 7 : 5.2 };
+      var m = { x: i, y: e.qy, side: e.qs, r: e.qd ? 9.5 : 8, ink: true, bw: e.qd ? 2.4 : 1.1, ring: !!e.qd && !e.qo, z: 1 };
       if (e.qo) outs.push(m); else marks.push(m);
     });
     var pick = function (k) { return ev.map(function (e) { return e[k]; }); };
