@@ -521,8 +521,9 @@
   async function xget(path, extra) {   // 공통: 키 · 주소 · 터널 회전 1회 재시도 · 403 = 저장 키 폐기
     var key = getKey() || S.memKey || '';
     if (!key) throw new KeyErr('키 없음');
-    var base = await getApiBase();
-    if (!base) base = await getApiBase(true);
+    if (!S.baseP) S.baseP = getApiBase();            // 첫 화면의 동시 호출(meta · board · basis)이 api_base.txt 를 한 번만 읽게
+    var base = await S.baseP;
+    if (!base) { S.baseP = null; base = await getApiBase(true); }
     if (!base) throw new Error('API 주소 없음 — /assets/api_base.txt 비었거나 서버·터널이 꺼짐');
     var hd = Object.assign({ 'X-QH-KEY': key, 'ngrok-skip-browser-warning': '1' }, extra || {});
     var call = function (b) { return fetch(b + path, { headers: hd }); };   // cache:'no-store' 를 주면 Chromium 이 CORS 사전요청 캐시도 건너뛴다(5초마다 OPTIONS) — 응답 헤더가 no-store 라 저장은 안 된다
