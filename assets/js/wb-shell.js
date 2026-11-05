@@ -59,6 +59,8 @@
     //   메뉴·Ctrl K 노출 = localStorage 'qh_ops_key'(운용 콘솔과 같은 키 이름)가 있거나 로컬호스트일 때만(BOOTSTRAP_PUBLIC 과 무관).
     //   직접 URL 은 열리지만 키 없으면 데이터 0. 팀 탭 이름은 화면이 /otc/meta 에서 받아 바꾼다(이 파일엔 이름 없음).
     { id: 'otc', label: '장외 호가', pages: [
+      { id: 'otc-board', label: '보드', href: '/tools/otc/#board', contest: true, keyOnly: true,
+        desc: '5종목 동시 · 사자선/팔자선/미드 + 팀 호가 화살표 · 당일/3/5/10일 · 5초 갱신 · 누르면 전체 호가', kw: 'otc board 보드 장외 호가 실시간 사자 팔자 미드 5종목' },
       { id: 'otc-bond', label: '종목 분석', href: '/tools/otc/#bond', contest: true, keyOnly: true,
         desc: '장외 호가 타임라인 · 사자선/팔자선/미드 · 호가 스트림 · 브로커 랭킹', kw: 'otc kbond quote 장외 호가 종목 메신저 사자 팔자' },
       { id: 'otc-broker', label: '브로커 분석', href: '/tools/otc/#broker', contest: true, keyOnly: true,

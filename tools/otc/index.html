@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 2026-11-04 사용자 지시: 장외 호가 탭 — kbond_quote(장외 메신저 호가) 관찰 도구.
-     화면 셋 = #bond 종목 분석 · #broker 브로커 분석 · #team 팀 해부(1차 장중 · 2차 일봉).
+     화면 = #board 보드(첫 화면 · 5종목 동시 · 5초 갱신) · #bond 종목 분석 · #broker 브로커 분석 · #team 팀 해부(1차 장중 · 2차 일봉).
      데이터 = /otc/* (fullstackjunior/server/app/routers/otc.py → BQH otcdesk.api 그대로 · 재계산 0).
      ★공개 범위 = 사이트 탭·비공개: 데이터 API 는 전부 X-QH-KEY(GET 포함). 이 파일·JS 에는 사람 이름·회사 이름이 없다 —
        팀 라벨·명단은 전부 /otc/meta 응답에서 받아 그린다(키 없으면 빈 껍데기 + 키 안내만).
@@ -14,7 +14,7 @@
   <title>장외 호가 · Bond Quant House</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%9B%EF%B8%8F%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="/assets/css/wb.css?v=20261022c">
-  <script src="/assets/js/wb-shell.js?v=20261104a"></script>
+  <script src="/assets/js/wb-shell.js?v=20261105a"></script>
   <style>
     /* ═══ 장외 호가 — 표현만(wb 토큰 · 카드 · 표) · 사자 = 파랑(--wb-down) · 팔자 = 빨강(--wb-up) ═══ */
     .otc-head { align-items: center; }
@@ -147,7 +147,54 @@
     .otc-read p { margin: 0 0 4px; }
     .otc-read b { font-weight: 600; margin-right: 4px; color: var(--wb-muted); }
     .otc-t td.na { color: var(--wb-muted); text-align: center; }
+    /* (0) 보드 — 종목 칸 + 차트 · 상세 서랍 */
+    .otc-bo-live { display: inline-flex; align-items: center; gap: 8px; min-height: var(--wb-ctl); }
+    .otc-bo-live .wb-chip { height: var(--wb-ctl); padding: 0 12px; font-size: 12px; }
+    .otc-bo-stat { font-size: 12px; color: var(--wb-muted); font-variant-numeric: tabular-nums; }
+    .otc-dot { display: inline-block; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--wb-faint); }
+    .otc-dot.ok { background: var(--wb-open); } .otc-dot.warn { background: var(--wb-warn); } .otc-dot.err { background: var(--wb-up); }
+    .otc-bo-rows { display: flex; flex-direction: column; gap: 8px; }
+    .otc-bo-row { display: grid; grid-template-columns: 196px minmax(0, 1fr); background: var(--wb-surface); border: 1px solid var(--wb-rule); border-radius: var(--wb-r-card); }
+    .otc-bo-row.is-open { border-color: var(--wb-mark); }
+    .otc-bo-cell { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 10px 12px; border-right: 1px solid var(--wb-rule); }
+    .otc-bo-in { width: 100%; height: 30px; font-size: 16px; font-weight: 600; }
+    .otc-bo-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 20px; }
+    .otc-bo-mid { display: flex; align-items: baseline; flex-wrap: wrap; gap: 0 6px; margin-top: auto; }
+    .otc-bo-lab { font-size: 11px; color: var(--wb-muted); }
+    .otc-bo-midv { font-size: 22px; line-height: 28px; font-weight: 600; letter-spacing: -0.01em; }
+    .otc-bo-bp { font-size: 12px; font-weight: 600; }
+    .otc-bo-team { font-size: 12px; color: var(--wb-muted); min-height: 18px; }
+    .otc-bo-team b { font-weight: 600; }
+    .otc-bo-main { min-width: 0; padding: 4px 4px 4px 6px; cursor: pointer; }
+    .otc-bo-head { display: flex; flex-wrap: wrap; align-items: center; gap: 0 14px; min-height: 26px; padding: 2px 8px; border-radius: 4px; font-size: 12px; color: var(--wb-muted); transition: background-color .5s; }
+    .otc-bo-head b { color: var(--wb-ink); font-weight: 600; }
+    .otc-bo-head b.otc-buy { color: var(--wb-down); } .otc-bo-head b.otc-sell { color: var(--wb-up); }
+    .otc-bo-head b.wb-up { color: var(--wb-up); } .otc-bo-head b.wb-down { color: var(--wb-down); }
+    .otc-bo-head .otc-bo-al { font-size: 14px; }
+    .otc-bo-head .otc-bo-t { margin-left: auto; font-variant-numeric: tabular-nums; }
+    .otc-bo-head.is-flash { background: color-mix(in srgb, var(--wb-accent) 28%, transparent); transition: none; }
+    .otc-bo-ph { height: 170px; display: grid; place-items: center; padding: 0 12px; font-size: 12px; color: var(--wb-muted); text-align: center; }
+    .otc-drawer { position: fixed; z-index: 45; top: var(--wb-shell-h); right: 0; bottom: 0; width: min(980px, 58vw); display: flex; flex-direction: column; background: var(--wb-bg); border-left: 1px solid var(--wb-rule-strong); }
+    .otc-drawer[hidden] { display: none; }
+    .otc-dr-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; padding: 8px 12px 8px 16px; border-bottom: 1px solid var(--wb-rule); }
+    .otc-dr-title { font-size: var(--wb-fs-title); line-height: var(--wb-lh-title); }
+    .otc-dr-title b { font-weight: 600; margin-right: 4px; }
+    .otc-dr-sub { margin-left: 8px; font-size: 12px; color: var(--wb-muted); }
+    .otc-dr-legend { margin-left: auto; }
+    .otc-dr-body { flex: 1; min-height: 0; overflow: auto; padding: 10px 16px 24px; }
+    .otc-dr-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; margin-bottom: 6px; font-size: 12px; color: var(--wb-muted); }
+    .otc-dr-sum b { color: var(--wb-ink); font-weight: 600; }
+    .otc-dr-sum b.otc-buy { color: var(--wb-down); } .otc-dr-sum b.otc-sell { color: var(--wb-up); }
+    .otc-dr-sum b.wb-up { color: var(--wb-up); } .otc-dr-sum b.wb-down { color: var(--wb-down); }
+    .otc-dr-sum a { margin-left: auto; color: var(--wb-ink); }
+    .otc-scroll--dr { max-height: 420px; }
     @media (max-width: 1180px) { .otc-grid, .otc-grid--55, .otc-grid--3 { grid-template-columns: minmax(0, 1fr); } }
+    @media (max-width: 900px) {
+      .otc-drawer { width: 100vw; }
+      .otc-bo-row { grid-template-columns: minmax(0, 1fr); }
+      .otc-bo-cell { flex-direction: row; flex-wrap: wrap; align-items: center; border-right: 0; border-bottom: 1px solid var(--wb-rule); }
+      .otc-bo-in { width: 120px; } .otc-bo-mid { margin-top: 0; }
+    }
     @media (max-width: 720px) {
       .otc-chart { height: 300px; } .otc-chart--lg { height: 320px; }
       .otc-head-meta { margin-left: 0; width: 100%; }
@@ -156,11 +203,11 @@
   </style>
 </head>
 <body>
-<header id="wb-shell" data-area="otc" data-page="otc-bond"></header>
+<header id="wb-shell" data-area="otc" data-page="otc-board"></header>
 
 <main class="wb-main" id="otcMain">
   <div class="wb-pagehead otc-head">
-    <h1>장외 호가</h1><span class="wb-help" role="button" tabindex="0" aria-label="설명 보기"><template><p><b>장외 메신저 호가(kbond_quote) 관찰 도구.</b> 종목 분석 · 브로커 분석 · 팀 해부(장중 → 일봉).</p><p>숫자는 엔진(otcdesk) 산출 그대로 — 웹에서 다시 계산하지 않음.</p><p>호가 ≠ 체결 · 체결 = ㅎㅈ/확정/거래 표시만 · 액면은 적힌 것만 · 관찰 전용(추천 0).</p><p>복원 = 2025-06~11 등 kbond_quote 금리 빈 행을 원문+전일민평 정수부로 복원(검증 정확 일치 98.8%).<br>근거 = 검증 2.8만 행(금리 있는 행 지우고 복원 후 대조).<br>금리 출처(복원 · 교정) 설명 = 오른쪽 캐시 행의 ? (엔진 규칙 문장 그대로).</p><p>비공개: 데이터는 키(X-QH-KEY)가 있어야 보인다.</p></template></span>
+    <h1>장외 호가</h1><span class="wb-help" role="button" tabindex="0" aria-label="설명 보기"><template><p><b>장외 메신저 호가(kbond_quote) 관찰 도구.</b> 보드(5종목 동시 · 5초 갱신) · 종목 분석 · 브로커 분석 · 팀 해부(장중 → 일봉).</p><p>숫자는 엔진(otcdesk) 산출 그대로 — 웹에서 다시 계산하지 않음.</p><p>호가 ≠ 체결 · 체결 = ㅎㅈ/확정/거래 표시만 · 액면은 적힌 것만 · 관찰 전용(추천 0).</p><p>복원 = 2025-06~11 등 kbond_quote 금리 빈 행을 원문+전일민평 정수부로 복원(검증 정확 일치 98.8%).<br>근거 = 검증 2.8만 행(금리 있는 행 지우고 복원 후 대조).<br>금리 출처(복원 · 교정) 설명 = 오른쪽 캐시 행의 ? (엔진 규칙 문장 그대로).</p><p>비공개: 데이터는 키(X-QH-KEY)가 있어야 보인다.</p></template></span>
     <span class="wb-badge">관찰 전용</span><span class="wb-badge wb-badge--warn">비공개 · 키</span>
     <span class="otc-head-meta" id="otcMeta"></span>
   </div>
@@ -171,6 +218,37 @@
     <button type="button" class="wb-btn wb-btn--primary" id="otcKeyBtn">키 입력</button>
   </div>
   <div id="otcFatal" hidden></div>
+
+  <!-- ══ (0) 보드 — 첫 화면 ══ -->
+  <section class="otc-view" id="vBoard" data-view="board" hidden aria-label="보드">
+    <div class="wb-filterbar otc-fb">
+      <div class="wb-field"><span class="wb-label">기간</span><div class="wb-seg" id="boDays" role="group" aria-label="기간"></div></div>
+      <div class="wb-field"><span class="wb-label">갱신</span><div class="otc-bo-live"><button type="button" class="wb-chip" id="boAuto" aria-pressed="true" title="5초마다 새 호가 확인 — 탭이 가려지면 멈추고 돌아오면 바로 한 번">5초 갱신</button><span class="otc-dot" id="boDot" aria-hidden="true"></span><span class="otc-bo-stat" id="boStat" role="status"></span></div></div>
+      <div class="otc-btns"><button type="button" class="wb-btn" id="boDefault" title="종목 칸을 기본 세트로 되돌림">기본 세트</button></div>
+      <div class="wb-filterbar-end"><span class="otc-leg">
+        <span><i class="ln" style="border-color:var(--wb-down)"></i>사자선</span>
+        <span><i class="ln" style="border-color:var(--wb-up)"></i>팔자선</span>
+        <span><i class="ln dash" style="border-color:var(--wb-ink)"></i>미드</span>
+        <span><i class="ln dot" style="border-color:var(--wb-muted)"></i>전일민평</span>
+        <span><b class="otc-buy">▲</b><b class="otc-sell">▼</b>팀 호가</span>
+        <span class="wb-help" role="button" tabindex="0" aria-label="설명 보기"><template><p><b>가로</b> = 호가 이벤트 순서(같은 간격 · 실시각 아님) — 이벤트 = 사자선·팔자선이 바뀐 호가와 팀 호가. 여러 날이면 세로선 = 날 경계.</p><p><b>사자선/팔자선</b> = 그 종목·그 날 모든 브로커의 마지막 사자/팔자 금리(계단) · 미드 = 둘 평균 · 이상치는 빠져 있음.</p><p><b>화살표</b> = 팀 호가만(▲ 사자 · ▼ 팔자 · 그 호가 금리 높이). 속 채움 + 진한 테두리 = 체결 표시 · 속 빔 = 호가만 · 작은 화살표 = 금리 없이 방향만(미드 높이) · 흐린 화살표 = 이상치(세로 범위 밖이면 툴팁에만).</p><p>다른 브로커의 개별 호가는 차트를 누르면 열리는 상세에서 본다.</p><p>호가 ≠ 체결 · 체결 = ㅎㅈ/확정/거래 표시만 · 관찰 전용(추천 0).</p></template></span>
+      </span></div>
+    </div>
+    <div class="otc-bo-rows" id="boRows"></div>
+    <aside class="otc-drawer" id="boDrawer" hidden aria-label="종목 상세">
+      <div class="otc-dr-head">
+        <div class="otc-dr-title" id="spTitle"></div>
+        <span class="otc-dr-legend" id="spLegend"></span>
+        <button type="button" class="wb-btn wb-btn--sm" id="spClose" aria-label="상세 닫기(Esc)" title="닫기(Esc)">닫기 ×</button>
+      </div>
+      <div class="otc-dr-body">
+        <div class="otc-dr-sum" id="spSum"></div>
+        <div id="spEv"></div>
+        <section class="wb-card otc-mt" id="spStream"></section>
+        <section class="wb-card otc-mt" id="spRank"></section>
+      </div>
+    </aside>
+  </section>
 
   <!-- ══ (A) 종목 분석 ══ -->
   <section class="otc-view" id="vBond" data-view="bond" hidden aria-label="종목 분석">
@@ -252,6 +330,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/wb-chart.js?v=20261022c"></script>
-<script src="/assets/js/wb-otc.js?v=20261105a"></script>
+<script src="/assets/js/wb-otc.js?v=20261105b"></script>
 </body>
 </html>

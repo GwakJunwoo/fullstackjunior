@@ -17,6 +17,7 @@ import os
 import sys
 import threading
 from pathlib import Path
+from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import Response
@@ -56,6 +57,7 @@ def _prewarm() -> None:
         from otcdesk import api, store
         store.ensure()
         api._team_tables()
+        api.board()            # 첫 화면(보드) 블록도 데워 둔다
     except Exception as e:   # 예열 실패는 조용히 넘기지 않는다 — 로그에 남기고 첫 호출이 정직 에러를 낸다
         print(f"[otc] prewarm 실패: {type(e).__name__}: {e}", flush=True)
 
@@ -140,3 +142,26 @@ def otc_team_position(request: Request, member: str | None = None, start: str | 
                       end: str | None = None, period: str | None = None):
     """포지션 추정(체결 표시 누적 · DV01 · 추정 선물 계약 · 장중 짝 검사) — api.team_position 그대로(보정·계산 0)."""
     return _send(request, _api().team_position, member=member, start=start, end=end, period=period)
+
+
+# ── 보드(첫 화면 · 5초 갱신) ────────────────────────────────────────────────
+#   since(직전 응답의 cursor)는 쿼리가 아니라 헤더 X-OTC-Since 로 받는다 — 폴링 URL 이 매번 같아야
+#   브라우저가 CORS 사전요청(OPTIONS)을 캐시한다. 값은 encodeURIComponent 된 문자열(종목 별칭에 한글 가능) · '-' = 없음.
+def _since(v: str | None) -> str | None:
+    if not v or v == "-":
+        return None
+    return unquote(v)
+
+
+@router.get("/board")
+def otc_board(request: Request, aliases: str | None = None, days: str | None = None,
+              x_otc_since: str | None = Header(default=None, alias="X-OTC-Since")):
+    """보드 — api.board(aliases, days, since) 그대로(same / 오늘 블록만 / 전체는 엔진이 정한다)."""
+    return _send(request, _api().board, aliases=aliases, days=days, since=_since(x_otc_since))
+
+
+@router.get("/board/detail")
+def otc_board_detail(request: Request, alias: str = Query(...), days: str | None = None,
+                     x_otc_since: str | None = Header(default=None, alias="X-OTC-Since")):
+    """보드에서 차트를 눌렀을 때 — api.bond_span(alias, days, since) 그대로."""
+    return _send(request, _api().bond_span, alias=alias, days=days, since=_since(x_otc_since))
