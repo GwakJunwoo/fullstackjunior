@@ -153,6 +153,36 @@
     .otc-bo-stat { font-size: 12px; color: var(--wb-muted); font-variant-numeric: tabular-nums; }
     .otc-dot { display: inline-block; flex: none; width: 9px; height: 9px; border-radius: 50%; background: var(--wb-faint); }
     .otc-dot.ok { background: var(--wb-open); } .otc-dot.warn { background: var(--wb-warn); } .otc-dot.err { background: var(--wb-up); }
+    .otc-leg i.ln.thin { width: 12px; border-top-width: 1px; }
+    .otc-leg i.ln.thin + i.ln.thin { margin-left: -2px; }
+    /* 실시간 저평(3선) 패널 */
+    .otc-rb { margin-bottom: 8px; }
+    .otc-rb-mini { font-size: 13px; font-variant-numeric: tabular-nums; }
+    .otc-rb-mini b { font-weight: 600; }
+    .otc-rb-head .wb-card-meta { display: inline-flex; align-items: center; gap: 6px; }
+    .otc-rb-top { display: grid; grid-template-columns: minmax(240px, 300px) minmax(240px, 300px) minmax(0, 1fr); }
+    .otc-rb-big { min-width: 0; padding: 10px 16px 12px; border-right: 1px solid var(--wb-rule); }
+    .otc-rb-lab { display: flex; flex-wrap: wrap; align-items: center; font-size: 12px; font-weight: 600; }
+    .otc-rb-lab .otc-sub { width: 100%; margin-top: 2px; font-weight: 400; }
+    .otc-rb-val { margin: 4px 0 2px; font-size: 34px; line-height: 40px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+    .otc-rb-val small { margin-left: 4px; font-size: 13px; font-weight: 400; letter-spacing: 0; color: var(--wb-muted); }
+    .otc-rb-sub { font-size: 12px; line-height: 18px; color: var(--wb-muted); overflow-wrap: anywhere; }
+    .otc-rb-sub b { color: var(--wb-ink); font-weight: 600; }
+    .otc-rb-sub b.otc-rb-hit { color: var(--wb-accent); }
+    .otc-rb-legs { min-width: 0; overflow: auto; }
+    .otc-rb-t td { height: 30px; }
+    .otc-rb-why { margin: 10px 16px 0; padding: 8px 12px; border: 1px solid var(--wb-rule); border-left: 2px solid var(--wb-warn); border-radius: 4px; background: var(--wb-subtle); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
+    .otc-rb-why[hidden] { display: none; }
+    .otc-rb-why b { font-weight: 600; }
+    .otc-rb-why ul { margin: 4px 0 0; padding-left: 18px; }
+    .otc-rb-stat { display: flex; flex-wrap: wrap; gap: 2px 18px; padding: 4px 16px 10px; font-size: 11px; line-height: 17px; color: var(--wb-muted); }
+    .otc-rb-stat b { color: var(--wb-ink); font-weight: 600; }
+    .otc-rb-stat b.otc-buy { color: var(--wb-down); } .otc-rb-stat b.otc-sell { color: var(--wb-up); }
+    .otc-bo-quick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0 0 8px; font-size: 12px; color: var(--wb-muted); }
+    .otc-bo-qlab { display: inline-flex; align-items: center; margin-right: 4px; }
+    .otc-bo-row.is-sel .otc-bo-cell { box-shadow: inset 3px 0 0 var(--wb-accent); }
+    .otc-bo-head .otc-bo-ex b { font-weight: 600; }
+    @media (max-width: 1180px) { .otc-rb-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .otc-rb-legs { grid-column: 1 / -1; border-top: 1px solid var(--wb-rule); } .otc-rb-big:nth-child(2) { border-right: 0; } }
     .otc-bo-rows { display: flex; flex-direction: column; gap: 8px; }
     .otc-bo-row { display: grid; grid-template-columns: 196px minmax(0, 1fr); background: var(--wb-surface); border: 1px solid var(--wb-rule); border-radius: var(--wb-r-card); }
     .otc-bo-row.is-open { border-color: var(--wb-mark); }
@@ -230,10 +260,33 @@
         <span><i class="ln" style="border-color:var(--wb-up)"></i>팔자선</span>
         <span><i class="ln dash" style="border-color:var(--wb-ink)"></i>미드</span>
         <span><i class="ln dot" style="border-color:var(--wb-muted)"></i>전일민평</span>
+        <span><i class="ln thin" style="border-color:var(--wb-down)"></i><i class="ln thin" style="border-color:var(--wb-up)"></i>장내 매수·매도</span>
+        <span><i class="ln thin" style="border-color:var(--wb-series-5)"></i>장내 현재가</span>
         <span><b class="otc-buy">▲</b><b class="otc-sell">▼</b>팀 호가</span>
-        <span class="wb-help" role="button" tabindex="0" aria-label="설명 보기"><template><p><b>가로</b> = 호가 이벤트 순서(같은 간격 · 실시각 아님) — 이벤트 = 사자선·팔자선이 바뀐 호가와 팀 호가. 여러 날이면 세로선 = 날 경계.</p><p><b>사자선/팔자선</b> = 그 종목·그 날 모든 브로커의 마지막 사자/팔자 금리(계단) · 미드 = 둘 평균 · 이상치는 빠져 있음.</p><p><b>화살표</b> = 팀 호가만(▲ 사자 파랑 · ▼ 팔자 빨강 · 전부 속 채움 · 그 호가 금리 높이 · 선 위에 그림). 굵은 테두리 + 바깥 고리 = 체결 표시 · 작고 옅은 화살표 = 금리 없이 방향만(미드 높이) · 흐린 화살표 = 이상치(세로 범위 밖이면 툴팁에만).</p><p>다른 브로커의 개별 호가는 차트를 누르면 열리는 상세에서 본다.</p><p>호가 ≠ 체결 · 체결 = ㅎㅈ/확정/거래 표시만 · 관찰 전용(추천 0).</p></template></span>
+        <span class="wb-help" role="button" tabindex="0" aria-label="설명 보기"><template><p><b>가로</b> = 호가 이벤트 순서(같은 간격 · 실시각 아님) — 이벤트 = 사자선·팔자선이 바뀐 호가와 팀 호가. 여러 날이면 세로선 = 날 경계.</p><p><b>사자선/팔자선</b> = 그 종목·그 날 모든 브로커의 마지막 사자/팔자 금리(계단) · 미드 = 둘 평균 · 이상치는 빠져 있음.</p><p><b>화살표</b> = 팀 호가만(▲ 사자 파랑 · ▼ 팔자 빨강 · 전부 속 채움 · 그 호가 금리 높이 · 선 위에 그림). 굵은 테두리 + 바깥 고리 = 체결 표시 · 작고 옅은 화살표 = 금리 없이 방향만(미드 높이) · 흐린 화살표 = 이상치(세로 범위 밖이면 툴팁에만).</p><p><b>장내</b>(가는 선) = 장내 매수호가(파랑) · 매도호가(빨강) · 현재가(노랑) — 오늘은 열려 있는 엑셀 실시간, 지난 날은 1분 종가(현재가만 · 지표 종목과 3선). 장내가 있으면 가로축은 장외 이벤트와 장내 틱을 합친 축. 3선 칸은 가격 축.</p><p>한 차트에서 시각을 가리키면 다른 차트에도 그 시각(그 이전 마지막 이벤트)에 십자선이 선다.</p><p>다른 브로커의 개별 호가는 차트를 누르면 열리는 상세에서 본다.</p><p>호가 ≠ 체결 · 체결 = ㅎㅈ/확정/거래 표시만 · 관찰 전용(추천 0).</p></template></span>
       </span></div>
     </div>
+    <section class="wb-card otc-rb" id="rbCard" aria-label="실시간 저평">
+      <div class="wb-card-head otc-rb-head">
+        <span class="wb-card-title">실시간 저평(3선)<span id="rbTitleHelp"></span></span>
+        <span class="wb-card-sub">집행 가능한 값 · 지표물 = 장내 호가 · 비지표 = 장외 메신저 호가(사자선/팔자선) · 우리 조달</span>
+        <span class="otc-rb-mini" id="rbMini"></span>
+        <span class="wb-card-meta" id="rbMeta"></span>
+        <button type="button" class="wb-btn wb-btn--sm" id="rbFold" aria-expanded="true" aria-controls="rbBody">접기 ▴</button>
+      </div>
+      <div id="rbBody">
+        <div class="otc-rb-why" id="rbWhy" hidden></div>
+        <div class="otc-rb-top">
+          <div class="otc-rb-big" id="rbSell"><div class="otc-rb-lab">매도차익 저평 U</div><div class="otc-rb-val wb-muted">–</div><div class="otc-rb-sub"><span class="wb-loading">불러오는 중…</span></div></div>
+          <div class="otc-rb-big" id="rbBuy"><div class="otc-rb-lab">매수차익 저평 Ub</div><div class="otc-rb-val wb-muted">–</div></div>
+          <div class="otc-rb-legs" id="rbLegs"></div>
+        </div>
+        <div class="otc-toolbar"><button type="button" class="wb-chip" id="rbLegsBtn" aria-pressed="false" title="바스켓 종목별 저평 선을 같이 그림(실선 = 매도 좌표 · 점선 = 매수 좌표)">종목별 저평 선</button><button type="button" class="wb-chip" id="rbRefBtn" aria-pressed="false" title="참고 선: 전부 장내 호가로 낸 U/Ub · 현재가 U">참고 선</button><span class="otc-cap" id="rbChartCap"></span></div>
+        <div class="otc-card-body" id="rbChartBox"></div>
+        <div class="otc-rb-stat" id="rbStat"></div>
+      </div>
+    </section>
+    <div class="otc-bo-quick" id="boQuick"></div>
     <div class="otc-bo-rows" id="boRows"></div>
     <aside class="otc-drawer" id="boDrawer" hidden aria-label="종목 상세">
       <div class="otc-dr-head">
@@ -330,6 +383,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/wb-chart.js?v=20261022c"></script>
-<script src="/assets/js/wb-otc.js?v=20261105c"></script>
+<script src="/assets/js/wb-otc.js?v=20261105d"></script>
 </body>
 </html>

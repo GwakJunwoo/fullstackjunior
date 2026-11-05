@@ -165,3 +165,9 @@ def otc_board_detail(request: Request, alias: str = Query(...), days: str | None
                      x_otc_since: str | None = Header(default=None, alias="X-OTC-Since")):
     """보드에서 차트를 눌렀을 때 — api.bond_span(alias, days, since) 그대로."""
     return _send(request, _api().bond_span, alias=alias, days=days, since=_since(x_otc_since))
+
+
+@router.get("/basis")
+def otc_basis(request: Request, x_otc_since: str | None = Header(default=None, alias="X-OTC-Since")):
+    """실시간 집행 가능 저평(3선) — api.rt_basis(since) 그대로(엑셀이 닫혀 있으면 ok:false + why 를 엔진이 준다 · 보정 0)."""
+    return _send(request, _api().rt_basis, since=_since(x_otc_since))
