@@ -806,9 +806,9 @@
   }
   function boApply(d, path) {
     B.last = d;
-    if (d.exch) B.exch = d.exch;
+    if (d.exch) { var keep = (B.exch || {}).live; B.exch = d.exch; if (!d.exch.live && keep) B.exch.live = keep; }   // same 응답 = 상태만 · 칩 목록은 유지
     if (d.team && d.team.label) teamLabel(d.team.label);
-    if (d.same) return;
+    if (d.same) { boQuick(); return; }
     var prev = B.data, was = {};
     if (prev) prev.aliases.forEach(function (a) { was[a] = boTq(prev.series[a]); });
     if (d.full || !prev) B.data = { aliases: d.aliases || [], series: d.series || {}, days: d.days, hot_day: d.hot_day, default: d.default || [] };
@@ -924,10 +924,9 @@
         '<span' + (ref.ok ? '' : ' title="' + esc(ref.why || '') + '"') + '>참고(현재가) <b>' + (ref.ok ? fjn(ref.under) : '–') + '</b></span></div>';
   }
   function rbLegs(d) {
-    var mix = rbMix(d), sl = {}, bl = {}, defs = d.defs || {}, nick = {};
-    ((S.meta && S.meta.bonds) || []).forEach(function (r) { nick[r.alias] = r.nick; });
-    var sub = function (b, l) {   // 비지표인데 장외 호가가 없어 장내로 대체된 종목 = 눈에 띄게(지표 여부 = meta 별칭 'N년지표')
-      return (mix && l && l.src === '장내' && nick[b.alias] != null && !/^\d+년지표$/.test(String(nick[b.alias]))) ? ' ' + tag('장외 호가 없음 → 장내', 'rst') : '';
+    var mix = rbMix(d), sl = {}, bl = {}, defs = d.defs || {};
+    var sub = function (b, l) {   // 비지표인데 오늘 장외 호가가 없어 장내로 대체된 종목(엔진 legs[].fallback) = 눈에 띄게
+      return (l && l.fallback === true) ? ' ' + tag('장외 호가 없음 → 장내', 'rst') : '';
     };
     (((d[mix ? 'sell_mix' : 'sell'] || {}).legs) || []).forEach(function (l) { sl[l.alias] = l; });
     (((d[mix ? 'buy_mix' : 'buy'] || {}).legs) || []).forEach(function (l) { bl[l.alias] = l; });
@@ -937,7 +936,7 @@
           '<td class="' + c + 'num">' + fy(l.fwd_ytm) + '</td><td class="' + c + 'num">' + fnum(l.theo, 4) + '</td>'
         : '<td class="' + c + 'num wb-muted">–</td><td class="' + c + 'num wb-muted">–</td><td class="' + c + 'wb-muted">–</td><td class="' + c + 'num wb-muted">–</td><td class="' + c + 'num wb-muted">–</td>';
     };
-    var h = '<table class="wb-table otc-t otc-rb-t"><thead><tr><th rowspan="2">바스켓 종목' + help((defs.leg || '') + '\n' + (defs.mix || '') + '\n쓴 수익률: 매도 좌표 = 현물 매수호가(사자) · 매수 좌표 = 현물 매도호가(팔자)\n출처 = 그 수익률을 가져온 곳(장내 호가 · 장외 선 + 그 호가 시각)\n함의 가격 = 그 종목 선도수익률이 함의하는 표준물 가격') + '</th>' +
+    var h = '<table class="wb-table otc-t otc-rb-t"><thead><tr><th rowspan="2">바스켓 종목' + help((defs.leg || '') + '\n' + (defs.mix || '') + (defs.cpn_yn ? '\n' + defs.cpn_yn : '') + '\n쓴 수익률: 매도 좌표 = 현물 매수호가(사자) · 매수 좌표 = 현물 매도호가(팔자)\n출처 = 그 수익률을 가져온 곳(장내 호가 · 장외 선 + 그 호가 시각)\n함의 가격 = 그 종목 선도수익률이 함의하는 표준물 가격') + '</th>' +
       '<th class="grp day" colspan="5">매도 좌표 · 현물 매수(사자)' + (mix ? '' : ' · 전부 장내 호가') + '</th><th class="grp" colspan="5">매수 좌표 · 현물 매도(팔자)' + (mix ? '' : ' · 전부 장내 호가') + '</th></tr>' +
       '<tr><th class="num day">저평(전)</th><th class="num day">쓴 수익률</th><th class="day">출처</th><th class="num day">선도</th><th class="num day">함의 가격</th>' +
       '<th class="num">저평(전)</th><th class="num">쓴 수익률</th><th>출처</th><th class="num">선도</th><th class="num">함의 가격</th></tr></thead><tbody>';
@@ -965,8 +964,9 @@
     }
     if (RB.legs) (d.basket || []).forEach(function (b, i) {
       var col = '--wb-series-' + (3 + (i % 3));
-      ds.push(line(b.alias + ' 매도 좌표(전부 장내 호가)', (s.legs_sell || {})[b.alias], col, 1.3));
-      ds.push(line(b.alias + ' 매수 좌표(전부 장내 호가)', (s.legs_buy || {})[b.alias], col, 1.3, [5, 3]));
+      var lm = mix && s.legs_sell_mix && s.legs_buy_mix, tail = lm ? '' : (mix ? '(전부 장내 호가)' : '');
+      ds.push(line(b.alias + ' 매도 좌표' + tail, ((lm ? s.legs_sell_mix : s.legs_sell) || {})[b.alias], col, 1.3));
+      ds.push(line(b.alias + ' 매수 좌표' + tail, ((lm ? s.legs_buy_mix : s.legs_buy) || {})[b.alias], col, 1.3, [5, 3]));
     });
     [[th.sell_enter, '--wb-down', '매도 진입 문턱'], [th.buy_enter, '--wb-up', '매수 진입 문턱'], [0, '--wb-rule-strong', '0']].forEach(function (r) {
       var o = line(r[2], flat(r[0]), r[1], 1, r[2] === '0' ? [] : [6, 4], r[2] === '0' ? 1 : 0.75); o.rbRef = true; o.pointHoverRadius = 0; ds.push(o);
@@ -993,7 +993,7 @@
     if (!full) return;
     var s = d[rbMix(d) ? 'sell_mix' : 'sell'] || {}, b = d[rbMix(d) ? 'buy_mix' : 'buy'] || {}, defs = d.defs || {};
     $('rbMini').innerHTML = d.ok ? 'U <b class="' + sgn(s.under) + '">' + (s.ok ? fjn(s.under) : '–') + '</b> · Ub <b class="' + sgn(b.under) + '">' + (b.ok ? fjn(b.under) : '–') + '</b>전' + (d.t ? ' <span class="wb-muted">' + esc(d.t) + '</span>' : '')
-      : '<span class="wb-muted">값 없음 — ' + esc(x.open ? (d.why || '입력 부족') : (x.status || d.why || '')) + '</span>';
+      : '<span class="wb-muted">값 없음 — ' + esc(d.why || x.status || '입력 부족') + '</span>';
     $('rbSell').innerHTML = rbSide(d, 'sell');
     $('rbBuy').innerHTML = rbSide(d, 'buy');
     $('rbLegs').innerHTML = rbLegs(d);
@@ -1001,7 +1001,8 @@
     if (d.ok) { why.hidden = true; why.innerHTML = ''; }
     else {
       why.hidden = false;
-      why.innerHTML = '<b>지금 저평을 낼 수 없습니다.</b> ' + (x.open ? '' : '엑셀: ' + esc(x.status || '') + (x.file ? '(' + esc(x.file) + ')' : '') + ' — ') + esc(d.why || '') +
+      var dup = !!(x.status && String(d.why || '').indexOf(x.status) >= 0);   // 엔진 why 가 이미 엑셀 상태 문장을 담고 있으면 또 붙이지 않는다
+      why.innerHTML = '<b>지금 저평을 낼 수 없습니다.</b> ' + ((x.open || dup) ? '' : '엑셀: ' + esc(x.status || '') + ' — ') + esc(d.why || '') + (x.file ? ' <span class="wb-muted">(' + esc(x.file) + ')</span>' : '') +
         ((d.missing || []).length ? '<ul>' + d.missing.map(function (m) { return '<li>' + esc(m) + '</li>'; }).join('') + '</ul>' : '');
     }
     rbChart(d);
