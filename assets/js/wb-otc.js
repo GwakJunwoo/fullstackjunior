@@ -1046,7 +1046,7 @@
     (((d[mix ? 'buy_mix' : 'buy'] || {}).legs) || []).forEach(function (l) { bl[l.alias] = l; });
     var cell = function (l, c, warn, badge) {
       return l ? '<td class="' + c + 'num ' + sgn(l.under) + '"><b>' + fjn(l.under) + '</b></td>' +
-          '<td class="' + c + 'num ' + sgn(l.d_prev) + '"' + (isNum(l.prev) ? ' title="전일 종가 저평 ' + esc(fjn(l.prev)) + '"' : '') + '><b>' + fjn(l.d_prev) + '</b>' + (badge || '') + '</td>' +
+          '<td class="' + c + 'num ' + sgn(l.d_prev) + '"' + (isNum(l.prev) ? ' title="전일 종가 저평 ' + esc(fjn(l.prev)) + '"' : '') + '>' + (badge ? badge + ' ' : '') + '<b>' + fjn(l.d_prev) + '</b></td>' +   // 배지는 숫자 앞 — 숫자는 칸 오른쪽 끝에 그대로 맞춰짐(사용자 2026-11-06)
           '<td class="' + c + 'num">' + fy(l.ytm) + (isNum(l.d_ytm_bp) ? ' <small class="otc-rb-dy ' + sgn(l.d_ytm_bp) + '" title="쓴 수익률 − 전일 민평 종가(bp)">' + fbp(l.d_ytm_bp) + '</small>' : '') + '</td>' +
           '<td class="' + c + 'lt">' + (l.src ? esc(l.src) + (l.src_t ? ' <span class="wb-muted">' + esc(l.src_t) + '</span>' : '') + (warn || '') : '<span class="wb-muted">–</span>') + '</td>' +
           '<td class="' + c + 'num">' + fy(l.fwd_ytm) + '</td><td class="' + c + 'num">' + fnum(l.theo, 4) + '</td>'
@@ -1061,8 +1061,8 @@
         (isD ? ' <span class="otc-tag otc-tag--drv">원인</span>' + help((defs.driver || '원인 종목 = 엔진이 고른 종목') + (isNum(d.driver.score) ? '\n점수 ' + d.driver.score : '')) : '') + '</td>';
     };
     var trOpen = function (b, isD) { return '<tr' + (isD ? ' class="is-driver"' : '') + ' title="' + esc('표면 ' + b.coupon + '% · 만기 ' + b.mat + ' · 전일 종가수익률 ' + b.close_ytm + ' · ' + b.code) + '">'; };
-    var sBadge = function (b) { return (d.strong && d.strong.alias === b.alias) ? ' <span class="otc-tag otc-tag--strong">가장 강해짐</span>' + help(defs.strong || '') : ''; };
-    var wBadge = function (b) { return (d.weak && d.weak.alias === b.alias) ? ' <span class="otc-tag otc-tag--weak">가장 약해짐</span>' + help(defs.weak || '') : ''; };
+    var sBadge = function (b) { return (d.strong && d.strong.alias === b.alias) ? '<span class="otc-tag otc-tag--strong otc-tag--lead">가장 강해짐</span>' + help(defs.strong || '') : ''; };
+    var wBadge = function (b) { return (d.weak && d.weak.alias === b.alias) ? '<span class="otc-tag otc-tag--weak otc-tag--lead">가장 약해짐</span>' + help(defs.weak || '') : ''; };
     var bk = d.basket || [];
     if (!bk.length) return '<table class="wb-table otc-t otc-rb-t"><tbody><tr><td class="wb-muted">바스켓 정보 없음</td></tr></tbody></table>';
     if (stack) {   // 좁은 폭: 매도 좌표 표 / 매수 좌표 표를 위아래로(글자 크기 그대로)

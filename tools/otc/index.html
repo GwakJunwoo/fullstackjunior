@@ -182,6 +182,8 @@
     .otc-tag--drv { color: var(--wb-basket); border-color: var(--wb-basket); font-weight: 600; }
     .otc-tag--weak { color: var(--wb-up); border-color: color-mix(in srgb, var(--wb-up) 60%, transparent); font-weight: 600; }
     .otc-tag--strong { color: var(--wb-down); border-color: color-mix(in srgb, var(--wb-down) 60%, transparent); font-weight: 600; }
+    .otc-tag--lead { margin-left: 0; }
+    .otc-tag--lead ~ b { margin-left: 3px; }   /* 배지·? 와 숫자 사이를 조금 띄움 — ? 가 숫자가 아니라 배지에 붙어 보이게 */
     .otc-rb-ws b { font-weight: 600; }
     .otc-rb-ws b.otc-sell { color: var(--wb-up); } .otc-rb-ws b.otc-buy { color: var(--wb-down); }
     .otc-rb-why { margin: 10px 16px 0; padding: 8px 12px; border: 1px solid var(--wb-rule); border-left: 2px solid var(--wb-warn); border-radius: 4px; background: var(--wb-subtle); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
@@ -448,6 +450,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/wb-chart.js?v=20261022c"></script>
-<script src="/assets/js/wb-otc.js?v=20261106k"></script>
+<script src="/assets/js/wb-otc.js?v=20261106l"></script>
 </body>
 </html>
