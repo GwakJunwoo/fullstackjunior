@@ -628,10 +628,7 @@
     var dl = (m.rules || {}).done_link_min;
     if (isNum(dl)) DEF.done = '체결(ㅎㅈ) = 호가 원문 안 ㅎㅈ/확정/거래 또는 ' + dl + '분 안 자기 직전 호가에 붙는 단독 ㅎㅈ — 호가 ≠ 체결, 표시된 것만';
     teamLabel(team.label);   // 2차 내비 팀 탭 이름 = 응답의 team.label(정적 파일엔 이름 없음 · 키 있는 사람에게만 보임)
-    $('otcMeta').innerHTML = esc((m.coverage || {}).start || '') + ' ~ ' + esc((m.coverage || {}).end || '') +
-      ' · 최신 영업일 <b>' + esc(m.latest || '–') + '</b> · 캐시 ' + n0(m.rows) + '행(복원 ' + n0(m.restored_rows) + (isNum(m.corrected_rows) ? ' · 교정 ' + n0(m.corrected_rows) : '') + ')' + help(srcNote()) +
-      (isNum(m.outlier_rows) ? ' · 이상치 ' + n0(m.outlier_rows) + help(RU('outlier') || '') : '') +
-      ' · 갱신 ' + esc(String(m.refreshed || '').replace('T', ' ').slice(5, 16));
+    $('otcMeta').innerHTML = ''; $('otcMeta').hidden = true;   // 기간 · 캐시 행수 · 이상치 · 갱신 시각 줄은 없앰(사용자 2026-11-06)
     $('otcBonds').innerHTML = (m.bonds || []).map(function (b) {
       return '<option value="' + esc(b.alias) + '">' + esc([b.nick, b.btype, isNum(b.rem) ? '잔존 ' + b.rem + '년' : '', '30일 ' + n0(b.n30) + '건'].filter(Boolean).join(' · ')) + '</option>';
     }).join('');
@@ -1027,15 +1024,8 @@
       '\n' + (defs.limits || '') + '\n관찰 전용 — 추천·주문 아님';
     return '<div class="otc-rb-lab">' + (kind === 'sell' ? '매도차익 저평 U' : '매수차익 저평 Ub') + help(tip) +
         (kin.active ? '<span class="otc-tag otc-tag--key" title="' + esc('선물 가격 = 키인 ' + fp(kin.price) + (kin.t ? ' (' + kin.t + ')' : '') + ' — 매도·매수 좌표 모두') + '">키인 기준</span>' : '') + '</div>' +
-      (x.ok ? '<div class="otc-rb-val ' + sgn(x.under) + '">' + fjn(x.under) + '<small>전</small></div>' +
-          (isNum(x.d_prev) ? '<div class="otc-rb-sub otc-rb-dp">전일 대비 <b class="' + sgn(x.d_prev) + '">' + fjn(x.d_prev) + '</b>전 <span class="wb-muted">· 전일 종가 ' + fjn(x.prev) + (pc.date ? '(' + esc(mmdd(pc.date)) + ')' : '') + '</span></div>' : '') + rbWs(d, kind)
+      (x.ok ? '<div class="otc-rb-val ' + sgn(x.under) + '"' + (isNum(x.d_prev) ? ' title="' + esc('전일 대비 ' + fjn(x.d_prev) + '전 · 전일 종가 ' + fjn(x.prev) + (pc.date ? '(' + mmdd(pc.date) + ')' : '')) + '"' : '') + '>' + fjn(x.under) + '<small>전</small></div>'   // 전일 대비 · 가장 강해짐/약해짐 글자 줄은 없앰(사용자 2026-11-06) — 값은 툴팁 · 종목 표에
         : '<div class="otc-rb-val wb-muted">–</div><div class="otc-rb-sub">' + esc(x.why || '값 없음 — 아래 사유') + '</div>');
-  }
-  function rbWs(d, kind) {   // 오늘 가장 약해진(매수 좌표)/강해진(매도 좌표) 종목 — 엔진 weak · strong 그대로 · 관찰 문구만(권유 표현 없음)
-    var z = kind === 'buy' ? d.weak : d.strong, defs = d.defs || {};
-    if (!z || !z.alias) return '';
-    return '<div class="otc-rb-sub otc-rb-ws">' + (kind === 'buy' ? '오늘 가장 약해짐 ' : '오늘 가장 강해짐 ') + '<b class="mono ' + (kind === 'buy' ? 'otc-sell' : 'otc-buy') + '">' + esc(z.alias) + '</b>' +
-      (isNum(z.d_prev) ? ' <span title="그 종목 개별 저평의 전일 대비(전)">(' + fjn(z.d_prev) + '전)</span>' : '') + help((kind === 'buy' ? defs.weak : defs.strong) || '') + '</div>';
   }
   function rbLegs(d, stack) {   // 종목별 저평 · 전일 대비 — 원인 종목 행 = 노랑 강조 · 가장 약해짐(매수 좌표)/강해짐(매도 좌표) 배지 · stack = 매도/매수 좌표 표 두 덩이(좁은 폭)
     var mix = rbMix(d), sl = {}, bl = {}, defs = d.defs || {}, drv = (d.driver && d.driver.alias) || null;
@@ -1175,14 +1165,16 @@
   }
   function rbRender(full) {
     var d = RB.data, x = RB.exch || (d && d.exch) || {};
-    $('rbMeta').innerHTML = '<span class="otc-dot' + (x.open ? ' ok' : '') + '" aria-hidden="true"></span> 엑셀 ' + esc(x.status || '–') + (x.last_read ? ' · 읽음 ' + esc(hmsOf(x.last_read)) : '') +
-      (RB.now ? ' · 확인 ' + esc(RB.now) : '') + (RB.err ? ' · <span class="wb-error">불러오기 실패 — ' + esc(RB.err) + '</span>' : '');
+    var live = !!x.open && !RB.err;   // 머리 상태 = '연결' / '연결실패' 두 가지만(사용자 2026-11-06) · 엔진 상태 문장·읽은 시각·확인 시각·불러오기 오류는 툴팁에 그대로
+    var rm = $('rbMeta');   // 툴팁은 #rbMeta 자체에 — 점·글자가 전처럼 머리 줄 flex 의 직접 자식(가운데 맞춤 · 간격 6px 그대로)
+    rm.title = '엑셀 ' + (x.status || '–') + (x.last_read ? ' · 읽음 ' + hmsOf(x.last_read) : '') + (RB.now ? ' · 확인 ' + RB.now : '') + (RB.err ? ' · 불러오기 실패 — ' + RB.err : '');
+    rm.innerHTML = '<span class="otc-dot' + (live ? ' ok' : (RB.err || x.expected !== false) ? ' warn' : '') + '" aria-hidden="true"></span> ' + (live ? '연결' : '연결실패');
     boQuick(); rbStatSync();
     if (!d) { if (RB.err) $('rbWhy').innerHTML = errBox('실시간 저평', { message: RB.err }); return; }
     if (!full) return;
     var ss = rbSess(d), kin = (ss && ss.keyin) || {};
-    var sub = $('rbSub'); if (RB.subDef == null) RB.subDef = sub.textContent;
-    sub.textContent = (ss && ss.bond_rule) ? '집행 가능한 값 · ' + ss.bond_rule + ' · 우리 조달' : RB.subDef;   // 15:45 전/후 규칙 = 엔진 문장 그대로(없으면 원래 문구)
+    var ttl = $('rbCard').querySelector('.wb-card-title'); if (RB.subDef == null) RB.subDef = ttl.getAttribute('title') || '';
+    ttl.setAttribute('title', (ss && ss.bond_rule) ? '집행 가능한 값 · ' + ss.bond_rule + ' · 우리 조달' : RB.subDef);   // 부제 글자는 없앰(사용자 2026-11-06) — 15:45 전/후 규칙(엔진 문장 그대로)은 제목 툴팁에
     rbKeySync();
     var s = d[rbMix(d) ? 'sell_mix' : 'sell'] || {}, b = d[rbMix(d) ? 'buy_mix' : 'buy'] || {}, defs = d.defs || {};
     var dp = function (z) { return (z.ok && isNum(z.d_prev)) ? ' <small class="' + sgn(z.d_prev) + '" title="전일 대비(전)">(' + fjn(z.d_prev) + ')</small>' : ''; };

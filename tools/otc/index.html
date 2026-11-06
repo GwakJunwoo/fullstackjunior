@@ -168,12 +168,9 @@
     .otc-rb-val { margin: 4px 0 2px; font-size: 34px; line-height: 40px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
     .otc-rb-val small { margin-left: 4px; font-size: 13px; font-weight: 400; letter-spacing: 0; color: var(--wb-muted); }
     .otc-rb-sub { font-size: 12px; line-height: 18px; color: var(--wb-muted); overflow-wrap: anywhere; }
-    .otc-rb-sub b { color: var(--wb-ink); font-weight: 600; }
-    .otc-rb-sub b.otc-rb-hit { color: var(--wb-accent); }
     .otc-rb-legs { min-width: 0; overflow: auto; }
     .otc-rb-t td { height: 30px; }
     .otc-rb-t td, .otc-rb-t th { padding: 0 5px 0 6px; }
-    .otc-rb-dp { font-size: 13px; }
     .otc-rb-dy { font-size: 10px; font-weight: 400; }
     .otc-rb-mini small { font-size: 11px; font-weight: 400; }
     /* 원인 종목(엔진 driver) = 노랑 강조 */
@@ -184,8 +181,6 @@
     .otc-tag--strong { color: var(--wb-down); border-color: color-mix(in srgb, var(--wb-down) 60%, transparent); font-weight: 600; }
     .otc-tag--lead { margin-left: 0; }
     .otc-tag--lead ~ b { margin-left: 3px; }   /* 배지·? 와 숫자 사이를 조금 띄움 — ? 가 숫자가 아니라 배지에 붙어 보이게 */
-    .otc-rb-ws b { font-weight: 600; }
-    .otc-rb-ws b.otc-sell { color: var(--wb-up); } .otc-rb-ws b.otc-buy { color: var(--wb-down); }
     .otc-rb-why { margin: 10px 16px 0; padding: 8px 12px; border: 1px solid var(--wb-rule); border-left: 2px solid var(--wb-warn); border-radius: 4px; background: var(--wb-subtle); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
     .otc-rb-why[hidden] { display: none; }
     .otc-rb-why b { font-weight: 600; }
@@ -304,7 +299,7 @@
 
 <main class="wb-main" id="otcMain">
   <div class="wb-pagehead otc-head">
-    <h1>장외 호가</h1><span class="wb-help" role="button" tabindex="0" aria-label="설명 보기"><template><p><b>장외 메신저 호가(kbond_quote) 관찰 도구.</b> 보드(5종목 동시 · 5초 갱신) · 종목 분석 · 브로커 분석 · 팀 해부(장중 → 일봉).</p><p>숫자는 엔진(otcdesk) 산출 그대로 — 웹에서 다시 계산하지 않음.</p><p>호가 ≠ 체결 · 체결 = ㅎㅈ/확정/거래 표시만 · 액면은 적힌 것만 · 관찰 전용(추천 0).</p><p>복원 = 2025-06~11 등 kbond_quote 금리 빈 행을 원문+전일민평 정수부로 복원(검증 정확 일치 98.8%).<br>근거 = 검증 2.8만 행(금리 있는 행 지우고 복원 후 대조).<br>금리 출처(복원 · 교정) 설명 = 오른쪽 캐시 행의 ? (엔진 규칙 문장 그대로).</p><p>비공개: 데이터는 키(X-QH-KEY)가 있어야 보인다.</p></template></span>
+    <h1>장외 호가</h1><span class="wb-help" role="button" tabindex="0" aria-label="설명 보기"><template><p><b>장외 메신저 호가(kbond_quote) 관찰 도구.</b> 보드(5종목 동시 · 5초 갱신) · 종목 분석 · 브로커 분석 · 팀 해부(장중 → 일봉).</p><p>숫자는 엔진(otcdesk) 산출 그대로 — 웹에서 다시 계산하지 않음.</p><p>호가 ≠ 체결 · 체결 = ㅎㅈ/확정/거래 표시만 · 액면은 적힌 것만 · 관찰 전용(추천 0).</p><p>복원 = 2025-06~11 등 kbond_quote 금리 빈 행을 원문+전일민평 정수부로 복원(검증 정확 일치 98.8%).<br>근거 = 검증 2.8만 행(금리 있는 행 지우고 복원 후 대조).<br>금리 출처(복원 · 교정) 설명 = 종목 분석의 복원 · 교정 건수 옆 ? (엔진 규칙 문장 그대로).</p><p>비공개: 데이터는 키(X-QH-KEY)가 있어야 보인다.</p></template></span>
     <span class="wb-badge">관찰 전용</span><span class="wb-badge wb-badge--warn">비공개 · 키</span>
     <span class="otc-head-meta" id="otcMeta"></span>
   </div>
@@ -326,8 +321,7 @@
     </div>
     <section class="wb-card otc-rb" id="rbCard" aria-label="실시간 저평">
       <div class="wb-card-head otc-rb-head">
-        <span class="wb-card-title">실시간 저평(3선)<span id="rbTitleHelp"></span></span>
-        <span class="wb-card-sub" id="rbSub">집행 가능한 값 · 지표물 = 장내 호가 · 비지표 = 장외 메신저 호가(사자선/팔자선) · 우리 조달</span>
+        <span class="wb-card-title" title="집행 가능한 값 · 지표물 = 장내 호가 · 비지표 = 장외 메신저 호가(사자선/팔자선) · 우리 조달">실시간 저평(3선)<span id="rbTitleHelp" title=""></span></span>
         <span class="otc-rb-mini" id="rbMini"></span>
         <span class="wb-card-meta" id="rbMeta"></span>
         <button type="button" class="wb-btn wb-btn--sm" id="rbFold" aria-expanded="true" aria-controls="rbBody">접기 ▴</button>
@@ -450,6 +444,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/wb-chart.js?v=20261022c"></script>
-<script src="/assets/js/wb-otc.js?v=20261106l"></script>
+<script src="/assets/js/wb-otc.js?v=20261106m"></script>
 </body>
 </html>
