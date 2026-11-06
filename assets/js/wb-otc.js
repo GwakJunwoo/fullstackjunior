@@ -646,7 +646,7 @@
   var BO_LS = 'otc_board_v1', BO_MS = 5000, BO_H = 150;
   var B = S.board = { aliases: null, days: 1, auto: true, choices: [1, 3, 5, 10], cursor: '', cpath: '', data: null, last: null,
     inflight: 0, fails: 0, err: '', timer: 0, rows: 0, slots: [],
-    det: { open: false, alias: '', cursor: '', cpath: '', data: null, busy: false, has: false, nOut: -1 } };
+    panes: [paneNew(0), paneNew(1)], pseq: 0, restore: null };   // panes = 상세 서랍 위·아래 2칸
   (function () {
     try {
       var o = JSON.parse(localStorage.getItem(BO_LS) || 'null');
@@ -654,11 +654,11 @@
       if (Array.isArray(o.aliases) && o.aliases.length) B.aliases = o.aliases.map(String).slice(0, 12);
       if (isNum(o.days) && o.days >= 1) B.days = o.days;
       if (o.auto === false) B.auto = false;
+      if (Array.isArray(o.open) && o.open.length) B.restore = o.open.map(String).slice(0, 2);   // 열려 있던 상세 칸(별칭만)
     } catch (e) { /* 저장값 없음 */ }
   })();
-  function boSave() { try { localStorage.setItem(BO_LS, JSON.stringify({ aliases: B.aliases, days: B.days, auto: B.auto, rbOpen: B.rb ? B.rb.open : true, rbLegs: B.rb ? B.rb.legs : false, rbRef: B.rb ? B.rb.ref : false })); } catch (e) { /* noop */ } }
+  function boSave() { try { localStorage.setItem(BO_LS, JSON.stringify({ aliases: B.aliases, days: B.days, auto: B.auto, open: B.restore || panesOpen().map(function (p) { return p.alias; }), rbOpen: B.rb ? B.rb.open : true, rbLegs: B.rb ? B.rb.legs : false, rbRef: B.rb ? B.rb.ref : false })); } catch (e) { /* noop */ } }
   function boPath() { return '/otc/board?' + (B.aliases ? 'aliases=' + enc(B.aliases.join(',')) + '&' : '') + 'days=' + enc(B.days); }
-  function spPath() { return '/otc/board/detail?alias=' + enc(B.det.alias) + '&days=' + enc(B.days); }
   function hmsOf(iso) { return iso ? String(iso).slice(11, 19) : '–'; }
   function dayLab(n) { return n === 1 ? '당일' : n + '일'; }
   function boH() {   // 차트 높이: 화면 높이에 맞춤(150~180px) — 표현만
@@ -847,7 +847,7 @@
       B.fails++; B.err = emsg(e);                                          // 조용히 다음 주기에 재시도 · 3회 연속이면 빨간 점 + 문구
       if (!B.data && B.fails === 1) Array.prototype.forEach.call($('boRows').querySelectorAll('.otc-bo-ph'), function (el) { el.innerHTML = '<span class="wb-error">불러오기 실패 — ' + esc(emsg(e)) + ' · 다시 시도 중</span>'; });
     }).then(function () { B.inflight = Math.max(0, B.inflight - 1); boStatus(); });
-    if (B.det.open) spFetch(user);
+    panesOpen().forEach(function (p) { spFetch(p, user); });
     rbFetch(user);
   }
   function boStart() { boStop(); if (B.auto) B.timer = setInterval(function () { boFetch(false); }, BO_MS); }
@@ -858,7 +858,9 @@
     if (!B.rows) boBuild(B.aliases ? B.aliases.length : 5);
     boSyncBar(); boStatus(); rbFoldSync(); boQuick();
     boFetch(true); boStart();
-    if (p && p.get('open')) boOpen(p.get('open'));
+    var want = (p && p.get('open')) ? String(p.get('open')).split(',') : B.restore;   // 주소의 open=종목[,종목] 또는 지난번에 열려 있던 칸
+    B.restore = null;
+    (want || []).slice(0, 2).forEach(function (a) { boOpen(a); });
   }
   function boLeave() { boStop(); hideHov(); }
   function boSetSlot(i, val) {
@@ -872,12 +874,12 @@
     B.aliases = cur; boSave(); boFetch(true);
   }
   function boMarkOpen() {
-    Array.prototype.forEach.call($('boRows').children, function (r, i) { r.classList.toggle('is-open', !!(B.det.open && B.data && B.data.aliases[i] === B.det.alias)); });
+    Array.prototype.forEach.call($('boRows').children, function (r, i) { r.classList.toggle('is-open', !!(B.data && B.data.aliases[i] && paneOf(B.data.aliases[i]))); });   // 열려 있는 종목(최대 2)의 줄 = 선택 표시
   }
   function boFit() {   // 서랍이 열리면 보드를 그만큼 좁혀 5칸이 계속 보이게(가리지 않음)
     var v = $('vBoard'), dr = $('boDrawer'); v.style.paddingRight = '';
-    if (!B.det.open || window.innerWidth < 900) return;
-    var pr = Math.round(v.getBoundingClientRect().right - (window.innerWidth - dr.offsetWidth) + 12);
+    if (!panesOpen().length || window.innerWidth < 900) return;
+    var pr = Math.round(v.getBoundingClientRect().right - (window.innerWidth - dr.offsetWidth) + 24);   // 보드 오른쪽 끝과 서랍 경계 사이 24px
     if (pr > 0) v.style.paddingRight = pr + 'px';
   }
 
@@ -902,6 +904,18 @@
       if (!d.same) { RB.data = d; RB.cursor = d.cursor; }
       rbRender(!d.same);
     }).catch(function (e) { if (keyErr(e)) return; RB.err = emsg(e); rbRender(false); }).then(function () { RB.busy = false; });
+  }
+  function boStrip(d) {   // 만기순 금리 변동 띠(2년 지표 ~ 3선 바스켓 ~ 3선 ~ 5년 지표) — 엔진 strip 그대로(정렬 · 변동 bp 포함 · 웹 계산 0)
+    var st = (d && d.strip) || [], defs = (d && d.defs) || {};
+    $('boStrip').innerHTML = !st.length ? '' : st.map(function (s) {
+      var fut = s.kind === 'fut';
+      var tip = (s.nick || s.label || '') + ' · 전일 민평 ' + fy(s.prev) + ' → 지금 ' + fy(s.y) + (s.src ? ' · 출처 ' + s.src : '') + (s.t ? ' · 호가 ' + s.t : '') +
+        ((fut && isNum(s.px)) ? ' · 선물 ' + fp(s.prev_px) + ' → ' + fp(s.px) : '') + (isNum(s.rem) ? ' · 잔존 ' + s.rem + '년' : '');
+      return '<div class="otc-st-cell' + (s.basket ? ' is-bk' : '') + (fut ? ' is-fut' : '') + '" title="' + esc(tip) + '">' +
+        '<div class="otc-st-lab">' + esc(s.label || '') + ((s.alias && s.alias !== s.label) ? ' <b class="mono">' + esc(s.alias) + '</b>' : '') + '</div>' +
+        '<div class="otc-st-val ' + sgn(s.d_bp) + '">' + (isNum(s.d_bp) ? fbp(s.d_bp) + '<small>bp</small>' : '–') + '</div>' +
+        '<div class="otc-st-sub">' + fy(s.y) + ((fut && isNum(s.d_tick)) ? ' · <span class="' + sgn(s.d_tick) + '">' + fjn(s.d_tick, 0) + '틱</span>' : '') + '</div></div>';
+    }).join('') + '<span class="otc-st-help">' + help((defs.strip || '만기순 금리 변동 = 지금 금리 − 전일 민평(bp)') + '\n왼쪽 → 오른쪽 = 만기순 · 노랑 테두리 = 3선 바스켓 종목 · 점선 테두리 = 3선 선물\n칸에 마우스를 올리면 전일 민평 · 출처 · 호가 시각') + '</span>';
   }
   function rbFoldSync() {
     $('rbBody').hidden = !RB.open;
@@ -1141,6 +1155,7 @@
     var dp = function (z) { return (z.ok && isNum(z.d_prev)) ? ' <small class="' + sgn(z.d_prev) + '" title="전일 대비(전)">(' + fjn(z.d_prev) + ')</small>' : ''; };
     $('rbMini').innerHTML = (kin.active ? '<span class="otc-tag otc-tag--key">키인 ' + esc(fp(kin.price)) + '</span> ' : '') + (d.ok ? 'U <b class="' + sgn(s.under) + '">' + (s.ok ? fjn(s.under) : '–') + '</b>' + dp(s) + ' · Ub <b class="' + sgn(b.under) + '">' + (b.ok ? fjn(b.under) : '–') + '</b>' + dp(b) + '전' + (d.t ? ' <span class="wb-muted">' + esc(d.t) + '</span>' : '')
       : '<span class="wb-muted">값 없음 — ' + esc(d.why || x.status || '입력 부족') + '</span>');
+    boStrip(d);
     $('rbSell').innerHTML = rbSide(d, 'sell');
     $('rbBuy').innerHTML = rbSide(d, 'buy');
     rbLayout(false);   // 종목별 표: 패널 폭에 맞는 배치로 그림
@@ -1191,16 +1206,53 @@
   }
 
   // ── 상세 서랍: 그 종목 전체 호가(전 브로커) + 당일 스트림 + 브로커 랭킹 ──
-  function boOpen(alias) {
-    var D = B.det; alias = String(alias || '').trim(); if (!alias) return;
-    if (D.alias !== alias) {
-      D.alias = alias; D.data = null; D.cursor = ''; D.cpath = ''; D.nOut = -1; D.has = false; killEv('sp');
-      $('spTitle').innerHTML = '<b>' + esc(alias) + '</b>'; $('spSum').innerHTML = '<span class="wb-loading">불러오는 중…</span>'; $('spLegend').innerHTML = '';
-      $('spEv').innerHTML = skel(6); $('spStream').innerHTML = skelCard('당일 호가 스트림(최신순)'); $('spRank').innerHTML = skelCard('서식 브로커 랭킹');
-    }
-    D.open = true; $('boDrawer').hidden = false; boFit(); boMarkOpen(); spFetch(true);
+  // 서랍 = 위·아래 2칸(사용자 2026-11-06). 칸마다 종목 · cursor · 이상치 토글 · 괴리 패널 펼침을 따로 든다. 기간은 보드와 같다.
+  //   하나만 열리면 그 칸이 전체 높이 · 둘이면 반씩(차트는 항상 보이고 스트림·랭킹이 칸 안에서 스크롤). 열린 종목 별칭만 기억(localStorage).
+  function paneNew(i) { return { i: i, alias: '', data: null, cursor: '', cpath: '', busy: false, has: false, nOut: -1, seq: 0, spr: false, half: null }; }
+  function panesOpen() { return B.panes.filter(function (p) { return !!p.alias; }); }
+  function paneOf(alias) { for (var k = 0; k < B.panes.length; k++) if (B.panes[k].alias === alias) return B.panes[k]; return null; }
+  function spPath(p) { return '/otc/board/detail?alias=' + enc(p.alias) + '&days=' + enc(B.days); }
+  function panesBuild() {   // 칸 틀(한 번)
+    $('boDrawer').innerHTML = [0, 1].map(function (i) {
+      return '<div class="otc-pane" id="spPane' + i + '" data-pane="' + i + '" hidden>' +
+        '<div class="otc-dr-head"><div class="otc-dr-title" id="spTitle' + i + '"></div><span class="otc-dr-legend" id="spLegend' + i + '"></span>' +
+        '<button type="button" class="wb-btn wb-btn--sm" data-spspr="' + i + '" hidden title="사자−팔자 괴리 패널 펼치기/접기">괴리 ▾</button>' +
+        '<button type="button" class="wb-btn wb-btn--sm" data-spclose="' + i + '" aria-label="이 칸 닫기" title="닫기(Esc = 마지막에 연 칸부터)">닫기 ×</button></div>' +
+        '<div class="otc-dr-fix"><div class="otc-dr-sum" id="spSum' + i + '"></div><div id="spEv' + i + '"></div></div>' +
+        '<div class="otc-dr-body"><section class="wb-card" id="spStream' + i + '"></section><section class="wb-card otc-mt" id="spRank' + i + '"></section></div></div>';
+    }).join('');
   }
-  function boClose() { B.det.open = false; $('boDrawer').hidden = true; boFit(); boMarkOpen(); hideHov(); }
+  function panesSync() {   // 보임/숨김 · 반 높이 여부 · 보드 폭 · 선택 표시 · 기억
+    var open = panesOpen(), half = open.length > 1;
+    B.panes.forEach(function (p) {
+      $('spPane' + p.i).hidden = !p.alias;
+      var sb = $('boDrawer').querySelector('[data-spspr="' + p.i + '"]');
+      if (sb) { sb.hidden = !half; sb.textContent = p.spr ? '괴리 ▴' : '괴리 ▾'; sb.setAttribute('aria-pressed', p.spr ? 'true' : 'false'); }
+      if (p.alias && p.data && p.half !== half) spRender(p);   // 높이가 바뀌면 차트를 그 높이로 다시(글자 크기는 그대로)
+    });
+    $('boDrawer').hidden = !open.length;
+    $('boDrawer').classList.toggle('is-two', half);
+    boFit(); boMarkOpen(); boSave();
+  }
+  function boOpen(alias) {
+    alias = String(alias || '').trim(); if (!alias) return;
+    var p = paneOf(alias);
+    if (p) {   // 이미 열려 있는 종목 = 새로 열지 않고 그 칸을 잠깐 강조
+      var el = $('spPane' + p.i); el.classList.add('is-flash'); setTimeout(function () { el.classList.remove('is-flash'); }, 1200);
+      return;
+    }
+    p = B.panes.filter(function (x) { return !x.alias; })[0] || B.panes.slice().sort(function (a, b) { return a.seq - b.seq; })[0];   // 빈 칸 → 없으면 더 먼저 연 쪽
+    paneReset(p); p.alias = alias; p.seq = ++B.pseq;
+    $('spTitle' + p.i).innerHTML = '<b>' + esc(alias) + '</b>'; $('spSum' + p.i).innerHTML = '<span class="wb-loading">불러오는 중…</span>'; $('spLegend' + p.i).innerHTML = '';
+    $('spEv' + p.i).innerHTML = skel(4); $('spStream' + p.i).innerHTML = skelCard('당일 호가 스트림(최신순)'); $('spRank' + p.i).innerHTML = skelCard('서식 브로커 랭킹');
+    panesSync(); spFetch(p, true);
+  }
+  function paneReset(p) { killEv('sp' + p.i); p.alias = ''; p.data = null; p.cursor = ''; p.cpath = ''; p.busy = false; p.has = false; p.nOut = -1; p.half = null; p.spr = false; }
+  function boClose(i) {   // i 없으면 마지막에 연 칸(Esc)
+    var p = (i != null) ? B.panes[i] : panesOpen().sort(function (a, b) { return b.seq - a.seq; })[0];
+    if (!p || !p.alias) return;
+    paneReset(p); panesSync(); hideHov();
+  }
   function outBtnSync(key) {
     var b = doc.querySelector('[data-evout="' + key + '"]'), c = S.ev[key]; if (!b || !c) return;
     var on = !!c.showOut; b.setAttribute('aria-pressed', on ? 'true' : 'false'); b.classList.toggle('is-active', on);
@@ -1239,52 +1291,60 @@
         return h;
       } };
   }
-  function spRender() {
-    var D = B.det, d = D.data, h = d.head || {}, a = D.alias, chips = [];
+  function spRender(p) {
+    var d = p.data, h = d.head || {}, a = p.alias, i = p.i, key = 'sp' + i, chips = [], half = panesOpen().length > 1;
     if (h.nick) chips.push(chip(esc(h.nick)));
     if (h.bucket) chips.push(chip(esc(h.bucket)));
     if (isNum(h.rem)) chips.push(chip('잔존 ' + esc(h.rem) + '년'));
     if (bk3(h.basket)) chips.push(chip(esc(h.basket), 'otc-chip-basket'));   // 3선 바스켓 표시만
     var days = d.days || [];
-    $('spTitle').innerHTML = '<b>' + esc(a) + '</b> ' + chips.join(' ') + '<span class="otc-dr-sub">전체 호가 동향(전 브로커) · ' + esc(dayLab(days.length || B.days)) +
+    $('spTitle' + i).innerHTML = '<b>' + esc(a) + '</b> ' + chips.join(' ') + '<span class="otc-dr-sub">전체 호가 동향(전 브로커) · ' + esc(dayLab(days.length || B.days)) +
       (days.length ? ' ' + esc(mmdd(days[0])) + (days.length > 1 ? '~' + esc(mmdd(days[days.length - 1])) : '') : '') + '</span>';
-    $('spSum').innerHTML = (h.empty ? '<span>최근 호가가 없는 이름입니다</span>' :
+    $('spSum' + i).innerHTML = (h.empty ? '<span>최근 호가가 없는 이름입니다</span>' :
       '<span>사자 <b class="otc-buy">' + fy(h.bid) + '</b></span><span>팔자 <b class="otc-sell">' + fy(h.ask) + '</b></span><span>미드 <b>' + fy(h.mid) + '</b></span>' +
       '<span>사자−팔자 <b>' + (isNum(h.spr) ? fbp(h.spr, 2) + 'bp' : '–') + '</b></span>' +
       '<span>전일민평 <b>' + fy(h.mp) + '</b></span><span>미드−민평 <b class="' + sgn(h.mid_vs_mp) + '">' + (isNum(h.mid_vs_mp) ? fbp(h.mid_vs_mp) + 'bp' : '–') + '</b></span>' +
       '<span>오늘 <b>' + n0(h.n_today) + '</b>건</span><span>팀 사 <b class="otc-buy">' + n0(h.team_buy) + '</b> / 팔 <b class="otc-sell">' + n0(h.team_sell) + '</b></span>') +
       '<a href="' + esc(hashOf('bond', { alias: a, date: d.today || '' })) + '">종목 분석 탭에서 열기 ›</a>';
-    var src = spSrc(d);
-    if (src.nOut !== D.nOut) { $('spLegend').innerHTML = evLegend('sp', src.nOut, '이상치'); D.nOut = src.nOut; }
-    if (!src.n) { killEv('sp'); D.has = false; $('spEv').innerHTML = '<div class="otc-empty">이 기간에 금리가 있는 호가가 없습니다.</div>'; }
-    else if (D.has && S.ev.sp) S.ev.sp.setSrc(src);
-    else { evChart('sp', $('spEv'), src, { h: 300, hs: 90 }); D.has = true; }
-    outBtnSync('sp');
-    swapKeep($('spStream'), streamCard(d.stream || [], d.today, d.n_stream, 'otc-scroll--dr'));
-    swapKeep($('spRank'), rankCard(d.rank || [], d.week || [], d.today, 'otc-scroll--dr'));
+    var src = spSrc(d), relay = p.half !== half || p.sprWas !== p.spr;   // 높이·괴리 패널이 바뀌면 차트를 그 틀로 다시(이상치 토글은 유지)
+    if (src.nOut !== p.nOut) { $('spLegend' + i).innerHTML = evLegend(key, src.nOut, '이상치'); p.nOut = src.nOut; }
+    if (!src.n) { killEv(key); p.has = false; $('spEv' + i).innerHTML = '<div class="otc-empty">이 기간에 금리가 있는 호가가 없습니다.</div>'; }
+    else if (p.has && S.ev[key] && !relay) S.ev[key].setSrc(src);
+    else {
+      var out = !!(S.ev[key] && S.ev[key].showOut);
+      var c = evChart(key, $('spEv' + i), src, half ? { h: 200, hs: 64, noSpr: !p.spr } : { h: 300, hs: 90 });   // 반 높이 = 차트 낮게 · 괴리 패널은 버튼으로 펼침
+      p.has = true; if (c && out) c.setOut(true);
+    }
+    p.half = half; p.sprWas = p.spr;
+    outBtnSync(key);
+    swapKeep($('spStream' + i), streamCard(d.stream || [], d.today, d.n_stream, 'otc-scroll--pane'));
+    swapKeep($('spRank' + i), rankCard(d.rank || [], d.week || [], d.today, 'otc-scroll--pane'));
   }
-  function spFetch(user) {
-    var D = B.det; if (!S.on || !D.open || (!user && D.busy)) return;
-    var path = spPath(), since = (D.data && D.cpath === path) ? D.cursor : '';
-    D.busy = true;
+  function spFetch(p, user) {   // 칸마다 종목별 cursor — same 이면 건드리지 않는다
+    if (!S.on || !p.alias || (!user && p.busy)) return;
+    var path = spPath(p), alias = p.alias, since = (p.data && p.cpath === path) ? p.cursor : '';
+    p.busy = true;
     pget(path, since).then(function (d) {
-      if (!D.open || path !== spPath() || d.same) return;
-      if (d.full) D.data = d;
-      else if (D.data && D.cpath === path) {   // 오늘 블록·머리·스트림·랭킹만 교체
-        mergeBlocks(D.data.blocks, d.blocks);
-        ['head', 'stream', 'n_stream', 'rank', 'week', 'today', 'days'].forEach(function (k) { if (d[k] !== undefined) D.data[k] = d[k]; });
-      } else { D.cursor = ''; D.cpath = ''; setTimeout(function () { spFetch(true); }, 0); return; }
-      D.cursor = d.cursor; D.cpath = path;
-      spRender();
+      if (p.alias !== alias || path !== spPath(p) || d.same) return;      // 그 사이 칸이 닫혔거나 종목·기간이 바뀜
+      if (d.full) p.data = d;
+      else if (p.data && p.cpath === path) {   // 오늘 블록·머리·스트림·랭킹만 교체
+        mergeBlocks(p.data.blocks, d.blocks);
+        ['head', 'stream', 'n_stream', 'rank', 'week', 'today', 'days'].forEach(function (k) { if (d[k] !== undefined) p.data[k] = d[k]; });
+      } else { p.cursor = ''; p.cpath = ''; setTimeout(function () { spFetch(p, true); }, 0); return; }
+      p.cursor = d.cursor; p.cpath = path;
+      spRender(p);
     }).catch(function (e) {
       if (keyErr(e)) return;
-      if (!D.data) { $('spSum').innerHTML = ''; $('spEv').innerHTML = errBox('상세 불러오기 실패', e); }
-    }).then(function () { D.busy = false; });
+      if (p.alias === alias && !p.data) { $('spSum' + p.i).innerHTML = ''; $('spEv' + p.i).innerHTML = errBox('상세 불러오기 실패', e); }
+    }).then(function () { if (p.alias === alias) p.busy = false; });
   }
-  function spNav(e) {   // 서랍 표의 브로커 행 → 브로커 분석
+  function spNav(e) {   // 서랍 안 클릭: 칸 닫기 · 괴리 패널 펼침 · 표의 브로커 행 → 브로커 분석
+    var cb = e.target.closest('[data-spclose]'); if (cb) { boClose(+cb.getAttribute('data-spclose')); return; }
+    var sb = e.target.closest('[data-spspr]');
+    if (sb) { var q = B.panes[+sb.getAttribute('data-spspr')]; q.spr = !q.spr; sb.textContent = q.spr ? '괴리 ▴' : '괴리 ▾'; sb.setAttribute('aria-pressed', q.spr ? 'true' : 'false'); if (q.data) spRender(q); return; }
     if (e.target.closest('.wb-help, a, input, select, button')) return;
-    var tr = e.target.closest('tr[data-broker]'); if (!tr) return;
-    var d = B.det.data;
+    var tr = e.target.closest('tr[data-broker]'), pn = e.target.closest('[data-pane]'); if (!tr || !pn) return;
+    var d = B.panes[+pn.getAttribute('data-pane')].data;
     go('broker', { name: tr.getAttribute('data-broker'), asof: (d && d.today) || '', period: S.broker.period || '5d' });
   }
 
@@ -2388,6 +2448,7 @@
   function onEnter(id, fn) { var el = $(id); if (el) el.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); fn(); } }); }
   function bind() {
     $('otcKeyBtn').addEventListener('click', function () { if (askKey()) start(); });
+    panesBuild();
     // (0) 보드
     $('boDays').addEventListener('click', function (e) {
       var b = e.target.closest('button[data-days]'); if (!b) return;
@@ -2415,9 +2476,8 @@
       var row = e.target.closest('.otc-bo-row');
       if (row && e.target.closest('.otc-bo-main') && B.data) { hideHov(); boOpen(B.data.aliases[+row.getAttribute('data-slot')]); }
     });
-    $('spClose').addEventListener('click', boClose);
     $('boDrawer').addEventListener('click', spNav);
-    doc.addEventListener('keydown', function (e) { if (e.key === 'Escape' && B.det.open && S.view === 'board') boClose(); });
+    doc.addEventListener('keydown', function (e) { if (e.key === 'Escape' && panesOpen().length && S.view === 'board') boClose(); });   // Esc = 마지막에 연 칸부터
     doc.addEventListener('visibilitychange', function () { if (!doc.hidden) boFetch(false); });   // 탭으로 돌아오면 바로 한 번
     // (A)
     $('bdLoad').addEventListener('click', function () { bondFromBar(true); });
