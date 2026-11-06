@@ -250,6 +250,7 @@
     .otc-bo-ph { height: 170px; display: grid; place-items: center; padding: 0 12px; font-size: 12px; color: var(--wb-muted); text-align: center; }
     .otc-drawer { position: fixed; z-index: 45; top: var(--wb-shell-h); right: 0; bottom: 0; width: min(980px, 58vw); display: flex; flex-direction: column; background: var(--wb-bg); border-left: 1px solid var(--wb-rule-strong); }
     .otc-drawer[hidden] { display: none; }
+    .wb-main.is-dr { max-width: none; margin-left: 0; margin-right: 0; }   /* 서랍이 열려 있을 때: 왼쪽 끝(여백 24px)부터 씀 — 닫히면 원래 가운데 정렬·최대 폭 */
     .otc-dr-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; padding: 8px 12px 8px 16px; border-bottom: 1px solid var(--wb-rule); }
     .otc-dr-title { font-size: var(--wb-fs-title); line-height: var(--wb-lh-title); }
     .otc-dr-title b { font-weight: 600; margin-right: 4px; }
@@ -439,6 +440,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/wb-chart.js?v=20261022c"></script>
-<script src="/assets/js/wb-otc.js?v=20261106e"></script>
+<script src="/assets/js/wb-otc.js?v=20261106f"></script>
 </body>
 </html>

@@ -590,6 +590,7 @@
     if (window.WBShell) WBShell.setPage('otc-' + r.v);
     hideHov();
     if (prev === 'board' && r.v !== 'board') boLeave();
+    boFit();   // 보드가 아니면 왼쪽 붙임·오른쪽 비움을 푼다
     if (VIEWS[r.v].noMeta || S.meta) VIEWS[r.v].enter(r.p);
     else if (S.metaP) S.metaP.then(function () { if (S.on && S.meta && S.view === r.v) VIEWS[r.v].enter(parseHash().p); });   // 종목·브로커·팀 = meta(기본값·자동완성)가 온 뒤
   }
@@ -876,11 +877,13 @@
   function boMarkOpen() {
     Array.prototype.forEach.call($('boRows').children, function (r, i) { r.classList.toggle('is-open', !!(B.data && B.data.aliases[i] && paneOf(B.data.aliases[i]))); });   // 열려 있는 종목(최대 2)의 줄 = 선택 표시
   }
-  function boFit() {   // 서랍이 열리면 보드를 그만큼 좁혀 5칸이 계속 보이게(가리지 않음)
-    var v = $('vBoard'), dr = $('boDrawer'); v.style.paddingRight = '';
-    if (!panesOpen().length || window.innerWidth < 900) return;
+  function boFit() {   // 서랍이 열리면 보드를 그만큼 좁혀 5칸이 계속 보이게(가리지 않음) + 왼쪽 끝까지 씀(가운데 정렬·최대 폭 풀기 · 닫히면 원래대로)
+    var v = $('vBoard'), dr = $('boDrawer'), m = $('otcMain'), hd = m.querySelector('.otc-head'); v.style.paddingRight = ''; if (hd) hd.style.paddingRight = '';
+    var on = S.view === 'board' && panesOpen().length > 0 && window.innerWidth >= 900;
+    m.classList.toggle('is-dr', on);   // 페이지 머리도 같은 왼쪽 선
+    if (!on) return;
     var pr = Math.round(v.getBoundingClientRect().right - (window.innerWidth - dr.offsetWidth) + 24);   // 보드 오른쪽 끝과 서랍 경계 사이 24px
-    if (pr > 0) v.style.paddingRight = pr + 'px';
+    if (pr > 0) { v.style.paddingRight = pr + 'px'; if (hd) hd.style.paddingRight = pr + 'px'; }   // 머리 줄 오른쪽 글자도 서랍에 가리지 않게
   }
 
   // ── 실시간 저평(3선) 패널 — /otc/basis (엔진 rt_basis 그대로) ──
