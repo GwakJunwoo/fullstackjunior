@@ -160,7 +160,7 @@
     .otc-rb-mini { font-size: 13px; font-variant-numeric: tabular-nums; }
     .otc-rb-mini b { font-weight: 600; }
     .otc-rb-head .wb-card-meta { display: inline-flex; align-items: center; gap: 6px; }
-    .otc-rb-top { display: grid; grid-template-columns: minmax(240px, 300px) minmax(240px, 300px) minmax(0, 1fr); }
+    .otc-rb-top { display: grid; grid-template-columns: minmax(200px, 232px) minmax(200px, 232px) minmax(0, 1fr); }
     .otc-rb-big { min-width: 0; padding: 10px 16px 12px; border-right: 1px solid var(--wb-rule); }
     .otc-rb-lab { display: flex; flex-wrap: wrap; align-items: center; font-size: 12px; font-weight: 600; }
     .otc-rb-lab .otc-sub { width: 100%; margin-top: 2px; font-weight: 400; }
@@ -171,6 +171,7 @@
     .otc-rb-sub b.otc-rb-hit { color: var(--wb-accent); }
     .otc-rb-legs { min-width: 0; overflow: auto; }
     .otc-rb-t td { height: 30px; }
+    .otc-rb-t td, .otc-rb-t th { padding: 0 5px 0 6px; }
     .otc-rb-dp { font-size: 13px; }
     .otc-rb-dy { font-size: 10px; font-weight: 400; }
     .otc-rb-mini small { font-size: 11px; font-weight: 400; }
@@ -178,6 +179,10 @@
     .otc-rb-t tbody tr.is-driver td, .otc-rb-t tbody tr.is-driver td.day, .otc-rb-t tbody tr.is-driver:hover td { background: color-mix(in srgb, var(--wb-basket) 20%, var(--wb-surface)); }
     .otc-rb-t tbody tr.is-driver td:first-child { box-shadow: inset 3px 0 0 var(--wb-basket); }
     .otc-tag--drv { color: var(--wb-basket); border-color: var(--wb-basket); font-weight: 600; }
+    .otc-tag--weak { color: var(--wb-up); border-color: color-mix(in srgb, var(--wb-up) 60%, transparent); font-weight: 600; }
+    .otc-tag--strong { color: var(--wb-down); border-color: color-mix(in srgb, var(--wb-down) 60%, transparent); font-weight: 600; }
+    .otc-rb-ws b { font-weight: 600; }
+    .otc-rb-ws b.otc-sell { color: var(--wb-up); } .otc-rb-ws b.otc-buy { color: var(--wb-down); }
     .otc-rb-why { margin: 10px 16px 0; padding: 8px 12px; border: 1px solid var(--wb-rule); border-left: 2px solid var(--wb-warn); border-radius: 4px; background: var(--wb-subtle); font-size: 12px; line-height: 18px; overflow-wrap: anywhere; }
     .otc-rb-why[hidden] { display: none; }
     .otc-rb-why b { font-weight: 600; }
@@ -410,6 +415,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/wb-chart.js?v=20261022c"></script>
-<script src="/assets/js/wb-otc.js?v=20261105i"></script>
+<script src="/assets/js/wb-otc.js?v=20261106a"></script>
 </body>
 </html>

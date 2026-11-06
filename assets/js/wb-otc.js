@@ -981,25 +981,31 @@
     return '<div class="otc-rb-lab">' + (kind === 'sell' ? '매도차익 저평 U' : '매수차익 저평 Ub') + help(tip) +
         (kin.active ? '<span class="otc-tag otc-tag--key" title="' + esc('선물 가격 = 키인 ' + fp(kin.price) + (kin.t ? ' (' + kin.t + ')' : '') + ' — 매도·매수 좌표 모두') + '">키인 기준</span>' : '') + '</div>' +
       (x.ok ? '<div class="otc-rb-val ' + sgn(x.under) + '">' + fjn(x.under) + '<small>전</small></div>' +
-          (isNum(x.d_prev) ? '<div class="otc-rb-sub otc-rb-dp">전일 대비 <b class="' + sgn(x.d_prev) + '">' + fjn(x.d_prev) + '</b>전 <span class="wb-muted">· 전일 종가 ' + fjn(x.prev) + (pc.date ? '(' + esc(mmdd(pc.date)) + ')' : '') + '</span></div>' : '')
+          (isNum(x.d_prev) ? '<div class="otc-rb-sub otc-rb-dp">전일 대비 <b class="' + sgn(x.d_prev) + '">' + fjn(x.d_prev) + '</b>전 <span class="wb-muted">· 전일 종가 ' + fjn(x.prev) + (pc.date ? '(' + esc(mmdd(pc.date)) + ')' : '') + '</span></div>' : '') + rbWs(d, kind)
         : '<div class="otc-rb-val wb-muted">–</div><div class="otc-rb-sub">' + esc(x.why || '값 없음 — 아래 사유') + '</div>');
   }
-  function rbLegs(d) {   // 종목별 저평 · 전일 대비 — 원인 종목(엔진 driver) 행 = 노랑 강조
+  function rbWs(d, kind) {   // 오늘 가장 약해진(매수 좌표)/강해진(매도 좌표) 종목 — 엔진 weak · strong 그대로 · 관찰 문구만(권유 표현 없음)
+    var z = kind === 'buy' ? d.weak : d.strong, defs = d.defs || {};
+    if (!z || !z.alias) return '';
+    return '<div class="otc-rb-sub otc-rb-ws">' + (kind === 'buy' ? '오늘 가장 약해짐 ' : '오늘 가장 강해짐 ') + '<b class="mono ' + (kind === 'buy' ? 'otc-sell' : 'otc-buy') + '">' + esc(z.alias) + '</b>' +
+      (isNum(z.d_prev) ? ' <span title="그 종목 개별 저평의 전일 대비(전)">(' + fjn(z.d_prev) + '전)</span>' : '') + help((kind === 'buy' ? defs.weak : defs.strong) || '') + '</div>';
+  }
+  function rbLegs(d) {   // 종목별 저평 · 전일 대비 — 원인 종목(엔진 driver) 행 = 노랑 강조 · 가장 약해짐(매수 좌표)/강해짐(매도 좌표) 배지
     var mix = rbMix(d), sl = {}, bl = {}, defs = d.defs || {}, drv = (d.driver && d.driver.alias) || null;
     var sub = function (b, l) {   // 비지표인데 오늘 장외 호가가 없어 장내로 대체된 종목(엔진 legs[].fallback) = 눈에 띄게
       return (l && l.fallback === true) ? ' ' + tag('장외 호가 없음 → 장내', 'rst') : '';
     };
     (((d[mix ? 'sell_mix' : 'sell'] || {}).legs) || []).forEach(function (l) { sl[l.alias] = l; });
     (((d[mix ? 'buy_mix' : 'buy'] || {}).legs) || []).forEach(function (l) { bl[l.alias] = l; });
-    var cell = function (l, c, warn) {
+    var cell = function (l, c, warn, badge) {
       return l ? '<td class="' + c + 'num ' + sgn(l.under) + '"><b>' + fjn(l.under) + '</b></td>' +
-          '<td class="' + c + 'num ' + sgn(l.d_prev) + '"' + (isNum(l.prev) ? ' title="전일 종가 저평 ' + esc(fjn(l.prev)) + '"' : '') + '><b>' + fjn(l.d_prev) + '</b></td>' +
+          '<td class="' + c + 'num ' + sgn(l.d_prev) + '"' + (isNum(l.prev) ? ' title="전일 종가 저평 ' + esc(fjn(l.prev)) + '"' : '') + '><b>' + fjn(l.d_prev) + '</b>' + (badge || '') + '</td>' +
           '<td class="' + c + 'num">' + fy(l.ytm) + (isNum(l.d_ytm_bp) ? ' <small class="otc-rb-dy ' + sgn(l.d_ytm_bp) + '" title="쓴 수익률 − 전일 민평 종가(bp)">' + fbp(l.d_ytm_bp) + '</small>' : '') + '</td>' +
           '<td class="' + c + 'lt">' + (l.src ? esc(l.src) + (l.src_t ? ' <span class="wb-muted">' + esc(l.src_t) + '</span>' : '') + (warn || '') : '<span class="wb-muted">–</span>') + '</td>' +
           '<td class="' + c + 'num">' + fy(l.fwd_ytm) + '</td><td class="' + c + 'num">' + fnum(l.theo, 4) + '</td>'
         : '<td class="' + c + 'num wb-muted">–</td><td class="' + c + 'num wb-muted">–</td><td class="' + c + 'num wb-muted">–</td><td class="' + c + 'wb-muted">–</td><td class="' + c + 'num wb-muted">–</td><td class="' + c + 'num wb-muted">–</td>';
     };
-    var h = '<table class="wb-table otc-t otc-rb-t"><thead><tr><th rowspan="2">바스켓 종목' + help((defs.leg || '') + '\n' + (defs.d_prev || '') + '\n' + (defs.driver || '') + '\n' + (defs.mix || '') + (defs.cpn_yn ? '\n' + defs.cpn_yn : '') +
+    var h = '<table class="wb-table otc-t otc-rb-t"><thead><tr><th rowspan="2">바스켓 종목' + help((defs.leg || '') + '\n' + (defs.d_prev || '') + '\n' + (defs.driver || '') + (defs.weak ? '\n' + defs.weak : '') + (defs.strong ? '\n' + defs.strong : '') + '\n' + (defs.mix || '') + (defs.cpn_yn ? '\n' + defs.cpn_yn : '') +
       '\n쓴 수익률: 매도 좌표 = 현물 매수호가(사자) · 매수 좌표 = 현물 매도호가(팔자) · 옆 작은 ±bp = 쓴 수익률 − 전일 민평 종가\n출처 = 그 수익률을 가져온 곳(장내 호가 · 장외 선 + 그 호가 시각)\n함의 가격 = 그 종목 선도수익률이 함의하는 표준물 가격') + '</th>' +
       '<th class="grp day" colspan="6">매도 좌표 · 현물 매수(사자)' + (mix ? '' : ' · 전부 장내 호가') + '</th><th class="grp" colspan="6">매수 좌표 · 현물 매도(팔자)' + (mix ? '' : ' · 전부 장내 호가') + '</th></tr>' +
       '<tr><th class="num day">저평(전)</th><th class="num day">전일 대비</th><th class="num day">쓴 수익률</th><th class="day">출처</th><th class="num day">선도</th><th class="num day">함의 가격</th>' +
@@ -1008,7 +1014,8 @@
       var isD = drv != null && b.alias === drv;
       h += '<tr' + (isD ? ' class="is-driver"' : '') + ' title="' + esc('표면 ' + b.coupon + '% · 만기 ' + b.mat + ' · 전일 종가수익률 ' + b.close_ytm + ' · ' + b.code) + '"><td>' + chip(esc(b.tag), 'otc-chip-basket') + ' <b class="mono">' + esc(b.alias) + '</b>' +
         (isD ? ' <span class="otc-tag otc-tag--drv">원인</span>' + help((defs.driver || '원인 종목 = 엔진이 고른 종목') + (isNum(d.driver.score) ? '\n점수 ' + d.driver.score : '')) : '') + '</td>' +
-        cell(sl[b.alias], 'day ', sub(b, sl[b.alias])) + cell(bl[b.alias], '', sub(b, bl[b.alias])) + '</tr>';
+        cell(sl[b.alias], 'day ', sub(b, sl[b.alias]), (d.strong && d.strong.alias === b.alias) ? ' <span class="otc-tag otc-tag--strong">가장 강해짐</span>' + help(defs.strong || '') : '') +
+        cell(bl[b.alias], '', sub(b, bl[b.alias]), (d.weak && d.weak.alias === b.alias) ? ' <span class="otc-tag otc-tag--weak">가장 약해짐</span>' + help(defs.weak || '') : '') + '</tr>';
     });
     if (!(d.basket || []).length) h += '<tr><td colspan="13" class="wb-muted">바스켓 정보 없음</td></tr>';
     return h + '</tbody></table>';
