@@ -1294,11 +1294,11 @@
         return h;
       } };
   }
-  function spH(p) {   // 2칸일 때 차트 높이 = 칸 높이에서 머리·요약·스트림 6행쯤을 뺀 나머지(110~150px) — 스트림 표가 보이게
+  function spH(p) {   // 2칸일 때 차트 높이 = 160~190px(차트 우선 · 사용자 2026-11-06) — 칸이 넉넉하면 190, 낮으면 160 · 스트림은 남는 높이만큼(칸 안 스크롤)
     var el = $('spPane' + p.i), H = el ? el.clientHeight : 0;
-    if (!H) return 140;
+    if (!H) return 180;
     var head = el.querySelector('.otc-dr-head').offsetHeight, sum = $('spSum' + p.i).offsetHeight;
-    return Math.round(Math.max(110, Math.min(150, H - head - sum - 252 - (p.spr ? 78 : 0))));
+    return Math.round(Math.max(160, Math.min(190, H - head - sum - 200 - (p.spr ? 78 : 0))));
   }
   function spRender(p) {
     var d = p.data, h = d.head || {}, a = p.alias, i = p.i, key = 'sp' + i, chips = [], half = panesOpen().length > 1;
@@ -1322,7 +1322,7 @@
     else if (p.has && S.ev[key] && !relay) S.ev[key].setSrc(src);
     else {
       var out = !!(S.ev[key] && S.ev[key].showOut);
-      var c = evChart(key, $('spEv' + i), src, half ? { h: hh, hs: 54, noSpr: !p.spr, yTicks: hh < 130 ? 4 : 5 } : { h: 300, hs: 90 });   // 2칸 = 차트 낮게(눈금도 줄임) · 괴리 패널은 버튼으로 펼침
+      var c = evChart(key, $('spEv' + i), src, half ? { h: hh, hs: 54, noSpr: !p.spr, yTicks: 6 } : { h: 300, hs: 90 });   // 2칸 = 차트 낮게(눈금도 줄임) · 괴리 패널은 버튼으로 펼침
       p.has = true; if (c && out) c.setOut(true);
     }
     p.half = half; p.sprWas = p.spr; p.hWas = hh;
