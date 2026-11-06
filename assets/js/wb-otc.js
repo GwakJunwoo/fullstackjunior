@@ -933,7 +933,7 @@
     b.textContent = '계산 입력 · 조달 · 검증 ' + (RB.stat ? '▾' : '▸'); b.setAttribute('aria-expanded', RB.stat ? 'true' : 'false');
     if (ck && ck.ok === false)   // 엔진 check.ok 그대로 — err 가 있으면 대조 자체가 실패한 것(불일치와 구분)
       f.push('<span class="otc-rb-stf" title="' + esc(ck.err || ('최대차 ' + (isNum(ck.max_diff) ? ck.max_diff.toExponential(1) : '–') + '전')) + (ck.t ? ' · ' + esc(ck.t) : '') + '"><span class="otc-dot err" aria-hidden="true"></span>정본 대조 ' + (ck.err ? '실패' : '불일치') + '</span>');
-    if (x.open === false) {      // 엑셀(장내 실시간)이 수신 중이 아님 — 엔진 상태 문장의 앞마디(전체 문장은 툴팁)
+    if (x.open === false && x.expected !== false) {   // 엑셀이 수신 중이어야 할 시간대(엔진 exch.expected)인데 수신 중이 아님 — 장 마감 뒤·개장 전·주말은 경고 아님(expected 가 없는 옛 응답이면 표시) · 엔진 상태 문장의 앞마디(전체 문장은 툴팁)
       var st = String(x.status || '수신 안 됨'), sh = st.split(' — ')[0];
       f.push('<span class="otc-rb-stf" title="' + esc(st) + '"><span class="otc-dot warn" aria-hidden="true"></span>' + esc(sh.indexOf('엑셀') === 0 ? sh : '엑셀 · ' + sh) + '</span>');
     }
