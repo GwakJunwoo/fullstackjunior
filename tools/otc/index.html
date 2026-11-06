@@ -198,7 +198,13 @@
     .otc-rb-kmsg.is-err { color: var(--wb-up); }
     .otc-tag--key { color: var(--wb-warn); border-color: var(--wb-warn); font-weight: 600; }
     .otc-rb.is-keyin .otc-rb-big { box-shadow: inset 3px 0 0 var(--wb-warn); }
-    .otc-rb-stat { display: flex; flex-wrap: wrap; gap: 2px 18px; padding: 4px 16px 10px; font-size: 11px; line-height: 17px; color: var(--wb-muted); }
+    .otc-rb-sthead { display: flex; flex-wrap: wrap; align-items: center; gap: 0 14px; padding: 2px 16px 6px; font-size: 11px; line-height: 20px; color: var(--wb-muted); }
+    .otc-rb-stbtn { appearance: none; background: none; border: 0; padding: 2px 0; font: inherit; color: inherit; cursor: pointer; }
+    .otc-rb-stbtn:hover, .otc-rb-stbtn:focus-visible { color: var(--wb-ink); }
+    .otc-rb-stflag { display: contents; }
+    .otc-rb-stf { display: inline-flex; align-items: center; gap: 5px; color: var(--wb-ink); }
+    .otc-rb-stat { display: flex; flex-wrap: wrap; gap: 2px 18px; padding: 0 16px 10px; font-size: 11px; line-height: 17px; color: var(--wb-muted); }
+    .otc-rb-stat[hidden] { display: none; }
     .otc-rb-stat b { color: var(--wb-ink); font-weight: 600; }
     .otc-rb-stat b.otc-buy { color: var(--wb-down); } .otc-rb-stat b.otc-sell { color: var(--wb-up); }
     .otc-bo-quick { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin: 0 0 8px; font-size: 12px; color: var(--wb-muted); }
@@ -341,7 +347,8 @@
         </div>
         <div class="otc-toolbar"><button type="button" class="wb-chip" id="rbLegsBtn" aria-pressed="false" title="바스켓 종목별 저평 선을 같이 그림(실선 = 매도 좌표 · 점선 = 매수 좌표)">종목별 저평 선</button><button type="button" class="wb-chip" id="rbRefBtn" aria-pressed="false" title="참고 선: 전부 장내 호가로 낸 U/Ub · 현재가 U">참고 선</button><span class="otc-cap" id="rbChartCap"></span></div>
         <div class="otc-card-body" id="rbChartBox"></div>
-        <div class="otc-rb-stat" id="rbStat"></div>
+        <div class="otc-rb-sthead"><button type="button" class="otc-rb-stbtn" id="rbStatBtn" aria-expanded="false" aria-controls="rbStat" title="계약 · 조달 · 계산에 쓴 선물 · 엑셀 값 · 정본 대조 · 바스켓 기준 — 누르면 펼침/접힘">계산 입력 · 조달 · 검증 ▸</button><span class="otc-rb-stflag" id="rbStatFlag"></span></div>
+        <div class="otc-rb-stat" id="rbStat" hidden></div>
       </div>
     </section>
     <div class="otc-bo-qrow"><div class="otc-bo-quick" id="boQuick"></div>
@@ -440,6 +447,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/wb-chart.js?v=20261022c"></script>
-<script src="/assets/js/wb-otc.js?v=20261106g"></script>
+<script src="/assets/js/wb-otc.js?v=20261106h"></script>
 </body>
 </html>

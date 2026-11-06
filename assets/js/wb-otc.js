@@ -658,7 +658,7 @@
       if (Array.isArray(o.open) && o.open.length) B.restore = o.open.map(String).slice(0, 2);   // 열려 있던 상세 칸(별칭만)
     } catch (e) { /* 저장값 없음 */ }
   })();
-  function boSave() { try { localStorage.setItem(BO_LS, JSON.stringify({ aliases: B.aliases, days: B.days, auto: B.auto, open: B.restore || panesOpen().map(function (p) { return p.alias; }), rbOpen: B.rb ? B.rb.open : true, rbLegs: B.rb ? B.rb.legs : false, rbRef: B.rb ? B.rb.ref : false })); } catch (e) { /* noop */ } }
+  function boSave() { try { localStorage.setItem(BO_LS, JSON.stringify({ aliases: B.aliases, days: B.days, auto: B.auto, open: B.restore || panesOpen().map(function (p) { return p.alias; }), rbOpen: B.rb ? B.rb.open : true, rbLegs: B.rb ? B.rb.legs : false, rbRef: B.rb ? B.rb.ref : false, rbStat: B.rb ? B.rb.stat : false })); } catch (e) { /* noop */ } }
   function boPath() { return '/otc/board?' + (B.aliases ? 'aliases=' + enc(B.aliases.join(',')) + '&' : '') + 'days=' + enc(B.days); }
   function hmsOf(iso) { return iso ? String(iso).slice(11, 19) : '–'; }
   function dayLab(n) { return n === 1 ? '당일' : n + '일'; }
@@ -889,12 +889,12 @@
   // ── 실시간 저평(3선) 패널 — /otc/basis (엔진 rt_basis 그대로) ──
   //   웹이 하는 계산은 '진입 문턱까지 거리' 뺄셈 한 줄뿐(엔진 under 와 엔진 thresholds) — 나머지 숫자는 전부 응답 값 그대로.
   //   엑셀(장내 실시간)이 닫혀 있으면 엔진이 ok:false + why 를 준다 → 숫자 자리에 그대로 보여 준다(가짜 값 없음).
-  var RB = B.rb = { cursor: '', data: null, busy: false, open: true, legs: false, ref: false, exch: null, now: '', err: '',
+  var RB = B.rb = { cursor: '', data: null, busy: false, open: true, legs: false, ref: false, stat: false, exch: null, now: '', err: '',
     seq: 0, minSeq: 0, kBusy: false, kDirty: false, kMsg: null };   // seq/minSeq = 키인 직후 늦게 온 옛 응답 버리기 · kMsg = 엔진 why 그대로
   // 주 표시 = 응답 primary 가 'mix' 면 혼합(지표물 = 장내 호가 · 비지표 = 장외 메신저 호가 · 사용자 2026-11-05 확정) — 전부 장내 호가 값(sell/buy)은 작게 참고
   function rbMix(d) { return !!(d && d.primary === 'mix' && (d.sell_mix || d.buy_mix)); }
   (function () {
-    try { var o = JSON.parse(localStorage.getItem(BO_LS) || 'null'); if (o) { if (o.rbOpen === false) RB.open = false; if (o.rbLegs === true) RB.legs = true; if (o.rbRef === true) RB.ref = true; } } catch (e) { /* noop */ }
+    try { var o = JSON.parse(localStorage.getItem(BO_LS) || 'null'); if (o) { if (o.rbOpen === false) RB.open = false; if (o.rbLegs === true) RB.legs = true; if (o.rbRef === true) RB.ref = true; if (o.rbStat === true) RB.stat = true; } } catch (e) { /* noop */ }
   })();
   function fjn(v, dec) { return isNum(v) ? fbp(v, dec == null ? 2 : dec) : '–'; }   // 전(錢) 단위 부호 표기
   function rbFetch(user) {
@@ -925,6 +925,19 @@
     var b = $('rbFold'); b.textContent = RB.open ? '접기 ▴' : '펼치기 ▾'; b.setAttribute('aria-expanded', RB.open ? 'true' : 'false');
     var l = $('rbLegsBtn'); l.setAttribute('aria-pressed', RB.legs ? 'true' : 'false'); l.classList.toggle('is-active', RB.legs);
     var rf = $('rbRefBtn'); rf.setAttribute('aria-pressed', RB.ref ? 'true' : 'false'); rf.classList.toggle('is-active', RB.ref);
+    rbStatSync();
+  }
+  function rbStatSync() {   // 맨 아래 '계산 입력 · 조달 · 검증' 덩이: 기본 접힘(기억) · 패널 전체 접기와 별개 · 접혀 있어도 이상 신호(정본 대조 · 엑셀)는 머리 줄에 보인다
+    var b = $('rbStatBtn'), d = RB.data, x = RB.exch || (d && d.exch) || {}, ck = d && d.check, f = [];
+    $('rbStat').hidden = !RB.stat;
+    b.textContent = '계산 입력 · 조달 · 검증 ' + (RB.stat ? '▾' : '▸'); b.setAttribute('aria-expanded', RB.stat ? 'true' : 'false');
+    if (ck && ck.ok === false)   // 엔진 check.ok 그대로 — err 가 있으면 대조 자체가 실패한 것(불일치와 구분)
+      f.push('<span class="otc-rb-stf" title="' + esc(ck.err || ('최대차 ' + (isNum(ck.max_diff) ? ck.max_diff.toExponential(1) : '–') + '전')) + (ck.t ? ' · ' + esc(ck.t) : '') + '"><span class="otc-dot err" aria-hidden="true"></span>정본 대조 ' + (ck.err ? '실패' : '불일치') + '</span>');
+    if (x.open === false) {      // 엑셀(장내 실시간)이 수신 중이 아님 — 엔진 상태 문장의 앞마디(전체 문장은 툴팁)
+      var st = String(x.status || '수신 안 됨'), sh = st.split(' — ')[0];
+      f.push('<span class="otc-rb-stf" title="' + esc(st) + '"><span class="otc-dot warn" aria-hidden="true"></span>' + esc(sh.indexOf('엑셀') === 0 ? sh : '엑셀 · ' + sh) + '</span>');
+    }
+    $('rbStatFlag').innerHTML = f.join('');
   }
   // ── 3선 선물 키인(사용자 2026-11-05) — 허용 시각·범위·숫자 판정은 전부 엔진(session.keyin · POST 응답 why 그대로) ──
   function rbSess(d) { return (d && d.session) || null; }
@@ -1147,7 +1160,7 @@
     var d = RB.data, x = RB.exch || (d && d.exch) || {};
     $('rbMeta').innerHTML = '<span class="otc-dot' + (x.open ? ' ok' : '') + '" aria-hidden="true"></span> 엑셀 ' + esc(x.status || '–') + (x.last_read ? ' · 읽음 ' + esc(hmsOf(x.last_read)) : '') +
       (RB.now ? ' · 확인 ' + esc(RB.now) : '') + (RB.err ? ' · <span class="wb-error">불러오기 실패 — ' + esc(RB.err) + '</span>' : '');
-    boQuick();
+    boQuick(); rbStatSync();
     if (!d) { if (RB.err) $('rbWhy').innerHTML = errBox('실시간 저평', { message: RB.err }); return; }
     if (!full) return;
     var ss = rbSess(d), kin = (ss && ss.keyin) || {};
@@ -1178,7 +1191,7 @@
     parts.push(
       '엑셀 선물 매수 <b class="otc-buy">' + fp(fu.bid) + '</b> / 매도 <b class="otc-sell">' + fp(fu.ask) + '</b>' +
         (inp.bonds || []).map(function (r) { return ' · ' + esc(r.alias) + ' 매수 <b class="otc-buy">' + fy(r.bid) + '</b> / 매도 <b class="otc-sell">' + fy(r.ask) + '</b>'; }).join(''),
-      '정본 대조 ' + (ck ? '최대차 <b>' + (isNum(ck.max_diff) ? ck.max_diff.toExponential(1) : '–') + '</b>' + (ck.ok === false ? ' <span class="wb-error">불일치</span>' : '') + (ck.t ? '(' + esc(ck.t) + (isNum(ck.n) ? ' · ' + ck.n + '건' : '') + ')' : '') : '아직 없음') +
+      '정본 대조 ' + (ck ? '최대차 <b>' + (isNum(ck.max_diff) ? ck.max_diff.toExponential(1) : '–') + '</b>' + (ck.ok === false ? ' <span class="wb-error">' + (ck.err ? '실패 — ' + esc(ck.err) : '불일치') + '</span>' : '') + (ck.t ? '(' + esc(ck.t) + (isNum(ck.n) ? ' · ' + ck.n + '건' : '') + ')' : '') : '아직 없음') +
         help('엔진이 1분마다 빠른 계산(C)과 파이썬 정본 프라이서 결과를 대조한 최대 차이(전) — 엔진 값 그대로'));
     if (d.basket_date) parts.push('바스켓 기준 ' + esc(d.basket_date));
     $('rbStat').innerHTML = parts.map(function (p) { return '<span>' + p + '</span>'; }).join('');
@@ -2470,6 +2483,7 @@
     if (window.ResizeObserver) new ResizeObserver(function () { var w = $('rbCard').clientWidth; if (w && w !== RB.layW) rbLayout(true); }).observe($('rbCard'));   // 서랍 열림/닫힘 · 창 크기 → 배치 다시
     $('rbLegsBtn').addEventListener('click', function () { RB.legs = !RB.legs; boSave(); rbFoldSync(); if (RB.data) rbChart(RB.data); });
     $('rbRefBtn').addEventListener('click', function () { RB.ref = !RB.ref; boSave(); rbFoldSync(); if (RB.data) rbChart(RB.data); });
+    $('rbStatBtn').addEventListener('click', function () { RB.stat = !RB.stat; boSave(); rbStatSync(); });
     $('rbKeyApply').addEventListener('click', rbKeyApply);
     $('rbKeyClear').addEventListener('click', rbKeyClear);
     $('rbKeyIn').addEventListener('input', function () { RB.kDirty = true; if (RB.kMsg) { RB.kMsg = null; rbKeySync(); } });
