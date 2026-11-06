@@ -262,7 +262,13 @@
     .otc-dr-fix { flex: none; padding: 8px 16px 4px; }                                  /* 요약 + 차트 = 항상 보임 */
     .otc-dr-body { flex: 1; min-height: 0; overflow: auto; padding: 4px 16px 16px; }     /* 스트림·랭킹 = 칸 안에서 스크롤 */
     .otc-scroll--pane { max-height: none; overflow: visible; }
-    .otc-drawer.is-two .otc-dr-head { padding-top: 5px; padding-bottom: 5px; }
+    /* 2칸일 때: 차트를 낮추고 여백을 줄여 스트림 표가 보이게(글자 크기는 그대로) */
+    .otc-drawer.is-two .otc-dr-head { padding-top: 3px; padding-bottom: 3px; gap: 2px 10px; }
+    .otc-drawer.is-two .otc-dr-fix { padding: 3px 16px 0; }
+    .otc-drawer.is-two .otc-dr-sum { margin-bottom: 0; line-height: 18px; }
+    .otc-drawer.is-two .otc-dr-body { padding-top: 2px; }
+    .otc-drawer.is-two .otc-dr-body .wb-card-head { min-height: 30px; padding-top: 0; padding-bottom: 0; }
+    .otc-drawer.is-two .otc-ev-box + .otc-cap { margin: 0; }
     .otc-dr-sum { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; margin-bottom: 6px; font-size: 12px; color: var(--wb-muted); }
     .otc-dr-sum b { color: var(--wb-ink); font-weight: 600; }
     .otc-dr-sum b.otc-buy { color: var(--wb-down); } .otc-dr-sum b.otc-sell { color: var(--wb-up); }
@@ -433,6 +439,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/wb-chart.js?v=20261022c"></script>
-<script src="/assets/js/wb-otc.js?v=20261106d"></script>
+<script src="/assets/js/wb-otc.js?v=20261106e"></script>
 </body>
 </html>
