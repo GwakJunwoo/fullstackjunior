@@ -199,6 +199,7 @@
   function evChart(key, host, src, opt) {
     // opt: h · hs(괴리 패널 높이) · noSpr(괴리 패널 없음) · nav(축약 내비) · win · onWindow · onClick
     //      fitY(y 범위 = 선·호가 마커만으로 · 흐린(fade) 마커는 범위에서 뺌) · endLabels(오른쪽 끝 최신 사자/팔자 값)
+    //      mpFree(fitY 와 함께 · 전일민평을 y 범위에서 뺌 — 범위 밖이면 가장자리에 '전일민평 값 ▲/▼')
     // 마커: {x, y, side, r, a(채움 투명도), ink(배경과 구분되는 테두리), bw(테두리 굵기), ring(바깥 고리 = 체결 표시), fade(흐리게), hollow(속 빔), z(맨 위 층)}
     // 그리는 순서(Chart.js: order 가 작을수록 위): 선 3 → 점·이상치 2 → 체결 고리 1 → 맨 위 층(z) 0.
     // 팀 화살표 = 전부 속 채움(사자 파랑 · 팔자 빨강) + 얇은 ink 테두리 · 체결 표시 = 굵은 테두리 + 바깥 고리.
@@ -309,9 +310,21 @@
       return { type: 'line', label: label, data: [], stepped: true, order: 4, borderColor: tk(col, a), borderWidth: w || function () { return src.xw || 1.1; },
         pointRadius: 0, pointHoverRadius: 0, pointHitRadius: 0, spanGaps: false, fill: false };
     }
+    var mpPlug = { id: 'otcMpEdge', afterDatasetsDraw: function (ch) {   // mpFree: 전일민평이 보이는 범위 밖이면 그쪽 가장자리에 값과 방향만(엔진 값 그대로)
+      if (!opt.mpFree || !n || !ch.chartArea || !src.mp) return;
+      var v = src.mp[ctl.hi], ys = ch.scales.y, ca = ch.chartArea; if (!isNum(v) || (v >= ys.min && v <= ys.max)) return;
+      var up = v > ys.max, ctx = ch.ctx, txt = '전일민평 ' + fy(v) + (up ? ' ▲' : ' ▼'), ty = up ? ca.top + 3 : ca.bottom - 3;
+      ctx.save(); ctx.font = '600 10px ' + (cssv('--wb-font') || 'sans-serif'); ctx.textAlign = 'right'; ctx.textBaseline = up ? 'top' : 'bottom'; ctx.fillStyle = cssv('--wb-muted');
+      if (up && src.multiDay) {   // 여러 날 = 위 가장자리에 날짜 라벨(otcDays)이 있음 → 글자 자리에 날 경계가 걸리면 한 줄 아래로(겹침 방지)
+        var xl = ca.right - 6 - ctx.measureText(txt).width - 34;
+        for (var j = 0; j < dsIdx.length; j++) if (dsIdx[j] > ctl.lo && dsIdx[j] <= ctl.hi && ch.scales.x.getPixelForValue(dsIdx[j] - 0.5) > xl) { ty = ca.top + 15; break; }
+      }
+      ctx.fillText(txt, ca.right - 6, ty);
+      ctx.restore();
+    } };
     var common = { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, normalized: true, events: [],
       plugins: { legend: { display: false }, tooltip: { enabled: false } }, layout: { padding: { right: opt.endLabels ? 46 : 6 } } };
-    var main = new Chart(cvM, { type: 'line', plugins: [dayPlug, endPlug], data: { datasets: [
+    var main = new Chart(cvM, { type: 'line', plugins: [dayPlug, endPlug, mpPlug], data: { datasets: [
       lineDs('사자선', '--wb-down', [], 2.2), lineDs('팔자선', '--wb-up', [], 2.2), lineDs('미드', '--wb-ink', [], 1.5, [5, 4]),
       lineDs('전일민평', '--wb-muted', [], 1.4, [2, 4]),
       markDs('사자', [], 1), markDs('팔자', [], -1),
@@ -339,7 +352,8 @@
       charts.forEach(function (c) { c.options.scales.x.min = lo - 0.5; c.options.scales.x.max = hi + 0.5; });
       if (opt.fitY) {   // y 범위 = 보이는 선 + 마커(흐린 것 제외) · 여백 12%
         var mn = Infinity, mx = -Infinity, ys = main.options.scales.y;
-        var hard = [d[0].data, d[1].data, d[2].data, d[3].data, d[4].data, d[5].data, d[8].data, d[9].data, d[12].data], soft = [d[10].data, d[11].data];
+        var hard = [d[0].data, d[1].data, d[2].data, d[4].data, d[5].data, d[8].data, d[9].data, d[12].data], soft = [d[10].data, d[11].data];
+        hard.push(opt.mpFree ? d[6].data : d[3].data);   // mpFree = 전일민평은 범위에서 뺌(멀면 호가 선이 눌림 → 가장자리 글자로) · 켜 둔 이상치 × 는 범위에 넣음
         var scan = function (arr, lim) {
           for (var q = 0; q < arr.length; q++) { var p = arr[q]; if (p.fade || !isNum(p.y)) continue; if (lim && (p.y < lim[0] || p.y > lim[1])) continue; if (p.y < mn) mn = p.y; if (p.y > mx) mx = p.y; }
         };
@@ -1335,7 +1349,7 @@
     else if (p.has && S.ev[key] && !relay) S.ev[key].setSrc(src);
     else {
       var out = !!(S.ev[key] && S.ev[key].showOut);
-      var c = evChart(key, $('spEv' + i), src, half ? { h: hh, hs: 54, noSpr: !p.spr, yTicks: 6 } : { h: 300, hs: 90 });   // 2칸 = 차트 낮게(눈금도 줄임) · 괴리 패널은 버튼으로 펼침
+      var c = evChart(key, $('spEv' + i), src, half ? { h: hh, hs: 54, noSpr: !p.spr, yTicks: 6, fitY: true, mpFree: true } : { h: 300, hs: 90, yTicks: 9, fitY: true, mpFree: true });   // 2칸 = 차트 낮게(눈금도 줄임) · 괴리 패널은 버튼으로 펼침
       p.has = true; if (c && out) c.setOut(true);
     }
     p.half = half; p.sprWas = p.spr; p.hWas = hh;
