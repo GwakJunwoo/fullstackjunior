@@ -990,7 +990,7 @@
     return '<div class="otc-rb-sub otc-rb-ws">' + (kind === 'buy' ? '오늘 가장 약해짐 ' : '오늘 가장 강해짐 ') + '<b class="mono ' + (kind === 'buy' ? 'otc-sell' : 'otc-buy') + '">' + esc(z.alias) + '</b>' +
       (isNum(z.d_prev) ? ' <span title="그 종목 개별 저평의 전일 대비(전)">(' + fjn(z.d_prev) + '전)</span>' : '') + help((kind === 'buy' ? defs.weak : defs.strong) || '') + '</div>';
   }
-  function rbLegs(d) {   // 종목별 저평 · 전일 대비 — 원인 종목(엔진 driver) 행 = 노랑 강조 · 가장 약해짐(매수 좌표)/강해짐(매도 좌표) 배지
+  function rbLegs(d, stack) {   // 종목별 저평 · 전일 대비 — 원인 종목 행 = 노랑 강조 · 가장 약해짐(매수 좌표)/강해짐(매도 좌표) 배지 · stack = 매도/매수 좌표 표 두 덩이(좁은 폭)
     var mix = rbMix(d), sl = {}, bl = {}, defs = d.defs || {}, drv = (d.driver && d.driver.alias) || null;
     var sub = function (b, l) {   // 비지표인데 오늘 장외 호가가 없어 장내로 대체된 종목(엔진 legs[].fallback) = 눈에 띄게
       return (l && l.fallback === true) ? ' ' + tag('장외 호가 없음 → 장내', 'rst') : '';
@@ -1005,20 +1005,50 @@
           '<td class="' + c + 'num">' + fy(l.fwd_ytm) + '</td><td class="' + c + 'num">' + fnum(l.theo, 4) + '</td>'
         : '<td class="' + c + 'num wb-muted">–</td><td class="' + c + 'num wb-muted">–</td><td class="' + c + 'num wb-muted">–</td><td class="' + c + 'wb-muted">–</td><td class="' + c + 'num wb-muted">–</td><td class="' + c + 'num wb-muted">–</td>';
     };
-    var h = '<table class="wb-table otc-t otc-rb-t"><thead><tr><th rowspan="2">바스켓 종목' + help((defs.leg || '') + '\n' + (defs.d_prev || '') + '\n' + (defs.driver || '') + (defs.weak ? '\n' + defs.weak : '') + (defs.strong ? '\n' + defs.strong : '') + '\n' + (defs.mix || '') + (defs.cpn_yn ? '\n' + defs.cpn_yn : '') +
-      '\n쓴 수익률: 매도 좌표 = 현물 매수호가(사자) · 매수 좌표 = 현물 매도호가(팔자) · 옆 작은 ±bp = 쓴 수익률 − 전일 민평 종가\n출처 = 그 수익률을 가져온 곳(장내 호가 · 장외 선 + 그 호가 시각)\n함의 가격 = 그 종목 선도수익률이 함의하는 표준물 가격') + '</th>' +
-      '<th class="grp day" colspan="6">매도 좌표 · 현물 매수(사자)' + (mix ? '' : ' · 전부 장내 호가') + '</th><th class="grp" colspan="6">매수 좌표 · 현물 매도(팔자)' + (mix ? '' : ' · 전부 장내 호가') + '</th></tr>' +
-      '<tr><th class="num day">저평(전)</th><th class="num day">전일 대비</th><th class="num day">쓴 수익률</th><th class="day">출처</th><th class="num day">선도</th><th class="num day">함의 가격</th>' +
-      '<th class="num">저평(전)</th><th class="num">전일 대비</th><th class="num">쓴 수익률</th><th>출처</th><th class="num">선도</th><th class="num">함의 가격</th></tr></thead><tbody>';
-    (d.basket || []).forEach(function (b) {
-      var isD = drv != null && b.alias === drv;
-      h += '<tr' + (isD ? ' class="is-driver"' : '') + ' title="' + esc('표면 ' + b.coupon + '% · 만기 ' + b.mat + ' · 전일 종가수익률 ' + b.close_ytm + ' · ' + b.code) + '"><td>' + chip(esc(b.tag), 'otc-chip-basket') + ' <b class="mono">' + esc(b.alias) + '</b>' +
-        (isD ? ' <span class="otc-tag otc-tag--drv">원인</span>' + help((defs.driver || '원인 종목 = 엔진이 고른 종목') + (isNum(d.driver.score) ? '\n점수 ' + d.driver.score : '')) : '') + '</td>' +
-        cell(sl[b.alias], 'day ', sub(b, sl[b.alias]), (d.strong && d.strong.alias === b.alias) ? ' <span class="otc-tag otc-tag--strong">가장 강해짐</span>' + help(defs.strong || '') : '') +
-        cell(bl[b.alias], '', sub(b, bl[b.alias]), (d.weak && d.weak.alias === b.alias) ? ' <span class="otc-tag otc-tag--weak">가장 약해짐</span>' + help(defs.weak || '') : '') + '</tr>';
-    });
-    if (!(d.basket || []).length) h += '<tr><td colspan="13" class="wb-muted">바스켓 정보 없음</td></tr>';
-    return h + '</tbody></table>';
+    var tip = help((defs.leg || '') + '\n' + (defs.d_prev || '') + '\n' + (defs.driver || '') + (defs.weak ? '\n' + defs.weak : '') + (defs.strong ? '\n' + defs.strong : '') + '\n' + (defs.mix || '') + (defs.cpn_yn ? '\n' + defs.cpn_yn : '') +
+      '\n쓴 수익률: 매도 좌표 = 현물 매수호가(사자) · 매수 좌표 = 현물 매도호가(팔자) · 옆 작은 ±bp = 쓴 수익률 − 전일 민평 종가\n출처 = 그 수익률을 가져온 곳(장내 호가 · 장외 선 + 그 호가 시각)\n함의 가격 = 그 종목 선도수익률이 함의하는 표준물 가격');
+    var cols = function (c) { return '<th class="num' + c + '">저평(전)</th><th class="num' + c + '">전일 대비</th><th class="num' + c + '">쓴 수익률</th><th' + (c ? ' class="' + c.trim() + '"' : '') + '>출처</th><th class="num' + c + '">선도</th><th class="num' + c + '">함의 가격</th>'; };
+    var lab = function (k) { return (k === 'sell' ? '매도 좌표 · 현물 매수(사자)' : '매수 좌표 · 현물 매도(팔자)') + (mix ? '' : ' · 전부 장내 호가'); };
+    var name = function (b, isD) {
+      return '<td>' + chip(esc(b.tag), 'otc-chip-basket') + ' <b class="mono">' + esc(b.alias) + '</b>' +
+        (isD ? ' <span class="otc-tag otc-tag--drv">원인</span>' + help((defs.driver || '원인 종목 = 엔진이 고른 종목') + (isNum(d.driver.score) ? '\n점수 ' + d.driver.score : '')) : '') + '</td>';
+    };
+    var trOpen = function (b, isD) { return '<tr' + (isD ? ' class="is-driver"' : '') + ' title="' + esc('표면 ' + b.coupon + '% · 만기 ' + b.mat + ' · 전일 종가수익률 ' + b.close_ytm + ' · ' + b.code) + '">'; };
+    var sBadge = function (b) { return (d.strong && d.strong.alias === b.alias) ? ' <span class="otc-tag otc-tag--strong">가장 강해짐</span>' + help(defs.strong || '') : ''; };
+    var wBadge = function (b) { return (d.weak && d.weak.alias === b.alias) ? ' <span class="otc-tag otc-tag--weak">가장 약해짐</span>' + help(defs.weak || '') : ''; };
+    var bk = d.basket || [];
+    if (!bk.length) return '<table class="wb-table otc-t otc-rb-t"><tbody><tr><td class="wb-muted">바스켓 정보 없음</td></tr></tbody></table>';
+    if (stack) {   // 좁은 폭: 매도 좌표 표 / 매수 좌표 표를 위아래로(글자 크기 그대로)
+      return ['sell', 'buy'].map(function (k, n) {
+        var c = k === 'sell' ? ' day' : '';
+        return '<table class="wb-table otc-t otc-rb-t"><thead><tr><th rowspan="2">바스켓 종목' + (n === 0 ? tip : '') + '</th><th class="grp' + c + '" colspan="6">' + lab(k) + '</th></tr><tr>' + cols(c) + '</tr></thead><tbody>' +
+          bk.map(function (b) {
+            var isD = drv != null && b.alias === drv;
+            return trOpen(b, isD) + name(b, isD) + (k === 'sell' ? cell(sl[b.alias], 'day ', sub(b, sl[b.alias]), sBadge(b)) : cell(bl[b.alias], '', sub(b, bl[b.alias]), wBadge(b))) + '</tr>';
+          }).join('') + '</tbody></table>';
+      }).join('');
+    }
+    return '<table class="wb-table otc-t otc-rb-t"><thead><tr><th rowspan="2">바스켓 종목' + tip + '</th>' +
+      '<th class="grp day" colspan="6">' + lab('sell') + '</th><th class="grp" colspan="6">' + lab('buy') + '</th></tr><tr>' + cols(' day') + cols('') + '</tr></thead><tbody>' +
+      bk.map(function (b) {
+        var isD = drv != null && b.alias === drv;
+        return trOpen(b, isD) + name(b, isD) + cell(sl[b.alias], 'day ', sub(b, sl[b.alias]), sBadge(b)) + cell(bl[b.alias], '', sub(b, bl[b.alias]), wBadge(b)) + '</tr>';
+      }).join('') + '</tbody></table>';
+  }
+  // 패널 자신의 폭 기준 배치(뷰포트 아님 — 상세 서랍이 열리면 패널이 좁아진다): 표가 안 잘릴 때까지 한 단계씩
+  //   side(큰 숫자 옆) → below(큰 숫자 아래 · 패널 전체 폭) → stack(매도/매수 표 두 덩이) → wrap(칸 안 줄바꿈 · 마지막 수단 전 단계). 글자 크기는 안 줄인다.
+  var RB_MODES = ['side', 'below', 'stack', 'wrap'];
+  function rbLayout(force) {
+    var card = $('rbCard'), box = $('rbLegs'), d = RB.data;
+    if (!d || !RB.open || !card.clientWidth) return;
+    var w = card.clientWidth, i = (force || RB.layW !== w) ? 0 : Math.max(0, RB_MODES.indexOf(RB.lay));
+    for (; i < RB_MODES.length; i++) {
+      var m = RB_MODES[i];
+      card.classList.toggle('rb-below', m !== 'side'); card.classList.toggle('rb-stack', m === 'stack' || m === 'wrap'); card.classList.toggle('rb-wrap', m === 'wrap');
+      box.innerHTML = rbLegs(d, m === 'stack' || m === 'wrap');
+      if (box.scrollWidth <= box.clientWidth + 1) break;
+    }
+    RB.lay = RB_MODES[Math.min(i, RB_MODES.length - 1)]; RB.layW = w;
   }
   function rbChart(d) {   // 왼쪽 축 = 저평(전 · 그려진 선에 맞춰 좁게) · 오른쪽 축 = 3선 선물 가격
     var s = d.series || {}, t = s.t || [], box = $('rbChartBox');
@@ -1113,7 +1143,7 @@
       : '<span class="wb-muted">값 없음 — ' + esc(d.why || x.status || '입력 부족') + '</span>');
     $('rbSell').innerHTML = rbSide(d, 'sell');
     $('rbBuy').innerHTML = rbSide(d, 'buy');
-    $('rbLegs').innerHTML = rbLegs(d);
+    rbLayout(false);   // 종목별 표: 패널 폭에 맞는 배치로 그림
     var why = $('rbWhy');
     if (d.ok) { why.hidden = true; why.innerHTML = ''; }
     else {
@@ -2365,7 +2395,8 @@
     });
     $('boAuto').addEventListener('click', function () { B.auto = !B.auto; boSave(); boSyncBar(); if (B.auto) { boFetch(true); boStart(); } else boStop(); boStatus(); });
     $('boDefault').addEventListener('click', function () { B.aliases = null; boSave(); boFetch(true); });
-    $('rbFold').addEventListener('click', function () { RB.open = !RB.open; boSave(); rbFoldSync(); if (RB.open && RB.data) { RB.hasChart = false; rbChart(RB.data); } boResize(); });
+    $('rbFold').addEventListener('click', function () { RB.open = !RB.open; boSave(); rbFoldSync(); if (RB.open && RB.data) { RB.hasChart = false; rbChart(RB.data); rbLayout(true); } boResize(); });
+    if (window.ResizeObserver) new ResizeObserver(function () { var w = $('rbCard').clientWidth; if (w && w !== RB.layW) rbLayout(true); }).observe($('rbCard'));   // 서랍 열림/닫힘 · 창 크기 → 배치 다시
     $('rbLegsBtn').addEventListener('click', function () { RB.legs = !RB.legs; boSave(); rbFoldSync(); if (RB.data) rbChart(RB.data); });
     $('rbRefBtn').addEventListener('click', function () { RB.ref = !RB.ref; boSave(); rbFoldSync(); if (RB.data) rbChart(RB.data); });
     $('rbKeyApply').addEventListener('click', rbKeyApply);

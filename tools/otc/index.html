@@ -205,7 +205,13 @@
     .otc-bo-qlab { display: inline-flex; align-items: center; margin-right: 4px; }
     .otc-bo-row.is-sel .otc-bo-cell { box-shadow: inset 3px 0 0 var(--wb-accent); }
     .otc-bo-head .otc-bo-ex b { font-weight: 600; }
-    @media (max-width: 1180px) { .otc-rb-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .otc-rb-legs { grid-column: 1 / -1; border-top: 1px solid var(--wb-rule); } .otc-rb-big:nth-child(2) { border-right: 0; } }
+    /* 패널 자신의 폭 기준 배치(JS rbLayout 이 클래스를 붙임): rb-below = 표를 큰 숫자 아래로 · rb-stack = 매도/매수 표 두 덩이 · rb-wrap = 칸 안 줄바꿈 */
+    .otc-rb.rb-below .otc-rb-top { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .otc-rb.rb-below .otc-rb-legs { grid-column: 1 / -1; border-top: 1px solid var(--wb-rule); }
+    .otc-rb.rb-below .otc-rb-big:nth-child(2) { border-right: 0; }
+    .otc-rb.rb-stack .otc-rb-legs table + table { border-top: 1px solid var(--wb-rule-strong); }
+    .otc-rb.rb-wrap .otc-rb-t td { white-space: normal; height: auto; padding-top: 5px; padding-bottom: 5px; }
+    .otc-rb.rb-wrap .otc-rb-t td .otc-tag { margin-left: 0; }
     .otc-bo-rows { display: flex; flex-direction: column; gap: 8px; }
     .otc-bo-row { display: grid; grid-template-columns: 196px minmax(0, 1fr); background: var(--wb-surface); border: 1px solid var(--wb-rule); border-radius: var(--wb-r-card); }
     .otc-bo-row.is-open { border-color: var(--wb-mark); }
@@ -415,6 +421,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/wb-chart.js?v=20261022c"></script>
-<script src="/assets/js/wb-otc.js?v=20261106a"></script>
+<script src="/assets/js/wb-otc.js?v=20261106b"></script>
 </body>
 </html>
