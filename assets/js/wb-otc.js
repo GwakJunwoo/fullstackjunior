@@ -184,9 +184,10 @@
     if (last != null) out.push({ x: hi + 0.5, y: last });   // 마지막 상태를 창 끝까지(값 그대로)
     return out;
   }
-  function evLegend(key, nOut, outLabel) {
+  function evLegend(key, nOut, outLabel, doneRing) {
     return '<span class="otc-leg">' +
       '<span><b class="otc-sell">▼</b>팔자</span><span><b class="otc-buy">▲</b>사자</span>' +
+      (doneRing ? '<span><i class="ring"></i>체결 표시</span>' : '') +
       '<span><i class="ln" style="border-color:var(--wb-down)"></i>사자선</span>' +
       '<span><i class="ln" style="border-color:var(--wb-up)"></i>팔자선</span>' +
       '<span><i class="ln dash" style="border-color:var(--wb-ink)"></i>미드</span>' +
@@ -200,7 +201,7 @@
     // opt: h · hs(괴리 패널 높이) · noSpr(괴리 패널 없음) · nav(축약 내비) · win · onWindow · onClick
     //      fitY(y 범위 = 선·호가 마커만으로 · 흐린(fade) 마커는 범위에서 뺌) · endLabels(오른쪽 끝 최신 사자/팔자 값)
     //      mpFree(fitY 와 함께 · 전일민평을 y 범위에서 뺌 — 범위 밖이면 가장자리에 '전일민평 값 ▲/▼')
-    // 마커: {x, y, side, r, a(채움 투명도), ink(배경과 구분되는 테두리), bw(테두리 굵기), ring(바깥 고리 = 체결 표시), fade(흐리게), hollow(속 빔), z(맨 위 층)}
+    // 마커: {x, y, side, r, a(채움 투명도), ink(배경과 구분되는 테두리), bw(테두리 굵기), ring(바깥 고리 = 체결 표시), rc·rw(고리 색 토큰·굵기), fade(흐리게), hollow(속 빔), z(맨 위 층)}
     // 그리는 순서(Chart.js: order 가 작을수록 위): 선 3 → 점·이상치 2 → 체결 고리 1 → 맨 위 층(z) 0.
     // 팀 화살표 = 전부 속 채움(사자 파랑 · 팔자 빨강) + 얇은 ink 테두리 · 체결 표시 = 굵은 테두리 + 바깥 고리.
     // 장내(선택): src.xb(매수호가) · src.xa(매도호가) · src.xl(현재가) = 가는 선(장외 굵은 선 아래) · src.unit 'p' = 가격 축(소수 2자리)
@@ -330,7 +331,9 @@
       markDs('사자', [], 1), markDs('팔자', [], -1),
       { type: 'scatter', label: '이상치', data: [], order: 2, pointStyle: 'crossRot', pointRadius: 6.5, pointBorderWidth: 2.2,
         pointBorderColor: tk('--wb-muted'), pointBackgroundColor: 'transparent' },
-      { type: 'scatter', label: '체결 표시 고리', data: [], order: 1, pointStyle: 'circle', pointBackgroundColor: 'transparent', pointBorderColor: tk('--wb-ink'), pointBorderWidth: 1.6,
+      { type: 'scatter', label: '체결 표시 고리', data: [], order: 1, pointStyle: 'circle', pointBackgroundColor: 'transparent',
+        pointBorderColor: function (c) { var m = c.raw || {}; return m.rc ? cssv(m.rc) : cssv('--wb-ink'); },   // rc = 고리 색 토큰(없으면 ink) · rw = 고리 굵기
+        pointBorderWidth: function (c) { var m = c.raw || {}; return m.rw || 1.6; },
         pointRadius: function (c) { var m = c.raw || {}; return (m.r || 6) + 5; } },
       markDs('팀 사자', [], 1, 0), markDs('팀 팔자', [], -1, 0),
       exLine('장내 매수호가', '--wb-down', 0.62), exLine('장내 매도호가', '--wb-up', 0.62), exLine('장내 현재가', '--wb-series-5', 1, 1.4)] },
@@ -1301,7 +1304,8 @@
         var idx = ev.length;
         ev.push({ t: b.t[i], d: b.d, side: b.side[i], y: b.y[i], bk: bk, done: !!b.done[i], bid: b.bid[i], ask: b.ask[i], mid: b.mid[i], spr: b.spr[i], mp: b.mp, ds: first && idx > 0 });
         first = false; last = idx;
-        if ((b.side[i] === 1 || b.side[i] === -1) && isNum(b.y[i])) marks.push(bk.team ? { x: idx, y: b.y[i], side: b.side[i], r: pr + (b.done[i] ? 5.5 : 4.5), ink: true, bw: b.done[i] ? 2.6 : 1.2, ring: !!b.done[i], z: 1 }
+        if ((b.side[i] === 1 || b.side[i] === -1) && isNum(b.y[i])) marks.push(bk.team ? { x: idx, y: b.y[i], side: b.side[i], r: pr + (b.done[i] ? 5.5 : 4.5), ink: true, bw: b.done[i] ? 2.6 : 1.2, ring: !!b.done[i], rc: '--wb-open', rw: 2.4, z: 1 }
+          : b.done[i] ? { x: idx, y: b.y[i], side: b.side[i], r: pr + 2.5, ink: true, bw: 1.8, ring: true, rc: '--wb-open', rw: 2.4, z: 1 }   // 시장(팀 아님) 체결 표시 = 조금 큰 화살표 + 초록 고리 · 맨 위 층(사용자 2026-11-06)
           : { x: idx, y: b.y[i], side: b.side[i], r: pr, a: 0.8, bw: pr < 4 ? 0.8 : 1.2 });
       }
     });
@@ -1344,7 +1348,7 @@
       '<a href="' + esc(hashOf('bond', { alias: a, date: d.today || '' })) + '">종목 분석 탭에서 열기 ›</a>';
     var hh = half ? spH(p) : 300;
     var src = spSrc(d), relay = p.half !== half || p.sprWas !== p.spr || p.hWas !== hh;   // 높이·괴리 패널이 바뀌면 차트를 그 틀로 다시(이상치 토글은 유지)
-    if (src.nOut !== p.nOut) { $('spLegend' + i).innerHTML = evLegend(key, src.nOut, '이상치'); p.nOut = src.nOut; }
+    if (src.nOut !== p.nOut) { $('spLegend' + i).innerHTML = evLegend(key, src.nOut, '이상치', true); p.nOut = src.nOut; }
     if (!src.n) { killEv(key); p.has = false; $('spEv' + i).innerHTML = '<div class="otc-empty">이 기간에 금리가 있는 호가가 없습니다.</div>'; }
     else if (p.has && S.ev[key] && !relay) S.ev[key].setSrc(src);
     else {
