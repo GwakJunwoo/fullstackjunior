@@ -580,7 +580,7 @@
     $('otcGateMsg').textContent = msg || '이 화면은 키(X-QH-KEY)가 있어야 데이터가 보입니다.';
     $('otcGate').hidden = false;
     ['vBoard', 'vSpread', 'vBond', 'vBroker', 'vTeam'].forEach(function (id) { $(id).hidden = true; });
-    S.meta = null; S.on = false; boStop(); prStop();
+    S.meta = null; S.on = false; boStop(); prStopAll();
     if (window.WBShell) WBShell.setPage('otc-' + (parseHash().v));
   }
 
@@ -1390,44 +1390,25 @@
   //   cursor 는 헤더(X-OTC-Since) — same = 상태(엑셀 · 확인 시각)만 · full:false = 오늘 블록만 교체 · full:true = 전부 교체.
   //   계단 = 그 행의 값이 다음 행(또는 그 날 마지막 행 뒤 짧은 여백)까지 유지 — 엔진 행 사이를 메우거나 지금 시각까지 늘리지 않는다.
   //   입력(다리 · 기간 · 출처 모드 · 가로축 · 갱신 · 선 켬/끔)만 localStorage + 주소 해시에 기억 — 데이터는 저장하지 않는다.
+  //   패널 최대 2개(사용자 2026-11-10 "최대 2개까지 · 오른쪽 왼쪽으로 구분"): 왼쪽(L) / 오른쪽(R) 패널마다 상태 전부 따로(prNew 클로저 —
+  //   다리 · 기간 · 모드 · cursor · 폴링 타이머 · 데이터 · 차트 · 십자선 · 선 켬/끔 · 툴팁 주인) · 같은 /otc/pair 를 패널마다 따로 부름(엔진·라우터 변경 0).
+  //   늦게 온 응답 = 그 패널의 그 요청 세대(gen) · 그 경로일 때만 반영. 왼쪽 = 기존 저장값(otc_pair_v1)·주소 키 그대로 · 오른쪽 = otc_pair_r_v1 · 주소 키 r 접두사 + n=2.
   // ══════════════════════════════════════════════════════════════════════
-  var PR_LS = 'otc_pair_v1', PR_MS = 3000;
+  var PR_LS = { L: 'otc_pair_v1', R: 'otc_pair_r_v1' }, PR_LS_N = 'otc_pair_n_v1', PR_MS = 3000;
+  var PR_HP = { L: '', R: 'r' };   // 주소 해시 키 접두사 — 왼쪽 = 기존 형식(a · b · days · ma · mb · v) 그대로 · 오른쪽 = ra · rb · rdays · rma · rmb · rv
   var PR_MODES = [['auto', '자동'], ['otc', '장외만'], ['exch', '장내만']];
   var PR_SRC_COL = { '0': '--wb-series-4', '1': '--wb-series-5', '2': '--wb-series-6', '3': '--wb-warn' };   // 출처 띠 색(표현 전용 · 이름은 응답 src_codes)
   var PR_CUT_LAB = '15:45 이후 지표도 장외 · 선물 마지막 값';
-  var PR = S.pair = { a: '', b: '3선', days: 1, ma: 'auto', mb: 'auto', axis: 'time', yfit: 'fit', val: 'lvl', auto: true, hide: { l1: false, l2: false, mid: false },
-    choices: [1, 3, 5, 10], fut: ['3선'], cursor: '', cpath: '', data: null, last: null, R: null, ctl: null,
-    inflight: 0, fails: 0, err: '', timer: 0, listKey: '' };
+  // 레벨 / 변동(사용자 2026-11-10): 변동 = 엔진 *_chg(그 호가 금리 − 그날 전일 기준값 · bp) — 웹은 어느 배열을 그릴지만 고른다
+  var PR_KL = { l1: 'l1', l2: 'l2', mid: 'mid', ab: 'ab', aa: 'aa', bb: 'bb', ba: 'ba' }, PR_KC = { l1: 'l1c', l2: 'l2c', mid: 'midc', ab: 'abc', aa: 'aac', bb: 'bbc', ba: 'bac' };
+  // ── 상태 없는 helper(두 패널 공용) ──
   function prMode(v) { v = String(v || '').toLowerCase(); return PR_MODES.some(function (m) { return m[0] === v; }) ? v : 'auto'; }
-  (function () {
-    try {
-      var o = JSON.parse(localStorage.getItem(PR_LS) || 'null'); if (!o) return;
-      if (typeof o.a === 'string') PR.a = o.a;
-      if (typeof o.b === 'string' && o.b) PR.b = o.b;
-      if (isNum(o.days) && o.days >= 1) PR.days = o.days;
-      PR.ma = prMode(o.ma); PR.mb = prMode(o.mb);
-      if (o.axis === 'ev') PR.axis = 'ev';
-      if (o.yfit === 'all') PR.yfit = 'all';
-      if (o.val === 'chg') PR.val = 'chg';
-      if (o.auto === false) PR.auto = false;
-      if (o.hide && typeof o.hide === 'object') ['l1', 'l2', 'mid'].forEach(function (k) { PR.hide[k] = o.hide[k] === true; });
-    } catch (e) { /* 저장값 없음 */ }
-  })();
-  function prSave() { try { localStorage.setItem(PR_LS, JSON.stringify({ a: PR.a, b: PR.b, days: PR.days, ma: PR.ma, mb: PR.mb, axis: PR.axis, yfit: PR.yfit, val: PR.val, auto: PR.auto, hide: PR.hide })); } catch (e) { /* noop */ } }
-  function prPath() { return '/otc/pair?a=' + enc(PR.a) + '&b=' + enc(PR.b) + '&days=' + enc(PR.days) + '&mode_a=' + enc(PR.ma) + '&mode_b=' + enc(PR.mb); }
-  function prStampHash() { if (S.view === 'spread') stamp('spread', { a: PR.a, b: PR.b, days: PR.days, ma: PR.ma === 'auto' ? '' : PR.ma, mb: PR.mb === 'auto' ? '' : PR.mb, v: PR.val === 'chg' ? 'chg' : '' }); }
   function prSec(s) { s = String(s || ''); return (+s.slice(0, 2)) * 3600 + (+s.slice(3, 5)) * 60 + (+s.slice(6, 8) || 0); }
   function prHM(sec) { var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60); return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m; }
   function prBp(v) { return isNum(v) ? fbp(v, 2) + 'bp' : '–'; }
-  function prSrcName(c) { var m = (PR.data && PR.data.src_codes) || {}; return (!isNum(c) || c < 0) ? '값 없음' : (m[String(c)] || ('출처 ' + c)); }
   function prKind(k) { return { fut: '선물', idx: '현 지표', bond: '종목', fut_off: '선물(지원 안 됨)' }[k] || (k || ''); }
   function prL1(A, B) { return '선1 ' + A + ' 매도−' + B + ' 매수'; }
   function prL2(A, B) { return '선2 ' + A + ' 매수−' + B + ' 매도'; }
-  // 레벨 / 변동(사용자 2026-11-10): 변동 = 엔진 *_chg(그 호가 금리 − 그날 전일 기준값 · bp) — 웹은 어느 배열을 그릴지만 고른다
-  var PR_KL = { l1: 'l1', l2: 'l2', mid: 'mid', ab: 'ab', aa: 'aa', bb: 'bb', ba: 'ba' }, PR_KC = { l1: 'l1c', l2: 'l2c', mid: 'midc', ab: 'abc', aa: 'aac', bb: 'bbc', ba: 'bac' };
-  function prChg() { return PR.val === 'chg'; }
-  function prK() { return prChg() ? PR_KC : PR_KL; }
-  function prSuf() { return prChg() ? ' (전일 대비)' : ''; }
   function prPvLeg(pv, leg) {   // 다리 하나의 전일 기준값 — 종목 = 전일 민평 · 선물 = 전일 선물 종가 내재수익률(가격 병기) · 없으면 엔진 why
     var base = (leg && (leg.kind === 'fut' || leg.kind === 'fut_off')) ? '전일 선물 종가' : '전일 민평';
     if (!pv) return base + ' –';
@@ -1440,159 +1421,7 @@
     if (a.d && a.d === b.d) return '전일 ' + mmdd(a.d) + ' 기준';
     return 'A 전일 ' + (a.d ? mmdd(a.d) : '없음') + ' · B 전일 ' + (b.d ? mmdd(b.d) : '없음') + ' 기준';
   }
-  function prNames() { var d = PR.data || {}; return { a: (d.a && d.a.alias) || PR.a || 'A', b: (d.b && d.b.alias) || PR.b || 'B' }; }
-  function prList() {   // 다리 자동완성 = 응답 fut_choices + meta.bonds 별칭
-    var bonds = (S.meta && S.meta.bonds) || [], k = PR.fut.join(',') + '|' + bonds.length;
-    if (k === PR.listKey) return; PR.listKey = k;
-    $('otcPairLegs').innerHTML = PR.fut.map(function (f) { return '<option value="' + esc(f) + '">국채선물</option>'; }).join('') +
-      bonds.map(function (b) { return '<option value="' + esc(b.alias) + '">' + esc([b.nick, b.btype, isNum(b.rem) ? '잔존 ' + b.rem + '년' : ''].filter(Boolean).join(' · ')) + '</option>'; }).join('');
-  }
-  function prSyncBar() {
-    var ia = $('prA'), ib = $('prB'), d = PR.data;
-    if (doc.activeElement !== ia) ia.value = PR.a;
-    if (doc.activeElement !== ib) ib.value = PR.b;
-    $('prDays').innerHTML = PR.choices.map(function (n) { return '<button type="button" data-prdays="' + esc(n) + '"' + (n === PR.days ? ' class="is-active"' : '') + '>' + esc(dayLab(n)) + '</button>'; }).join('');
-    ['a', 'b'].forEach(function (k) {
-      var cur = k === 'a' ? PR.ma : PR.mb, leg = d && d.ok && d[k], same = leg && leg.spec === (k === 'a' ? PR.a : PR.b);
-      var fut = !!(same && (leg.kind === 'fut' || leg.kind === 'fut_off'));
-      $('prMode' + k.toUpperCase()).innerHTML = PR_MODES.map(function (m) {
-        return '<button type="button" data-prmode="' + k + '" data-v="' + m[0] + '"' + (m[0] === cur ? ' class="is-active"' : '') + (fut ? ' disabled title="선물 다리는 출처 고정 — 엔진 규칙(장내)"' : '') + '>' + m[1] + '</button>';
-      }).join('');
-    });
-    Array.prototype.forEach.call($('prAxis').children, function (b) { b.classList.toggle('is-active', b.getAttribute('data-praxis') === PR.axis); });
-    Array.prototype.forEach.call($('prYfit').children, function (b) { b.classList.toggle('is-active', b.getAttribute('data-pryfit') === PR.yfit); });
-    Array.prototype.forEach.call($('prVal').children, function (b) { b.classList.toggle('is-active', b.getAttribute('data-prval') === PR.val); });
-    var au = $('prAuto'); au.setAttribute('aria-pressed', PR.auto ? 'true' : 'false'); au.classList.toggle('is-active', PR.auto);
-    $('prCard').classList.toggle('is-stale', !!(PR.data && PR.cpath !== prPath()));   // 입력을 바꿨는데 새 응답이 아직 = 흐리게(옛 다리 값을 새 다리처럼 보이지 않게)
-  }
-  function prStatus() {   // 점: 초록 = 정상 · 회색 = 꺼짐 · 주황 = 불러오기 실패(재시도 중) · 빨강 = 3회 연속 실패
-    var d = PR.last, L = PR.data && PR.data.ok && PR.data.last, cls = '', txt = [];
-    if (d) txt.push('확인 ' + hmsOf(d.now));
-    if (L && L.t) txt.push('오늘 마지막 행 ' + L.t);
-    if (PR.inflight && !(PR.data && PR.cpath === prPath())) txt.unshift('불러오는 중…');
-    if (PR.fails >= 3) { cls = 'err'; txt.push('연결 실패 ' + PR.fails + '회 연속 — ' + PR.err); }
-    else if (PR.err) { cls = 'warn'; txt.push('불러오기 실패 — ' + PR.err + ' · 다시 시도 중'); }
-    else if (!PR.auto) txt.push('자동 갱신 꺼짐');
-    else if (d) cls = 'ok';
-    $('prDot').className = 'otc-dot' + (cls ? ' ' + cls : '');
-    $('prStat').textContent = txt.join(' · ');
-  }
   function prTodayBlk(d) { var tb = null; ((d && d.blocks) || []).forEach(function (b) { if (b.d === d.today) tb = b; }); return tb; }
-  function prExch() {   // 상태 한 줄(same 응답에서도 갱신) — 정상 = ● 실시간 + 오늘 마지막 행 시각 · 문제(엑셀 끊김 · 다리 warn · 오늘 전일 기준 없음)만 주황 점 + 짧은 글 · 엔진 문장·시각·파일은 툴팁 그대로
-    var el = $('prSt'); if (!el) return;
-    var d = PR.data || {}, x = (PR.last && PR.last.exch) || d.exch || {}, L = d.last, on = !!x.open, tb = prTodayBlk(d);
-    var pv = (L && L.prev) || (tb && tb.prev) || {}, probs = [];
-    if (!on && x.expected === true) probs.push(['엑셀 끊김', '수신 중이어야 할 시간인데 연결 안 됨 — 오늘 장내 값이 멈춰 있을 수 있음\n엑셀 ' + (x.status || '–')]);
-    [['A', d.a, 'a'], ['B', d.b, 'b']].forEach(function (q) {
-      if (q[1] && q[1].warn) probs.push([q[0] + ' ' + (q[1].alias || q[1].spec || '') + ' — ' + q[1].warn, q[1].warn]);
-      var r = pv[q[2]]; if (r && !isNum(r.y)) probs.push([q[0] + ' 전일 기준 없음', r.why || '엔진 prev.y 없음']);
-    });
-    var tip = ['엑셀(장내) ' + (x.status || '–') + (x.last_read ? ' · 읽음 ' + hmsOf(x.last_read) : '') + (x.file ? ' · ' + x.file : ''),
-      PR.last ? '장외 스냅샷 ' + hmsOf(PR.last.asof) + ' · 확인 ' + hmsOf(PR.last.now) : '', L ? '오늘 마지막 행 ' + L.t : '오늘 행 없음 — 오늘 두 다리 모두 값이 아직 없습니다'].filter(Boolean).join('\n');
-    var dc = probs.length ? ' warn' : (on && L) ? ' ok' : '', lab = L ? (on ? '실시간 ' : '마지막 행 ') + L.t : '오늘 행 없음';
-    var kin = d.keyin || {}, k3 = (d.a && d.a.spec === '3선') || (d.b && d.b.spec === '3선');
-    el.innerHTML = '<span class="otc-pr-stl" title="' + esc(tip) + '"><span class="otc-dot' + dc + '" aria-hidden="true"></span>' + esc(lab) + '</span>' +
-      probs.map(function (q) { return '<span class="otc-pr-prob" title="' + esc(q[1]) + '">' + esc(q[0]) + '</span>'; }).join('') +
-      (kin.active && k3 ? '<span class="otc-tag otc-tag--key" title="15:45 이후 3선 키인(엔진 keyin 그대로)">3선 키인 ' + esc(fp(kin.price)) + (kin.t ? ' · ' + esc(kin.t) : '') + '</span>' : '');
-  }
-  function prLegQ(k, leg, L, tb, pv) {   // 다리 호가 한 줄 조각: [A] 종목명 별칭(3선 바스켓) · 출처 점 + 매수/매도 금리 — 종류·잔존·엑셀·원 계열·전일 기준은 툴팁
-    var ns = (tb && tb.n_src) || {}, xs = (tb && tb.exch_src) || {}, i = tb && tb.n ? tb.n - 1 : -1, q = pv && pv[k];
-    var tip = [leg.nick, leg.known !== false ? prKind(leg.kind) : '모르는 이름', isNum(leg.rem) ? '잔존 ' + leg.rem + '년' : (isNum(leg.years) ? leg.years + '년 표준물(5% 반기) 내재수익률' : ''),
-      leg.in_sheet ? '엑셀 행 있음' + (leg.ex_code ? ' · ' + leg.ex_code : '') : '엑셀 행 없음',
-      '출처 모드 = ' + ((PR_MODES.filter(function (m) { return m[0] === leg.mode; })[0] || [0, leg.mode])[1]),
-      '오늘 원 계열 — 장외 ' + n0(ns[k + '_otc']) + '행 · 장내 ' + n0(ns[k + '_exch']) + '행' + (xs[k] ? '(' + xs[k] + ')' : ''),
-      q ? prPvLeg(q, leg) : ''].filter(Boolean).join('\n');
-    var code = function (key) { return (i >= 0 && tb[key]) ? tb[key][i] : -1; }, fb = i >= 0 && tb[k + '_fb'] ? !!tb[k + '_fb'][i] : false;
-    var one = function (nmS, cls, lv, cv, c) {
-      var col = PR_SRC_COL[String(c)] || '--wb-faint', has = isNum(c) && c >= 0;
-      var t = nmS + '호가 · 출처 ' + prSrcName(c) + (fb ? ' · 대체(고른 쪽 값이 비어 다른 쪽으로 채움 · 엔진 fb)' : '') + ' · 금리 ' + fy(lv) + ' · 전일 대비 ' + prBp(cv);
-      return '<span class="otc-pr-q" title="' + esc(t) + '">' + (has ? '<i class="otc-pr-sd' + (fb ? ' is-fb' : '') + '" style="--sd:var(' + col + ')"></i>' : '') + '<b class="' + cls + '">' + fy(lv) + '</b></span>';
-    };
-    return '<span class="otc-pr-lq"><span class="otc-pr-ab">' + k.toUpperCase() + '</span><b class="otc-pr-al" title="' + esc(tip) + '">' + esc(leg.alias || leg.spec || '') + '</b>' +
-      (leg.nick ? '<span class="otc-pr-nk" title="' + esc(tip) + '">' + esc(leg.nick) + '</span>' : '') + (bk3(leg.basket) ? chip(esc(leg.basket), 'otc-chip-basket') : '') +
-      one('매수', 'otc-buy', L && L[k + '_bid'], L && L[k + '_bid_chg'], code(k + '_bsrc')) + '<span class="otc-pr-sl">/</span>' +
-      one('매도', 'otc-sell', L && L[k + '_ask'], L && L[k + '_ask_chg'], code(k + '_asrc')) + '</span>';
-  }
-  function prHead() {
-    var d = PR.data, host = $('prHead'), nm = prNames();
-    if (!d) { host.innerHTML = ''; return; }
-    if (!d.ok) { host.innerHTML = ''; $('prTitle').innerHTML = '종목 스프레드'; $('prLegend').innerHTML = ''; $('prLimits').textContent = ''; return; }
-    var defs = d.defs || {}, L = d.last, tb = prTodayBlk(d);
-    $('prTitle').innerHTML = esc(nm.a) + ' − ' + esc(nm.b) + ' 장중 스프레드' + help([defs.quote, defs.rule, defs.src].filter(Boolean).join('\n') + '\n관찰 전용(추천·주문 아님)');
-    var chg = prChg(), sf = prSuf(), pvT = (L && L.prev) || (tb && tb.prev) || null, pa = (pvT && pvT.a) || null, pb = (pvT && pvT.b) || null;
-    $('prValHelp').innerHTML = help(defs.chg || '변동 = 엔진 *_chg 값');
-    var big = function (lab, v, col, tip) {   // 변동 모드에서만: 차트가 그리는 값(선1/선2 전일 대비) 강조
-      return '<div class="otc-pr-big"><div class="otc-pr-lab"><i class="otc-pr-sw" style="background:var(' + col + ')"></i>' + esc(lab) + help(tip) + '</div>' +
-        '<div class="otc-pr-val">' + (isNum(v) ? fbp(v, 2) + '<small>bp</small>' : '<span class="wb-muted">–</span>') + '</div></div>';
-    };
-    var bp = function (v) { return isNum(v) ? fbp(v, 2) + '<small>bp</small>' : '<span class="wb-muted">–</span>'; };
-    var blk = function (lab, col, v, cv, tip, ttl) {   // 늘 레벨(엔진 값 그대로) · 옆에 작게 전일 대비
-      return '<div class="otc-pr-tb"' + (ttl ? ' title="' + esc(ttl) + '"' : '') + '><div class="otc-pr-tl">' + (col ? '<i class="otc-pr-sw" style="background:var(' + col + ')"></i>' : '') + esc(lab) + help(tip) + '</div>' +
-        '<div class="otc-pr-tv">' + bp(v) + (cv !== undefined ? '<span class="otc-pr-tc">전일 대비 <b>' + (isNum(cv) ? fbp(cv, 2) : '–') + '</b></span>' : '') + '</div></div>';
-    };
-    var pvTip = '전일 스프레드 = A 전일 − B 전일(bp · 엔진 prev.spr)\nA ' + nm.a + ' ' + prPvLeg(pa, d.a) + '\nB ' + nm.b + ' ' + prPvLeg(pb, d.b);
-    host.innerHTML = '<div class="otc-pr-top">' +
-      (chg ? '<div class="otc-pr-bigs"><div class="otc-pr-bigrow">' +
-        big(prL1(nm.a, nm.b) + sf, L && L.l1_chg, '--wb-up', (defs.l1 || '') + '\n' + (defs.chg || '')) +
-        big(prL2(nm.a, nm.b) + sf, L && L.l2_chg, '--wb-down', (defs.l2 || '') + '\n' + (defs.chg || '')) + '</div></div>' : '') +
-      '<div class="otc-pr-info">' +
-        '<div class="otc-pr-trio">' +
-          blk('전일 스프레드', '', pvT && pvT.spr, undefined, pvTip + '\n' + (defs.chg || ''), pvTip) +
-          blk(nm.a + ' 사고 ' + nm.b + ' 팔 때', '--wb-up', L && L.l1, L && L.l1_chg, (defs.l1 || '') + '\n' + (defs.chg || '') + '\n차트 선1과 같은 값') +
-          blk(nm.a + ' 팔고 ' + nm.b + ' 살 때', '--wb-down', L && L.l2, L && L.l2_chg, (defs.l2 || '') + '\n' + (defs.chg || '') + '\n차트 선2와 같은 값') +
-        '</div>' +
-        '<div class="otc-pr-qline">' + (d.a ? prLegQ('a', d.a, L, tb, pvT) : '') + (d.b ? prLegQ('b', d.b, L, tb, pvT) : '') + '</div>' +
-        '<div class="otc-pr-st" id="prSt"></div>' +
-      '</div></div>';
-    prExch();
-    $('prLegend').innerHTML = prLegend(defs, nm);
-    $('prLimits').textContent = defs.limits || '';
-  }
-  function prLegend(defs, nm) {
-    var lb = function (k, txt, sty, tip) { return '<button type="button" class="otc-pr-lgb" data-prline="' + k + '" aria-pressed="' + (PR.hide[k] ? 'false' : 'true') + '" title="누르면 켜고 끔">' + '<i class="ln' + sty + '"></i>' + esc(txt) + '</button>' + help(tip); };
-    var codes = (PR.data && PR.data.src_codes) || {}, hasCut = ((PR.data && PR.data.blocks) || []).some(function (b) { return b.n && b.cut_i != null; });
-    return '<span class="otc-leg">' +
-      '<span>' + lb('l1', prL1(nm.a, nm.b) + prSuf(), '" style="border-color:var(--wb-up)', defs.l1 || '') + '</span>' +
-      '<span>' + lb('l2', prL2(nm.a, nm.b) + prSuf(), '" style="border-color:var(--wb-down)', defs.l2 || '') + '</span>' +
-      '<span>' + lb('mid', '미드' + prSuf(), ' dot" style="border-color:var(--wb-ink)', defs.mid || '') + '</span>' +
-      (prChg() ? '<span><i class="ln" style="border-color:var(--wb-muted);border-top-width:3px"></i>0 = 전일과 같음</span>' : '') +
-      (hasCut ? '<span><i class="otc-pr-cutl"></i>' + esc(PR_CUT_LAB) + help('세로 점선 = 그 날 15:45 이후 첫 행(엔진 cut_i)\n' + (defs.rule || '')) + '</span>' : '') +
-      '<span>출처 띠' + Object.keys(codes).map(function (c) { return ' <i class="otc-pr-band" style="background:var(' + (PR_SRC_COL[c] || '--wb-faint') + ')"></i>' + esc(codes[c]); }).join('') +
-        ' <i class="otc-pr-band is-fb"></i>대체' + help((defs.src || '') + '\n띠 위 칸 = 매수호가 출처 · 아래 칸 = 매도호가 출처\n빗금 = 대체(고른 쪽 값이 비어 다른 쪽으로 채움 · 엔진 fb)') + '</span>' +
-      '</span>';
-  }
-  function prSeries(d) {   // 블록(날) 이어 붙이기 — x = 시각(초 · 날마다 칸 · 장중 공백 그대로) 또는 이벤트(행 순번) · 값은 응답 그대로
-    var ev = PR.axis === 'ev', off = 0;
-    var R = { n: 0, x: [], t: [], day: [], l1: [], l2: [], mid: [], ab: [], aa: [], bb: [], ba: [], abs: [], aas: [], bbs: [], bas: [], afb: [], bfb: [], post: [], segs: [], cuts: [], today: d.today,
-      l1c: [], l2c: [], midc: [], abc: [], aac: [], bbc: [], bac: [], pv: {} };
-    var ck = function (b, k, i) { return b[k] ? b[k][i] : null; };   // 변동 배열이 없는 옛 응답 = 값 없음(지어내지 않음)
-    (d.blocks || []).forEach(function (b) {
-      var m = b.n || 0;
-      if (!m) { R.segs.push({ d: b.d, n: 0 }); return; }
-      var t0 = prSec(b.t[0]), t1 = prSec(b.t[m - 1]), base = R.n;
-      for (var i = 0; i < m; i++) {
-        R.x.push(ev ? off + i : off + (prSec(b.t[i]) - t0)); R.t.push(b.t[i]); R.day.push(b.d);
-        R.l1.push(b.l1[i]); R.l2.push(b.l2[i]); R.mid.push(b.mid[i]);
-        R.ab.push(b.a_bid[i]); R.aa.push(b.a_ask[i]); R.bb.push(b.b_bid[i]); R.ba.push(b.b_ask[i]);
-        R.abs.push(b.a_bsrc[i]); R.aas.push(b.a_asrc[i]); R.bbs.push(b.b_bsrc[i]); R.bas.push(b.b_asrc[i]);
-        R.afb.push(b.a_fb[i]); R.bfb.push(b.b_fb[i]); R.post.push(b.cut_i != null && i >= b.cut_i);
-        R.l1c.push(ck(b, 'l1_chg', i)); R.l2c.push(ck(b, 'l2_chg', i)); R.midc.push(ck(b, 'mid_chg', i));
-        R.abc.push(ck(b, 'a_bid_chg', i)); R.aac.push(ck(b, 'a_ask_chg', i)); R.bbc.push(ck(b, 'b_bid_chg', i)); R.bac.push(ck(b, 'b_ask_chg', i));
-      }
-      R.pv[b.d] = b.prev || null;
-      R.n += m;
-      var hi = ev ? off + m : off + (t1 - t0) + Math.max(60, (t1 - t0) * 0.015);   // 마지막 행 뒤 짧은 여백(표현 · 이벤트 축은 한 칸)
-      if (b.cut_i != null && b.cut_i < m) R.cuts.push({ x: R.x[base + b.cut_i], d: b.d });
-      R.segs.push({ d: b.d, n: m, lo: off, hi: hi, i0: base, i1: base + m - 1, t0: t0, prev: b.prev || null });
-      off = hi;
-    });
-    R.lo = 0; R.hi = Math.max(off, 1);
-    R.full = R.segs.filter(function (g) { return g.n; });
-    R.multi = R.full.length > 1;
-    var lg = R.full[R.full.length - 1];
-    R.endOk = !!(lg && lg.d === d.today);   // 오늘 행이 없으면 오른쪽 끝 값 라벨을 달지 않는다(옛 날 값을 '지금'처럼 보이게 하지 않음)
-    return R;
-  }
   function prPts(R, arr) {   // 계단 점열 — v_i 는 x_i 부터 다음 행(또는 날 끝)까지 · 값 없음/날 경계 = 끊김
     var out = [];
     R.full.forEach(function (g) {
@@ -1606,353 +1435,624 @@
     });
     return out;
   }
-  function prTicks(R, ax, lab) {   // 눈금: 시각 축 = 둥근 시각(5분~3시간) · 이벤트 축 = 그 행 시각 · 날 칸이 좁으면 날짜만
-    Object.keys(lab).forEach(function (k) { delete lab[k]; });
-    var w = ax.width || ax.maxWidth || 800, ppu = w / ((R.hi - R.lo) || 1), t = [], add = function (v, l) { t.push({ value: v }); lab[v] = l; };
-    var steps = [300, 600, 900, 1800, 3600, 7200, 10800], st = 10800, per = Math.max(1, Math.ceil(70 / ppu));
-    for (var s = 0; s < steps.length; s++) if (steps[s] * ppu >= 64) { st = steps[s]; break; }
-    R.full.forEach(function (g) {   // 칸마다: 좁은 날(여러 날 중 150px 미만) = 날짜 눈금 하나 · 아니면 시각(이벤트 축 = 그 행 시각)
-      if (R.multi && (g.hi - g.lo) * ppu < 150) { add(g.lo, mmdd(g.d)); return; }
-      if (PR.axis === 'ev') { for (var i = g.i0; i <= g.i1; i += per) add(R.x[i], String(R.t[i]).slice(0, 5)); return; }
-      for (var ts = Math.ceil(g.t0 / st) * st; ts <= g.t0 + (g.hi - g.lo); ts += st) add(g.lo + (ts - g.t0), prHM(ts));
-    });
-    var last = -1e9, seen = null;
-    return t.filter(function (o) { var px = (o.value - R.lo) * ppu, l = lab[o.value]; if (px - last < 52 || l === seen) return false; last = px; seen = l; return true; });
+  function prH() { var h = window.innerHeight || 900; return { main: Math.round(Math.max(240, Math.min(340, h * 0.34))), leg: h < 760 ? 100 : 120 }; }   // 패널 1개 · 2개 같은 높이
+  var PRS = S.pair = { n: 1, fut: ['3선'], listKey: '', P: {} };   // P.L · P.R = 패널(상태는 P.x.st)
+  try { PRS.n = localStorage.getItem(PR_LS_N) === '2' ? 2 : 1; } catch (e) { /* noop */ }
+  function prList() {   // 다리 자동완성(두 패널 공용 datalist) = 응답 fut_choices + meta.bonds 별칭
+    var bonds = (S.meta && S.meta.bonds) || [], k = PRS.fut.join(',') + '|' + bonds.length;
+    if (k === PRS.listKey) return; PRS.listKey = k;
+    $('otcPairLegs').innerHTML = PRS.fut.map(function (f) { return '<option value="' + esc(f) + '">국채선물</option>'; }).join('') +
+      bonds.map(function (b) { return '<option value="' + esc(b.alias) + '">' + esc([b.nick, b.btype, isNum(b.rem) ? '잔존 ' + b.rem + '년' : ''].filter(Boolean).join(' · ')) + '</option>'; }).join('');
   }
-  function prYR(arrs, minPad, incl0) {   // 세로 범위(표현만 · 값 무변형): 전체 = 최소~최대 · 맞춤 = 행의 2~98% 범위(전체 폭이 그 3배를 넘을 때만) + 벗어난 행 수·극값은 가장자리 글자로
-    var v = [];
-    arrs.forEach(function (a) { for (var i = 0; i < a.length; i++) if (isNum(a[i])) v.push(a[i]); });
-    if (!v.length) return null;
-    v.sort(function (p, q) { return p - q; });
-    var mn = v[0], mx = v[v.length - 1], lo = mn, hi = mx, out = null;
-    if (PR.yfit === 'fit' && v.length >= 40) {
-      var ql = v[Math.floor(v.length * 0.02)], qh = v[Math.ceil(v.length * 0.98) - 1];
-      if (qh > ql && (mx - mn) > 3 * (qh - ql)) {
-        lo = ql; hi = qh;
-        var pd0 = Math.max((hi - lo) * 0.12, minPad), nHi = 0, nLo = 0;
-        v.forEach(function (x) { if (x > hi + pd0) nHi++; else if (x < lo - pd0) nLo++; });
-        out = { nHi: nHi, max: mx, nLo: nLo, min: mn };
+
+  // ── 패널 하나(side = 'L' | 'R' · root = 패널 DOM) — 아래 함수·상태는 전부 이 패널 것 ──
+  function prNew(side, root) {
+    var PR = { side: side, a: '', b: '3선', days: 1, ma: 'auto', mb: 'auto', axis: 'time', yfit: 'fit', val: 'lvl', auto: true, hide: { l1: false, l2: false, mid: false },
+      choices: [1, 3, 5, 10], cursor: '', cpath: '', data: null, last: null, R: null, ctl: null,
+      inflight: 0, fails: 0, err: '', timer: 0, gen: 0, open: false, el: {} };
+    function pid(k) { return 'pr' + side + '-' + k; }   // DOM id = 패널 접두사(prL-… / prR-…)
+    function E(k) { return PR.el[k]; }
+    Array.prototype.forEach.call(root.querySelectorAll('[data-k]'), function (el) { var k = el.getAttribute('data-k'); el.id = pid(k); PR.el[k] = el; });
+    E('Side').textContent = side; E('Side').title = side === 'L' ? '왼쪽 패널' : '오른쪽 패널';
+    (function () {
+      try {
+        var o = JSON.parse(localStorage.getItem(PR_LS[side]) || 'null'); if (!o) return;
+        if (typeof o.a === 'string') PR.a = o.a;
+        if (typeof o.b === 'string' && o.b) PR.b = o.b;
+        if (isNum(o.days) && o.days >= 1) PR.days = o.days;
+        PR.ma = prMode(o.ma); PR.mb = prMode(o.mb);
+        if (o.axis === 'ev') PR.axis = 'ev';
+        if (o.yfit === 'all') PR.yfit = 'all';
+        if (o.val === 'chg') PR.val = 'chg';
+        if (o.auto === false) PR.auto = false;
+        if (o.hide && typeof o.hide === 'object') ['l1', 'l2', 'mid'].forEach(function (k) { PR.hide[k] = o.hide[k] === true; });
+      } catch (e) { /* 저장값 없음 */ }
+    })();
+    function prSave() { try { localStorage.setItem(PR_LS[side], JSON.stringify({ a: PR.a, b: PR.b, days: PR.days, ma: PR.ma, mb: PR.mb, axis: PR.axis, yfit: PR.yfit, val: PR.val, auto: PR.auto, hide: PR.hide })); } catch (e) { /* noop */ } }
+    function prPath() { return '/otc/pair?a=' + enc(PR.a) + '&b=' + enc(PR.b) + '&days=' + enc(PR.days) + '&mode_a=' + enc(PR.ma) + '&mode_b=' + enc(PR.mb); }
+    function prHash() {   // 이 패널의 주소 해시 키(빈 값은 hashOf 가 뺌)
+      var p = PR_HP[side], o = {};
+      o[p + 'a'] = PR.a; o[p + 'b'] = PR.b; o[p + 'days'] = PR.days; o[p + 'ma'] = PR.ma === 'auto' ? '' : PR.ma; o[p + 'mb'] = PR.mb === 'auto' ? '' : PR.mb; o[p + 'v'] = PR.val === 'chg' ? 'chg' : '';
+      return o;
+    }
+    function hov(html, x, y) { showHov(html, x, y, side); }       // 떠 있는 툴팁은 한 장 — 주인(패널)을 적어 두고
+    function unhov() { if (S.hovBy === side) hideHov(); }          // 내 것일 때만 닫는다(다른 패널 툴팁을 건드리지 않음)
+    function prSrcName(c) { var m = (PR.data && PR.data.src_codes) || {}; return (!isNum(c) || c < 0) ? '값 없음' : (m[String(c)] || ('출처 ' + c)); }
+    function prChg() { return PR.val === 'chg'; }
+    function prK() { return prChg() ? PR_KC : PR_KL; }
+    function prSuf() { return prChg() ? ' (전일 대비)' : ''; }
+    function prNames() { var d = PR.data || {}; return { a: (d.a && d.a.alias) || PR.a || 'A', b: (d.b && d.b.alias) || PR.b || 'B' }; }
+    function prSyncBar() {
+      var ia = E('A'), ib = E('B'), d = PR.data;
+      if (doc.activeElement !== ia) ia.value = PR.a;
+      if (doc.activeElement !== ib) ib.value = PR.b;
+      E('Days').innerHTML = PR.choices.map(function (n) { return '<button type="button" data-prdays="' + esc(n) + '"' + (n === PR.days ? ' class="is-active"' : '') + '>' + esc(dayLab(n)) + '</button>'; }).join('');
+      ['a', 'b'].forEach(function (k) {
+        var cur = k === 'a' ? PR.ma : PR.mb, leg = d && d.ok && d[k], same = leg && leg.spec === (k === 'a' ? PR.a : PR.b);
+        var fut = !!(same && (leg.kind === 'fut' || leg.kind === 'fut_off'));
+        E('Mode' + k.toUpperCase()).innerHTML = PR_MODES.map(function (m) {
+          return '<button type="button" data-prmode="' + k + '" data-v="' + m[0] + '"' + (m[0] === cur ? ' class="is-active"' : '') + (fut ? ' disabled title="선물 다리는 출처 고정 — 엔진 규칙(장내)"' : '') + '>' + m[1] + '</button>';
+        }).join('');
+      });
+      Array.prototype.forEach.call(E('Axis').children, function (b) { b.classList.toggle('is-active', b.getAttribute('data-praxis') === PR.axis); });
+      Array.prototype.forEach.call(E('Yfit').children, function (b) { b.classList.toggle('is-active', b.getAttribute('data-pryfit') === PR.yfit); });
+      Array.prototype.forEach.call(E('Val').children, function (b) { b.classList.toggle('is-active', b.getAttribute('data-prval') === PR.val); });
+      var au = E('Auto'); au.setAttribute('aria-pressed', PR.auto ? 'true' : 'false'); au.classList.toggle('is-active', PR.auto);
+      E('Card').classList.toggle('is-stale', !!(PR.data && PR.cpath !== prPath()));   // 입력을 바꿨는데 새 응답이 아직 = 흐리게(옛 다리 값을 새 다리처럼 보이지 않게)
+    }
+    function prStatus() {   // 점: 초록 = 정상 · 회색 = 꺼짐 · 주황 = 불러오기 실패(재시도 중) · 빨강 = 3회 연속 실패
+      var d = PR.last, L = PR.data && PR.data.ok && PR.data.last, cls = '', txt = [];
+      if (d) txt.push('확인 ' + hmsOf(d.now));
+      if (L && L.t) txt.push('오늘 마지막 행 ' + L.t);
+      if (PR.inflight && !(PR.data && PR.cpath === prPath())) txt.unshift('불러오는 중…');
+      if (PR.fails >= 3) { cls = 'err'; txt.push('연결 실패 ' + PR.fails + '회 연속 — ' + PR.err); }
+      else if (PR.err) { cls = 'warn'; txt.push('불러오기 실패 — ' + PR.err + ' · 다시 시도 중'); }
+      else if (!PR.auto) txt.push('자동 갱신 꺼짐');
+      else if (d) cls = 'ok';
+      E('Dot').className = 'otc-dot' + (cls ? ' ' + cls : '');
+      E('Stat').textContent = txt.join(' · ');
+    }
+    function prExch() {   // 상태 한 줄(same 응답에서도 갱신) — 정상 = ● 실시간 + 오늘 마지막 행 시각 · 문제(엑셀 끊김 · 다리 warn · 오늘 전일 기준 없음)만 주황 점 + 짧은 글 · 엔진 문장·시각·파일은 툴팁 그대로
+      var el = $(pid('St')); if (!el) return;
+      var d = PR.data || {}, x = (PR.last && PR.last.exch) || d.exch || {}, L = d.last, on = !!x.open, tb = prTodayBlk(d);
+      var pv = (L && L.prev) || (tb && tb.prev) || {}, probs = [];
+      if (!on && x.expected === true) probs.push(['엑셀 끊김', '수신 중이어야 할 시간인데 연결 안 됨 — 오늘 장내 값이 멈춰 있을 수 있음\n엑셀 ' + (x.status || '–')]);
+      [['A', d.a, 'a'], ['B', d.b, 'b']].forEach(function (q) {
+        if (q[1] && q[1].warn) probs.push([q[0] + ' ' + (q[1].alias || q[1].spec || '') + ' — ' + q[1].warn, q[1].warn]);
+        var r = pv[q[2]]; if (r && !isNum(r.y)) probs.push([q[0] + ' 전일 기준 없음', r.why || '엔진 prev.y 없음']);
+      });
+      var tip = ['엑셀(장내) ' + (x.status || '–') + (x.last_read ? ' · 읽음 ' + hmsOf(x.last_read) : '') + (x.file ? ' · ' + x.file : ''),
+        PR.last ? '장외 스냅샷 ' + hmsOf(PR.last.asof) + ' · 확인 ' + hmsOf(PR.last.now) : '', L ? '오늘 마지막 행 ' + L.t : '오늘 행 없음 — 오늘 두 다리 모두 값이 아직 없습니다'].filter(Boolean).join('\n');
+      var dc = probs.length ? ' warn' : (on && L) ? ' ok' : '', lab = L ? (on ? '실시간 ' : '마지막 행 ') + L.t : '오늘 행 없음';
+      var kin = d.keyin || {}, k3 = (d.a && d.a.spec === '3선') || (d.b && d.b.spec === '3선');
+      el.innerHTML = '<span class="otc-pr-stl" title="' + esc(tip) + '"><span class="otc-dot' + dc + '" aria-hidden="true"></span>' + esc(lab) + '</span>' +
+        probs.map(function (q) { return '<span class="otc-pr-prob" title="' + esc(q[1]) + '">' + esc(q[0]) + '</span>'; }).join('') +
+        (kin.active && k3 ? '<span class="otc-tag otc-tag--key" title="15:45 이후 3선 키인(엔진 keyin 그대로)">3선 키인 ' + esc(fp(kin.price)) + (kin.t ? ' · ' + esc(kin.t) : '') + '</span>' : '');
+    }
+    function prLegQ(k, leg, L, tb, pv) {   // 다리 호가 한 줄 조각: [A] 종목명 별칭(3선 바스켓) · 출처 점 + 매수/매도 금리 — 종류·잔존·엑셀·원 계열·전일 기준은 툴팁
+      var ns = (tb && tb.n_src) || {}, xs = (tb && tb.exch_src) || {}, i = tb && tb.n ? tb.n - 1 : -1, q = pv && pv[k];
+      var tip = [leg.nick, leg.known !== false ? prKind(leg.kind) : '모르는 이름', isNum(leg.rem) ? '잔존 ' + leg.rem + '년' : (isNum(leg.years) ? leg.years + '년 표준물(5% 반기) 내재수익률' : ''),
+        leg.in_sheet ? '엑셀 행 있음' + (leg.ex_code ? ' · ' + leg.ex_code : '') : '엑셀 행 없음',
+        '출처 모드 = ' + ((PR_MODES.filter(function (m) { return m[0] === leg.mode; })[0] || [0, leg.mode])[1]),
+        '오늘 원 계열 — 장외 ' + n0(ns[k + '_otc']) + '행 · 장내 ' + n0(ns[k + '_exch']) + '행' + (xs[k] ? '(' + xs[k] + ')' : ''),
+        q ? prPvLeg(q, leg) : ''].filter(Boolean).join('\n');
+      var code = function (key) { return (i >= 0 && tb[key]) ? tb[key][i] : -1; }, fb = i >= 0 && tb[k + '_fb'] ? !!tb[k + '_fb'][i] : false;
+      var one = function (nmS, cls, lv, cv, c) {
+        var col = PR_SRC_COL[String(c)] || '--wb-faint', has = isNum(c) && c >= 0;
+        var t = nmS + '호가 · 출처 ' + prSrcName(c) + (fb ? ' · 대체(고른 쪽 값이 비어 다른 쪽으로 채움 · 엔진 fb)' : '') + ' · 금리 ' + fy(lv) + ' · 전일 대비 ' + prBp(cv);
+        return '<span class="otc-pr-q" title="' + esc(t) + '">' + (has ? '<i class="otc-pr-sd' + (fb ? ' is-fb' : '') + '" style="--sd:var(' + col + ')"></i>' : '') + '<b class="' + cls + '">' + fy(lv) + '</b></span>';
+      };
+      return '<span class="otc-pr-lq"><span class="otc-pr-ab">' + k.toUpperCase() + '</span><b class="otc-pr-al" title="' + esc(tip) + '">' + esc(leg.alias || leg.spec || '') + '</b>' +
+        (leg.nick ? '<span class="otc-pr-nk" title="' + esc(tip) + '">' + esc(leg.nick) + '</span>' : '') + (bk3(leg.basket) ? chip(esc(leg.basket), 'otc-chip-basket') : '') +
+        one('매수', 'otc-buy', L && L[k + '_bid'], L && L[k + '_bid_chg'], code(k + '_bsrc')) + '<span class="otc-pr-sl">/</span>' +
+        one('매도', 'otc-sell', L && L[k + '_ask'], L && L[k + '_ask_chg'], code(k + '_asrc')) + '</span>';
+    }
+    function prHead() {
+      var d = PR.data, host = E('Head'), nm = prNames();
+      if (!d) { host.innerHTML = ''; return; }
+      if (!d.ok) { host.innerHTML = ''; E('Title').innerHTML = '종목 스프레드'; E('Legend').innerHTML = ''; E('Limits').textContent = ''; return; }
+      var defs = d.defs || {}, L = d.last, tb = prTodayBlk(d);
+      E('Title').innerHTML = esc(nm.a) + ' − ' + esc(nm.b) + ' 장중 스프레드' + help([defs.quote, defs.rule, defs.src].filter(Boolean).join('\n') + '\n관찰 전용(추천·주문 아님)');
+      var chg = prChg(), sf = prSuf(), pvT = (L && L.prev) || (tb && tb.prev) || null, pa = (pvT && pvT.a) || null, pb = (pvT && pvT.b) || null;
+      E('ValHelp').innerHTML = help(defs.chg || '변동 = 엔진 *_chg 값');
+      var big = function (lab, v, col, tip) {   // 변동 모드에서만: 차트가 그리는 값(선1/선2 전일 대비) 강조
+        return '<div class="otc-pr-big"><div class="otc-pr-lab"><i class="otc-pr-sw" style="background:var(' + col + ')"></i>' + esc(lab) + help(tip) + '</div>' +
+          '<div class="otc-pr-val">' + (isNum(v) ? fbp(v, 2) + '<small>bp</small>' : '<span class="wb-muted">–</span>') + '</div></div>';
+      };
+      var bp = function (v) { return isNum(v) ? fbp(v, 2) + '<small>bp</small>' : '<span class="wb-muted">–</span>'; };
+      var blk = function (lab, col, v, cv, tip, ttl) {   // 늘 레벨(엔진 값 그대로) · 옆에 작게 전일 대비
+        return '<div class="otc-pr-tb"' + (ttl ? ' title="' + esc(ttl) + '"' : '') + '><div class="otc-pr-tl">' + (col ? '<i class="otc-pr-sw" style="background:var(' + col + ')"></i>' : '') + esc(lab) + help(tip) + '</div>' +
+          '<div class="otc-pr-tv">' + bp(v) + (cv !== undefined ? '<span class="otc-pr-tc">전일 대비 <b>' + (isNum(cv) ? fbp(cv, 2) : '–') + '</b></span>' : '') + '</div></div>';
+      };
+      var pvTip = '전일 스프레드 = A 전일 − B 전일(bp · 엔진 prev.spr)\nA ' + nm.a + ' ' + prPvLeg(pa, d.a) + '\nB ' + nm.b + ' ' + prPvLeg(pb, d.b);
+      host.innerHTML = '<div class="otc-pr-top">' +
+        (chg ? '<div class="otc-pr-bigs"><div class="otc-pr-bigrow">' +
+          big(prL1(nm.a, nm.b) + sf, L && L.l1_chg, '--wb-up', (defs.l1 || '') + '\n' + (defs.chg || '')) +
+          big(prL2(nm.a, nm.b) + sf, L && L.l2_chg, '--wb-down', (defs.l2 || '') + '\n' + (defs.chg || '')) + '</div></div>' : '') +
+        '<div class="otc-pr-info">' +
+          '<div class="otc-pr-trio">' +
+            blk('전일 스프레드', '', pvT && pvT.spr, undefined, pvTip + '\n' + (defs.chg || ''), pvTip) +
+            blk(nm.a + ' 사고 ' + nm.b + ' 팔 때', '--wb-up', L && L.l1, L && L.l1_chg, (defs.l1 || '') + '\n' + (defs.chg || '') + '\n차트 선1과 같은 값') +
+            blk(nm.a + ' 팔고 ' + nm.b + ' 살 때', '--wb-down', L && L.l2, L && L.l2_chg, (defs.l2 || '') + '\n' + (defs.chg || '') + '\n차트 선2와 같은 값') +
+          '</div>' +
+          '<div class="otc-pr-qline">' + (d.a ? prLegQ('a', d.a, L, tb, pvT) : '') + (d.b ? prLegQ('b', d.b, L, tb, pvT) : '') + '</div>' +
+          '<div class="otc-pr-st" id="' + pid('St') + '"></div>' +
+        '</div></div>';
+      prExch();
+      E('Legend').innerHTML = prLegend(defs, nm);
+      E('Limits').textContent = defs.limits || '';
+    }
+    function prLegend(defs, nm) {
+      var lb = function (k, txt, sty, tip) { return '<button type="button" class="otc-pr-lgb" data-prline="' + k + '" aria-pressed="' + (PR.hide[k] ? 'false' : 'true') + '" title="누르면 켜고 끔">' + '<i class="ln' + sty + '"></i>' + esc(txt) + '</button>' + help(tip); };
+      var codes = (PR.data && PR.data.src_codes) || {}, hasCut = ((PR.data && PR.data.blocks) || []).some(function (b) { return b.n && b.cut_i != null; });
+      return '<span class="otc-leg">' +
+        '<span>' + lb('l1', prL1(nm.a, nm.b) + prSuf(), '" style="border-color:var(--wb-up)', defs.l1 || '') + '</span>' +
+        '<span>' + lb('l2', prL2(nm.a, nm.b) + prSuf(), '" style="border-color:var(--wb-down)', defs.l2 || '') + '</span>' +
+        '<span>' + lb('mid', '미드' + prSuf(), ' dot" style="border-color:var(--wb-ink)', defs.mid || '') + '</span>' +
+        (prChg() ? '<span><i class="ln" style="border-color:var(--wb-muted);border-top-width:3px"></i>0 = 전일과 같음</span>' : '') +
+        (hasCut ? '<span><i class="otc-pr-cutl"></i>' + esc(PR_CUT_LAB) + help('세로 점선 = 그 날 15:45 이후 첫 행(엔진 cut_i)\n' + (defs.rule || '')) + '</span>' : '') +
+        '<span>출처 띠' + Object.keys(codes).map(function (c) { return ' <i class="otc-pr-band" style="background:var(' + (PR_SRC_COL[c] || '--wb-faint') + ')"></i>' + esc(codes[c]); }).join('') +
+          ' <i class="otc-pr-band is-fb"></i>대체' + help((defs.src || '') + '\n띠 위 칸 = 매수호가 출처 · 아래 칸 = 매도호가 출처\n빗금 = 대체(고른 쪽 값이 비어 다른 쪽으로 채움 · 엔진 fb)') + '</span>' +
+        '</span>';
+    }
+    function prSeries(d) {   // 블록(날) 이어 붙이기 — x = 시각(초 · 날마다 칸 · 장중 공백 그대로) 또는 이벤트(행 순번) · 값은 응답 그대로
+      var ev = PR.axis === 'ev', off = 0;
+      var R = { n: 0, x: [], t: [], day: [], l1: [], l2: [], mid: [], ab: [], aa: [], bb: [], ba: [], abs: [], aas: [], bbs: [], bas: [], afb: [], bfb: [], post: [], segs: [], cuts: [], today: d.today,
+        l1c: [], l2c: [], midc: [], abc: [], aac: [], bbc: [], bac: [], pv: {} };
+      var ck = function (b, k, i) { return b[k] ? b[k][i] : null; };   // 변동 배열이 없는 옛 응답 = 값 없음(지어내지 않음)
+      (d.blocks || []).forEach(function (b) {
+        var m = b.n || 0;
+        if (!m) { R.segs.push({ d: b.d, n: 0 }); return; }
+        var t0 = prSec(b.t[0]), t1 = prSec(b.t[m - 1]), base = R.n;
+        for (var i = 0; i < m; i++) {
+          R.x.push(ev ? off + i : off + (prSec(b.t[i]) - t0)); R.t.push(b.t[i]); R.day.push(b.d);
+          R.l1.push(b.l1[i]); R.l2.push(b.l2[i]); R.mid.push(b.mid[i]);
+          R.ab.push(b.a_bid[i]); R.aa.push(b.a_ask[i]); R.bb.push(b.b_bid[i]); R.ba.push(b.b_ask[i]);
+          R.abs.push(b.a_bsrc[i]); R.aas.push(b.a_asrc[i]); R.bbs.push(b.b_bsrc[i]); R.bas.push(b.b_asrc[i]);
+          R.afb.push(b.a_fb[i]); R.bfb.push(b.b_fb[i]); R.post.push(b.cut_i != null && i >= b.cut_i);
+          R.l1c.push(ck(b, 'l1_chg', i)); R.l2c.push(ck(b, 'l2_chg', i)); R.midc.push(ck(b, 'mid_chg', i));
+          R.abc.push(ck(b, 'a_bid_chg', i)); R.aac.push(ck(b, 'a_ask_chg', i)); R.bbc.push(ck(b, 'b_bid_chg', i)); R.bac.push(ck(b, 'b_ask_chg', i));
+        }
+        R.pv[b.d] = b.prev || null;
+        R.n += m;
+        var hi = ev ? off + m : off + (t1 - t0) + Math.max(60, (t1 - t0) * 0.015);   // 마지막 행 뒤 짧은 여백(표현 · 이벤트 축은 한 칸)
+        if (b.cut_i != null && b.cut_i < m) R.cuts.push({ x: R.x[base + b.cut_i], d: b.d });
+        R.segs.push({ d: b.d, n: m, lo: off, hi: hi, i0: base, i1: base + m - 1, t0: t0, prev: b.prev || null });
+        off = hi;
+      });
+      R.lo = 0; R.hi = Math.max(off, 1);
+      R.full = R.segs.filter(function (g) { return g.n; });
+      R.multi = R.full.length > 1;
+      var lg = R.full[R.full.length - 1];
+      R.endOk = !!(lg && lg.d === d.today);   // 오늘 행이 없으면 오른쪽 끝 값 라벨을 달지 않는다(옛 날 값을 '지금'처럼 보이게 하지 않음)
+      return R;
+    }
+    function prTicks(R, ax, lab) {   // 눈금: 시각 축 = 둥근 시각(5분~3시간) · 이벤트 축 = 그 행 시각 · 날 칸이 좁으면 날짜만
+      Object.keys(lab).forEach(function (k) { delete lab[k]; });
+      var w = ax.width || ax.maxWidth || 800, ppu = w / ((R.hi - R.lo) || 1), t = [], add = function (v, l) { t.push({ value: v }); lab[v] = l; };
+      var steps = [300, 600, 900, 1800, 3600, 7200, 10800], st = 10800, per = Math.max(1, Math.ceil(70 / ppu));
+      for (var s = 0; s < steps.length; s++) if (steps[s] * ppu >= 64) { st = steps[s]; break; }
+      R.full.forEach(function (g) {   // 칸마다: 좁은 날(여러 날 중 150px 미만) = 날짜 눈금 하나 · 아니면 시각(이벤트 축 = 그 행 시각)
+        if (R.multi && (g.hi - g.lo) * ppu < 150) { add(g.lo, mmdd(g.d)); return; }
+        if (PR.axis === 'ev') { for (var i = g.i0; i <= g.i1; i += per) add(R.x[i], String(R.t[i]).slice(0, 5)); return; }
+        for (var ts = Math.ceil(g.t0 / st) * st; ts <= g.t0 + (g.hi - g.lo); ts += st) add(g.lo + (ts - g.t0), prHM(ts));
+      });
+      var last = -1e9, seen = null;
+      return t.filter(function (o) { var px = (o.value - R.lo) * ppu, l = lab[o.value]; if (px - last < 52 || l === seen) return false; last = px; seen = l; return true; });
+    }
+    function prYR(arrs, minPad, incl0) {   // 세로 범위(표현만 · 값 무변형): 전체 = 최소~최대 · 맞춤 = 행의 2~98% 범위(전체 폭이 그 3배를 넘을 때만) + 벗어난 행 수·극값은 가장자리 글자로
+      var v = [];
+      arrs.forEach(function (a) { for (var i = 0; i < a.length; i++) if (isNum(a[i])) v.push(a[i]); });
+      if (!v.length) return null;
+      v.sort(function (p, q) { return p - q; });
+      var mn = v[0], mx = v[v.length - 1], lo = mn, hi = mx, out = null;
+      if (PR.yfit === 'fit' && v.length >= 40) {
+        var ql = v[Math.floor(v.length * 0.02)], qh = v[Math.ceil(v.length * 0.98) - 1];
+        if (qh > ql && (mx - mn) > 3 * (qh - ql)) {
+          lo = ql; hi = qh;
+          var pd0 = Math.max((hi - lo) * 0.12, minPad), nHi = 0, nLo = 0;
+          v.forEach(function (x) { if (x > hi + pd0) nHi++; else if (x < lo - pd0) nLo++; });
+          out = { nHi: nHi, max: mx, nLo: nLo, min: mn };
+        }
       }
+      if (incl0) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }   // 변동 모드: 0(전일과 같음) 기준선이 늘 보이게
+      var pad = Math.max((hi - lo) * 0.12, minPad);
+      return { min: lo - pad, max: hi + pad, out: out };
     }
-    if (incl0) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }   // 변동 모드: 0(전일과 같음) 기준선이 늘 보이게
-    var pad = Math.max((hi - lo) * 0.12, minPad);
-    return { min: lo - pad, max: hi + pad, out: out };
-  }
-  function prKill() { if (PR.ctl) { PR.ctl.destroy(); PR.ctl = null; } }
-  function prH() { var h = window.innerHeight || 900; return { main: Math.round(Math.max(240, Math.min(340, h * 0.34))), leg: h < 760 ? 100 : 120 }; }
-  function prMake(host, R0) {
-    regPlugins();
-    var R = R0, H = prH(), lab = {}, nm = prNames();
-    host.innerHTML =
-      '<div class="otc-ev-box" style="height:' + H.main + 'px"><canvas></canvas><canvas class="otc-ev-ov"></canvas></div>' +
-      '<div class="otc-cap" id="prCapA"></div><div class="otc-ev-box" style="height:' + H.leg + 'px"><canvas></canvas><canvas class="otc-ev-ov"></canvas></div>' +
-      '<div class="otc-cap" id="prCapB"></div><div class="otc-ev-box" style="height:' + H.leg + 'px"><canvas></canvas><canvas class="otc-ev-ov"></canvas></div>';
-    var boxes = host.querySelectorAll('.otc-ev-box'), cv = [], ov = [];
-    for (var q = 0; q < 3; q++) { cv.push(boxes[q].children[0]); ov.push(boxes[q].children[1]); }
-    var ctl = { axis: PR.axis, cur: null, hx: null, hy: null };
-    function xScale(show) {
-      return { type: 'linear', min: R.lo, max: R.hi, grid: { display: false },
-        afterBuildTicks: function (ax) { ax.ticks = prTicks(R, ax, lab); },
-        ticks: { display: show, autoSkip: false, maxRotation: 0, callback: function (v) { return lab[v] != null ? lab[v] : ''; } } };
-    }
-    function yFit(sc) { sc.width = 62; }   // 세 패널 x 픽셀 정렬(십자선 동기)
-    function plate(ctx, txt, x, y, align) {   // 글자 + 바탕색 받침(선 위에서도 읽히게 · 표현만)
-      var w = ctx.measureText(txt).width, x0 = align === 'right' ? x - w : x;
-      ctx.save(); ctx.fillStyle = WBChart.alpha('--wb-surface', 0.92); ctx.fillRect(x0 - 2, y - 1, w + 4, 13); ctx.restore();
-      ctx.textAlign = align || 'left'; ctx.fillText(txt, x, y);
-    }
-    var dayPlug = { id: 'prDays', beforeDatasetsDraw: function (ch) {   // 날 경계 세로선(선 아래 층)
-      if (!R.multi || !ch.chartArea) return;
-      var xs = ch.scales.x, ca = ch.chartArea, ctx = ch.ctx;
-      ctx.save(); ctx.strokeStyle = cssv('--wb-rule-strong'); ctx.lineWidth = 1;
-      R.full.forEach(function (g, j) {
-        if (!j) return;
-        var x = Math.round(xs.getPixelForValue(g.lo)) + 0.5;
-        ctx.beginPath(); ctx.moveTo(x, ca.top); ctx.lineTo(x, ca.bottom); ctx.stroke();
-      });
-      ctx.restore();
-    }, afterDatasetsDraw: function (ch) {   // (주 패널) 날짜 라벨 = 선 위 층 · 변동 모드 = 그날 전일 기준일도 작게
-      var chg = prChg();
-      if ((!R.multi && !chg) || !ch.chartArea || ch.canvas !== cv[0]) return;
-      var xs = ch.scales.x, ca = ch.chartArea, ctx = ch.ctx, fn = cssv('--wb-font') || 'sans-serif', f1 = '600 10px ' + fn, f2 = '400 9px ' + fn;
-      ctx.save(); ctx.textBaseline = 'top'; ctx.textAlign = 'left';
-      R.full.forEach(function (g) {
-        var x = Math.max(ca.left, Math.round(xs.getPixelForValue(g.lo))) + 3, d1 = R.multi ? mmdd(g.d) : '', d2 = chg ? prPvDays(g.prev) : '';
-        ctx.font = f1; var w1 = d1 ? ctx.measureText(d1 + ' ').width : 0; ctx.font = f2; var w2 = d2 ? ctx.measureText(d2).width : 0;
-        if (!w1 && !w2) return;
-        if (x + w1 + w2 + 2 > ca.right) x = Math.max(ca.left + 3, ca.right - w1 - w2 - 4);   // 오른쪽 끝 좁은 날 = 안쪽으로 당김(잘리지 않게)
-        ctx.fillStyle = WBChart.alpha('--wb-surface', 0.92); ctx.fillRect(x - 2, ca.top + 1, w1 + w2 + 4, 13);
-        ctx.fillStyle = cssv('--wb-muted');
-        if (d1) { ctx.font = f1; ctx.fillText(d1, x, ca.top + 2); }
-        if (d2) { ctx.font = f2; ctx.fillText(d2, x + w1, ca.top + 3); }
-      });
-      ctx.restore();
-    } };
-    var cutPlug = { id: 'prCut', afterDatasetsDraw: function (ch) {   // 15:45 이후 첫 행(엔진 cut_i) = 세로 점선 · 주 패널엔 라벨
-      if (!R.cuts.length || !ch.chartArea) return;
-      var xs = ch.scales.x, ca = ch.chartArea, ctx = ch.ctx, isMain = ch.canvas === cv[0];
-      ctx.save(); ctx.strokeStyle = WBChart.alpha('--wb-warn', 0.85); ctx.lineWidth = 1.2; ctx.setLineDash([5, 4]);
-      ctx.font = '600 10px ' + (cssv('--wb-font') || 'sans-serif'); ctx.textBaseline = 'top'; ctx.fillStyle = cssv('--wb-warn');
-      R.cuts.forEach(function (c) {
-        var x = Math.round(xs.getPixelForValue(c.x)) + 0.5; if (x < ca.left - 1 || x > ca.right + 1) return;
-        ctx.beginPath(); ctx.moveTo(x, ca.top); ctx.lineTo(x, ca.bottom); ctx.stroke();
-        if (!isMain) return;
-        var g = null; R.full.forEach(function (s) { if (s.d === c.d) g = s; });
-        var room = (g ? xs.getPixelForValue(g.hi) : ca.right) - x - 6, full = ctx.measureText(PR_CUT_LAB).width, y = ca.top + 15;
-        if (room >= full) plate(ctx, PR_CUT_LAB, x + 4, y, 'left');
-        else if (x - ca.left - 6 >= full) plate(ctx, PR_CUT_LAB, x - 4, y, 'right');   // 오른쪽 칸이 좁으면 선 왼쪽에
-        else plate(ctx, '15:45', x + 4, y, 'left');   // 둘 다 좁으면 시각만(뜻은 범례·툴팁)
-      });
-      ctx.restore();
-    } };
-    var zeroPlug = { id: 'prZero', beforeDatasetsDraw: function (ch) {   // 0bp 가로선(범위 안일 때만) · 변동 모드 = 굵게(0 = 전일과 같음) · 다리 패널도
-      var ys = ch.scales.y, ca = ch.chartArea, chg = prChg(); if (!ca || !(ys.min < 0 && ys.max > 0) || (ch.canvas !== cv[0] && !chg)) return;
-      var y = Math.round(ys.getPixelForValue(0)) + 0.5, ctx = ch.ctx;
-      ctx.save(); ctx.strokeStyle = chg ? WBChart.alpha('--wb-ink', 0.5) : cssv('--wb-rule-strong'); ctx.lineWidth = chg ? 2.2 : 1; ctx.beginPath(); ctx.moveTo(ca.left, y); ctx.lineTo(ca.right, y); ctx.stroke(); ctx.restore();
-    } };
-    function prevPlug(which) {   // 변동 모드: 그날 전일 기준값이 없는 다리(엔진 prev.y = null) = 그 칸 변동 선이 비어 있음 → 칸 안에 엔진 why
-      return { id: 'prPrev', afterDatasetsDraw: function (ch) {
-        if (!prChg() || !ch.chartArea) return;
+    function prKill() { if (PR.ctl) { PR.ctl.destroy(); PR.ctl = null; } }
+    function prMake(host, R0) {
+      regPlugins();
+      var R = R0, H = prH(), lab = {}, nm = prNames();
+      host.innerHTML =
+        '<div class="otc-ev-box" style="height:' + H.main + 'px"><canvas></canvas><canvas class="otc-ev-ov"></canvas></div>' +
+        '<div class="otc-cap" id="' + pid('CapA') + '"></div><div class="otc-ev-box" style="height:' + H.leg + 'px"><canvas></canvas><canvas class="otc-ev-ov"></canvas></div>' +
+        '<div class="otc-cap" id="' + pid('CapB') + '"></div><div class="otc-ev-box" style="height:' + H.leg + 'px"><canvas></canvas><canvas class="otc-ev-ov"></canvas></div>';
+      var boxes = host.querySelectorAll('.otc-ev-box'), cv = [], ov = [];
+      for (var q = 0; q < 3; q++) { cv.push(boxes[q].children[0]); ov.push(boxes[q].children[1]); }
+      var ctl = { axis: PR.axis, cur: null, hx: null, hy: null }, dead = false;   // dead = 차트 해제됨(늦게 도는 rAF 가 해제된 차트를 그리지 않게)
+      function xScale(show) {
+        return { type: 'linear', min: R.lo, max: R.hi, grid: { display: false },
+          afterBuildTicks: function (ax) { ax.ticks = prTicks(R, ax, lab); },
+          ticks: { display: show, autoSkip: false, maxRotation: 0, callback: function (v) { return lab[v] != null ? lab[v] : ''; } } };
+      }
+      function yFit(sc) { sc.width = 62; }   // 세 패널 x 픽셀 정렬(십자선 동기)
+      function plate(ctx, txt, x, y, align) {   // 글자 + 바탕색 받침(선 위에서도 읽히게 · 표현만)
+        var w = ctx.measureText(txt).width, x0 = align === 'right' ? x - w : x;
+        ctx.save(); ctx.fillStyle = WBChart.alpha('--wb-surface', 0.92); ctx.fillRect(x0 - 2, y - 1, w + 4, 13); ctx.restore();
+        ctx.textAlign = align || 'left'; ctx.fillText(txt, x, y);
+      }
+      var dayPlug = { id: 'prDays', beforeDatasetsDraw: function (ch) {   // 날 경계 세로선(선 아래 층)
+        if (!R.multi || !ch.chartArea) return;
         var xs = ch.scales.x, ca = ch.chartArea, ctx = ch.ctx;
-        ctx.save(); ctx.font = '600 11px ' + (cssv('--wb-font') || 'sans-serif'); ctx.fillStyle = cssv('--wb-warn'); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.save(); ctx.strokeStyle = cssv('--wb-rule-strong'); ctx.lineWidth = 1;
+        R.full.forEach(function (g, j) {
+          if (!j) return;
+          var x = Math.round(xs.getPixelForValue(g.lo)) + 0.5;
+          ctx.beginPath(); ctx.moveTo(x, ca.top); ctx.lineTo(x, ca.bottom); ctx.stroke();
+        });
+        ctx.restore();
+      }, afterDatasetsDraw: function (ch) {   // (주 패널) 날짜 라벨 = 선 위 층 · 변동 모드 = 그날 전일 기준일도 작게
+        var chg = prChg();
+        if ((!R.multi && !chg) || !ch.chartArea || ch.canvas !== cv[0]) return;
+        var xs = ch.scales.x, ca = ch.chartArea, ctx = ch.ctx, fn = cssv('--wb-font') || 'sans-serif', f1 = '600 10px ' + fn, f2 = '400 9px ' + fn;
+        ctx.save(); ctx.textBaseline = 'top'; ctx.textAlign = 'left';
         R.full.forEach(function (g) {
-          var pv = g.prev, miss = []; if (!pv) return;
-          which.forEach(function (k) { var q = pv[k]; if (q && !isNum(q.y)) miss.push(k.toUpperCase() + ' 전일 기준 없음' + (q.why ? ' — ' + q.why : '')); });
-          if (!miss.length) return;
-          var x0 = Math.max(ca.left, xs.getPixelForValue(g.lo)), x1 = Math.min(ca.right, xs.getPixelForValue(g.hi)); if (x1 - x0 < 8) return;
-          ctx.save(); ctx.beginPath(); ctx.rect(x0, ca.top, x1 - x0, ca.bottom - ca.top); ctx.clip();
-          miss.forEach(function (t, j) { ctx.fillText(t, (x0 + x1) / 2, (ca.top + ca.bottom) / 2 + (j - (miss.length - 1) / 2) * 15); });
+          var x = Math.max(ca.left, Math.round(xs.getPixelForValue(g.lo))) + 3, d1 = R.multi ? mmdd(g.d) : '', d2 = chg ? prPvDays(g.prev) : '';
+          ctx.font = f1; var w1 = d1 ? ctx.measureText(d1 + ' ').width : 0; ctx.font = f2; var w2 = d2 ? ctx.measureText(d2).width : 0;
+          if (!w1 && !w2) return;
+          if (x + w1 + w2 + 2 > ca.right) x = Math.max(ca.left + 3, ca.right - w1 - w2 - 4);   // 오른쪽 끝 좁은 날 = 안쪽으로 당김(잘리지 않게)
+          ctx.fillStyle = WBChart.alpha('--wb-surface', 0.92); ctx.fillRect(x - 2, ca.top + 1, w1 + w2 + 4, 13);
+          ctx.fillStyle = cssv('--wb-muted');
+          if (d1) { ctx.font = f1; ctx.fillText(d1, x, ca.top + 2); }
+          if (d2) { ctx.font = f2; ctx.fillText(d2, x + w1, ca.top + 3); }
+        });
+        ctx.restore();
+      } };
+      var cutPlug = { id: 'prCut', afterDatasetsDraw: function (ch) {   // 15:45 이후 첫 행(엔진 cut_i) = 세로 점선 · 주 패널엔 라벨
+        if (!R.cuts.length || !ch.chartArea) return;
+        var xs = ch.scales.x, ca = ch.chartArea, ctx = ch.ctx, isMain = ch.canvas === cv[0];
+        ctx.save(); ctx.strokeStyle = WBChart.alpha('--wb-warn', 0.85); ctx.lineWidth = 1.2; ctx.setLineDash([5, 4]);
+        ctx.font = '600 10px ' + (cssv('--wb-font') || 'sans-serif'); ctx.textBaseline = 'top'; ctx.fillStyle = cssv('--wb-warn');
+        R.cuts.forEach(function (c) {
+          var x = Math.round(xs.getPixelForValue(c.x)) + 0.5; if (x < ca.left - 1 || x > ca.right + 1) return;
+          ctx.beginPath(); ctx.moveTo(x, ca.top); ctx.lineTo(x, ca.bottom); ctx.stroke();
+          if (!isMain) return;
+          var g = null; R.full.forEach(function (s) { if (s.d === c.d) g = s; });
+          var room = (g ? xs.getPixelForValue(g.hi) : ca.right) - x - 6, full = ctx.measureText(PR_CUT_LAB).width, y = ca.top + 15;
+          if (room >= full) plate(ctx, PR_CUT_LAB, x + 4, y, 'left');
+          else if (x - ca.left - 6 >= full) plate(ctx, PR_CUT_LAB, x - 4, y, 'right');   // 오른쪽 칸이 좁으면 선 왼쪽에
+          else plate(ctx, '15:45', x + 4, y, 'left');   // 둘 다 좁으면 시각만(뜻은 범례·툴팁)
+        });
+        ctx.restore();
+      } };
+      var zeroPlug = { id: 'prZero', beforeDatasetsDraw: function (ch) {   // 0bp 가로선(범위 안일 때만) · 변동 모드 = 굵게(0 = 전일과 같음) · 다리 패널도
+        var ys = ch.scales.y, ca = ch.chartArea, chg = prChg(); if (!ca || !(ys.min < 0 && ys.max > 0) || (ch.canvas !== cv[0] && !chg)) return;
+        var y = Math.round(ys.getPixelForValue(0)) + 0.5, ctx = ch.ctx;
+        ctx.save(); ctx.strokeStyle = chg ? WBChart.alpha('--wb-ink', 0.5) : cssv('--wb-rule-strong'); ctx.lineWidth = chg ? 2.2 : 1; ctx.beginPath(); ctx.moveTo(ca.left, y); ctx.lineTo(ca.right, y); ctx.stroke(); ctx.restore();
+      } };
+      function prevPlug(which) {   // 변동 모드: 그날 전일 기준값이 없는 다리(엔진 prev.y = null) = 그 칸 변동 선이 비어 있음 → 칸 안에 엔진 why
+        return { id: 'prPrev', afterDatasetsDraw: function (ch) {
+          if (!prChg() || !ch.chartArea) return;
+          var xs = ch.scales.x, ca = ch.chartArea, ctx = ch.ctx;
+          ctx.save(); ctx.font = '600 11px ' + (cssv('--wb-font') || 'sans-serif'); ctx.fillStyle = cssv('--wb-warn'); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          R.full.forEach(function (g) {
+            var pv = g.prev, miss = []; if (!pv) return;
+            which.forEach(function (k) { var q = pv[k]; if (q && !isNum(q.y)) miss.push(k.toUpperCase() + ' 전일 기준 없음' + (q.why ? ' — ' + q.why : '')); });
+            if (!miss.length) return;
+            var x0 = Math.max(ca.left, xs.getPixelForValue(g.lo)), x1 = Math.min(ca.right, xs.getPixelForValue(g.hi)); if (x1 - x0 < 8) return;
+            ctx.save(); ctx.beginPath(); ctx.rect(x0, ca.top, x1 - x0, ca.bottom - ca.top); ctx.clip();
+            miss.forEach(function (t, j) { ctx.fillText(t, (x0 + x1) / 2, (ca.top + ca.bottom) / 2 + (j - (miss.length - 1) / 2) * 15); });
+            ctx.restore();
+          });
           ctx.restore();
+        } };
+      }
+      var nullPlug = { id: 'prNull', afterDatasetsDraw: function (ch) {   // 선1·선2 값이 하나도 없으면 그 사실을 글자로(빈 차트를 '평온'처럼 보이게 하지 않음)
+        var ca = ch.chartArea, K = prK(), chg = prChg(); if (!ca || R[K.l1].some(isNum) || R[K.l2].some(isNum)) return;
+        if (chg && R.full.some(function (g) { return g.prev && ((g.prev.a && !isNum(g.prev.a.y)) || (g.prev.b && !isNum(g.prev.b.y))); })) return;   // 사유는 칸 안 글자(prevPlug)가 말함
+        var ctx = ch.ctx; ctx.save(); ctx.font = '12px ' + (cssv('--wb-font') || 'sans-serif'); ctx.fillStyle = cssv('--wb-muted'); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText((chg ? '선1 · 선2 변동 값 없음' : '선1 · 선2 값 없음') + ' — 이 기간 두 다리 값이 같은 시각에 함께 있었던 적이 없음(아래 다리 패널 · 다리 경고 확인)', (ca.left + ca.right) / 2, (ca.top + ca.bottom) / 2); ctx.restore();
+      } };
+      function endPlug(keys) {   // 오른쪽 끝 = 오늘 마지막 행 값(엔진 값 그대로)
+        return { id: 'prEnd', afterDatasetsDraw: function (ch) {
+          if (!R.endOk || !R.n || !ch.chartArea) return;
+          var ca = ch.chartArea, ys = ch.scales.y, ctx = ch.ctx, i = R.n - 1, it = [];
+          keys.forEach(function (k) {
+            if (k[3] && PR.hide[k[3]]) return;
+            var v = R[prK()[k[0]]][i]; if (!isNum(v)) return;
+            it.push({ y: ys.getPixelForValue(v), t: (k[2] === 'bp' || prChg()) ? fbp(v, 2) : fy(v), c: cssv(k[1]) });
+          });
+          it.sort(function (p, r) { return p.y - r.y; });
+          for (var m = 1; m < it.length; m++) if (it[m].y - it[m - 1].y < 12) it[m].y = it[m - 1].y + 12;
+          ctx.save(); ctx.font = '600 11px ' + (cssv('--wb-font') || 'sans-serif'); ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
+          it.forEach(function (o) { ctx.fillStyle = o.c; ctx.fillText(o.t, ca.right + 5, Math.max(ca.top + 6, Math.min(ca.bottom - 6, o.y))); });
+          ctx.restore();
+        } };
+      }
+      var hatch = null;
+      function hatchPat(ctx) {
+        if (hatch && hatch.col === cssv('--wb-ink')) return hatch.p;
+        var c = doc.createElement('canvas'); c.width = 6; c.height = 6; var g = c.getContext('2d');
+        g.strokeStyle = WBChart.alpha('--wb-ink', 0.75); g.lineWidth = 1.2; g.beginPath(); g.moveTo(0, 6); g.lineTo(6, 0); g.moveTo(-3, 3); g.lineTo(3, -3); g.moveTo(3, 9); g.lineTo(9, 3); g.stroke();
+        hatch = { col: cssv('--wb-ink'), p: ctx.createPattern(c, 'repeat') }; return hatch.p;
+      }
+      function bandPlug(bk, ak, fk) {   // 다리 패널 위 여백 = 출처 띠(위 칸 매수호가 · 아래 칸 매도호가) · 대체 = 빗금
+        return { id: 'prBand', afterDatasetsDraw: function (ch) {
+          var ca = ch.chartArea; if (!ca || !R.n) return;
+          var xs = ch.scales.x, ctx = ch.ctx, y0 = ca.top - 11, hh = 4;
+          ctx.save();
+          R.full.forEach(function (g) {
+            for (var i = g.i0; i <= g.i1; i++) {
+              var x0 = xs.getPixelForValue(R.x[i]), x1 = xs.getPixelForValue(i === g.i1 ? g.hi : R.x[i + 1]), w = Math.max(1, x1 - x0);
+              [[R[bk][i], y0], [R[ak][i], y0 + hh + 1]].forEach(function (p) {
+                if (!isNum(p[0]) || p[0] < 0) return;
+                ctx.fillStyle = WBChart.alpha(PR_SRC_COL[String(p[0])] || '--wb-faint', 0.9); ctx.fillRect(x0, p[1], w, hh);
+              });
+              if (R[fk][i]) { ctx.fillStyle = hatchPat(ctx); ctx.fillRect(x0, y0, w, hh * 2 + 1); }
+            }
+          });
+          ctx.restore();
+        } };
+      }
+      function edgePlug(bp) {   // 맞춤 범위 밖 행 = 가장자리 글자(개수 · 극값 · 엔진 값 그대로) — 숨기지 않고 알린다
+        return { id: 'prEdge', afterDatasetsDraw: function (ch) {
+          var o = ch.$prOut, ca = ch.chartArea; if (!o || !ca) return;
+          var ctx = ch.ctx, f = (bp || prChg()) ? function (x) { return fbp(x, 2); } : fy;
+          ctx.save(); ctx.font = '600 10px ' + (cssv('--wb-font') || 'sans-serif'); ctx.textAlign = 'right'; ctx.fillStyle = cssv('--wb-muted');
+          if (o.nHi) { ctx.textBaseline = 'top'; ctx.fillText('▲ 범위 밖 ' + o.nHi + '행 · 최고 ' + f(o.max), ca.right - 4, ca.top + 2); }
+          if (o.nLo) { ctx.textBaseline = 'bottom'; ctx.fillText('▼ 범위 밖 ' + o.nLo + '행 · 최저 ' + f(o.min), ca.right - 4, ca.bottom - 2); }
+          ctx.restore();
+        } };
+      }
+      function line(label, col, w, dash) {
+        return { type: 'line', label: label, data: [], stepped: true, borderColor: tk(col), borderWidth: w, borderDash: dash || [], pointRadius: 0, pointHoverRadius: 0, pointHitRadius: 0, spanGaps: false, fill: false };
+      }
+      var common = function (padTop) { return { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, normalized: true, events: [],
+        plugins: { legend: { display: false }, tooltip: { enabled: false } }, layout: { padding: { right: 50, top: padTop || 4 } },
+        onResize: function () { requestAnimationFrame(function () { if (!dead) drawCross(ctl.cur); }); } }; };
+      var main = new Chart(cv[0], { type: 'line', plugins: [dayPlug, zeroPlug, cutPlug, nullPlug, prevPlug(['a', 'b']), edgePlug(true), endPlug([['l1', '--wb-up', 'bp', 'l1'], ['l2', '--wb-down', 'bp', 'l2'], ['mid', '--wb-ink', 'bp', 'mid']])],
+        data: { datasets: [line(prL1(nm.a, nm.b), '--wb-up', 2.2), line(prL2(nm.a, nm.b), '--wb-down', 2.2), line('미드', '--wb-ink', 1.1, [2, 3])] },
+        options: Object.assign(common(4), { scales: { x: xScale(true), y: { afterFit: yFit, ticks: { includeBounds: false, maxTicksLimit: 8, callback: function (v) { return fbp(v, 1); } } } } }) });
+      var legY = { afterFit: yFit, ticks: { includeBounds: false, maxTicksLimit: 4, callback: function (v) { return prChg() ? fbp(v, 1) : fy(v); } } };
+      var pa = new Chart(cv[1], { type: 'line', plugins: [dayPlug, zeroPlug, cutPlug, bandPlug('abs', 'aas', 'afb'), prevPlug(['a']), edgePlug(false), endPlug([['ab', '--wb-down'], ['aa', '--wb-up']])],
+        data: { datasets: [line('A 매수호가', '--wb-down', 1.6), line('A 매도호가', '--wb-up', 1.6)] },
+        options: Object.assign(common(14), { scales: { x: xScale(false), y: Object.assign({}, legY) } }) });
+      var pb = new Chart(cv[2], { type: 'line', plugins: [dayPlug, zeroPlug, cutPlug, bandPlug('bbs', 'bas', 'bfb'), prevPlug(['b']), edgePlug(false), endPlug([['bb', '--wb-down'], ['ba', '--wb-up']])],
+        data: { datasets: [line('B 매수호가', '--wb-down', 1.6), line('B 매도호가', '--wb-up', 1.6)] },
+        options: Object.assign(common(14), { scales: { x: xScale(true), y: Object.assign({}, legY, { ticks: Object.assign({}, legY.ticks) }) } }) });
+      var charts = [main, pa, pb];
+      function caps() {
+        var n2 = prNames(), chg = prChg(), D = PR.data || {}, lg = R.full[R.full.length - 1], pv = (lg && lg.prev) || {};
+        var unit = chg ? ' 변동 bp' : ' 금리 %', more = R.multi ? ' · 지난 날은 그날 전일 기준' : '';
+        var base = function (k, leg) { return chg ? ' <span class="wb-muted">(' + esc(prPvLeg(pv[k], leg)) + ' 대비' + more + ')</span>' : ''; };
+        $(pid('CapA')).innerHTML = '<b>A ' + esc(n2.a) + '</b> 매수호가 <span class="otc-buy">━</span> · 매도호가 <span class="otc-sell">━</span>' + unit + base('a', D.a) + help('위 띠 = 출처(위 칸 매수호가 · 아래 칸 매도호가 · 빗금 = 대체) · 값은 엔진 그대로\n' + ((D.defs && D.defs.quote) || '') + (chg ? '\n' + ((D.defs && D.defs.chg) || '') : ''));
+        $(pid('CapB')).innerHTML = '<b>B ' + esc(n2.b) + '</b> 매수호가 <span class="otc-buy">━</span> · 매도호가 <span class="otc-sell">━</span>' + unit + base('b', D.b) + ((D.b && D.b.kind === 'fut') ? ' <span class="wb-muted">(선물 = 표준물 내재수익률)</span>' : '');
+      }
+      function fill() {
+        var n2 = prNames(), md = main.data.datasets, K = prK(), chg = prChg(), sf = prSuf();
+        md[0].label = prL1(n2.a, n2.b) + sf; md[1].label = prL2(n2.a, n2.b) + sf; md[2].label = '미드' + sf;
+        md[0].data = prPts(R, R[K.l1]); md[1].data = prPts(R, R[K.l2]); md[2].data = prPts(R, R[K.mid]);
+        md[0].hidden = PR.hide.l1; md[1].hidden = PR.hide.l2; md[2].hidden = PR.hide.mid;
+        pa.data.datasets[0].data = prPts(R, R[K.ab]); pa.data.datasets[1].data = prPts(R, R[K.aa]);
+        pb.data.datasets[0].data = prPts(R, R[K.bb]); pb.data.datasets[1].data = prPts(R, R[K.ba]);
+        charts.forEach(function (c) { c.options.scales.x.min = R.lo; c.options.scales.x.max = R.hi; });
+        var yr = function (c, arrs, mp) { var r = prYR(arrs, mp, chg), y = c.options.scales.y; c.$prOut = r && r.out; if (r) { y.min = r.min; y.max = r.max; } else { delete y.min; delete y.max; } };
+        var shown = []; if (!PR.hide.l1) shown.push(R[K.l1]); if (!PR.hide.l2) shown.push(R[K.l2]); if (!PR.hide.mid) shown.push(R[K.mid]);
+        var lp = chg ? 0.3 : 0.003;
+        yr(main, shown.length ? shown : [R[K.l1], R[K.l2]], 0.3); yr(pa, [R[K.ab], R[K.aa]], lp); yr(pb, [R[K.bb], R[K.ba]], lp);
+        caps();
+      }
+      function sizeOv(c, o) {
+        var dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
+        if (o.width !== Math.round(w * dpr) || o.height !== Math.round(h * dpr)) { o.width = Math.round(w * dpr); o.height = Math.round(h * dpr); o.style.width = w + 'px'; o.style.height = h + 'px'; }
+        var ctx = o.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h); return ctx;
+      }
+      function dot(ctx, x, y, col) { ctx.beginPath(); ctx.arc(x, y, 3.6, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = cssv('--wb-surface'); ctx.stroke(); }
+      function drawCross(i) {
+        if (dead) return;
+        var vals = [[['l1', '--wb-up', 'l1'], ['l2', '--wb-down', 'l2'], ['mid', '--wb-ink', 'mid']], [['ab', '--wb-down'], ['aa', '--wb-up']], [['bb', '--wb-down'], ['ba', '--wb-up']]];
+        charts.forEach(function (ch, k) {
+          var ctx = sizeOv(ch.canvas, ov[k]);
+          if (i == null || !R.n || !ch.chartArea) return;
+          var ca = ch.chartArea, x = Math.round(ch.scales.x.getPixelForValue(R.x[i])) + 0.5, ys = ch.scales.y;
+          ctx.strokeStyle = cssv('--wb-mark'); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
+          ctx.beginPath(); ctx.moveTo(x, ca.top); ctx.lineTo(x, ca.bottom); ctx.stroke(); ctx.setLineDash([]);
+          vals[k].forEach(function (s) { if (s[2] && PR.hide[s[2]]) return; var v = R[prK()[s[0]]][i]; if (isNum(v)) dot(ctx, x, ys.getPixelForValue(v), cssv(s[1])); });
         });
-        ctx.restore();
-      } };
-    }
-    var nullPlug = { id: 'prNull', afterDatasetsDraw: function (ch) {   // 선1·선2 값이 하나도 없으면 그 사실을 글자로(빈 차트를 '평온'처럼 보이게 하지 않음)
-      var ca = ch.chartArea, K = prK(), chg = prChg(); if (!ca || R[K.l1].some(isNum) || R[K.l2].some(isNum)) return;
-      if (chg && R.full.some(function (g) { return g.prev && ((g.prev.a && !isNum(g.prev.a.y)) || (g.prev.b && !isNum(g.prev.b.y))); })) return;   // 사유는 칸 안 글자(prevPlug)가 말함
-      var ctx = ch.ctx; ctx.save(); ctx.font = '12px ' + (cssv('--wb-font') || 'sans-serif'); ctx.fillStyle = cssv('--wb-muted'); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText((chg ? '선1 · 선2 변동 값 없음' : '선1 · 선2 값 없음') + ' — 이 기간 두 다리 값이 같은 시각에 함께 있었던 적이 없음(아래 다리 패널 · 다리 경고 확인)', (ca.left + ca.right) / 2, (ca.top + ca.bottom) / 2); ctx.restore();
-    } };
-    function endPlug(keys) {   // 오른쪽 끝 = 오늘 마지막 행 값(엔진 값 그대로)
-      return { id: 'prEnd', afterDatasetsDraw: function (ch) {
-        if (!R.endOk || !R.n || !ch.chartArea) return;
-        var ca = ch.chartArea, ys = ch.scales.y, ctx = ch.ctx, i = R.n - 1, it = [];
-        keys.forEach(function (k) {
-          if (k[3] && PR.hide[k[3]]) return;
-          var v = R[prK()[k[0]]][i]; if (!isNum(v)) return;
-          it.push({ y: ys.getPixelForValue(v), t: (k[2] === 'bp' || prChg()) ? fbp(v, 2) : fy(v), c: cssv(k[1]) });
+      }
+      function idxAt(ch, ev) {   // 가리킨 x → 그 시각 이전 마지막 행(as-of)
+        if (!R.n || !ch.chartArea) return null;
+        var r = ch.canvas.getBoundingClientRect(), px = ev.clientX - r.left, xs = ch.scales.x;
+        if (px < xs.left - 2 || px > xs.right + 2) return null;
+        var xv = xs.getValueForPixel(px), lo = 0, hi = R.n;
+        while (lo < hi) { var m = (lo + hi) >> 1; if (R.x[m] <= xv) lo = m + 1; else hi = m; }
+        return Math.max(0, lo - 1);
+      }
+      var raf = 0, hv = null;
+      function onMove(ev) {
+        var ch = charts[cv.indexOf(ev.currentTarget)];
+        hv = { i: idxAt(ch, ev), x: ev.clientX, y: ev.clientY };
+        if (raf) return;
+        raf = requestAnimationFrame(function () {
+          raf = 0; var h = hv; if (!h || dead) return;
+          if (h.i == null) { onLeave(); return; }
+          ctl.cur = h.i; ctl.hx = h.x; ctl.hy = h.y; drawCross(h.i); hov(prTip(R, h.i), h.x, h.y);
         });
-        it.sort(function (p, r) { return p.y - r.y; });
-        for (var m = 1; m < it.length; m++) if (it[m].y - it[m - 1].y < 12) it[m].y = it[m - 1].y + 12;
-        ctx.save(); ctx.font = '600 11px ' + (cssv('--wb-font') || 'sans-serif'); ctx.textBaseline = 'middle'; ctx.textAlign = 'left';
-        it.forEach(function (o) { ctx.fillStyle = o.c; ctx.fillText(o.t, ca.right + 5, Math.max(ca.top + 6, Math.min(ca.bottom - 6, o.y))); });
-        ctx.restore();
-      } };
+      }
+      function onLeave() { hv = null; ctl.cur = null; drawCross(null); unhov(); }
+      cv.forEach(function (c) { c.addEventListener('mousemove', onMove); c.addEventListener('mouseleave', onLeave); });
+      ctl.set = function (nr) {   // 데이터만 갈아 끼움(차트를 다시 만들지 않음) — 마우스가 올라가 있으면 십자선·툴팁도 새 값으로
+        R = nr; fill(); charts.forEach(function (c) { c.update('none'); });
+        if (ctl.cur != null && ctl.cur < R.n) { drawCross(ctl.cur); var hb = $('otcHov'); if (hb && !hb.hidden && S.hovBy === side && ctl.hx != null) hov(prTip(R, ctl.cur), ctl.hx, ctl.hy); }
+        else { ctl.cur = null; drawCross(null); }
+      };
+      ctl.redraw = function () { hatch = null; drawCross(null); };
+      ctl.destroy = function () { dead = true; hv = null; charts.forEach(function (c) { try { c.destroy(); } catch (e) { /* noop */ } }); };
+      fill(); charts.forEach(function (c) { c.update('none'); });
+      return ctl;
     }
-    var hatch = null;
-    function hatchPat(ctx) {
-      if (hatch && hatch.col === cssv('--wb-ink')) return hatch.p;
-      var c = doc.createElement('canvas'); c.width = 6; c.height = 6; var g = c.getContext('2d');
-      g.strokeStyle = WBChart.alpha('--wb-ink', 0.75); g.lineWidth = 1.2; g.beginPath(); g.moveTo(0, 6); g.lineTo(6, 0); g.moveTo(-3, 3); g.lineTo(3, -3); g.moveTo(3, 9); g.lineTo(9, 3); g.stroke();
-      hatch = { col: cssv('--wb-ink'), p: ctx.createPattern(c, 'repeat') }; return hatch.p;
+    function prTip(R, i) {   // 십자선 툴팁 — 시각 · A 매수/매도(출처) · B 매수/매도(출처) · 선1 · 선2 · 미드(엔진 값 그대로)
+      var nm = prNames(), sp = function (c) { return ' <span class="wb-muted">(' + esc(prSrcName(c)) + ')</span>'; };
+      var fb = function (v) { return v ? ' ' + tag('대체', 'rst') : ''; };
+      if (prChg()) {   // 변동 = bp 값 + 괄호로 레벨 값(엔진 값 그대로) · 그날 전일 기준
+        var pv = R.pv[R.day[i]] || {}, D = PR.data || {}, mu = function (t) { return ' <span class="wb-muted">(' + t + ')</span>'; };
+        var sd = function (cv, lv, c) { return prBp(cv) + '</span>' + mu(fy(lv) + ' · ' + esc(prSrcName(c))); };
+        return '<b>' + (R.multi ? esc(mmdd(R.day[i])) + ' ' : '') + esc(R.t[i]) + '</b> <span class="wb-muted">· 전일 대비' + (R.post[i] ? ' · 15:45 이후' : '') + '</span>' +
+          '<br>A ' + esc(nm.a) + ' 매수 <span class="otc-buy">' + sd(R.abc[i], R.ab[i], R.abs[i]) + ' · 매도 <span class="otc-sell">' + sd(R.aac[i], R.aa[i], R.aas[i]) + fb(R.afb[i]) +
+          '<br>B ' + esc(nm.b) + ' 매수 <span class="otc-buy">' + sd(R.bbc[i], R.bb[i], R.bbs[i]) + ' · 매도 <span class="otc-sell">' + sd(R.bac[i], R.ba[i], R.bas[i]) + fb(R.bfb[i]) +
+          '<br>' + esc(prL1(nm.a, nm.b)) + ' <b>' + prBp(R.l1c[i]) + '</b>' + mu('레벨 ' + prBp(R.l1[i])) +
+          '<br>' + esc(prL2(nm.a, nm.b)) + ' <b>' + prBp(R.l2c[i]) + '</b>' + mu('레벨 ' + prBp(R.l2[i])) +
+          '<br>미드 ' + prBp(R.midc[i]) + mu('레벨 ' + prBp(R.mid[i])) +
+          '<br><span class="wb-muted">전일 기준 A ' + esc(prPvLeg(pv.a, D.a)) + ' · B ' + esc(prPvLeg(pv.b, D.b)) + ' · 전일 스프레드 ' + prBp(pv.spr) + '</span>' +
+          (R.afb[i] || R.bfb[i] ? '<br><span class="wb-muted">대체 = 고른 쪽 값이 비어 다른 쪽으로 채움(엔진 fb)</span>' : '');
+      }
+      return '<b>' + (R.multi ? esc(mmdd(R.day[i])) + ' ' : '') + esc(R.t[i]) + '</b>' + (R.post[i] ? ' <span class="wb-muted">· 15:45 이후</span>' : '') +
+        '<br>A ' + esc(nm.a) + ' 매수 <span class="otc-buy">' + fy(R.ab[i]) + '</span>' + sp(R.abs[i]) + ' · 매도 <span class="otc-sell">' + fy(R.aa[i]) + '</span>' + sp(R.aas[i]) + fb(R.afb[i]) +
+        '<br>B ' + esc(nm.b) + ' 매수 <span class="otc-buy">' + fy(R.bb[i]) + '</span>' + sp(R.bbs[i]) + ' · 매도 <span class="otc-sell">' + fy(R.ba[i]) + '</span>' + sp(R.bas[i]) + fb(R.bfb[i]) +
+        '<br>' + esc(prL1(nm.a, nm.b)) + ' <b>' + prBp(R.l1[i]) + '</b>' +
+        '<br>' + esc(prL2(nm.a, nm.b)) + ' <b>' + prBp(R.l2[i]) + '</b>' +
+        '<br>미드 ' + prBp(R.mid[i]) + (R.afb[i] || R.bfb[i] ? '<br><span class="wb-muted">대체 = 고른 쪽 값이 비어 다른 쪽으로 채움(엔진 fb)</span>' : '');
     }
-    function bandPlug(bk, ak, fk) {   // 다리 패널 위 여백 = 출처 띠(위 칸 매수호가 · 아래 칸 매도호가) · 대체 = 빗금
-      return { id: 'prBand', afterDatasetsDraw: function (ch) {
-        var ca = ch.chartArea; if (!ca || !R.n) return;
-        var xs = ch.scales.x, ctx = ch.ctx, y0 = ca.top - 11, hh = 4;
-        ctx.save();
-        R.full.forEach(function (g) {
-          for (var i = g.i0; i <= g.i1; i++) {
-            var x0 = xs.getPixelForValue(R.x[i]), x1 = xs.getPixelForValue(i === g.i1 ? g.hi : R.x[i + 1]), w = Math.max(1, x1 - x0);
-            [[R[bk][i], y0], [R[ak][i], y0 + hh + 1]].forEach(function (p) {
-              if (!isNum(p[0]) || p[0] < 0) return;
-              ctx.fillStyle = WBChart.alpha(PR_SRC_COL[String(p[0])] || '--wb-faint', 0.9); ctx.fillRect(x0, p[1], w, hh);
-            });
-            if (R[fk][i]) { ctx.fillStyle = hatchPat(ctx); ctx.fillRect(x0, y0, w, hh * 2 + 1); }
-          }
-        });
-        ctx.restore();
-      } };
-    }
-    function edgePlug(bp) {   // 맞춤 범위 밖 행 = 가장자리 글자(개수 · 극값 · 엔진 값 그대로) — 숨기지 않고 알린다
-      return { id: 'prEdge', afterDatasetsDraw: function (ch) {
-        var o = ch.$prOut, ca = ch.chartArea; if (!o || !ca) return;
-        var ctx = ch.ctx, f = (bp || prChg()) ? function (x) { return fbp(x, 2); } : fy;
-        ctx.save(); ctx.font = '600 10px ' + (cssv('--wb-font') || 'sans-serif'); ctx.textAlign = 'right'; ctx.fillStyle = cssv('--wb-muted');
-        if (o.nHi) { ctx.textBaseline = 'top'; ctx.fillText('▲ 범위 밖 ' + o.nHi + '행 · 최고 ' + f(o.max), ca.right - 4, ca.top + 2); }
-        if (o.nLo) { ctx.textBaseline = 'bottom'; ctx.fillText('▼ 범위 밖 ' + o.nLo + '행 · 최저 ' + f(o.min), ca.right - 4, ca.bottom - 2); }
-        ctx.restore();
-      } };
-    }
-    function line(label, col, w, dash) {
-      return { type: 'line', label: label, data: [], stepped: true, borderColor: tk(col), borderWidth: w, borderDash: dash || [], pointRadius: 0, pointHoverRadius: 0, pointHitRadius: 0, spanGaps: false, fill: false };
-    }
-    var common = function (padTop) { return { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, normalized: true, events: [],
-      plugins: { legend: { display: false }, tooltip: { enabled: false } }, layout: { padding: { right: 50, top: padTop || 4 } },
-      onResize: function () { requestAnimationFrame(function () { drawCross(ctl.cur); }); } }; };
-    var main = new Chart(cv[0], { type: 'line', plugins: [dayPlug, zeroPlug, cutPlug, nullPlug, prevPlug(['a', 'b']), edgePlug(true), endPlug([['l1', '--wb-up', 'bp', 'l1'], ['l2', '--wb-down', 'bp', 'l2'], ['mid', '--wb-ink', 'bp', 'mid']])],
-      data: { datasets: [line(prL1(nm.a, nm.b), '--wb-up', 2.2), line(prL2(nm.a, nm.b), '--wb-down', 2.2), line('미드', '--wb-ink', 1.1, [2, 3])] },
-      options: Object.assign(common(4), { scales: { x: xScale(true), y: { afterFit: yFit, ticks: { includeBounds: false, maxTicksLimit: 8, callback: function (v) { return fbp(v, 1); } } } } }) });
-    var legY = { afterFit: yFit, ticks: { includeBounds: false, maxTicksLimit: 4, callback: function (v) { return prChg() ? fbp(v, 1) : fy(v); } } };
-    var pa = new Chart(cv[1], { type: 'line', plugins: [dayPlug, zeroPlug, cutPlug, bandPlug('abs', 'aas', 'afb'), prevPlug(['a']), edgePlug(false), endPlug([['ab', '--wb-down'], ['aa', '--wb-up']])],
-      data: { datasets: [line('A 매수호가', '--wb-down', 1.6), line('A 매도호가', '--wb-up', 1.6)] },
-      options: Object.assign(common(14), { scales: { x: xScale(false), y: Object.assign({}, legY) } }) });
-    var pb = new Chart(cv[2], { type: 'line', plugins: [dayPlug, zeroPlug, cutPlug, bandPlug('bbs', 'bas', 'bfb'), prevPlug(['b']), edgePlug(false), endPlug([['bb', '--wb-down'], ['ba', '--wb-up']])],
-      data: { datasets: [line('B 매수호가', '--wb-down', 1.6), line('B 매도호가', '--wb-up', 1.6)] },
-      options: Object.assign(common(14), { scales: { x: xScale(true), y: Object.assign({}, legY, { ticks: Object.assign({}, legY.ticks) }) } }) });
-    var charts = [main, pa, pb];
-    function caps() {
-      var n2 = prNames(), chg = prChg(), D = PR.data || {}, lg = R.full[R.full.length - 1], pv = (lg && lg.prev) || {};
-      var unit = chg ? ' 변동 bp' : ' 금리 %', more = R.multi ? ' · 지난 날은 그날 전일 기준' : '';
-      var base = function (k, leg) { return chg ? ' <span class="wb-muted">(' + esc(prPvLeg(pv[k], leg)) + ' 대비' + more + ')</span>' : ''; };
-      $('prCapA').innerHTML = '<b>A ' + esc(n2.a) + '</b> 매수호가 <span class="otc-buy">━</span> · 매도호가 <span class="otc-sell">━</span>' + unit + base('a', D.a) + help('위 띠 = 출처(위 칸 매수호가 · 아래 칸 매도호가 · 빗금 = 대체) · 값은 엔진 그대로\n' + ((D.defs && D.defs.quote) || '') + (chg ? '\n' + ((D.defs && D.defs.chg) || '') : ''));
-      $('prCapB').innerHTML = '<b>B ' + esc(n2.b) + '</b> 매수호가 <span class="otc-buy">━</span> · 매도호가 <span class="otc-sell">━</span>' + unit + base('b', D.b) + ((D.b && D.b.kind === 'fut') ? ' <span class="wb-muted">(선물 = 표준물 내재수익률)</span>' : '');
-    }
-    function fill() {
-      var n2 = prNames(), md = main.data.datasets, K = prK(), chg = prChg(), sf = prSuf();
-      md[0].label = prL1(n2.a, n2.b) + sf; md[1].label = prL2(n2.a, n2.b) + sf; md[2].label = '미드' + sf;
-      md[0].data = prPts(R, R[K.l1]); md[1].data = prPts(R, R[K.l2]); md[2].data = prPts(R, R[K.mid]);
-      md[0].hidden = PR.hide.l1; md[1].hidden = PR.hide.l2; md[2].hidden = PR.hide.mid;
-      pa.data.datasets[0].data = prPts(R, R[K.ab]); pa.data.datasets[1].data = prPts(R, R[K.aa]);
-      pb.data.datasets[0].data = prPts(R, R[K.bb]); pb.data.datasets[1].data = prPts(R, R[K.ba]);
-      charts.forEach(function (c) { c.options.scales.x.min = R.lo; c.options.scales.x.max = R.hi; });
-      var yr = function (c, arrs, mp) { var r = prYR(arrs, mp, chg), y = c.options.scales.y; c.$prOut = r && r.out; if (r) { y.min = r.min; y.max = r.max; } else { delete y.min; delete y.max; } };
-      var shown = []; if (!PR.hide.l1) shown.push(R[K.l1]); if (!PR.hide.l2) shown.push(R[K.l2]); if (!PR.hide.mid) shown.push(R[K.mid]);
-      var lp = chg ? 0.3 : 0.003;
-      yr(main, shown.length ? shown : [R[K.l1], R[K.l2]], 0.3); yr(pa, [R[K.ab], R[K.aa]], lp); yr(pb, [R[K.bb], R[K.ba]], lp);
-      caps();
-    }
-    function sizeOv(c, o) {
-      var dpr = window.devicePixelRatio || 1, w = c.clientWidth, h = c.clientHeight;
-      if (o.width !== Math.round(w * dpr) || o.height !== Math.round(h * dpr)) { o.width = Math.round(w * dpr); o.height = Math.round(h * dpr); o.style.width = w + 'px'; o.style.height = h + 'px'; }
-      var ctx = o.getContext('2d'); ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, w, h); return ctx;
-    }
-    function dot(ctx, x, y, col) { ctx.beginPath(); ctx.arc(x, y, 3.6, 0, Math.PI * 2); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = cssv('--wb-surface'); ctx.stroke(); }
-    function drawCross(i) {
-      var vals = [[['l1', '--wb-up', 'l1'], ['l2', '--wb-down', 'l2'], ['mid', '--wb-ink', 'mid']], [['ab', '--wb-down'], ['aa', '--wb-up']], [['bb', '--wb-down'], ['ba', '--wb-up']]];
-      charts.forEach(function (ch, k) {
-        var ctx = sizeOv(ch.canvas, ov[k]);
-        if (i == null || !R.n || !ch.chartArea) return;
-        var ca = ch.chartArea, x = Math.round(ch.scales.x.getPixelForValue(R.x[i])) + 0.5, ys = ch.scales.y;
-        ctx.strokeStyle = cssv('--wb-mark'); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
-        ctx.beginPath(); ctx.moveTo(x, ca.top); ctx.lineTo(x, ca.bottom); ctx.stroke(); ctx.setLineDash([]);
-        vals[k].forEach(function (s) { if (s[2] && PR.hide[s[2]]) return; var v = R[prK()[s[0]]][i]; if (isNum(v)) dot(ctx, x, ys.getPixelForValue(v), cssv(s[1])); });
-      });
-    }
-    function idxAt(ch, ev) {   // 가리킨 x → 그 시각 이전 마지막 행(as-of)
-      if (!R.n || !ch.chartArea) return null;
-      var r = ch.canvas.getBoundingClientRect(), px = ev.clientX - r.left, xs = ch.scales.x;
-      if (px < xs.left - 2 || px > xs.right + 2) return null;
-      var xv = xs.getValueForPixel(px), lo = 0, hi = R.n;
-      while (lo < hi) { var m = (lo + hi) >> 1; if (R.x[m] <= xv) lo = m + 1; else hi = m; }
-      return Math.max(0, lo - 1);
-    }
-    var raf = 0, hv = null;
-    function onMove(ev) {
-      var ch = charts[cv.indexOf(ev.currentTarget)];
-      hv = { i: idxAt(ch, ev), x: ev.clientX, y: ev.clientY };
-      if (raf) return;
-      raf = requestAnimationFrame(function () {
-        raf = 0; var h = hv; if (!h) return;
-        if (h.i == null) { onLeave(); return; }
-        ctl.cur = h.i; ctl.hx = h.x; ctl.hy = h.y; drawCross(h.i); showHov(prTip(R, h.i), h.x, h.y);
-      });
-    }
-    function onLeave() { hv = null; ctl.cur = null; drawCross(null); hideHov(); }
-    cv.forEach(function (c) { c.addEventListener('mousemove', onMove); c.addEventListener('mouseleave', onLeave); });
-    ctl.set = function (nr) {   // 데이터만 갈아 끼움(차트를 다시 만들지 않음) — 마우스가 올라가 있으면 십자선·툴팁도 새 값으로
-      R = nr; fill(); charts.forEach(function (c) { c.update('none'); });
-      if (ctl.cur != null && ctl.cur < R.n) { drawCross(ctl.cur); var hb = $('otcHov'); if (hb && !hb.hidden && ctl.hx != null) showHov(prTip(R, ctl.cur), ctl.hx, ctl.hy); }
-      else { ctl.cur = null; drawCross(null); }
-    };
-    ctl.redraw = function () { hatch = null; drawCross(null); };
-    ctl.destroy = function () { charts.forEach(function (c) { try { c.destroy(); } catch (e) { /* noop */ } }); };
-    fill(); charts.forEach(function (c) { c.update('none'); });
-    return ctl;
-  }
-  function prTip(R, i) {   // 십자선 툴팁 — 시각 · A 매수/매도(출처) · B 매수/매도(출처) · 선1 · 선2 · 미드(엔진 값 그대로)
-    var nm = prNames(), sp = function (c) { return ' <span class="wb-muted">(' + esc(prSrcName(c)) + ')</span>'; };
-    var fb = function (v) { return v ? ' ' + tag('대체', 'rst') : ''; };
-    if (prChg()) {   // 변동 = bp 값 + 괄호로 레벨 값(엔진 값 그대로) · 그날 전일 기준
-      var pv = R.pv[R.day[i]] || {}, D = PR.data || {}, mu = function (t) { return ' <span class="wb-muted">(' + t + ')</span>'; };
-      var sd = function (cv, lv, c) { return prBp(cv) + '</span>' + mu(fy(lv) + ' · ' + esc(prSrcName(c))); };
-      return '<b>' + (R.multi ? esc(mmdd(R.day[i])) + ' ' : '') + esc(R.t[i]) + '</b> <span class="wb-muted">· 전일 대비' + (R.post[i] ? ' · 15:45 이후' : '') + '</span>' +
-        '<br>A ' + esc(nm.a) + ' 매수 <span class="otc-buy">' + sd(R.abc[i], R.ab[i], R.abs[i]) + ' · 매도 <span class="otc-sell">' + sd(R.aac[i], R.aa[i], R.aas[i]) + fb(R.afb[i]) +
-        '<br>B ' + esc(nm.b) + ' 매수 <span class="otc-buy">' + sd(R.bbc[i], R.bb[i], R.bbs[i]) + ' · 매도 <span class="otc-sell">' + sd(R.bac[i], R.ba[i], R.bas[i]) + fb(R.bfb[i]) +
-        '<br>' + esc(prL1(nm.a, nm.b)) + ' <b>' + prBp(R.l1c[i]) + '</b>' + mu('레벨 ' + prBp(R.l1[i])) +
-        '<br>' + esc(prL2(nm.a, nm.b)) + ' <b>' + prBp(R.l2c[i]) + '</b>' + mu('레벨 ' + prBp(R.l2[i])) +
-        '<br>미드 ' + prBp(R.midc[i]) + mu('레벨 ' + prBp(R.mid[i])) +
-        '<br><span class="wb-muted">전일 기준 A ' + esc(prPvLeg(pv.a, D.a)) + ' · B ' + esc(prPvLeg(pv.b, D.b)) + ' · 전일 스프레드 ' + prBp(pv.spr) + '</span>' +
-        (R.afb[i] || R.bfb[i] ? '<br><span class="wb-muted">대체 = 고른 쪽 값이 비어 다른 쪽으로 채움(엔진 fb)</span>' : '');
-    }
-    return '<b>' + (R.multi ? esc(mmdd(R.day[i])) + ' ' : '') + esc(R.t[i]) + '</b>' + (R.post[i] ? ' <span class="wb-muted">· 15:45 이후</span>' : '') +
-      '<br>A ' + esc(nm.a) + ' 매수 <span class="otc-buy">' + fy(R.ab[i]) + '</span>' + sp(R.abs[i]) + ' · 매도 <span class="otc-sell">' + fy(R.aa[i]) + '</span>' + sp(R.aas[i]) + fb(R.afb[i]) +
-      '<br>B ' + esc(nm.b) + ' 매수 <span class="otc-buy">' + fy(R.bb[i]) + '</span>' + sp(R.bbs[i]) + ' · 매도 <span class="otc-sell">' + fy(R.ba[i]) + '</span>' + sp(R.bas[i]) + fb(R.bfb[i]) +
-      '<br>' + esc(prL1(nm.a, nm.b)) + ' <b>' + prBp(R.l1[i]) + '</b>' +
-      '<br>' + esc(prL2(nm.a, nm.b)) + ' <b>' + prBp(R.l2[i]) + '</b>' +
-      '<br>미드 ' + prBp(R.mid[i]) + (R.afb[i] || R.bfb[i] ? '<br><span class="wb-muted">대체 = 고른 쪽 값이 비어 다른 쪽으로 채움(엔진 fb)</span>' : '');
-  }
-  function prChart() {
-    var d = PR.data, host = $('prChart');
-    if (!d || !d.ok) { prKill(); PR.R = null; host.innerHTML = '<div class="otc-bo-ph" style="height:200px">' + esc((d && d.why) || 'A 다리에 종목 별칭을 넣으세요(예: 26-3) — B 기본 = 3선 · 종목−종목도 됨') + '</div>'; return; }
-    var R = PR.R = prSeries(d);
-    if (!R.n) {
+    function prChart() {
+      var d = PR.data, host = E('Chart');
+      if (!d || !d.ok) { prKill(); PR.R = null; host.innerHTML = '<div class="otc-bo-ph" style="height:200px">' + esc((d && d.why) || 'A 다리에 종목 별칭을 넣으세요(예: 26-3) — B 기본 = 3선 · 종목−종목도 됨') + '</div>'; return; }
+      var R = PR.R = prSeries(d);
+      if (!R.n) {
+        prKill();
+        host.innerHTML = '<div class="otc-bo-ph" style="height:200px">이 기간 두 다리 모두 행이 없습니다' + (d.a && d.a.warn ? ' — A: ' + esc(d.a.warn) : '') + (d.b && d.b.warn ? ' — B: ' + esc(d.b.warn) : '') + '</div>';
+        return;
+      }
+      if (PR.ctl && PR.ctl.axis === PR.axis && host.querySelector('.otc-ev-box')) { PR.ctl.set(R); return; }
       prKill();
-      host.innerHTML = '<div class="otc-bo-ph" style="height:200px">이 기간 두 다리 모두 행이 없습니다' + (d.a && d.a.warn ? ' — A: ' + esc(d.a.warn) : '') + (d.b && d.b.warn ? ' — B: ' + esc(d.b.warn) : '') + '</div>';
-      return;
+      PR.ctl = prMake(host, R);
     }
-    if (PR.ctl && PR.ctl.axis === PR.axis && host.querySelector('.otc-ev-box')) { PR.ctl.set(R); return; }
-    prKill();
-    PR.ctl = prMake(host, R);
+    function prRender() { prHead(); prChart(); prSyncBar(); prStatus(); }
+    function prApply(d, path) {
+      PR.last = d;
+      if (d.same) { prExch(); return; }   // 같음 = 상태(엑셀 · 확인 시각)만
+      if (d.ok === false || d.full !== false || !PR.data || !PR.data.ok || PR.cpath !== path) PR.data = d;
+      else { var bl = (PR.data.blocks || []).slice(); mergeBlocks(bl, d.blocks); PR.data = Object.assign({}, d, { blocks: bl }); }   // 오늘 블록만 교체
+      if (Array.isArray(d.day_choices) && d.day_choices.length) PR.choices = d.day_choices;
+      if (Array.isArray(d.fut_choices) && d.fut_choices.length) PRS.fut = d.fut_choices;
+      PR.cursor = d.cursor; PR.cpath = path;
+      prList(); prRender();
+    }
+    function prFetch(user) {   // user = 사람이 바꾼 것 → 바로 · 아니면 3초 주기(진행 중 · 탭 가림 · 끔 · 닫힌 패널이면 건너뜀)
+      if (!S.on || S.view !== 'spread' || !PR.open) return;
+      if (!PR.a) { PR.data = null; PR.cpath = ''; prRender(); return; }
+      if (!user && (PR.inflight || doc.hidden || !PR.auto)) return;
+      var path = prPath(), gen = PR.gen, since = (PR.data && PR.cpath === path) ? PR.cursor : '';
+      var live = function () { return gen === PR.gen && PR.open && path === prPath(); };   // 이 패널 · 이 세대 · 이 경로의 응답만 반영
+      PR.inflight++; prStatus();
+      pget(path, since).then(function (d) {
+        if (!live()) return;                                                 // 그 사이 다리·기간·모드가 바뀌었거나 패널을 닫음 → 버림
+        if (!d.same && d.full === false && !(PR.data && PR.data.ok && PR.cpath === path)) { PR.cursor = ''; PR.cpath = ''; setTimeout(function () { prFetch(true); }, 0); return; }
+        if (d.same && !(PR.data && PR.cpath === path)) return;              // 옛 cursor 로 온 same — 다음 주기에 전체
+        PR.fails = 0; PR.err = '';
+        prApply(d, path);
+      }).catch(function (e) {
+        if (keyErr(e) || !live()) return;
+        PR.fails++; PR.err = emsg(e);
+        if (!PR.data || PR.cpath !== path) E('Chart').innerHTML = '<div class="otc-bo-ph" style="height:200px"><span class="wb-error">불러오기 실패 — ' + esc(emsg(e)) + ' · 다시 시도 중</span></div>';
+      }).then(function () { PR.inflight = Math.max(0, PR.inflight - 1); if (PR.open) { prStatus(); prSyncBar(); } });
+    }
+    function prStart() { prStop(); if (PR.auto && PR.open) PR.timer = setInterval(function () { prFetch(false); }, PR_MS); }
+    function prStop() { if (PR.timer) { clearInterval(PR.timer); PR.timer = 0; } }
+    function prChanged() { PR.gen++; prSave(); prStamp(); prSyncBar(); prFetch(true); }
+    function prSetLeg(k, val) {
+      val = String(val || '').trim();
+      if (val === PR[k]) return;
+      PR[k] = val; prChanged();
+    }
+    function enter(p) {   // 주소 해시(p · 이 패널 접두사 키) → 상태 · 없으면 저장값 그대로
+      var pre = PR_HP[side], g = function (k) { return p ? p.get(pre + k) : null; };
+      var qa = g('a'), qb = g('b'), qd = +g('days');
+      if (qa) PR.a = String(qa).trim();
+      if (qb) PR.b = String(qb).trim();
+      if (qd && PR.choices.indexOf(qd) >= 0) PR.days = qd;
+      if (p && (g('ma') || g('mb') || qa)) { PR.ma = prMode(g('ma')); PR.mb = prMode(g('mb')); }   // 주소에 다리가 있으면 모드도 주소 기준(없으면 자동)
+      if (p && (g('v') || qa)) PR.val = g('v') === 'chg' ? 'chg' : 'lvl';                          // 레벨/변동도 같은 규칙(없으면 레벨)
+      PR.open = true; root.hidden = false;
+      prSave(); prSyncBar(); prStatus();
+      if (PR.data && PR.cpath === prPath()) prRender();
+      prFetch(true); prStart();
+    }
+    function close() {   // 오른쪽 닫기 = 폴링 멈춤 · 진행 중 응답 버림(gen) · 차트 해제 · 데이터 비움(다시 열면 새로 전체)
+      PR.open = false; PR.gen++; prStop(); unhov(); prKill();
+      PR.R = null; PR.data = null; PR.last = null; PR.cursor = ''; PR.cpath = ''; PR.fails = 0; PR.err = '';
+      E('Chart').innerHTML = ''; E('Head').innerHTML = ''; root.hidden = true;
+    }
+    // 입력 — 전부 이 패널 요소에만 붙는다(다른 패널에 영향 0)
+    ['a', 'b'].forEach(function (k) {
+      var inp = E(k.toUpperCase());
+      inp.addEventListener('change', function () { prSetLeg(k, inp.value); });
+      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); prSetLeg(k, inp.value); } });
+    });
+    E('Swap').addEventListener('click', function () { var t = PR.a; PR.a = PR.b; PR.b = t; var m = PR.ma; PR.ma = PR.mb; PR.mb = m; prChanged(); });   // 출처 모드도 다리와 함께
+    E('Days').addEventListener('click', function (e) { var b = e.target.closest('button[data-prdays]'); if (!b) return; var n = +b.getAttribute('data-prdays'); if (n === PR.days) return; PR.days = n; prChanged(); });
+    ['A', 'B'].forEach(function (K) {
+      E('Mode' + K).addEventListener('click', function (e) {
+        var b = e.target.closest('button[data-prmode]'); if (!b || b.disabled) return;
+        var k = K === 'A' ? 'ma' : 'mb', v = prMode(b.getAttribute('data-v')); if (v === PR[k]) return; PR[k] = v; prChanged();
+      });
+    });
+    E('Axis').addEventListener('click', function (e) { var b = e.target.closest('button[data-praxis]'); if (!b) return; var v = b.getAttribute('data-praxis') === 'ev' ? 'ev' : 'time'; if (v === PR.axis) return; PR.axis = v; prSave(); prSyncBar(); unhov(); prKill(); prChart(); });
+    E('Val').addEventListener('click', function (e) {   // 레벨 / 변동 — 다시 부르지 않고 이미 받은 배열만 바꿔 그림(폴링·cursor 그대로)
+      var b = e.target.closest('button[data-prval]'); if (!b) return; var v = b.getAttribute('data-prval') === 'chg' ? 'chg' : 'lvl'; if (v === PR.val) return;
+      PR.val = v; prSave(); prStamp(); prSyncBar(); unhov(); prHead(); if (PR.ctl && PR.R) PR.ctl.set(PR.R);
+    });
+    E('Yfit').addEventListener('click', function (e) { var b = e.target.closest('button[data-pryfit]'); if (!b) return; var v = b.getAttribute('data-pryfit') === 'all' ? 'all' : 'fit'; if (v === PR.yfit) return; PR.yfit = v; prSave(); prSyncBar(); if (PR.ctl && PR.R) PR.ctl.set(PR.R); });
+    E('Auto').addEventListener('click', function () { PR.auto = !PR.auto; prSave(); prSyncBar(); if (PR.auto) { prFetch(true); prStart(); } else prStop(); prStatus(); });
+    E('Legend').addEventListener('click', function (e) {
+      var b = e.target.closest('button[data-prline]'); if (!b) return;
+      var k = b.getAttribute('data-prline'); PR.hide[k] = !PR.hide[k]; prSave(); b.setAttribute('aria-pressed', PR.hide[k] ? 'false' : 'true');
+      if (PR.ctl && PR.R) PR.ctl.set(PR.R);
+    });
+    if (E('Close')) E('Close').addEventListener('click', function () { prSetN(1); });
+    return { side: side, st: PR, root: root, enter: enter, close: close, stop: prStop, fetch: prFetch, hash: prHash,
+      isOpen: function () { return PR.open; }, redraw: function () { if (PR.ctl) PR.ctl.redraw(); } };
   }
-  function prRender() { prHead(); prChart(); prSyncBar(); prStatus(); }
-  function prApply(d, path) {
-    PR.last = d;
-    if (d.same) { prExch(); return; }   // 같음 = 상태(엑셀 · 확인 시각)만
-    if (d.ok === false || d.full !== false || !PR.data || !PR.data.ok || PR.cpath !== path) PR.data = d;
-    else { var bl = (PR.data.blocks || []).slice(); mergeBlocks(bl, d.blocks); PR.data = Object.assign({}, d, { blocks: bl }); }   // 오늘 블록만 교체
-    if (Array.isArray(d.day_choices) && d.day_choices.length) PR.choices = d.day_choices;
-    if (Array.isArray(d.fut_choices) && d.fut_choices.length) PR.fut = d.fut_choices;
-    PR.cursor = d.cursor; PR.cpath = path;
-    prList(); prRender();
+
+  // ── 패널 관리(1개 | 2개) — 왼쪽은 늘 열림 · 오른쪽은 2개일 때만(닫으면 폴링 멈춤) ──
+  function prStamp() {   // 주소 해시 = 왼쪽 키(기존 형식) + 2개면 n=2 · 오른쪽 r 접두사 키
+    if (S.view !== 'spread' || !PRS.P.L) return;
+    var o = PRS.P.L.hash(); if (PRS.n === 2) { o.n = 2; Object.assign(o, PRS.P.R.hash()); }
+    stamp('spread', o);
   }
-  function prFetch(user) {   // user = 사람이 바꾼 것 → 바로 · 아니면 3초 주기(진행 중 · 탭 가림 · 끔이면 건너뜀)
-    if (!S.on || S.view !== 'spread') return;
-    if (!PR.a) { PR.data = null; PR.cpath = ''; prRender(); return; }
-    if (!user && (PR.inflight || doc.hidden || !PR.auto)) return;
-    var path = prPath(), since = (PR.data && PR.cpath === path) ? PR.cursor : '';
-    PR.inflight++; prStatus();
-    pget(path, since).then(function (d) {
-      if (path !== prPath()) return;                                       // 그 사이 다리·기간·모드가 바뀜 → 버림
-      if (!d.same && d.full === false && !(PR.data && PR.data.ok && PR.cpath === path)) { PR.cursor = ''; PR.cpath = ''; setTimeout(function () { prFetch(true); }, 0); return; }
-      if (d.same && !(PR.data && PR.cpath === path)) return;              // 옛 cursor 로 온 same — 다음 주기에 전체
-      PR.fails = 0; PR.err = '';
-      prApply(d, path);
-    }).catch(function (e) {
-      if (keyErr(e)) return;
-      PR.fails++; PR.err = emsg(e);
-      if (!PR.data || PR.cpath !== path) $('prChart').innerHTML = '<div class="otc-bo-ph" style="height:200px"><span class="wb-error">불러오기 실패 — ' + esc(emsg(e)) + ' · 다시 시도 중</span></div>';
-    }).then(function () { PR.inflight = Math.max(0, PR.inflight - 1); prStatus(); prSyncBar(); });
+  function prLaySync() {
+    var two = PRS.n === 2;
+    $('prWrap').classList.toggle('is-two', two);
+    Array.prototype.forEach.call($('prN').children, function (b) { var on = +b.getAttribute('data-prn') === PRS.n; b.classList.toggle('is-active', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); });
+    PRS.P.R.root.hidden = !two;
   }
-  function prStart() { prStop(); if (PR.auto) PR.timer = setInterval(function () { prFetch(false); }, PR_MS); }
-  function prStop() { if (PR.timer) { clearInterval(PR.timer); PR.timer = 0; } }
-  function prChanged() { prSave(); prStampHash(); prSyncBar(); prFetch(true); }
+  function prSetN(n) {
+    n = n === 2 ? 2 : 1; if (n === PRS.n) return;
+    PRS.n = n; try { localStorage.setItem(PR_LS_N, String(n)); } catch (e) { /* noop */ }
+    prLaySync();
+    if (n === 2) PRS.P.R.enter(null); else PRS.P.R.close();
+    prStamp();
+  }
+  function prBuild() {   // 왼쪽 = index.html 패널 그대로 · 오른쪽 = 그리기 전 왼쪽 틀 복제(id 는 prNew 가 data-k 로 접두사 붙임)
+    var L = $('prPaneL'), R = L.cloneNode(true);
+    Array.prototype.forEach.call(R.querySelectorAll('[data-wb-sentinel]'), function (s) { s.remove(); });   // shell 의 sticky 감시 표식은 왼쪽 것
+    R.id = 'prPaneR'; R.setAttribute('data-side', 'R'); R.setAttribute('aria-label', '오른쪽 패널'); R.hidden = true;
+    var x = L.querySelector('.otc-pr-x'); if (x) x.remove();   // 닫기(×) = 오른쪽에만
+    L.parentNode.appendChild(R);
+    PRS.P.L = prNew('L', L); PRS.P.R = prNew('R', R);
+    $('prN').addEventListener('click', function (e) { var b = e.target.closest('button[data-prn]'); if (b) prSetN(+b.getAttribute('data-prn')); });
+  }
+  function prEach(fn) { ['L', 'R'].forEach(function (s) { if (PRS.P[s]) fn(PRS.P[s]); }); }
+  function prStopAll() { prEach(function (P) { P.stop(); }); }
+  function prFetchAll() { prEach(function (P) { P.fetch(false); }); }   // 닫힌 패널은 fetch 안에서 건너뜀
+  function prRedrawAll() { prEach(function (P) { P.redraw(); }); }
+  function prLeave() { prStopAll(); hideHov(); }
   function pairEnter(p) {
-    var qa = p && p.get('a'), qb = p && p.get('b'), qd = p && +p.get('days');
-    if (qa) PR.a = String(qa).trim();
-    if (qb) PR.b = String(qb).trim();
-    if (qd && PR.choices.indexOf(qd) >= 0) PR.days = qd;
-    if (p && (p.get('ma') || p.get('mb') || qa)) { PR.ma = prMode(p.get('ma')); PR.mb = prMode(p.get('mb')); }   // 주소에 다리가 있으면 모드도 주소 기준(없으면 자동)
-    if (p && (p.get('v') || qa)) PR.val = p.get('v') === 'chg' ? 'chg' : 'lvl';                                     // 레벨/변동도 같은 규칙(없으면 레벨)
-    prSave(); prList(); prSyncBar(); prStatus();
-    if (PR.data && PR.cpath === prPath()) prRender();
-    prFetch(true); prStart(); prStampHash();
-  }
-  function prLeave() { prStop(); hideHov(); }
-  function prSetLeg(k, val) {
-    val = String(val || '').trim();
-    if (val === PR[k]) return;
-    PR[k] = val; prChanged();
+    if (p && (p.get('a') || p.get('n') || p.get('ra'))) PRS.n = (p.get('n') === '2' || (!p.get('n') && p.get('ra'))) ? 2 : 1;   // 주소에 상태가 있으면 패널 수도 주소 기준(n 없는 옛 주소 = 1개)
+    try { localStorage.setItem(PR_LS_N, String(PRS.n)); } catch (e) { /* noop */ }
+    prList(); prLaySync();
+    PRS.P.L.enter(p);
+    if (PRS.n === 2) PRS.P.R.enter(p); else PRS.P.R.close();
+    prStamp();
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -3041,7 +3141,8 @@
   }
 
   // ══ 떠 있는 툴팁(지도) ═════════════════════════════════════════════════
-  function showHov(html, cx, cy) {
+  function showHov(html, cx, cy, by) {   // by = 툴팁 주인(종목 스프레드 패널 'L'/'R' · 그 밖 = 없음)
+    S.hovBy = by || '';
     var el = $('otcHov'); el.innerHTML = html; el.hidden = false;
     var w = el.offsetWidth, h = el.offsetHeight, vw = doc.documentElement.clientWidth, vh = window.innerHeight;
     var x = cx + 14, y = cy + 14;
@@ -3049,7 +3150,7 @@
     if (y + h > vh - 8) y = cy - h - 14;
     el.style.left = Math.max(8, x) + 'px'; el.style.top = Math.max(8, y) + 'px';
   }
-  function hideHov() { var el = $('otcHov'); if (el) el.hidden = true; }
+  function hideHov() { S.hovBy = ''; var el = $('otcHov'); if (el) el.hidden = true; }
 
   // ══ 이벤트 ═════════════════════════════════════════════════════════════
   function onEnter(id, fn) { var el = $(id); if (el) el.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); fn(); } }); }
@@ -3086,33 +3187,9 @@
     });
     $('boDrawer').addEventListener('click', spNav);
     doc.addEventListener('keydown', function (e) { if (e.key === 'Escape' && panesOpen().length && S.view === 'board') boClose(); });   // Esc = 마지막에 연 칸부터
-    doc.addEventListener('visibilitychange', function () { if (!doc.hidden) { boFetch(false); prFetch(false); } });   // 탭으로 돌아오면 바로 한 번
-    // (0b) 종목 스프레드
-    ['a', 'b'].forEach(function (k) {
-      var inp = $('pr' + k.toUpperCase());
-      inp.addEventListener('change', function () { prSetLeg(k, inp.value); });
-      inp.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); inp.blur(); prSetLeg(k, inp.value); } });
-    });
-    $('prSwap').addEventListener('click', function () { var t = PR.a; PR.a = PR.b; PR.b = t; var m = PR.ma; PR.ma = PR.mb; PR.mb = m; prChanged(); });   // 출처 모드도 다리와 함께
-    $('prDays').addEventListener('click', function (e) { var b = e.target.closest('button[data-prdays]'); if (!b) return; var n = +b.getAttribute('data-prdays'); if (n === PR.days) return; PR.days = n; prChanged(); });
-    ['A', 'B'].forEach(function (K) {
-      $('prMode' + K).addEventListener('click', function (e) {
-        var b = e.target.closest('button[data-prmode]'); if (!b || b.disabled) return;
-        var k = K === 'A' ? 'ma' : 'mb', v = prMode(b.getAttribute('data-v')); if (v === PR[k]) return; PR[k] = v; prChanged();
-      });
-    });
-    $('prAxis').addEventListener('click', function (e) { var b = e.target.closest('button[data-praxis]'); if (!b) return; var v = b.getAttribute('data-praxis') === 'ev' ? 'ev' : 'time'; if (v === PR.axis) return; PR.axis = v; prSave(); prSyncBar(); hideHov(); prKill(); prChart(); });
-    $('prVal').addEventListener('click', function (e) {   // 레벨 / 변동 — 다시 부르지 않고 이미 받은 배열만 바꿔 그림(폴링·cursor 그대로)
-      var b = e.target.closest('button[data-prval]'); if (!b) return; var v = b.getAttribute('data-prval') === 'chg' ? 'chg' : 'lvl'; if (v === PR.val) return;
-      PR.val = v; prSave(); prStampHash(); prSyncBar(); hideHov(); prHead(); if (PR.ctl && PR.R) PR.ctl.set(PR.R);
-    });
-    $('prYfit').addEventListener('click', function (e) { var b = e.target.closest('button[data-pryfit]'); if (!b) return; var v = b.getAttribute('data-pryfit') === 'all' ? 'all' : 'fit'; if (v === PR.yfit) return; PR.yfit = v; prSave(); prSyncBar(); if (PR.ctl && PR.R) PR.ctl.set(PR.R); });
-    $('prAuto').addEventListener('click', function () { PR.auto = !PR.auto; prSave(); prSyncBar(); if (PR.auto) { prFetch(true); prStart(); } else prStop(); prStatus(); });
-    $('prLegend').addEventListener('click', function (e) {
-      var b = e.target.closest('button[data-prline]'); if (!b) return;
-      var k = b.getAttribute('data-prline'); PR.hide[k] = !PR.hide[k]; prSave(); b.setAttribute('aria-pressed', PR.hide[k] ? 'false' : 'true');
-      if (PR.ctl && PR.R) PR.ctl.set(PR.R);
-    });
+    doc.addEventListener('visibilitychange', function () { if (!doc.hidden) { boFetch(false); prFetchAll(); } });   // 탭으로 돌아오면 바로 한 번
+    // (0b) 종목 스프레드 — 패널 두 개 틀 + 패널마다 입력 묶기(prNew 안)
+    prBuild();
     // (A)
     $('bdLoad').addEventListener('click', function () { bondFromBar(true); });
     $('bdLatest').addEventListener('click', function () { $('bdDate').value = (S.meta && S.meta.latest) || ''; bondFromBar(true, ''); });
@@ -3153,7 +3230,7 @@
       var wb = e.target.closest && e.target.closest('[data-evwin]');
       if (wb) { var t = S.ev.tb; if (!t) return; var k = +wb.getAttribute('data-evwin'); S.team.evWin = k; t.setWindow(k ? t.dayLo(k) : 0, t.src.n - 1); }
     });
-    doc.addEventListener('wb-themechange', function () { if (S.view === 'team' && S.team.sec === 'map') drawMap(); Object.keys(S.ev).forEach(function (k) { S.ev[k].redraw(); }); if (PR.ctl) PR.ctl.redraw(); });
+    doc.addEventListener('wb-themechange', function () { if (S.view === 'team' && S.team.sec === 'map') drawMap(); Object.keys(S.ev).forEach(function (k) { S.ev[k].redraw(); }); prRedrawAll(); });
     var rt = null;
     window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { if (S.view === 'team' && S.team.sec === 'map') drawMap(); if (S.view === 'board') { boFit(); boResize(); panesOpen().forEach(function (p) { if (p.data) spRender(p); }); } }, 200); }, { passive: true });
   }
