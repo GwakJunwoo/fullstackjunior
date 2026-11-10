@@ -1561,11 +1561,14 @@
       };
       var bp = function (v) { return isNum(v) ? fbp(v, 2) + '<small>bp</small>' : '<span class="wb-muted">–</span>'; };
       var blk = function (lab, col, v, cv, tip, ttl) {   // 늘 레벨(엔진 값 그대로) · 옆에 작게 전일 대비
+        // 변동 모드면 '큰 = 전일 대비 · 작은 = 레벨' 판(otc-pr-tv--chg)도 함께 그려 둔다 — 좌우 반쪽 폭에서만 CSS 가 이 판을 보이고 큰 선1/선2 카드를 숨김(머리 높이 = 레벨 모드와 같음 · 숫자 같음 · 배치만)
+        var two = chg && cv !== undefined;
         return '<div class="otc-pr-tb"' + (ttl ? ' title="' + esc(ttl) + '"' : '') + '><div class="otc-pr-tl">' + (col ? '<i class="otc-pr-sw" style="background:var(' + col + ')"></i>' : '') + esc(lab) + help(tip) + '</div>' +
-          '<div class="otc-pr-tv">' + bp(v) + (cv !== undefined ? '<span class="otc-pr-tc">전일 대비 <b>' + (isNum(cv) ? fbp(cv, 2) : '–') + '</b></span>' : '') + '</div></div>';
+          '<div class="otc-pr-tv' + (two ? ' otc-pr-tv--lvl' : '') + '">' + bp(v) + (cv !== undefined ? '<span class="otc-pr-tc">전일 대비 <b>' + (isNum(cv) ? fbp(cv, 2) : '–') + '</b></span>' : '') + '</div>' +
+          (two ? '<div class="otc-pr-tv otc-pr-tv--chg">' + bp(cv) + '<span class="otc-pr-tc">전일 대비 · 레벨 <b>' + (isNum(v) ? fbp(v, 2) : '–') + '</b></span></div>' : '') + '</div>';
       };
       var pvTip = '전일 스프레드 = A 전일 − B 전일(bp · 엔진 prev.spr)\nA ' + nm.a + ' ' + prPvLeg(pa, d.a) + '\nB ' + nm.b + ' ' + prPvLeg(pb, d.b);
-      host.innerHTML = '<div class="otc-pr-top">' +
+      host.innerHTML = '<div class="otc-pr-top' + (chg ? ' is-chg' : '') + '">' +
         (chg ? '<div class="otc-pr-bigs"><div class="otc-pr-bigrow">' +
           big(prL1(nm.a, nm.b) + sf, L && L.l1_chg, '--wb-up', (defs.l1 || '') + '\n' + (defs.chg || '')) +
           big(prL2(nm.a, nm.b) + sf, L && L.l2_chg, '--wb-down', (defs.l2 || '') + '\n' + (defs.chg || '')) + '</div></div>' : '') +
@@ -1582,14 +1585,15 @@
       E('Legend').innerHTML = prLegend(defs, nm);
       E('Limits').textContent = defs.limits || '';
     }
-    function prLegend(defs, nm) {
-      var lb = function (k, txt, sty, tip) { return '<button type="button" class="otc-pr-lgb" data-prline="' + k + '" aria-pressed="' + (PR.hide[k] ? 'false' : 'true') + '" title="누르면 켜고 끔">' + '<i class="ln' + sty + '"></i>' + esc(txt) + '</button>' + help(tip); };
+    function prLegend(defs, nm) {   // 1개 화면 = 전과 같은 한 덩어리 · 좌우 반쪽 폭 = CSS 가 두 줄 고정(1줄 = 선 · 2줄 = 15:45 · 출처 띠 — otc-pr-lgbr) · 선 이름의 '(전일 대비)' 는 반쪽 폭에선 한 번만(0선 항목 앞)
+      var lb = function (k, txt, sty, tip) { return '<button type="button" class="otc-pr-lgb" data-prline="' + k + '" aria-pressed="' + (PR.hide[k] ? 'false' : 'true') + '" title="누르면 켜고 끔">' + '<i class="ln' + sty + '"></i>' + esc(txt) + (prSuf() ? '<span class="otc-pr-sf">' + esc(prSuf()) + '</span>' : '') + '</button>' + help(tip); };
       var codes = (PR.data && PR.data.src_codes) || {}, hasCut = ((PR.data && PR.data.blocks) || []).some(function (b) { return b.n && b.cut_i != null; });
       return '<span class="otc-leg">' +
-        '<span>' + lb('l1', prL1(nm.a, nm.b) + prSuf(), '" style="border-color:var(--wb-up)', defs.l1 || '') + '</span>' +
-        '<span>' + lb('l2', prL2(nm.a, nm.b) + prSuf(), '" style="border-color:var(--wb-down)', defs.l2 || '') + '</span>' +
-        '<span>' + lb('mid', '미드' + prSuf(), ' dot" style="border-color:var(--wb-ink)', defs.mid || '') + '</span>' +
-        (prChg() ? '<span><i class="ln" style="border-color:var(--wb-muted);border-top-width:3px"></i>0 = 전일과 같음</span>' : '') +
+        '<span>' + lb('l1', prL1(nm.a, nm.b), '" style="border-color:var(--wb-up)', defs.l1 || '') + '</span>' +
+        '<span>' + lb('l2', prL2(nm.a, nm.b), '" style="border-color:var(--wb-down)', defs.l2 || '') + '</span>' +
+        '<span>' + lb('mid', '미드', ' dot" style="border-color:var(--wb-ink)', defs.mid || '') + '</span>' +
+        (prChg() ? '<span><i class="ln" style="border-color:var(--wb-muted);border-top-width:3px"></i><span class="otc-pr-sf2">전일 대비 · </span>0 = 전일과 같음</span>' : '') +
+        '<i class="otc-pr-lgbr" aria-hidden="true"></i>' +
         (hasCut ? '<span><i class="otc-pr-cutl"></i>' + esc(PR_CUT_LAB) + help('세로 점선 = 그 날 15:45 이후 첫 행(엔진 cut_i)\n' + (defs.rule || '')) + '</span>' : '') +
         '<span>출처 띠' + Object.keys(codes).map(function (c) { return ' <i class="otc-pr-band" style="background:var(' + (PR_SRC_COL[c] || '--wb-faint') + ')"></i>' + esc(codes[c]); }).join('') +
           ' <i class="otc-pr-band is-fb"></i>대체' + help((defs.src || '') + '\n띠 위 칸 = 매수호가 출처 · 아래 칸 = 매도호가 출처\n빗금 = 대체(고른 쪽 값이 비어 다른 쪽으로 채움 · 엔진 fb)') + '</span>' +

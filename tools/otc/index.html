@@ -324,6 +324,8 @@
     .otc-pr-band.is-fb { background: repeating-linear-gradient(135deg, var(--wb-ink) 0 1.5px, transparent 1.5px 4px); border: 1px solid var(--wb-rule-strong); }
     .otc-pr-chart .otc-cap { margin-top: 8px; }
     .otc-pr-valw { display: inline-flex; align-items: center; gap: 4px; }
+    .otc-pr-tv--chg { display: none; }   /* 변동 모드 판 — 좌우 반쪽 폭에서만 보임(아래 media) */
+    .otc-pr-sf2, .otc-pr-lgbr { display: none; }   /* 반쪽 폭 전용 범례 조각(1개 화면 = 전과 같음) */
     /* 패널 1개 | 2개(사용자 2026-11-10 — 왼쪽 L / 오른쪽 R · 1200px 미만 = 위아래) · 1개일 때는 전과 같은 모양 */
     .otc-pr-lay { display: flex; align-items: center; gap: 8px; margin: 0 0 var(--wb-s2); }
     .otc-pr-lay .wb-seg > * { height: 26px; padding: 0 10px; font-size: 12px; }
@@ -352,6 +354,34 @@
       .otc-pr-wrap.is-two .otc-pr-tc { font-size: 11px; }
       .otc-pr-wrap.is-two .otc-pr-qline { gap: 2px 12px; }
       .otc-pr-wrap.is-two .wb-card-head .wb-card-meta .otc-leg { gap: 2px 8px; }
+      /* 변동 모드: 큰 선1/선2 카드를 3숫자 블록 안으로(큰 = 전일 대비 · 작은 = 레벨 · 숫자는 같은 엔진 값) → 머리 높이 = 레벨 모드 */
+      .otc-pr-wrap.is-two .otc-pr-top.is-chg .otc-pr-bigs { display: none; }
+      .otc-pr-wrap.is-two .otc-pr-top.is-chg .otc-pr-tv--lvl { display: none; }
+      .otc-pr-wrap.is-two .otc-pr-top.is-chg .otc-pr-tv--chg { display: flex; }
+      /* 좌우 행 맞춤(subgrid): 필터 바 · 카드 머리 · 머리 블록 · 차트 본문 4행을 두 패널이 같이 씀 → 글 줄바꿈이 달라도 차트 윗선 같음 */
+      .otc-pr-wrap.is-two { grid-template-rows: repeat(4, auto); row-gap: 0; }
+      .otc-pr-wrap.is-two > .otc-pr-pane { display: grid; grid-row: 1 / span 4; grid-template-rows: subgrid; }
+      .otc-pr-wrap.is-two > .otc-pr-pane > * { grid-column: 1; }
+      .otc-pr-wrap.is-two > .otc-pr-pane > .otc-pr-fb, .otc-pr-wrap.is-two > .otc-pr-pane > [data-wb-sentinel] { grid-row: 1; }
+      .otc-pr-wrap.is-two > .otc-pr-pane > .otc-pr-card { grid-row: 2 / span 3; display: grid; grid-template-rows: subgrid; }
+      .otc-pr-wrap.is-two .otc-pr-card > [data-k="Head"] { display: flex; flex-direction: column; }
+      .otc-pr-wrap.is-two .otc-pr-card > [data-k="Head"] > .otc-pr-top { flex: 1 0 auto; }
+      .otc-pr-wrap.is-two .otc-pr-chart .otc-cap { white-space: nowrap; overflow: hidden; }   /* 다리 패널 윗선도 맞게 캡션 한 줄 */
+      /* 좌우 같은 구조(모드 조합 무관): 제목 아래 범례 두 줄 고정 · 3숫자 블록 작은 글 = 자기 줄 · 상태 = 한 줄 · 다리 호가 = 화면 1464px 이상 한 줄 / 미만 두 줄(양쪽 같은 폭이라 같은 결정) */
+      .otc-pr-wrap.is-two .otc-pr-card > .wb-card-head > .wb-card-meta { flex-basis: 100%; margin-left: 0; }
+      .otc-pr-wrap.is-two .otc-pr-sf { display: none; }
+      .otc-pr-wrap.is-two .otc-pr-sf2 { display: inline; }
+      .otc-pr-wrap.is-two .otc-pr-lgbr { display: block; flex-basis: 100%; height: 0; margin: -2px 0; }
+      .otc-pr-wrap.is-two .otc-pr-tv { flex-wrap: wrap; }
+      .otc-pr-wrap.is-two .otc-pr-tv .otc-pr-tc { flex-basis: 100%; line-height: 16px; }
+      .otc-pr-wrap.is-two .otc-pr-st { flex-wrap: nowrap; overflow: hidden; }
+      .otc-pr-wrap.is-two .otc-pr-st > * { flex: none; }
+      .otc-pr-wrap.is-two .otc-pr-st > .otc-pr-prob { flex: 0 1 auto; }
+      .otc-pr-wrap.is-two .otc-pr-qline { flex-wrap: nowrap; }
+    }
+    @media (min-width: 1200px) and (max-width: 1463.98px) {   /* 좁은 반쪽(패널 폭 700px 미만 ⇔ 화면 1464px 미만) = 다리 호가 A · B 늘 두 줄 · 두 패널 같은 폭이라 같은 결정(container query 는 subgrid 를 깨서 안 씀) */
+      .otc-pr-wrap.is-two .otc-pr-pane .otc-pr-qline { flex-wrap: wrap; }   /* 위 nowrap(같은 특이도 + 뒤) 을 이김 */
+      .otc-pr-wrap.is-two .otc-pr-pane .otc-pr-qline > .otc-pr-lq { flex-basis: 100%; }
     }
     @media (max-width: 1180px) { .otc-grid, .otc-grid--55, .otc-grid--3 { grid-template-columns: minmax(0, 1fr); } }
     @media (max-width: 900px) {
@@ -547,6 +577,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/wb-chart.js?v=20261022c"></script>
-<script src="/assets/js/wb-otc.js?v=20261110g"></script>
+<script src="/assets/js/wb-otc.js?v=20261110h"></script>
 </body>
 </html>
