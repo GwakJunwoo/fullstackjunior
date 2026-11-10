@@ -167,6 +167,16 @@ def otc_board_detail(request: Request, alias: str = Query(...), days: str | None
     return _send(request, _api().bond_span, alias=alias, days=days, since=_since(x_otc_since))
 
 
+@router.get("/pair")
+def otc_pair(request: Request, a: str = Query(...), b: str | None = None, days: str | None = None,
+             mode_a: str | None = None, mode_b: str | None = None,
+             x_otc_since: str | None = Header(default=None, alias="X-OTC-Since")):
+    """종목 스프레드(종목−종목 / 종목−3선 · 사용자 2026-11-10) — api.pair_live(a, b, days, since, mode_a, mode_b) 그대로.
+    선1·선2·미드·출처·15:45 전환·same/오늘만/전체 판정은 전부 엔진 — 라우터 계산·보정 0 · 안 준 인자는 엔진 기본값(b=3선 · days=1 · mode=auto).
+    since 는 보드와 같이 헤더 X-OTC-Since(폴링 URL 고정 → CORS 사전요청 캐시)."""
+    return _send(request, _api().pair_live, a=a, b=b, days=days, since=_since(x_otc_since), mode_a=mode_a, mode_b=mode_b)
+
+
 @router.get("/basis")
 def otc_basis(request: Request, x_otc_since: str | None = Header(default=None, alias="X-OTC-Since")):
     """실시간 집행 가능 저평(3선) — api.rt_basis(since) 그대로(엑셀이 닫혀 있으면 ok:false + why 를 엔진이 준다 · 보정 0)."""
