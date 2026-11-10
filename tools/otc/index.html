@@ -307,6 +307,7 @@
     .otc-pr-band { display: inline-block; width: 12px; height: 8px; border-radius: 1px; vertical-align: -1px; }
     .otc-pr-band.is-fb { background: repeating-linear-gradient(135deg, var(--wb-ink) 0 1.5px, transparent 1.5px 4px); border: 1px solid var(--wb-rule-strong); }
     #prChart .otc-cap { margin-top: 8px; }
+    .otc-pr-valw { display: inline-flex; align-items: center; gap: 4px; }
     @media (max-width: 1180px) { .otc-grid, .otc-grid--55, .otc-grid--3 { grid-template-columns: minmax(0, 1fr); } }
     @media (max-width: 900px) {
       .otc-drawer { width: 100vw; }
@@ -398,6 +399,7 @@
       <div class="otc-btns"><button type="button" class="wb-btn wb-btn--icon" id="prSwap" title="A ↔ B 바꾸기(출처 모드도 함께)" aria-label="A 와 B 바꾸기">⇄</button></div>
       <label class="wb-field"><span class="wb-label">B 다리</span><input class="wb-input otc-pr-in" id="prB" list="otcPairLegs" autocomplete="off" spellcheck="false" placeholder="3선 또는 종목"></label>
       <div class="wb-field"><span class="wb-label">기간</span><div class="wb-seg" id="prDays" role="group" aria-label="기간"></div></div>
+      <div class="wb-field"><span class="wb-label">값</span><div class="otc-pr-valw"><div class="wb-seg" id="prVal" role="group" aria-label="레벨 또는 전일 대비 변동"><button type="button" data-prval="lvl" title="레벨 = 호가 금리 그대로 · 스프레드 = A − B">레벨</button><button type="button" data-prval="chg" title="변동 = 각 다리 호가 금리 − 그날 전일 기준값(종목 = 전일 민평 · 선물 = 전일 선물 종가) · 엔진 *_chg 값">변동</button></div><span id="prValHelp"></span></div></div>
       <div class="wb-field"><span class="wb-label">A 출처</span><div class="wb-seg" id="prModeA" role="group" aria-label="A 다리 출처"></div></div>
       <div class="wb-field"><span class="wb-label">B 출처</span><div class="wb-seg" id="prModeB" role="group" aria-label="B 다리 출처"></div></div>
       <div class="wb-field"><span class="wb-label">가로축</span><div class="wb-seg" id="prAxis" role="group" aria-label="가로축"><button type="button" data-praxis="time" title="시각(장중 공백 그대로 · 여러 날 = 날마다 칸)">시각</button><button type="button" data-praxis="ev" title="이벤트(행 순번 · 같은 간격 · 실시각 아님)">이벤트</button></div></div>
@@ -492,6 +494,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/wb-chart.js?v=20261022c"></script>
-<script src="/assets/js/wb-otc.js?v=20261110b"></script>
+<script src="/assets/js/wb-otc.js?v=20261110d"></script>
 </body>
 </html>

@@ -1395,7 +1395,7 @@
   var PR_MODES = [['auto', '자동'], ['otc', '장외만'], ['exch', '장내만']];
   var PR_SRC_COL = { '0': '--wb-series-4', '1': '--wb-series-5', '2': '--wb-series-6', '3': '--wb-warn' };   // 출처 띠 색(표현 전용 · 이름은 응답 src_codes)
   var PR_CUT_LAB = '15:45 이후 지표도 장외 · 선물 마지막 값';
-  var PR = S.pair = { a: '', b: '3선', days: 1, ma: 'auto', mb: 'auto', axis: 'time', yfit: 'fit', auto: true, hide: { l1: false, l2: false, mid: false },
+  var PR = S.pair = { a: '', b: '3선', days: 1, ma: 'auto', mb: 'auto', axis: 'time', yfit: 'fit', val: 'lvl', auto: true, hide: { l1: false, l2: false, mid: false },
     choices: [1, 3, 5, 10], fut: ['3선'], cursor: '', cpath: '', data: null, last: null, R: null, ctl: null,
     inflight: 0, fails: 0, err: '', timer: 0, listKey: '' };
   function prMode(v) { v = String(v || '').toLowerCase(); return PR_MODES.some(function (m) { return m[0] === v; }) ? v : 'auto'; }
@@ -1408,13 +1408,14 @@
       PR.ma = prMode(o.ma); PR.mb = prMode(o.mb);
       if (o.axis === 'ev') PR.axis = 'ev';
       if (o.yfit === 'all') PR.yfit = 'all';
+      if (o.val === 'chg') PR.val = 'chg';
       if (o.auto === false) PR.auto = false;
       if (o.hide && typeof o.hide === 'object') ['l1', 'l2', 'mid'].forEach(function (k) { PR.hide[k] = o.hide[k] === true; });
     } catch (e) { /* 저장값 없음 */ }
   })();
-  function prSave() { try { localStorage.setItem(PR_LS, JSON.stringify({ a: PR.a, b: PR.b, days: PR.days, ma: PR.ma, mb: PR.mb, axis: PR.axis, yfit: PR.yfit, auto: PR.auto, hide: PR.hide })); } catch (e) { /* noop */ } }
+  function prSave() { try { localStorage.setItem(PR_LS, JSON.stringify({ a: PR.a, b: PR.b, days: PR.days, ma: PR.ma, mb: PR.mb, axis: PR.axis, yfit: PR.yfit, val: PR.val, auto: PR.auto, hide: PR.hide })); } catch (e) { /* noop */ } }
   function prPath() { return '/otc/pair?a=' + enc(PR.a) + '&b=' + enc(PR.b) + '&days=' + enc(PR.days) + '&mode_a=' + enc(PR.ma) + '&mode_b=' + enc(PR.mb); }
-  function prStampHash() { if (S.view === 'spread') stamp('spread', { a: PR.a, b: PR.b, days: PR.days, ma: PR.ma === 'auto' ? '' : PR.ma, mb: PR.mb === 'auto' ? '' : PR.mb }); }
+  function prStampHash() { if (S.view === 'spread') stamp('spread', { a: PR.a, b: PR.b, days: PR.days, ma: PR.ma === 'auto' ? '' : PR.ma, mb: PR.mb === 'auto' ? '' : PR.mb, v: PR.val === 'chg' ? 'chg' : '' }); }
   function prSec(s) { s = String(s || ''); return (+s.slice(0, 2)) * 3600 + (+s.slice(3, 5)) * 60 + (+s.slice(6, 8) || 0); }
   function prHM(sec) { var h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60); return (h < 10 ? '0' : '') + h + ':' + (m < 10 ? '0' : '') + m; }
   function prBp(v) { return isNum(v) ? fbp(v, 2) + 'bp' : '–'; }
@@ -1422,6 +1423,23 @@
   function prKind(k) { return { fut: '선물', idx: '현 지표', bond: '종목', fut_off: '선물(지원 안 됨)' }[k] || (k || ''); }
   function prL1(A, B) { return '선1 ' + A + ' 매도−' + B + ' 매수'; }
   function prL2(A, B) { return '선2 ' + A + ' 매수−' + B + ' 매도'; }
+  // 레벨 / 변동(사용자 2026-11-10): 변동 = 엔진 *_chg(그 호가 금리 − 그날 전일 기준값 · bp) — 웹은 어느 배열을 그릴지만 고른다
+  var PR_KL = { l1: 'l1', l2: 'l2', mid: 'mid', ab: 'ab', aa: 'aa', bb: 'bb', ba: 'ba' }, PR_KC = { l1: 'l1c', l2: 'l2c', mid: 'midc', ab: 'abc', aa: 'aac', bb: 'bbc', ba: 'bac' };
+  function prChg() { return PR.val === 'chg'; }
+  function prK() { return prChg() ? PR_KC : PR_KL; }
+  function prSuf() { return prChg() ? ' (전일 대비)' : ''; }
+  function prPvLeg(pv, leg) {   // 다리 하나의 전일 기준값 — 종목 = 전일 민평 · 선물 = 전일 선물 종가 내재수익률(가격 병기) · 없으면 엔진 why
+    var base = (leg && (leg.kind === 'fut' || leg.kind === 'fut_off')) ? '전일 선물 종가' : '전일 민평';
+    if (!pv) return base + ' –';
+    if (!isNum(pv.y)) return base + ' 없음' + (pv.why ? ' — ' + pv.why : '');
+    return base + ' ' + fy(pv.y) + ' (' + mmdd(pv.d) + (isNum(pv.px) ? ' · ' + fp(pv.px) : '') + ')';
+  }
+  function prPvDays(pv) {   // 날짜 칸 라벨용 '전일 d 기준'
+    if (!pv) return '';
+    var a = pv.a || {}, b = pv.b || {};
+    if (a.d && a.d === b.d) return '전일 ' + mmdd(a.d) + ' 기준';
+    return 'A 전일 ' + (a.d ? mmdd(a.d) : '없음') + ' · B 전일 ' + (b.d ? mmdd(b.d) : '없음') + ' 기준';
+  }
   function prNames() { var d = PR.data || {}; return { a: (d.a && d.a.alias) || PR.a || 'A', b: (d.b && d.b.alias) || PR.b || 'B' }; }
   function prList() {   // 다리 자동완성 = 응답 fut_choices + meta.bonds 별칭
     var bonds = (S.meta && S.meta.bonds) || [], k = PR.fut.join(',') + '|' + bonds.length;
@@ -1443,6 +1461,7 @@
     });
     Array.prototype.forEach.call($('prAxis').children, function (b) { b.classList.toggle('is-active', b.getAttribute('data-praxis') === PR.axis); });
     Array.prototype.forEach.call($('prYfit').children, function (b) { b.classList.toggle('is-active', b.getAttribute('data-pryfit') === PR.yfit); });
+    Array.prototype.forEach.call($('prVal').children, function (b) { b.classList.toggle('is-active', b.getAttribute('data-prval') === PR.val); });
     var au = $('prAuto'); au.setAttribute('aria-pressed', PR.auto ? 'true' : 'false'); au.classList.toggle('is-active', PR.auto);
     $('prCard').classList.toggle('is-stale', !!(PR.data && PR.cpath !== prPath()));   // 입력을 바꿨는데 새 응답이 아직 = 흐리게(옛 다리 값을 새 다리처럼 보이지 않게)
   }
@@ -1482,6 +1501,8 @@
     var defs = d.defs || {}, L = d.last, tb = null;
     (d.blocks || []).forEach(function (b) { if (b.d === d.today) tb = b; });
     $('prTitle').innerHTML = esc(nm.a) + ' − ' + esc(nm.b) + ' 장중 스프레드' + help([defs.quote, defs.rule, defs.src].filter(Boolean).join('\n') + '\n관찰 전용(추천·주문 아님)');
+    var chg = prChg(), sf = prSuf(), pvT = (L && L.prev) || (tb && tb.prev) || null;
+    $('prValHelp').innerHTML = help(defs.chg || '변동 = 엔진 *_chg 값');
     var big = function (lab, v, col, tip) {
       return '<div class="otc-pr-big"><div class="otc-pr-lab"><i class="otc-pr-sw" style="background:var(' + col + ')"></i>' + esc(lab) + help(tip) + '</div>' +
         '<div class="otc-pr-val">' + (isNum(v) ? fbp(v, 2) + '<small>bp</small>' : '<span class="wb-muted">–</span>') + '</div></div>';
@@ -1489,15 +1510,21 @@
     var warns = [];
     [['A', d.a], ['B', d.b]].forEach(function (p) { if (p[1] && p[1].warn) warns.push('<li><b>' + p[0] + ' ' + esc(p[1].alias || p[1].spec || '') + '</b> ' + esc(p[1].warn) + '</li>'); });
     var kin = d.keyin || {}, k3 = (d.a && d.a.spec === '3선') || (d.b && d.b.spec === '3선');
-    var lastTxt = L ? '오늘 마지막 행 <b>' + esc(L.t) + '</b> · 미드 <b>' + prBp(L.mid) + '</b>' +
-        ' · ' + esc(nm.a) + ' 매수 <b class="otc-buy">' + fy(L.a_bid) + '</b>(' + esc(L.a_bsrc || '값 없음') + ') / 매도 <b class="otc-sell">' + fy(L.a_ask) + '</b>(' + esc(L.a_asrc || '값 없음') + ')' +
-        ' · ' + esc(nm.b) + ' 매수 <b class="otc-buy">' + fy(L.b_bid) + '</b>(' + esc(L.b_bsrc || '값 없음') + ') / 매도 <b class="otc-sell">' + fy(L.b_ask) + '</b>(' + esc(L.b_asrc || '값 없음') + ')'
+    var side = function (cv, lv, src, cls) {   // 레벨 = 금리(출처) · 변동 = bp(금리 · 출처)
+      return chg ? '<b class="' + cls + '">' + prBp(cv) + '</b>(' + fy(lv) + ' · ' + esc(src || '값 없음') + ')' : '<b class="' + cls + '">' + fy(lv) + '</b>(' + esc(src || '값 없음') + ')';
+    };
+    var lastTxt = L ? '오늘 마지막 행 <b>' + esc(L.t) + '</b> · 미드' + sf + ' <b>' + prBp(chg ? L.mid_chg : L.mid) + '</b>' + (chg ? '(레벨 ' + prBp(L.mid) + ')' : '') +
+        ' · ' + esc(nm.a) + ' 매수 ' + side(L.a_bid_chg, L.a_bid, L.a_bsrc, 'otc-buy') + ' / 매도 ' + side(L.a_ask_chg, L.a_ask, L.a_asrc, 'otc-sell') +
+        ' · ' + esc(nm.b) + ' 매수 ' + side(L.b_bid_chg, L.b_bid, L.b_bsrc, 'otc-buy') + ' / 매도 ' + side(L.b_ask_chg, L.b_ask, L.b_asrc, 'otc-sell')
       : '<b>오늘 행 없음</b> — 오늘 두 다리 모두 값이 아직 없습니다';
+    var pvTxt = chg ? '<div>전일 기준 — A ' + esc(nm.a) + ' <b>' + esc(prPvLeg(pvT && pvT.a, d.a)) + '</b> · B ' + esc(nm.b) + ' <b>' + esc(prPvLeg(pvT && pvT.b, d.b)) + '</b> · 전일 스프레드 <b>' + prBp(pvT && pvT.spr) + '</b>' +
+      ((d.blocks || []).length > 1 ? ' <span class="wb-muted">(오늘 기준 · 지난 날은 그날 전일 기준)</span>' : '') + '</div>' : '';
     host.innerHTML = '<div class="otc-pr-top">' +
-      big(prL1(nm.a, nm.b), L && L.l1, '--wb-up', defs.l1 || '') + big(prL2(nm.a, nm.b), L && L.l2, '--wb-down', defs.l2 || '') +
+      big(prL1(nm.a, nm.b) + sf, L && (chg ? L.l1_chg : L.l1), '--wb-up', (defs.l1 || '') + (chg ? '\n' + (defs.chg || '') : '')) +
+      big(prL2(nm.a, nm.b) + sf, L && (chg ? L.l2_chg : L.l2), '--wb-down', (defs.l2 || '') + (chg ? '\n' + (defs.chg || '') : '')) +
       '<div class="otc-pr-info">' +
         '<div class="otc-pr-legs">' + (d.a ? prLegInfo('a', d.a, tb) : '') + (d.b ? prLegInfo('b', d.b, tb) : '') + '</div>' +
-        '<div>' + lastTxt + '</div>' +
+        '<div>' + lastTxt + '</div>' + pvTxt +
         '<div class="otc-pr-st"><span id="prExch"></span>' +
           (kin.active && k3 ? '<span class="otc-tag otc-tag--key" title="15:45 이후 3선 키인(엔진 keyin 그대로)">3선 키인 ' + esc(fp(kin.price)) + (kin.t ? ' · ' + esc(kin.t) : '') + '</span>' : '') +
           '<span id="prAsof"></span></div>' +
@@ -1511,9 +1538,10 @@
     var lb = function (k, txt, sty, tip) { return '<button type="button" class="otc-pr-lgb" data-prline="' + k + '" aria-pressed="' + (PR.hide[k] ? 'false' : 'true') + '" title="누르면 켜고 끔">' + '<i class="ln' + sty + '"></i>' + esc(txt) + '</button>' + help(tip); };
     var codes = (PR.data && PR.data.src_codes) || {}, hasCut = ((PR.data && PR.data.blocks) || []).some(function (b) { return b.n && b.cut_i != null; });
     return '<span class="otc-leg">' +
-      '<span>' + lb('l1', prL1(nm.a, nm.b), '" style="border-color:var(--wb-up)', defs.l1 || '') + '</span>' +
-      '<span>' + lb('l2', prL2(nm.a, nm.b), '" style="border-color:var(--wb-down)', defs.l2 || '') + '</span>' +
-      '<span>' + lb('mid', '미드', ' dot" style="border-color:var(--wb-ink)', defs.mid || '') + '</span>' +
+      '<span>' + lb('l1', prL1(nm.a, nm.b) + prSuf(), '" style="border-color:var(--wb-up)', defs.l1 || '') + '</span>' +
+      '<span>' + lb('l2', prL2(nm.a, nm.b) + prSuf(), '" style="border-color:var(--wb-down)', defs.l2 || '') + '</span>' +
+      '<span>' + lb('mid', '미드' + prSuf(), ' dot" style="border-color:var(--wb-ink)', defs.mid || '') + '</span>' +
+      (prChg() ? '<span><i class="ln" style="border-color:var(--wb-muted);border-top-width:3px"></i>0 = 전일과 같음</span>' : '') +
       (hasCut ? '<span><i class="otc-pr-cutl"></i>' + esc(PR_CUT_LAB) + help('세로 점선 = 그 날 15:45 이후 첫 행(엔진 cut_i)\n' + (defs.rule || '')) + '</span>' : '') +
       '<span>출처 띠' + Object.keys(codes).map(function (c) { return ' <i class="otc-pr-band" style="background:var(' + (PR_SRC_COL[c] || '--wb-faint') + ')"></i>' + esc(codes[c]); }).join('') +
         ' <i class="otc-pr-band is-fb"></i>대체' + help((defs.src || '') + '\n띠 위 칸 = 매수호가 출처 · 아래 칸 = 매도호가 출처\n빗금 = 대체(고른 쪽 값이 비어 다른 쪽으로 채움 · 엔진 fb)') + '</span>' +
@@ -1521,7 +1549,9 @@
   }
   function prSeries(d) {   // 블록(날) 이어 붙이기 — x = 시각(초 · 날마다 칸 · 장중 공백 그대로) 또는 이벤트(행 순번) · 값은 응답 그대로
     var ev = PR.axis === 'ev', off = 0;
-    var R = { n: 0, x: [], t: [], day: [], l1: [], l2: [], mid: [], ab: [], aa: [], bb: [], ba: [], abs: [], aas: [], bbs: [], bas: [], afb: [], bfb: [], post: [], segs: [], cuts: [], today: d.today };
+    var R = { n: 0, x: [], t: [], day: [], l1: [], l2: [], mid: [], ab: [], aa: [], bb: [], ba: [], abs: [], aas: [], bbs: [], bas: [], afb: [], bfb: [], post: [], segs: [], cuts: [], today: d.today,
+      l1c: [], l2c: [], midc: [], abc: [], aac: [], bbc: [], bac: [], pv: {} };
+    var ck = function (b, k, i) { return b[k] ? b[k][i] : null; };   // 변동 배열이 없는 옛 응답 = 값 없음(지어내지 않음)
     (d.blocks || []).forEach(function (b) {
       var m = b.n || 0;
       if (!m) { R.segs.push({ d: b.d, n: 0 }); return; }
@@ -1532,11 +1562,14 @@
         R.ab.push(b.a_bid[i]); R.aa.push(b.a_ask[i]); R.bb.push(b.b_bid[i]); R.ba.push(b.b_ask[i]);
         R.abs.push(b.a_bsrc[i]); R.aas.push(b.a_asrc[i]); R.bbs.push(b.b_bsrc[i]); R.bas.push(b.b_asrc[i]);
         R.afb.push(b.a_fb[i]); R.bfb.push(b.b_fb[i]); R.post.push(b.cut_i != null && i >= b.cut_i);
+        R.l1c.push(ck(b, 'l1_chg', i)); R.l2c.push(ck(b, 'l2_chg', i)); R.midc.push(ck(b, 'mid_chg', i));
+        R.abc.push(ck(b, 'a_bid_chg', i)); R.aac.push(ck(b, 'a_ask_chg', i)); R.bbc.push(ck(b, 'b_bid_chg', i)); R.bac.push(ck(b, 'b_ask_chg', i));
       }
+      R.pv[b.d] = b.prev || null;
       R.n += m;
       var hi = ev ? off + m : off + (t1 - t0) + Math.max(60, (t1 - t0) * 0.015);   // 마지막 행 뒤 짧은 여백(표현 · 이벤트 축은 한 칸)
       if (b.cut_i != null && b.cut_i < m) R.cuts.push({ x: R.x[base + b.cut_i], d: b.d });
-      R.segs.push({ d: b.d, n: m, lo: off, hi: hi, i0: base, i1: base + m - 1, t0: t0 });
+      R.segs.push({ d: b.d, n: m, lo: off, hi: hi, i0: base, i1: base + m - 1, t0: t0, prev: b.prev || null });
       off = hi;
     });
     R.lo = 0; R.hi = Math.max(off, 1);
@@ -1562,20 +1595,17 @@
   function prTicks(R, ax, lab) {   // 눈금: 시각 축 = 둥근 시각(5분~3시간) · 이벤트 축 = 그 행 시각 · 날 칸이 좁으면 날짜만
     Object.keys(lab).forEach(function (k) { delete lab[k]; });
     var w = ax.width || ax.maxWidth || 800, ppu = w / ((R.hi - R.lo) || 1), t = [], add = function (v, l) { t.push({ value: v }); lab[v] = l; };
-    if (R.multi && R.full.some(function (g) { return (g.hi - g.lo) * ppu < 150; })) {
-      R.full.forEach(function (g) { add(g.lo, mmdd(g.d)); });
-    } else if (PR.axis === 'ev') {
-      var per = Math.max(1, Math.ceil(70 / ppu));
-      R.full.forEach(function (g) { for (var i = g.i0; i <= g.i1; i += per) add(R.x[i], String(R.t[i]).slice(0, 5)); });
-    } else {
-      var steps = [300, 600, 900, 1800, 3600, 7200, 10800], st = 10800;
-      for (var s = 0; s < steps.length; s++) if (steps[s] * ppu >= 64) { st = steps[s]; break; }
-      R.full.forEach(function (g) { for (var ts = Math.ceil(g.t0 / st) * st; ts <= g.t0 + (g.hi - g.lo); ts += st) add(g.lo + (ts - g.t0), prHM(ts)); });
-    }
+    var steps = [300, 600, 900, 1800, 3600, 7200, 10800], st = 10800, per = Math.max(1, Math.ceil(70 / ppu));
+    for (var s = 0; s < steps.length; s++) if (steps[s] * ppu >= 64) { st = steps[s]; break; }
+    R.full.forEach(function (g) {   // 칸마다: 좁은 날(여러 날 중 150px 미만) = 날짜 눈금 하나 · 아니면 시각(이벤트 축 = 그 행 시각)
+      if (R.multi && (g.hi - g.lo) * ppu < 150) { add(g.lo, mmdd(g.d)); return; }
+      if (PR.axis === 'ev') { for (var i = g.i0; i <= g.i1; i += per) add(R.x[i], String(R.t[i]).slice(0, 5)); return; }
+      for (var ts = Math.ceil(g.t0 / st) * st; ts <= g.t0 + (g.hi - g.lo); ts += st) add(g.lo + (ts - g.t0), prHM(ts));
+    });
     var last = -1e9, seen = null;
     return t.filter(function (o) { var px = (o.value - R.lo) * ppu, l = lab[o.value]; if (px - last < 52 || l === seen) return false; last = px; seen = l; return true; });
   }
-  function prYR(arrs, minPad) {   // 세로 범위(표현만 · 값 무변형): 전체 = 최소~최대 · 맞춤 = 행의 2~98% 범위(전체 폭이 그 3배를 넘을 때만) + 벗어난 행 수·극값은 가장자리 글자로
+  function prYR(arrs, minPad, incl0) {   // 세로 범위(표현만 · 값 무변형): 전체 = 최소~최대 · 맞춤 = 행의 2~98% 범위(전체 폭이 그 3배를 넘을 때만) + 벗어난 행 수·극값은 가장자리 글자로
     var v = [];
     arrs.forEach(function (a) { for (var i = 0; i < a.length; i++) if (isNum(a[i])) v.push(a[i]); });
     if (!v.length) return null;
@@ -1590,6 +1620,7 @@
         out = { nHi: nHi, max: mx, nLo: nLo, min: mn };
       }
     }
+    if (incl0) { lo = Math.min(lo, 0); hi = Math.max(hi, 0); }   // 변동 모드: 0(전일과 같음) 기준선이 늘 보이게
     var pad = Math.max((hi - lo) * 0.12, minPad);
     return { min: lo - pad, max: hi + pad, out: out };
   }
@@ -1626,11 +1657,21 @@
         ctx.beginPath(); ctx.moveTo(x, ca.top); ctx.lineTo(x, ca.bottom); ctx.stroke();
       });
       ctx.restore();
-    }, afterDatasetsDraw: function (ch) {   // (주 패널) 날짜 라벨 = 선 위 층
-      if (!R.multi || !ch.chartArea || ch.canvas !== cv[0]) return;
-      var xs = ch.scales.x, ca = ch.chartArea, ctx = ch.ctx;
-      ctx.save(); ctx.font = '600 10px ' + (cssv('--wb-font') || 'sans-serif'); ctx.textBaseline = 'top'; ctx.fillStyle = cssv('--wb-muted');
-      R.full.forEach(function (g) { plate(ctx, mmdd(g.d), Math.max(ca.left, Math.round(xs.getPixelForValue(g.lo))) + 3, ca.top + 2); });
+    }, afterDatasetsDraw: function (ch) {   // (주 패널) 날짜 라벨 = 선 위 층 · 변동 모드 = 그날 전일 기준일도 작게
+      var chg = prChg();
+      if ((!R.multi && !chg) || !ch.chartArea || ch.canvas !== cv[0]) return;
+      var xs = ch.scales.x, ca = ch.chartArea, ctx = ch.ctx, fn = cssv('--wb-font') || 'sans-serif', f1 = '600 10px ' + fn, f2 = '400 9px ' + fn;
+      ctx.save(); ctx.textBaseline = 'top'; ctx.textAlign = 'left';
+      R.full.forEach(function (g) {
+        var x = Math.max(ca.left, Math.round(xs.getPixelForValue(g.lo))) + 3, d1 = R.multi ? mmdd(g.d) : '', d2 = chg ? prPvDays(g.prev) : '';
+        ctx.font = f1; var w1 = d1 ? ctx.measureText(d1 + ' ').width : 0; ctx.font = f2; var w2 = d2 ? ctx.measureText(d2).width : 0;
+        if (!w1 && !w2) return;
+        if (x + w1 + w2 + 2 > ca.right) x = Math.max(ca.left + 3, ca.right - w1 - w2 - 4);   // 오른쪽 끝 좁은 날 = 안쪽으로 당김(잘리지 않게)
+        ctx.fillStyle = WBChart.alpha('--wb-surface', 0.92); ctx.fillRect(x - 2, ca.top + 1, w1 + w2 + 4, 13);
+        ctx.fillStyle = cssv('--wb-muted');
+        if (d1) { ctx.font = f1; ctx.fillText(d1, x, ca.top + 2); }
+        if (d2) { ctx.font = f2; ctx.fillText(d2, x + w1, ca.top + 3); }
+      });
       ctx.restore();
     } };
     var cutPlug = { id: 'prCut', afterDatasetsDraw: function (ch) {   // 15:45 이후 첫 행(엔진 cut_i) = 세로 점선 · 주 패널엔 라벨
@@ -1650,15 +1691,33 @@
       });
       ctx.restore();
     } };
-    var zeroPlug = { id: 'prZero', beforeDatasetsDraw: function (ch) {   // 0bp 가로선(범위 안일 때만)
-      var ys = ch.scales.y, ca = ch.chartArea; if (!ca || !(ys.min < 0 && ys.max > 0)) return;
+    var zeroPlug = { id: 'prZero', beforeDatasetsDraw: function (ch) {   // 0bp 가로선(범위 안일 때만) · 변동 모드 = 굵게(0 = 전일과 같음) · 다리 패널도
+      var ys = ch.scales.y, ca = ch.chartArea, chg = prChg(); if (!ca || !(ys.min < 0 && ys.max > 0) || (ch.canvas !== cv[0] && !chg)) return;
       var y = Math.round(ys.getPixelForValue(0)) + 0.5, ctx = ch.ctx;
-      ctx.save(); ctx.strokeStyle = cssv('--wb-rule-strong'); ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(ca.left, y); ctx.lineTo(ca.right, y); ctx.stroke(); ctx.restore();
+      ctx.save(); ctx.strokeStyle = chg ? WBChart.alpha('--wb-ink', 0.5) : cssv('--wb-rule-strong'); ctx.lineWidth = chg ? 2.2 : 1; ctx.beginPath(); ctx.moveTo(ca.left, y); ctx.lineTo(ca.right, y); ctx.stroke(); ctx.restore();
     } };
+    function prevPlug(which) {   // 변동 모드: 그날 전일 기준값이 없는 다리(엔진 prev.y = null) = 그 칸 변동 선이 비어 있음 → 칸 안에 엔진 why
+      return { id: 'prPrev', afterDatasetsDraw: function (ch) {
+        if (!prChg() || !ch.chartArea) return;
+        var xs = ch.scales.x, ca = ch.chartArea, ctx = ch.ctx;
+        ctx.save(); ctx.font = '600 11px ' + (cssv('--wb-font') || 'sans-serif'); ctx.fillStyle = cssv('--wb-warn'); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        R.full.forEach(function (g) {
+          var pv = g.prev, miss = []; if (!pv) return;
+          which.forEach(function (k) { var q = pv[k]; if (q && !isNum(q.y)) miss.push(k.toUpperCase() + ' 전일 기준 없음' + (q.why ? ' — ' + q.why : '')); });
+          if (!miss.length) return;
+          var x0 = Math.max(ca.left, xs.getPixelForValue(g.lo)), x1 = Math.min(ca.right, xs.getPixelForValue(g.hi)); if (x1 - x0 < 8) return;
+          ctx.save(); ctx.beginPath(); ctx.rect(x0, ca.top, x1 - x0, ca.bottom - ca.top); ctx.clip();
+          miss.forEach(function (t, j) { ctx.fillText(t, (x0 + x1) / 2, (ca.top + ca.bottom) / 2 + (j - (miss.length - 1) / 2) * 15); });
+          ctx.restore();
+        });
+        ctx.restore();
+      } };
+    }
     var nullPlug = { id: 'prNull', afterDatasetsDraw: function (ch) {   // 선1·선2 값이 하나도 없으면 그 사실을 글자로(빈 차트를 '평온'처럼 보이게 하지 않음)
-      var ca = ch.chartArea; if (!ca || R.l1.some(isNum) || R.l2.some(isNum)) return;
+      var ca = ch.chartArea, K = prK(), chg = prChg(); if (!ca || R[K.l1].some(isNum) || R[K.l2].some(isNum)) return;
+      if (chg && R.full.some(function (g) { return g.prev && ((g.prev.a && !isNum(g.prev.a.y)) || (g.prev.b && !isNum(g.prev.b.y))); })) return;   // 사유는 칸 안 글자(prevPlug)가 말함
       var ctx = ch.ctx; ctx.save(); ctx.font = '12px ' + (cssv('--wb-font') || 'sans-serif'); ctx.fillStyle = cssv('--wb-muted'); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText('선1 · 선2 값 없음 — 이 기간 두 다리 값이 같은 시각에 함께 있었던 적이 없음(아래 다리 패널 · 다리 경고 확인)', (ca.left + ca.right) / 2, (ca.top + ca.bottom) / 2); ctx.restore();
+      ctx.fillText((chg ? '선1 · 선2 변동 값 없음' : '선1 · 선2 값 없음') + ' — 이 기간 두 다리 값이 같은 시각에 함께 있었던 적이 없음(아래 다리 패널 · 다리 경고 확인)', (ca.left + ca.right) / 2, (ca.top + ca.bottom) / 2); ctx.restore();
     } };
     function endPlug(keys) {   // 오른쪽 끝 = 오늘 마지막 행 값(엔진 값 그대로)
       return { id: 'prEnd', afterDatasetsDraw: function (ch) {
@@ -1666,8 +1725,8 @@
         var ca = ch.chartArea, ys = ch.scales.y, ctx = ch.ctx, i = R.n - 1, it = [];
         keys.forEach(function (k) {
           if (k[3] && PR.hide[k[3]]) return;
-          var v = R[k[0]][i]; if (!isNum(v)) return;
-          it.push({ y: ys.getPixelForValue(v), t: k[2] === 'bp' ? fbp(v, 2) : fy(v), c: cssv(k[1]) });
+          var v = R[prK()[k[0]]][i]; if (!isNum(v)) return;
+          it.push({ y: ys.getPixelForValue(v), t: (k[2] === 'bp' || prChg()) ? fbp(v, 2) : fy(v), c: cssv(k[1]) });
         });
         it.sort(function (p, r) { return p.y - r.y; });
         for (var m = 1; m < it.length; m++) if (it[m].y - it[m - 1].y < 12) it[m].y = it[m - 1].y + 12;
@@ -1704,7 +1763,7 @@
     function edgePlug(bp) {   // 맞춤 범위 밖 행 = 가장자리 글자(개수 · 극값 · 엔진 값 그대로) — 숨기지 않고 알린다
       return { id: 'prEdge', afterDatasetsDraw: function (ch) {
         var o = ch.$prOut, ca = ch.chartArea; if (!o || !ca) return;
-        var ctx = ch.ctx, f = bp ? function (x) { return fbp(x, 2); } : fy;
+        var ctx = ch.ctx, f = (bp || prChg()) ? function (x) { return fbp(x, 2); } : fy;
         ctx.save(); ctx.font = '600 10px ' + (cssv('--wb-font') || 'sans-serif'); ctx.textAlign = 'right'; ctx.fillStyle = cssv('--wb-muted');
         if (o.nHi) { ctx.textBaseline = 'top'; ctx.fillText('▲ 범위 밖 ' + o.nHi + '행 · 최고 ' + f(o.max), ca.right - 4, ca.top + 2); }
         if (o.nLo) { ctx.textBaseline = 'bottom'; ctx.fillText('▼ 범위 밖 ' + o.nLo + '행 · 최저 ' + f(o.min), ca.right - 4, ca.bottom - 2); }
@@ -1717,33 +1776,36 @@
     var common = function (padTop) { return { responsive: true, maintainAspectRatio: false, animation: false, parsing: false, normalized: true, events: [],
       plugins: { legend: { display: false }, tooltip: { enabled: false } }, layout: { padding: { right: 50, top: padTop || 4 } },
       onResize: function () { requestAnimationFrame(function () { drawCross(ctl.cur); }); } }; };
-    var main = new Chart(cv[0], { type: 'line', plugins: [dayPlug, zeroPlug, cutPlug, nullPlug, edgePlug(true), endPlug([['l1', '--wb-up', 'bp', 'l1'], ['l2', '--wb-down', 'bp', 'l2'], ['mid', '--wb-ink', 'bp', 'mid']])],
+    var main = new Chart(cv[0], { type: 'line', plugins: [dayPlug, zeroPlug, cutPlug, nullPlug, prevPlug(['a', 'b']), edgePlug(true), endPlug([['l1', '--wb-up', 'bp', 'l1'], ['l2', '--wb-down', 'bp', 'l2'], ['mid', '--wb-ink', 'bp', 'mid']])],
       data: { datasets: [line(prL1(nm.a, nm.b), '--wb-up', 2.2), line(prL2(nm.a, nm.b), '--wb-down', 2.2), line('미드', '--wb-ink', 1.1, [2, 3])] },
       options: Object.assign(common(4), { scales: { x: xScale(true), y: { afterFit: yFit, ticks: { includeBounds: false, maxTicksLimit: 8, callback: function (v) { return fbp(v, 1); } } } } }) });
-    var legY = { afterFit: yFit, ticks: { includeBounds: false, maxTicksLimit: 4, callback: function (v) { return fy(v); } } };
-    var pa = new Chart(cv[1], { type: 'line', plugins: [dayPlug, cutPlug, bandPlug('abs', 'aas', 'afb'), edgePlug(false), endPlug([['ab', '--wb-down'], ['aa', '--wb-up']])],
+    var legY = { afterFit: yFit, ticks: { includeBounds: false, maxTicksLimit: 4, callback: function (v) { return prChg() ? fbp(v, 1) : fy(v); } } };
+    var pa = new Chart(cv[1], { type: 'line', plugins: [dayPlug, zeroPlug, cutPlug, bandPlug('abs', 'aas', 'afb'), prevPlug(['a']), edgePlug(false), endPlug([['ab', '--wb-down'], ['aa', '--wb-up']])],
       data: { datasets: [line('A 매수호가', '--wb-down', 1.6), line('A 매도호가', '--wb-up', 1.6)] },
       options: Object.assign(common(14), { scales: { x: xScale(false), y: Object.assign({}, legY) } }) });
-    var pb = new Chart(cv[2], { type: 'line', plugins: [dayPlug, cutPlug, bandPlug('bbs', 'bas', 'bfb'), edgePlug(false), endPlug([['bb', '--wb-down'], ['ba', '--wb-up']])],
+    var pb = new Chart(cv[2], { type: 'line', plugins: [dayPlug, zeroPlug, cutPlug, bandPlug('bbs', 'bas', 'bfb'), prevPlug(['b']), edgePlug(false), endPlug([['bb', '--wb-down'], ['ba', '--wb-up']])],
       data: { datasets: [line('B 매수호가', '--wb-down', 1.6), line('B 매도호가', '--wb-up', 1.6)] },
       options: Object.assign(common(14), { scales: { x: xScale(true), y: Object.assign({}, legY, { ticks: Object.assign({}, legY.ticks) }) } }) });
     var charts = [main, pa, pb];
     function caps() {
-      var n2 = prNames();
-      $('prCapA').innerHTML = '<b>A ' + esc(n2.a) + '</b> 매수호가 <span class="otc-buy">━</span> · 매도호가 <span class="otc-sell">━</span> 금리 %' + help('위 띠 = 출처(위 칸 매수호가 · 아래 칸 매도호가 · 빗금 = 대체) · 값은 엔진 그대로\n' + ((PR.data && PR.data.defs && PR.data.defs.quote) || ''));
-      $('prCapB').innerHTML = '<b>B ' + esc(n2.b) + '</b> 매수호가 <span class="otc-buy">━</span> · 매도호가 <span class="otc-sell">━</span> 금리 %' + ((PR.data && PR.data.b && PR.data.b.kind === 'fut') ? ' <span class="wb-muted">(선물 = 표준물 내재수익률)</span>' : '');
+      var n2 = prNames(), chg = prChg(), D = PR.data || {}, lg = R.full[R.full.length - 1], pv = (lg && lg.prev) || {};
+      var unit = chg ? ' 변동 bp' : ' 금리 %', more = R.multi ? ' · 지난 날은 그날 전일 기준' : '';
+      var base = function (k, leg) { return chg ? ' <span class="wb-muted">(' + esc(prPvLeg(pv[k], leg)) + ' 대비' + more + ')</span>' : ''; };
+      $('prCapA').innerHTML = '<b>A ' + esc(n2.a) + '</b> 매수호가 <span class="otc-buy">━</span> · 매도호가 <span class="otc-sell">━</span>' + unit + base('a', D.a) + help('위 띠 = 출처(위 칸 매수호가 · 아래 칸 매도호가 · 빗금 = 대체) · 값은 엔진 그대로\n' + ((D.defs && D.defs.quote) || '') + (chg ? '\n' + ((D.defs && D.defs.chg) || '') : ''));
+      $('prCapB').innerHTML = '<b>B ' + esc(n2.b) + '</b> 매수호가 <span class="otc-buy">━</span> · 매도호가 <span class="otc-sell">━</span>' + unit + base('b', D.b) + ((D.b && D.b.kind === 'fut') ? ' <span class="wb-muted">(선물 = 표준물 내재수익률)</span>' : '');
     }
     function fill() {
-      var n2 = prNames(), md = main.data.datasets;
-      md[0].label = prL1(n2.a, n2.b); md[1].label = prL2(n2.a, n2.b);
-      md[0].data = prPts(R, R.l1); md[1].data = prPts(R, R.l2); md[2].data = prPts(R, R.mid);
+      var n2 = prNames(), md = main.data.datasets, K = prK(), chg = prChg(), sf = prSuf();
+      md[0].label = prL1(n2.a, n2.b) + sf; md[1].label = prL2(n2.a, n2.b) + sf; md[2].label = '미드' + sf;
+      md[0].data = prPts(R, R[K.l1]); md[1].data = prPts(R, R[K.l2]); md[2].data = prPts(R, R[K.mid]);
       md[0].hidden = PR.hide.l1; md[1].hidden = PR.hide.l2; md[2].hidden = PR.hide.mid;
-      pa.data.datasets[0].data = prPts(R, R.ab); pa.data.datasets[1].data = prPts(R, R.aa);
-      pb.data.datasets[0].data = prPts(R, R.bb); pb.data.datasets[1].data = prPts(R, R.ba);
+      pa.data.datasets[0].data = prPts(R, R[K.ab]); pa.data.datasets[1].data = prPts(R, R[K.aa]);
+      pb.data.datasets[0].data = prPts(R, R[K.bb]); pb.data.datasets[1].data = prPts(R, R[K.ba]);
       charts.forEach(function (c) { c.options.scales.x.min = R.lo; c.options.scales.x.max = R.hi; });
-      var yr = function (c, arrs, mp) { var r = prYR(arrs, mp), y = c.options.scales.y; c.$prOut = r && r.out; if (r) { y.min = r.min; y.max = r.max; } else { delete y.min; delete y.max; } };
-      var shown = []; if (!PR.hide.l1) shown.push(R.l1); if (!PR.hide.l2) shown.push(R.l2); if (!PR.hide.mid) shown.push(R.mid);
-      yr(main, shown.length ? shown : [R.l1, R.l2], 0.3); yr(pa, [R.ab, R.aa], 0.003); yr(pb, [R.bb, R.ba], 0.003);
+      var yr = function (c, arrs, mp) { var r = prYR(arrs, mp, chg), y = c.options.scales.y; c.$prOut = r && r.out; if (r) { y.min = r.min; y.max = r.max; } else { delete y.min; delete y.max; } };
+      var shown = []; if (!PR.hide.l1) shown.push(R[K.l1]); if (!PR.hide.l2) shown.push(R[K.l2]); if (!PR.hide.mid) shown.push(R[K.mid]);
+      var lp = chg ? 0.3 : 0.003;
+      yr(main, shown.length ? shown : [R[K.l1], R[K.l2]], 0.3); yr(pa, [R[K.ab], R[K.aa]], lp); yr(pb, [R[K.bb], R[K.ba]], lp);
       caps();
     }
     function sizeOv(c, o) {
@@ -1760,7 +1822,7 @@
         var ca = ch.chartArea, x = Math.round(ch.scales.x.getPixelForValue(R.x[i])) + 0.5, ys = ch.scales.y;
         ctx.strokeStyle = cssv('--wb-mark'); ctx.lineWidth = 1; ctx.setLineDash([3, 3]);
         ctx.beginPath(); ctx.moveTo(x, ca.top); ctx.lineTo(x, ca.bottom); ctx.stroke(); ctx.setLineDash([]);
-        vals[k].forEach(function (s) { if (s[2] && PR.hide[s[2]]) return; var v = R[s[0]][i]; if (isNum(v)) dot(ctx, x, ys.getPixelForValue(v), cssv(s[1])); });
+        vals[k].forEach(function (s) { if (s[2] && PR.hide[s[2]]) return; var v = R[prK()[s[0]]][i]; if (isNum(v)) dot(ctx, x, ys.getPixelForValue(v), cssv(s[1])); });
       });
     }
     function idxAt(ch, ev) {   // 가리킨 x → 그 시각 이전 마지막 행(as-of)
@@ -1797,6 +1859,18 @@
   function prTip(R, i) {   // 십자선 툴팁 — 시각 · A 매수/매도(출처) · B 매수/매도(출처) · 선1 · 선2 · 미드(엔진 값 그대로)
     var nm = prNames(), sp = function (c) { return ' <span class="wb-muted">(' + esc(prSrcName(c)) + ')</span>'; };
     var fb = function (v) { return v ? ' ' + tag('대체', 'rst') : ''; };
+    if (prChg()) {   // 변동 = bp 값 + 괄호로 레벨 값(엔진 값 그대로) · 그날 전일 기준
+      var pv = R.pv[R.day[i]] || {}, D = PR.data || {}, mu = function (t) { return ' <span class="wb-muted">(' + t + ')</span>'; };
+      var sd = function (cv, lv, c) { return prBp(cv) + '</span>' + mu(fy(lv) + ' · ' + esc(prSrcName(c))); };
+      return '<b>' + (R.multi ? esc(mmdd(R.day[i])) + ' ' : '') + esc(R.t[i]) + '</b> <span class="wb-muted">· 전일 대비' + (R.post[i] ? ' · 15:45 이후' : '') + '</span>' +
+        '<br>A ' + esc(nm.a) + ' 매수 <span class="otc-buy">' + sd(R.abc[i], R.ab[i], R.abs[i]) + ' · 매도 <span class="otc-sell">' + sd(R.aac[i], R.aa[i], R.aas[i]) + fb(R.afb[i]) +
+        '<br>B ' + esc(nm.b) + ' 매수 <span class="otc-buy">' + sd(R.bbc[i], R.bb[i], R.bbs[i]) + ' · 매도 <span class="otc-sell">' + sd(R.bac[i], R.ba[i], R.bas[i]) + fb(R.bfb[i]) +
+        '<br>' + esc(prL1(nm.a, nm.b)) + ' <b>' + prBp(R.l1c[i]) + '</b>' + mu('레벨 ' + prBp(R.l1[i])) +
+        '<br>' + esc(prL2(nm.a, nm.b)) + ' <b>' + prBp(R.l2c[i]) + '</b>' + mu('레벨 ' + prBp(R.l2[i])) +
+        '<br>미드 ' + prBp(R.midc[i]) + mu('레벨 ' + prBp(R.mid[i])) +
+        '<br><span class="wb-muted">전일 기준 A ' + esc(prPvLeg(pv.a, D.a)) + ' · B ' + esc(prPvLeg(pv.b, D.b)) + ' · 전일 스프레드 ' + prBp(pv.spr) + '</span>' +
+        (R.afb[i] || R.bfb[i] ? '<br><span class="wb-muted">대체 = 고른 쪽 값이 비어 다른 쪽으로 채움(엔진 fb)</span>' : '');
+    }
     return '<b>' + (R.multi ? esc(mmdd(R.day[i])) + ' ' : '') + esc(R.t[i]) + '</b>' + (R.post[i] ? ' <span class="wb-muted">· 15:45 이후</span>' : '') +
       '<br>A ' + esc(nm.a) + ' 매수 <span class="otc-buy">' + fy(R.ab[i]) + '</span>' + sp(R.abs[i]) + ' · 매도 <span class="otc-sell">' + fy(R.aa[i]) + '</span>' + sp(R.aas[i]) + fb(R.afb[i]) +
       '<br>B ' + esc(nm.b) + ' 매수 <span class="otc-buy">' + fy(R.bb[i]) + '</span>' + sp(R.bbs[i]) + ' · 매도 <span class="otc-sell">' + fy(R.ba[i]) + '</span>' + sp(R.bas[i]) + fb(R.bfb[i]) +
@@ -1855,6 +1929,7 @@
     if (qb) PR.b = String(qb).trim();
     if (qd && PR.choices.indexOf(qd) >= 0) PR.days = qd;
     if (p && (p.get('ma') || p.get('mb') || qa)) { PR.ma = prMode(p.get('ma')); PR.mb = prMode(p.get('mb')); }   // 주소에 다리가 있으면 모드도 주소 기준(없으면 자동)
+    if (p && (p.get('v') || qa)) PR.val = p.get('v') === 'chg' ? 'chg' : 'lvl';                                     // 레벨/변동도 같은 규칙(없으면 레벨)
     prSave(); prList(); prSyncBar(); prStatus();
     if (PR.data && PR.cpath === prPath()) prRender();
     prFetch(true); prStart(); prStampHash();
@@ -3013,6 +3088,10 @@
       });
     });
     $('prAxis').addEventListener('click', function (e) { var b = e.target.closest('button[data-praxis]'); if (!b) return; var v = b.getAttribute('data-praxis') === 'ev' ? 'ev' : 'time'; if (v === PR.axis) return; PR.axis = v; prSave(); prSyncBar(); hideHov(); prKill(); prChart(); });
+    $('prVal').addEventListener('click', function (e) {   // 레벨 / 변동 — 다시 부르지 않고 이미 받은 배열만 바꿔 그림(폴링·cursor 그대로)
+      var b = e.target.closest('button[data-prval]'); if (!b) return; var v = b.getAttribute('data-prval') === 'chg' ? 'chg' : 'lvl'; if (v === PR.val) return;
+      PR.val = v; prSave(); prStampHash(); prSyncBar(); hideHov(); prHead(); if (PR.ctl && PR.R) PR.ctl.set(PR.R);
+    });
     $('prYfit').addEventListener('click', function (e) { var b = e.target.closest('button[data-pryfit]'); if (!b) return; var v = b.getAttribute('data-pryfit') === 'all' ? 'all' : 'fit'; if (v === PR.yfit) return; PR.yfit = v; prSave(); prSyncBar(); if (PR.ctl && PR.R) PR.ctl.set(PR.R); });
     $('prAuto').addEventListener('click', function () { PR.auto = !PR.auto; prSave(); prSyncBar(); if (PR.auto) { prFetch(true); prStart(); } else prStop(); prStatus(); });
     $('prLegend').addEventListener('click', function (e) {
