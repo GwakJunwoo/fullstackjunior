@@ -284,22 +284,38 @@
     .otc-fb .wb-field .wb-input.otc-pr-in { width: 118px; font-weight: 600; }
     #prCard.is-stale { opacity: .45; transition: opacity .2s; }
     .otc-pr-top { display: flex; flex-wrap: wrap; align-items: stretch; border-bottom: 1px solid var(--wb-rule); }
+    .otc-pr-bigs { flex: none; display: flex; flex-direction: column; border-right: 1px solid var(--wb-rule); }
+    .otc-pr-bigrow { display: flex; flex: 1; }
     .otc-pr-big { flex: none; min-width: 190px; padding: 8px 16px 10px; border-right: 1px solid var(--wb-rule); }
+    .otc-pr-bigrow .otc-pr-big:last-child { border-right: 0; }
     .otc-pr-lab { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; white-space: nowrap; }
     .otc-pr-sw { display: inline-block; flex: none; width: 14px; height: 3px; border-radius: 1px; }
     .otc-pr-val { margin-top: 2px; font-size: 30px; line-height: 36px; font-weight: 600; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
     .otc-pr-val small { margin-left: 3px; font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--wb-muted); }
-    .otc-pr-info { flex: 1 1 360px; min-width: 0; display: flex; flex-direction: column; gap: 4px; padding: 8px 16px 10px; font-size: 12px; line-height: 18px; color: var(--wb-muted); font-variant-numeric: tabular-nums; }
+    .otc-pr-info { flex: 1 1 420px; min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 6px; padding: 8px 16px 8px; font-size: 12px; line-height: 18px; color: var(--wb-muted); font-variant-numeric: tabular-nums; }
     .otc-pr-info b { color: var(--wb-ink); font-weight: 600; }
     .otc-pr-info b.otc-buy { color: var(--wb-down); } .otc-pr-info b.otc-sell { color: var(--wb-up); }
-    .otc-pr-legs { display: flex; flex-wrap: wrap; gap: 4px 18px; }
-    .otc-pr-leg { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 5px; }
+    .otc-pr-trio { display: flex; flex-wrap: wrap; gap: 6px 0; }
+    .otc-pr-tb { flex: 1 1 170px; min-width: 0; padding: 0 16px 0 0; margin-right: 16px; border-right: 1px solid var(--wb-rule); }
+    .otc-pr-tb:last-child { border-right: 0; margin-right: 0; }
+    .otc-pr-tl { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: var(--wb-ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .otc-pr-tv { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; margin-top: 1px; font-size: 26px; line-height: 32px; font-weight: 600; letter-spacing: -0.02em; color: var(--wb-ink); font-variant-numeric: tabular-nums; }
+    .otc-pr-tv small { margin-left: 2px; font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--wb-muted); }
+    .otc-pr-tc { font-size: 12px; font-weight: 400; letter-spacing: 0; color: var(--wb-muted); white-space: nowrap; }
+    .otc-pr-tc b { font-weight: 600; color: var(--wb-ink); }
+    .otc-pr-qline { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 18px; font-size: 12px; color: var(--wb-muted); }
+    .otc-pr-lq { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 2px 5px; min-width: 0; }
+    .otc-pr-nk { font-size: 11px; color: var(--wb-muted); white-space: nowrap; }
+    .otc-pr-q { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
+    .otc-pr-q b { font-weight: 600; }
+    .otc-pr-sl { color: var(--wb-faint); }
+    .otc-pr-sd { display: inline-block; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--sd); }
+    .otc-pr-sd.is-fb { background: repeating-linear-gradient(135deg, var(--sd) 0 1.5px, transparent 1.5px 3px); box-shadow: 0 0 0 1.2px var(--sd); }
     .otc-pr-ab { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 3px; background: var(--wb-subtle); border: 1px solid var(--wb-rule-strong); font-size: 11px; font-weight: 600; color: var(--wb-ink); }
-    .otc-pr-al { font-size: 14px; }
-    .otc-pr-st { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; }
-    .otc-pr-st > span { display: inline-flex; align-items: center; gap: 5px; }
-    .otc-pr-info b.otc-pr-bad { color: var(--wb-warn); }
-    .otc-pr-why { margin: 8px 16px 0; }
+    .otc-pr-al { font-size: 13px; color: var(--wb-ink); }
+    .otc-pr-st { display: flex; flex-wrap: wrap; align-items: center; gap: 2px 14px; min-width: 0; }
+    .otc-pr-stl { display: inline-flex; align-items: center; gap: 5px; color: var(--wb-ink); font-weight: 600; white-space: nowrap; }
+    .otc-pr-prob { min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--wb-warn); }
     .otc-pr-lgb { appearance: none; background: none; border: 0; padding: 0; font: inherit; color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
     .otc-pr-lgb:hover, .otc-pr-lgb:focus-visible { color: var(--wb-ink); }
     .otc-pr-lgb[aria-pressed="false"] { opacity: .45; text-decoration: line-through; }
@@ -494,6 +510,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/wb-chart.js?v=20261022c"></script>
-<script src="/assets/js/wb-otc.js?v=20261110d"></script>
+<script src="/assets/js/wb-otc.js?v=20261110f"></script>
 </body>
 </html>

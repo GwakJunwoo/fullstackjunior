@@ -1477,59 +1477,73 @@
     $('prDot').className = 'otc-dot' + (cls ? ' ' + cls : '');
     $('prStat').textContent = txt.join(' · ');
   }
-  function prExch() {   // 엑셀(장내 실시간) 상태 — same 응답에서도 갱신 · expected(수신 중이어야 할 시간)인데 open 아님 = 경고
-    var el = $('prExch'); if (!el) return;
-    var x = (PR.last && PR.last.exch) || (PR.data && PR.data.exch) || {}, on = !!x.open, bad = !on && x.expected === true;
-    el.innerHTML = '<span class="otc-dot' + (on ? ' ok' : bad ? ' warn' : '') + '" aria-hidden="true"></span>엑셀(장내) <b>' + esc(x.status || '–') + '</b>' +
-      (x.last_read ? ' · 읽음 ' + esc(hmsOf(x.last_read)) : '') + (bad ? ' <b class="otc-pr-bad">수신 중이어야 할 시간인데 연결 안 됨 — 오늘 장내 값이 멈춰 있을 수 있음</b>' : '');
-    var as = $('prAsof'); if (as && PR.last) as.innerHTML = '장외 스냅샷 <b>' + esc(hmsOf(PR.last.asof)) + '</b> · 확인 ' + esc(hmsOf(PR.last.now));
+  function prTodayBlk(d) { var tb = null; ((d && d.blocks) || []).forEach(function (b) { if (b.d === d.today) tb = b; }); return tb; }
+  function prExch() {   // 상태 한 줄(same 응답에서도 갱신) — 정상 = ● 실시간 + 오늘 마지막 행 시각 · 문제(엑셀 끊김 · 다리 warn · 오늘 전일 기준 없음)만 주황 점 + 짧은 글 · 엔진 문장·시각·파일은 툴팁 그대로
+    var el = $('prSt'); if (!el) return;
+    var d = PR.data || {}, x = (PR.last && PR.last.exch) || d.exch || {}, L = d.last, on = !!x.open, tb = prTodayBlk(d);
+    var pv = (L && L.prev) || (tb && tb.prev) || {}, probs = [];
+    if (!on && x.expected === true) probs.push(['엑셀 끊김', '수신 중이어야 할 시간인데 연결 안 됨 — 오늘 장내 값이 멈춰 있을 수 있음\n엑셀 ' + (x.status || '–')]);
+    [['A', d.a, 'a'], ['B', d.b, 'b']].forEach(function (q) {
+      if (q[1] && q[1].warn) probs.push([q[0] + ' ' + (q[1].alias || q[1].spec || '') + ' — ' + q[1].warn, q[1].warn]);
+      var r = pv[q[2]]; if (r && !isNum(r.y)) probs.push([q[0] + ' 전일 기준 없음', r.why || '엔진 prev.y 없음']);
+    });
+    var tip = ['엑셀(장내) ' + (x.status || '–') + (x.last_read ? ' · 읽음 ' + hmsOf(x.last_read) : '') + (x.file ? ' · ' + x.file : ''),
+      PR.last ? '장외 스냅샷 ' + hmsOf(PR.last.asof) + ' · 확인 ' + hmsOf(PR.last.now) : '', L ? '오늘 마지막 행 ' + L.t : '오늘 행 없음 — 오늘 두 다리 모두 값이 아직 없습니다'].filter(Boolean).join('\n');
+    var dc = probs.length ? ' warn' : (on && L) ? ' ok' : '', lab = L ? (on ? '실시간 ' : '마지막 행 ') + L.t : '오늘 행 없음';
+    var kin = d.keyin || {}, k3 = (d.a && d.a.spec === '3선') || (d.b && d.b.spec === '3선');
+    el.innerHTML = '<span class="otc-pr-stl" title="' + esc(tip) + '"><span class="otc-dot' + dc + '" aria-hidden="true"></span>' + esc(lab) + '</span>' +
+      probs.map(function (q) { return '<span class="otc-pr-prob" title="' + esc(q[1]) + '">' + esc(q[0]) + '</span>'; }).join('') +
+      (kin.active && k3 ? '<span class="otc-tag otc-tag--key" title="15:45 이후 3선 키인(엔진 keyin 그대로)">3선 키인 ' + esc(fp(kin.price)) + (kin.t ? ' · ' + esc(kin.t) : '') + '</span>' : '');
   }
-  function prLegInfo(k, leg, blk) {
-    var chips = [], ns = (blk && blk.n_src) || {}, xs = (blk && blk.exch_src) || {};
-    if (leg.nick) chips.push(chip(esc(leg.nick)));
-    if (bk3(leg.basket)) chips.push(chip(esc(leg.basket), 'otc-chip-basket'));
-    if (leg.known !== false) chips.push(chip(esc(prKind(leg.kind))));
-    if (isNum(leg.rem)) chips.push(chip('잔존 ' + esc(leg.rem) + '년'));
-    if (leg.in_sheet) chips.push(chip('엑셀 행', 'wb-badge--open'));
-    var tip = '오늘 원 계열 — 장외 ' + n0(ns[k + '_otc']) + '행 · 장내 ' + n0(ns[k + '_exch']) + '행' + (xs[k] ? '(' + xs[k] + ')' : '') + (leg.ex_code ? '\n엑셀 종목코드 ' + leg.ex_code : '') + '\n출처 모드 = ' + ((PR_MODES.filter(function (m) { return m[0] === leg.mode; })[0] || [0, leg.mode])[1]);
-    return '<span class="otc-pr-leg" title="' + esc(tip) + '"><span class="otc-pr-ab">' + k.toUpperCase() + '</span><b class="otc-pr-al">' + esc(leg.alias || leg.spec || '') + '</b>' + chips.join('') + '</span>';
+  function prLegQ(k, leg, L, tb, pv) {   // 다리 호가 한 줄 조각: [A] 종목명 별칭(3선 바스켓) · 출처 점 + 매수/매도 금리 — 종류·잔존·엑셀·원 계열·전일 기준은 툴팁
+    var ns = (tb && tb.n_src) || {}, xs = (tb && tb.exch_src) || {}, i = tb && tb.n ? tb.n - 1 : -1, q = pv && pv[k];
+    var tip = [leg.nick, leg.known !== false ? prKind(leg.kind) : '모르는 이름', isNum(leg.rem) ? '잔존 ' + leg.rem + '년' : (isNum(leg.years) ? leg.years + '년 표준물(5% 반기) 내재수익률' : ''),
+      leg.in_sheet ? '엑셀 행 있음' + (leg.ex_code ? ' · ' + leg.ex_code : '') : '엑셀 행 없음',
+      '출처 모드 = ' + ((PR_MODES.filter(function (m) { return m[0] === leg.mode; })[0] || [0, leg.mode])[1]),
+      '오늘 원 계열 — 장외 ' + n0(ns[k + '_otc']) + '행 · 장내 ' + n0(ns[k + '_exch']) + '행' + (xs[k] ? '(' + xs[k] + ')' : ''),
+      q ? prPvLeg(q, leg) : ''].filter(Boolean).join('\n');
+    var code = function (key) { return (i >= 0 && tb[key]) ? tb[key][i] : -1; }, fb = i >= 0 && tb[k + '_fb'] ? !!tb[k + '_fb'][i] : false;
+    var one = function (nmS, cls, lv, cv, c) {
+      var col = PR_SRC_COL[String(c)] || '--wb-faint', has = isNum(c) && c >= 0;
+      var t = nmS + '호가 · 출처 ' + prSrcName(c) + (fb ? ' · 대체(고른 쪽 값이 비어 다른 쪽으로 채움 · 엔진 fb)' : '') + ' · 금리 ' + fy(lv) + ' · 전일 대비 ' + prBp(cv);
+      return '<span class="otc-pr-q" title="' + esc(t) + '">' + (has ? '<i class="otc-pr-sd' + (fb ? ' is-fb' : '') + '" style="--sd:var(' + col + ')"></i>' : '') + '<b class="' + cls + '">' + fy(lv) + '</b></span>';
+    };
+    return '<span class="otc-pr-lq"><span class="otc-pr-ab">' + k.toUpperCase() + '</span><b class="otc-pr-al" title="' + esc(tip) + '">' + esc(leg.alias || leg.spec || '') + '</b>' +
+      (leg.nick ? '<span class="otc-pr-nk" title="' + esc(tip) + '">' + esc(leg.nick) + '</span>' : '') + (bk3(leg.basket) ? chip(esc(leg.basket), 'otc-chip-basket') : '') +
+      one('매수', 'otc-buy', L && L[k + '_bid'], L && L[k + '_bid_chg'], code(k + '_bsrc')) + '<span class="otc-pr-sl">/</span>' +
+      one('매도', 'otc-sell', L && L[k + '_ask'], L && L[k + '_ask_chg'], code(k + '_asrc')) + '</span>';
   }
   function prHead() {
     var d = PR.data, host = $('prHead'), nm = prNames();
     if (!d) { host.innerHTML = ''; return; }
     if (!d.ok) { host.innerHTML = ''; $('prTitle').innerHTML = '종목 스프레드'; $('prLegend').innerHTML = ''; $('prLimits').textContent = ''; return; }
-    var defs = d.defs || {}, L = d.last, tb = null;
-    (d.blocks || []).forEach(function (b) { if (b.d === d.today) tb = b; });
+    var defs = d.defs || {}, L = d.last, tb = prTodayBlk(d);
     $('prTitle').innerHTML = esc(nm.a) + ' − ' + esc(nm.b) + ' 장중 스프레드' + help([defs.quote, defs.rule, defs.src].filter(Boolean).join('\n') + '\n관찰 전용(추천·주문 아님)');
-    var chg = prChg(), sf = prSuf(), pvT = (L && L.prev) || (tb && tb.prev) || null;
+    var chg = prChg(), sf = prSuf(), pvT = (L && L.prev) || (tb && tb.prev) || null, pa = (pvT && pvT.a) || null, pb = (pvT && pvT.b) || null;
     $('prValHelp').innerHTML = help(defs.chg || '변동 = 엔진 *_chg 값');
-    var big = function (lab, v, col, tip) {
+    var big = function (lab, v, col, tip) {   // 변동 모드에서만: 차트가 그리는 값(선1/선2 전일 대비) 강조
       return '<div class="otc-pr-big"><div class="otc-pr-lab"><i class="otc-pr-sw" style="background:var(' + col + ')"></i>' + esc(lab) + help(tip) + '</div>' +
         '<div class="otc-pr-val">' + (isNum(v) ? fbp(v, 2) + '<small>bp</small>' : '<span class="wb-muted">–</span>') + '</div></div>';
     };
-    var warns = [];
-    [['A', d.a], ['B', d.b]].forEach(function (p) { if (p[1] && p[1].warn) warns.push('<li><b>' + p[0] + ' ' + esc(p[1].alias || p[1].spec || '') + '</b> ' + esc(p[1].warn) + '</li>'); });
-    var kin = d.keyin || {}, k3 = (d.a && d.a.spec === '3선') || (d.b && d.b.spec === '3선');
-    var side = function (cv, lv, src, cls) {   // 레벨 = 금리(출처) · 변동 = bp(금리 · 출처)
-      return chg ? '<b class="' + cls + '">' + prBp(cv) + '</b>(' + fy(lv) + ' · ' + esc(src || '값 없음') + ')' : '<b class="' + cls + '">' + fy(lv) + '</b>(' + esc(src || '값 없음') + ')';
+    var bp = function (v) { return isNum(v) ? fbp(v, 2) + '<small>bp</small>' : '<span class="wb-muted">–</span>'; };
+    var blk = function (lab, col, v, cv, tip, ttl) {   // 늘 레벨(엔진 값 그대로) · 옆에 작게 전일 대비
+      return '<div class="otc-pr-tb"' + (ttl ? ' title="' + esc(ttl) + '"' : '') + '><div class="otc-pr-tl">' + (col ? '<i class="otc-pr-sw" style="background:var(' + col + ')"></i>' : '') + esc(lab) + help(tip) + '</div>' +
+        '<div class="otc-pr-tv">' + bp(v) + (cv !== undefined ? '<span class="otc-pr-tc">전일 대비 <b>' + (isNum(cv) ? fbp(cv, 2) : '–') + '</b></span>' : '') + '</div></div>';
     };
-    var lastTxt = L ? '오늘 마지막 행 <b>' + esc(L.t) + '</b> · 미드' + sf + ' <b>' + prBp(chg ? L.mid_chg : L.mid) + '</b>' + (chg ? '(레벨 ' + prBp(L.mid) + ')' : '') +
-        ' · ' + esc(nm.a) + ' 매수 ' + side(L.a_bid_chg, L.a_bid, L.a_bsrc, 'otc-buy') + ' / 매도 ' + side(L.a_ask_chg, L.a_ask, L.a_asrc, 'otc-sell') +
-        ' · ' + esc(nm.b) + ' 매수 ' + side(L.b_bid_chg, L.b_bid, L.b_bsrc, 'otc-buy') + ' / 매도 ' + side(L.b_ask_chg, L.b_ask, L.b_asrc, 'otc-sell')
-      : '<b>오늘 행 없음</b> — 오늘 두 다리 모두 값이 아직 없습니다';
-    var pvTxt = chg ? '<div>전일 기준 — A ' + esc(nm.a) + ' <b>' + esc(prPvLeg(pvT && pvT.a, d.a)) + '</b> · B ' + esc(nm.b) + ' <b>' + esc(prPvLeg(pvT && pvT.b, d.b)) + '</b> · 전일 스프레드 <b>' + prBp(pvT && pvT.spr) + '</b>' +
-      ((d.blocks || []).length > 1 ? ' <span class="wb-muted">(오늘 기준 · 지난 날은 그날 전일 기준)</span>' : '') + '</div>' : '';
+    var pvTip = '전일 스프레드 = A 전일 − B 전일(bp · 엔진 prev.spr)\nA ' + nm.a + ' ' + prPvLeg(pa, d.a) + '\nB ' + nm.b + ' ' + prPvLeg(pb, d.b);
     host.innerHTML = '<div class="otc-pr-top">' +
-      big(prL1(nm.a, nm.b) + sf, L && (chg ? L.l1_chg : L.l1), '--wb-up', (defs.l1 || '') + (chg ? '\n' + (defs.chg || '') : '')) +
-      big(prL2(nm.a, nm.b) + sf, L && (chg ? L.l2_chg : L.l2), '--wb-down', (defs.l2 || '') + (chg ? '\n' + (defs.chg || '') : '')) +
+      (chg ? '<div class="otc-pr-bigs"><div class="otc-pr-bigrow">' +
+        big(prL1(nm.a, nm.b) + sf, L && L.l1_chg, '--wb-up', (defs.l1 || '') + '\n' + (defs.chg || '')) +
+        big(prL2(nm.a, nm.b) + sf, L && L.l2_chg, '--wb-down', (defs.l2 || '') + '\n' + (defs.chg || '')) + '</div></div>' : '') +
       '<div class="otc-pr-info">' +
-        '<div class="otc-pr-legs">' + (d.a ? prLegInfo('a', d.a, tb) : '') + (d.b ? prLegInfo('b', d.b, tb) : '') + '</div>' +
-        '<div>' + lastTxt + '</div>' + pvTxt +
-        '<div class="otc-pr-st"><span id="prExch"></span>' +
-          (kin.active && k3 ? '<span class="otc-tag otc-tag--key" title="15:45 이후 3선 키인(엔진 keyin 그대로)">3선 키인 ' + esc(fp(kin.price)) + (kin.t ? ' · ' + esc(kin.t) : '') + '</span>' : '') +
-          '<span id="prAsof"></span></div>' +
-      '</div></div>' +
-      (warns.length ? '<div class="otc-rb-why otc-pr-why"><b>다리 경고</b><ul>' + warns.join('') + '</ul></div>' : '');
+        '<div class="otc-pr-trio">' +
+          blk('전일 스프레드', '', pvT && pvT.spr, undefined, pvTip + '\n' + (defs.chg || ''), pvTip) +
+          blk(nm.a + ' 사고 ' + nm.b + ' 팔 때', '--wb-up', L && L.l1, L && L.l1_chg, (defs.l1 || '') + '\n' + (defs.chg || '') + '\n차트 선1과 같은 값') +
+          blk(nm.a + ' 팔고 ' + nm.b + ' 살 때', '--wb-down', L && L.l2, L && L.l2_chg, (defs.l2 || '') + '\n' + (defs.chg || '') + '\n차트 선2와 같은 값') +
+        '</div>' +
+        '<div class="otc-pr-qline">' + (d.a ? prLegQ('a', d.a, L, tb, pvT) : '') + (d.b ? prLegQ('b', d.b, L, tb, pvT) : '') + '</div>' +
+        '<div class="otc-pr-st" id="prSt"></div>' +
+      '</div></div>';
     prExch();
     $('prLegend').innerHTML = prLegend(defs, nm);
     $('prLimits').textContent = defs.limits || '';
