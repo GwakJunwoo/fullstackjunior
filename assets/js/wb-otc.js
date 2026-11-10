@@ -1611,15 +1611,26 @@
         ticks: { display: show, autoSkip: false, maxRotation: 0, callback: function (v) { return lab[v] != null ? lab[v] : ''; } } };
     }
     function yFit(sc) { sc.width = 62; }   // 세 패널 x 픽셀 정렬(십자선 동기)
-    var dayPlug = { id: 'prDays', beforeDatasetsDraw: function (ch) {   // 날 경계 세로선 + (주 패널) 날짜 라벨
+    function plate(ctx, txt, x, y, align) {   // 글자 + 바탕색 받침(선 위에서도 읽히게 · 표현만)
+      var w = ctx.measureText(txt).width, x0 = align === 'right' ? x - w : x;
+      ctx.save(); ctx.fillStyle = WBChart.alpha('--wb-surface', 0.92); ctx.fillRect(x0 - 2, y - 1, w + 4, 13); ctx.restore();
+      ctx.textAlign = align || 'left'; ctx.fillText(txt, x, y);
+    }
+    var dayPlug = { id: 'prDays', beforeDatasetsDraw: function (ch) {   // 날 경계 세로선(선 아래 층)
       if (!R.multi || !ch.chartArea) return;
-      var xs = ch.scales.x, ca = ch.chartArea, ctx = ch.ctx, isMain = ch.canvas === cv[0];
-      ctx.save(); ctx.strokeStyle = cssv('--wb-rule-strong'); ctx.lineWidth = 1; ctx.font = '600 10px ' + (cssv('--wb-font') || 'sans-serif'); ctx.textBaseline = 'top'; ctx.fillStyle = cssv('--wb-muted');
+      var xs = ch.scales.x, ca = ch.chartArea, ctx = ch.ctx;
+      ctx.save(); ctx.strokeStyle = cssv('--wb-rule-strong'); ctx.lineWidth = 1;
       R.full.forEach(function (g, j) {
+        if (!j) return;
         var x = Math.round(xs.getPixelForValue(g.lo)) + 0.5;
-        if (j > 0) { ctx.beginPath(); ctx.moveTo(x, ca.top); ctx.lineTo(x, ca.bottom); ctx.stroke(); }
-        if (isMain) ctx.fillText(mmdd(g.d), Math.max(ca.left, x) + 3, ca.top + 2);
+        ctx.beginPath(); ctx.moveTo(x, ca.top); ctx.lineTo(x, ca.bottom); ctx.stroke();
       });
+      ctx.restore();
+    }, afterDatasetsDraw: function (ch) {   // (주 패널) 날짜 라벨 = 선 위 층
+      if (!R.multi || !ch.chartArea || ch.canvas !== cv[0]) return;
+      var xs = ch.scales.x, ca = ch.chartArea, ctx = ch.ctx;
+      ctx.save(); ctx.font = '600 10px ' + (cssv('--wb-font') || 'sans-serif'); ctx.textBaseline = 'top'; ctx.fillStyle = cssv('--wb-muted');
+      R.full.forEach(function (g) { plate(ctx, mmdd(g.d), Math.max(ca.left, Math.round(xs.getPixelForValue(g.lo))) + 3, ca.top + 2); });
       ctx.restore();
     } };
     var cutPlug = { id: 'prCut', afterDatasetsDraw: function (ch) {   // 15:45 이후 첫 행(엔진 cut_i) = 세로 점선 · 주 패널엔 라벨
@@ -1633,9 +1644,9 @@
         if (!isMain) return;
         var g = null; R.full.forEach(function (s) { if (s.d === c.d) g = s; });
         var room = (g ? xs.getPixelForValue(g.hi) : ca.right) - x - 6, full = ctx.measureText(PR_CUT_LAB).width, y = ca.top + 15;
-        if (room >= full) { ctx.textAlign = 'left'; ctx.fillText(PR_CUT_LAB, x + 4, y); }
-        else if (x - ca.left - 6 >= full) { ctx.textAlign = 'right'; ctx.fillText(PR_CUT_LAB, x - 4, y); }   // 오른쪽 칸이 좁으면 선 왼쪽에
-        else { ctx.textAlign = 'left'; ctx.fillText('15:45', x + 4, y); }   // 둘 다 좁으면 시각만(뜻은 범례·툴팁)
+        if (room >= full) plate(ctx, PR_CUT_LAB, x + 4, y, 'left');
+        else if (x - ca.left - 6 >= full) plate(ctx, PR_CUT_LAB, x - 4, y, 'right');   // 오른쪽 칸이 좁으면 선 왼쪽에
+        else plate(ctx, '15:45', x + 4, y, 'left');   // 둘 다 좁으면 시각만(뜻은 범례·툴팁)
       });
       ctx.restore();
     } };
