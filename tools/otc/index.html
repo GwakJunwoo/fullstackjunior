@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 2026-11-04 사용자 지시: 장외 호가 탭 — kbond_quote(장외 메신저 호가) 관찰 도구.
-     화면 = #board 보드(첫 화면 · 5종목 동시 · 5초 갱신) · #spread 종목 스프레드(종목−3선 / 종목−종목 · 3초 갱신 · 패널 최대 2개 = 왼쪽/오른쪽 따로) · #pnl 포지션(등록한 현물·선물의 장중 실시간 손익 · 당일 = 전일 종가 대비 기본 · 진입값 넣으면 총 손익 따로 · 등록/삭제 · 5초 갱신 · 왼쪽 pnl 차트(엔진 series) + 오른쪽 등록·그리드 · 접기 · 2026-11-11) · #bond 종목 분석 · #broker 브로커 분석 · #team 팀 해부(1차 장중 · 2차 일봉).
+     화면 = #board 보드(첫 화면 · 5종목 동시 · 5초 갱신) · #spread 종목 스프레드(종목−3선 / 종목−종목 · 3초 갱신 · 패널 최대 2개 = 왼쪽/오른쪽 따로) · #pnl 포지션(등록한 현물·선물의 장중 실시간 손익 · 당일 = 전일 종가 대비 기본 · 진입값 넣으면 총 손익 따로 · 등록/삭제 · 5초 갱신 · 왼쪽 pnl 차트(엔진 series) + 오른쪽 등록·그리드 · 접기 · 미니 pnl 창 = 페이지 안 드래그 창 + 다른 프로그램 위 떠 있는 창(Document PiP) · 2026-11-11) · #bond 종목 분석 · #broker 브로커 분석 · #team 팀 해부(1차 장중 · 2차 일봉).
      데이터 = /otc/* (fullstackjunior/server/app/routers/otc.py → BQH otcdesk.api 그대로 · 재계산 0).
      ★공개 범위 = 사이트 탭·비공개: 데이터 API 는 전부 X-QH-KEY(GET 포함). 이 파일·JS 에는 사람 이름·회사 이름이 없다 —
        팀 라벨·명단은 전부 /otc/meta 응답에서 받아 그린다(키 없으면 빈 껍데기 + 키 안내만).
@@ -427,6 +427,37 @@
     .otc-pn-cap .is-err { color: var(--wb-up); }
     .otc-pn-head .otc-rb-mini { margin-left: 8px; }
     #pnChartBody[hidden], #pnGridBody[hidden] { display: none !important; }
+    .otc-pn-head .wb-chip { height: var(--wb-ctl-sm); padding: 0 8px; font-size: 11px; }
+    /* (0d) 미니 pnl 창(사용자 2026-11-11 '미니미니 하게 · 옮길 수 있게 떠 있게'): 페이지 안 = position fixed(머리 줄 드래그) · PiP 창 = body.otc-pnm-pip 안에서 창을 꽉 채움 · 같은 마크업(wb-otc.js pnMiniBuild) */
+    .otc-pnm { position: fixed; z-index: 95; left: 0; top: 0; width: 280px; background: var(--wb-surface); border: 1px solid var(--wb-rule-strong); border-radius: var(--wb-r-card); box-shadow: 0 8px 24px rgba(0, 0, 0, .35); color: var(--wb-ink); font-family: var(--wb-font); font-size: 12px; line-height: 16px; user-select: none; }
+    .otc-pnm[hidden] { display: none !important; }
+    .otc-pnm-head { display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 4px 0 8px; border-bottom: 1px solid var(--wb-rule); cursor: move; font-size: 11px; color: var(--wb-muted); touch-action: none; }
+    .otc-pnm-title { font-weight: 600; color: var(--wb-ink); white-space: nowrap; }
+    .otc-pnm-meta { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .otc-pnm-meta .otc-dot { width: 7px; height: 7px; }
+    .otc-pnm-x { width: 22px; height: 22px; flex: none; border: 0; border-radius: var(--wb-r-ctl); background: none; color: var(--wb-muted); font-size: 15px; line-height: 1; cursor: pointer; }
+    .otc-pnm-x:hover { color: var(--wb-ink); background: var(--wb-subtle); }
+    .otc-pnm-body { padding: 3px 8px 5px; }
+    .otc-pnm-row { display: flex; align-items: baseline; gap: 7px; min-height: 24px; line-height: 24px; white-space: nowrap; overflow: hidden; }
+    .otc-pnm-lab { flex: none; font-size: 10px; color: var(--wb-muted); }
+    .otc-pnm-big { flex: none; font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .otc-pnm-big small, .otc-pnm-sub small { margin-left: 1px; font-size: 10px; font-weight: 400; color: var(--wb-muted); }
+    .otc-pnm-sub { min-width: 0; overflow: hidden; text-overflow: ellipsis; font-size: 11px; color: var(--wb-muted); font-variant-numeric: tabular-nums; }
+    .otc-pnm-sub b { font-weight: 600; }
+    .otc-pnm .wb-up { color: var(--wb-up); } .otc-pnm .wb-down { color: var(--wb-down); }
+    .otc-pnm-chart { position: relative; height: 96px; }
+    .otc-pnm-chart canvas { display: block; }
+    .otc-pnm-ph { height: 96px; display: flex; align-items: center; justify-content: center; font-size: 11px; color: var(--wb-muted); }
+    .otc-pnm-note { min-height: 14px; font-size: 10px; line-height: 14px; color: var(--wb-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .otc-pnm-note.is-err { color: var(--wb-up); }
+    body.otc-pnm-pip { margin: 0; padding: 0; overflow: hidden; background: var(--wb-surface); }
+    body.otc-pnm-pip .otc-pnm { position: static; width: auto; height: 100vh; border: 0; border-radius: 0; box-shadow: none; display: flex; flex-direction: column; }
+    body.otc-pnm-pip .otc-pnm-head { flex: none; cursor: default; }
+    body.otc-pnm-pip .otc-pnm-body { flex: 1 1 auto; display: flex; flex-direction: column; min-height: 0; }
+    body.otc-pnm-pip .otc-pnm-row { flex: none; }
+    body.otc-pnm-pip .otc-pnm-box { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; }
+    body.otc-pnm-pip .otc-pnm-chart, body.otc-pnm-pip .otc-pnm-ph { flex: 1 1 auto; height: auto; min-height: 50px; }
+    body.otc-pnm-pip .otc-pnm-note { flex: none; }
     @media (max-width: 1199.98px) { .otc-pn-split { grid-template-columns: minmax(0, 1fr); } .otc-pn-chart { height: 300px; } }
     @media (max-width: 1180px) { .otc-grid, .otc-grid--55, .otc-grid--3 { grid-template-columns: minmax(0, 1fr); } }
     @media (max-width: 900px) {
@@ -558,7 +589,7 @@
     <div class="otc-pn-split">
     <!-- 왼쪽(사용자 2026-11-11 추가 요구): 손익 실시간 pnl 차트 — 엔진 series(5초 기록 · 원 · 당일 손익 청산/미드 · 총 손익 청산) 그대로 · 접기(기억) -->
     <section class="wb-card" id="pnChartCard" aria-label="손익 실시간 차트">
-      <div class="wb-card-head otc-pn-head"><span class="wb-card-title">손익 실시간 차트<span id="pnChartHelp"></span></span><span class="otc-rb-mini" id="pnChartMini"></span><span class="wb-card-meta" id="pnChartMeta"></span><button type="button" class="wb-btn wb-btn--sm" id="pnChartFold" aria-expanded="true" aria-controls="pnChartBody">접기 ▴</button></div>
+      <div class="wb-card-head otc-pn-head"><span class="wb-card-title">손익 실시간 차트<span id="pnChartHelp"></span></span><span class="otc-rb-mini" id="pnChartMini"></span><span class="wb-card-meta" id="pnChartMeta"></span><button type="button" class="wb-chip" id="pnMiniBtn" aria-pressed="false" title="페이지 안에 떠 있는 작은 PnL 창 — 머리 줄을 잡고 옮김 · 보드·종목 스프레드·종목·브로커·팀 어느 탭에서도 유지 · 열려 있는 동안 5초 갱신 · 열림·위치 기억">미니 창</button><button type="button" class="wb-chip" id="pnPipBtn" aria-pressed="false" title="다른 창·프로그램 위에도 떠 있는 작은 PnL 창(Chrome 116+ · Document Picture-in-Picture) — 이 장외 호가 탭이 열려 있는 동안만">떠 있는 창</button><button type="button" class="wb-btn wb-btn--sm" id="pnChartFold" aria-expanded="true" aria-controls="pnChartBody">접기 ▴</button></div>
       <div id="pnChartBody"><div class="otc-card-body"><div id="pnChartBox"><div class="otc-bo-ph">불러오는 중…</div></div><span class="otc-cap otc-pn-cap" id="pnChartCap"></span></div></div>
     </section>
     <div class="otc-pn-right">
@@ -667,11 +698,13 @@
   <datalist id="otcBrokers"></datalist>
   <datalist id="otcPairLegs"></datalist>
   <div class="otc-hov" id="otcHov" hidden></div>
+  <!-- (0d) 페이지 안 떠 있는 미니 pnl 창(사용자 2026-11-11) — 내용은 wb-otc.js pnMiniBuild(PiP 창과 같은 마크업) · 어느 탭에서도 떠 있음 · 머리 줄 드래그 · × 닫기 · 열림·위치 = localStorage otc.pnl.ui -->
+  <div class="otc-pnm" id="pnMiniWin" hidden role="dialog" aria-label="포지션 PnL 미니 창"></div>
 </main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/wb-chart.js?v=20261022c"></script>
-<script src="/assets/js/wb-otc.js?v=20261111d"></script>
+<script src="/assets/js/wb-otc.js?v=20261111e"></script>
 </body>
 </html>

@@ -585,7 +585,7 @@
     $('otcGateMsg').textContent = msg || '이 화면은 키(X-QH-KEY)가 있어야 데이터가 보입니다.';
     $('otcGate').hidden = false;
     ['vBoard', 'vSpread', 'vPnl', 'vBond', 'vBroker', 'vTeam'].forEach(function (id) { $(id).hidden = true; });
-    S.meta = null; S.on = false; boStop(); prStopAll(); pnStop();
+    S.meta = null; S.on = false; boStop(); prStopAll(); pnStop(); pnMiniRender();
     if (window.WBShell) WBShell.setPage('otc-' + (parseHash().v));
   }
 
@@ -622,6 +622,7 @@
   // ══ 시작 · meta ════════════════════════════════════════════════════════
   function start() {   // meta 와 첫 화면(보드)을 동시에 부른다 — 보드는 meta 를 기다리지 않는다
     $('otcGate').hidden = true; $('otcFatal').hidden = true; S.on = true;
+    pnMiniInit();   // (0d) 페이지 안 미니 창 자동 복원(열려 있었으면) · 버튼 상태
     $('otcMeta').innerHTML = '<span class="wb-loading">불러오는 중…</span>';
     S.metaP = oget('/otc/meta', true).then(function (m) { S.meta = m; applyMeta(m); }, function (e) {
       $('otcMeta').textContent = '';
@@ -2099,10 +2100,11 @@
   //   ★추가 요구(사용자 2026-11-11): 왼쪽 = 손익 실시간 차트(엔진 series = 5초 기록 시계열 · rec = 기록 상태 — 둘 다 그대로 · 웹 계산 0 · 북 전체 손익이라 포지션을 더하거나 지우면 그 시각부터 값이 뛴다) ·
   //     오른쪽 = 등록 줄 + 그리드 · 푸터 글자('관찰 전용 … positions.json')는 머리 ? 에만 · 두 카드 접기(localStorage otc.pnl.ui 기억 · rbFold 문법 · 접으면 머리 줄에 당일/총 손익(청산) 작게).
   var PN_MS = 5000, PN_PW_SS = 'otc.pnl.pw', PN_LS = 'otc.pnl.ui';
-  var PN = S.pnl = { kind: 'bond', fut: '3선', side: 1, data: null, err: '', busy: false, timer: 0, seq: 0, minSeq: 0, wBusy: false, msg: null, helpTxt: '', pwBusy: false, locked: true,
-    open: true, chartOpen: true, hasChart: false, chartHelpTxt: '', edge: null, ax: null };
-  (function () { try { var o = JSON.parse(localStorage.getItem(PN_LS) || 'null'); if (o) { if (o.open === false) PN.open = false; if (o.chartOpen === false) PN.chartOpen = false; } } catch (e) { /* noop */ } })();
-  function pnSave() { try { localStorage.setItem(PN_LS, JSON.stringify({ open: PN.open, chartOpen: PN.chartOpen })); } catch (e) { /* noop */ } }
+  var PN = S.pnl = { kind: 'bond', fut: '3선', side: 1, data: null, err: '', busy: false, timer: 0, timerWin: null, seq: 0, minSeq: 0, wBusy: false, msg: null, helpTxt: '', pwBusy: false, locked: true,
+    open: true, chartOpen: true, hasChart: false, chartHelpTxt: '', edge: null, ax: null,
+    mini: false, mx: null, my: null, mh: null, pip: null, ph: null, pipBusy: false, pipErr: '', miniInit: false };   // (0d) 미니 창: mini = 페이지 안 창 열림 · mx/my = 위치 · mh/ph = 페이지/PiP 호스트 · pip = PiP 창
+  (function () { try { var o = JSON.parse(localStorage.getItem(PN_LS) || 'null'); if (o) { if (o.open === false) PN.open = false; if (o.chartOpen === false) PN.chartOpen = false; if (o.mini === true) PN.mini = true; if (isNum(o.mx)) PN.mx = o.mx; if (isNum(o.my)) PN.my = o.my; } } catch (e) { /* noop */ } })();
+  function pnSave() { try { localStorage.setItem(PN_LS, JSON.stringify({ open: PN.open, chartOpen: PN.chartOpen, mini: !!PN.mini, mx: PN.mx, my: PN.my })); } catch (e) { /* noop */ } }
   function pnPw() { try { return sessionStorage.getItem(PN_PW_SS) || ''; } catch (e) { return PN.memPw || ''; } }
   function pnPwSet(v) { try { if (v) sessionStorage.setItem(PN_PW_SS, v); else sessionStorage.removeItem(PN_PW_SS); } catch (e) { /* 저장 불가 — 이 화면 동안만 */ } PN.memPw = v || ''; }
   function pnHdr() { return { 'X-OTC-PW': pnPw() }; }
@@ -2122,6 +2124,7 @@
       kill('pn'); PN.hasChart = false; $('pnChartBox').innerHTML = '<div class="otc-pn-chart"><div class="otc-bo-ph">불러오는 중…</div></div>'; $('pnChartCap').innerHTML = ''; $('pnChartMeta').innerHTML = ''; $('pnChartMeta').title = ''; PN.chartHelpTxt = ''; $('pnChartHelp').innerHTML = ''; $('pnMini').innerHTML = ''; $('pnChartMini').innerHTML = '';
     }
     if (show && S.view === 'pnl') { try { $('pnPw').focus(); } catch (e) { /* noop */ } }
+    pnMiniRender();   // 미니/PiP 창도 잠김 ↔ 본문
   }
   function pnUnlock() {   // 입력한 비밀번호를 세션에 저장하고 GET /otc/pnl 로 검증 — 맞으면 본문 + 5초 갱신 · 401 이면 지우고 다시
     if (PN.pwBusy) return;
@@ -2149,23 +2152,24 @@
     if (!pnPw()) { pnGate(true, '', false); return; }                      // 세션에 비밀번호 없음 → 카드만(요청 0)
     pnGate(false, '', false); pnFetch(true); pnStart();
   }
-  function pnLeave() { pnStop(); hideHov(); }
-  function pnStart() { pnStop(); PN.timer = setInterval(function () { pnFetch(false); }, PN_MS); }
-  function pnStop() { if (PN.timer) { clearInterval(PN.timer); PN.timer = 0; } }
+  function pnLeave() { if (!pnMiniOn()) pnStop(); hideHov(); }          // 미니/PiP 창이 열려 있으면 탭을 떠나도 5초 갱신 유지(사용자 2026-11-11)
+  function pnStart() { pnStop(); var w = pnPipLive() ? PN.pip : window; PN.timerWin = w; PN.timer = w.setInterval(function () { pnFetch(false); }, PN_MS); }   // PiP 가 떠 있으면 타이머는 그 창에(뒤로 간 탭의 타이머 늦춤을 피함)
+  function pnStop() { if (PN.timer) { try { (PN.timerWin || window).clearInterval(PN.timer); } catch (e) { /* 닫힌 PiP 창 — 타이머도 같이 죽음 */ } PN.timer = 0; PN.timerWin = null; } }
   function pnFetch(user) {
-    if (!S.on || S.view !== 'pnl' || PN.locked || !pnPw()) return;
-    if (!user && (PN.busy || doc.hidden)) return;
+    if (!S.on || PN.locked || !pnPw()) return;
+    if (S.view !== 'pnl' && !pnMiniOn()) return;                           // 포지션 탭 밖 = 미니/PiP 창이 열려 있을 때만
+    if (!user && (PN.busy || (doc.hidden && !pnPipLive()))) return;       // 탭이 가려지면 멈춤 — 단 PiP 창이 떠 있으면 계속(그 창은 보이는 중)
     PN.busy = true;
     var my = ++PN.seq;
     xget('/otc/pnl', pnHdr()).then(function (d) {
-      if (my < PN.minSeq || S.view !== 'pnl' || PN.locked) return;        // 등록/삭제 응답(live)이 먼저 그려졌거나 그 사이 잠겼으면 버림
+      if (my < PN.minSeq || PN.locked || (S.view !== 'pnl' && !pnMiniOn())) return;   // 등록/삭제 응답(live)이 먼저 그려졌거나 그 사이 잠겼으면 버림
       pnApply(d);
     }).catch(function (e) {
       if (pwErr(e) || keyErr(e) || my < PN.minSeq) return;
-      PN.err = emsg(e); pnRender();                                       // 조용히 다음 주기에 재시도 · 머리에 빨간 점 + 사유
+      PN.err = emsg(e); if (S.view === 'pnl') pnRender(); pnMiniRender();   // 조용히 다음 주기에 재시도 · 머리에 빨간 점 + 사유
     }).then(function () { PN.busy = false; });
   }
-  function pnApply(d) { PN.err = ''; PN.data = d; pnRender(); }
+  function pnApply(d) { PN.err = ''; PN.data = d; if (S.view === 'pnl') pnRender(); pnMiniRender(); }   // 탭 본문은 포지션 탭일 때만 · 미니/PiP 는 열려 있으면 늘
   function won(v) {   // 원 → 천 단위 쉼표 · + / − 기호(표기만)
     if (!isNum(v)) return '–';
     var r = Math.round(v), s = Math.abs(r).toLocaleString('ko-KR');
@@ -2321,7 +2325,8 @@
   function pnChart(d) {   // 왼쪽 = 손익 실시간 차트: x = 엔진 series.t(HH:MM) · 당일 손익(청산) 굵게 · 당일 손익(미드) 가늘게 · 총 손익(청산) 점선(전부 null 이면 안 그림) · 0 선 · y = 원(큰 값은 만원 눈금 · 축 제목에 단위) · 범위 = 그려진 선에 맞춰 좁게(rbChart 방식)
     var s = d.series || {}, rec = d.rec || {}, t = s.t || [], box = $('pnChartBox'), cap = $('pnChartCap'), meta = $('pnChartMeta');
     var hh = rec.hours || '08:55~16:10', sec = s.sec || rec.sec || 5;
-    var ch0 = '시계열 = 엔진 otcdesk/pnl.py 기록 스레드가 평일 ' + hh + ' 에 ' + sec + '초마다 적은 북 전체 손익(원 · 포지션이 있을 때만)\n포지션을 더하거나 지우면 그 시각부터 값이 뛴다(북 전체 손익이라 정상)\n굵은 선 = 당일 손익(청산) · 가는 선 = 당일 손익(미드) · 점선 = 총 손익(청산 · 진입값 있는 포지션만 · 없으면 안 그림) · 0 선은 범위 안일 때만\n' + PN_FOOT_TXT;
+    var ch0 = '시계열 = 엔진 otcdesk/pnl.py 기록 스레드가 평일 ' + hh + ' 에 ' + sec + '초마다 적은 북 전체 손익(원 · 포지션이 있을 때만)\n포지션을 더하거나 지우면 그 시각부터 값이 뛴다(북 전체 손익이라 정상)\n굵은 선 = 당일 손익(청산) · 가는 선 = 당일 손익(미드) · 점선 = 총 손익(청산 · 진입값 있는 포지션만 · 없으면 안 그림) · 0 선은 범위 안일 때만\n' +
+      '미니 창 = 페이지 안 떠 있는 작은 PnL 창(머리 줄을 잡고 옮김 · 어느 탭에서도 유지 · 열림·위치 기억) · 떠 있는 창 = 다른 창·프로그램 위에도(Chrome 116+ Document PiP · 이 장외 호가 탭이 열려 있는 동안만 — 탭을 닫거나 다른 주소로 가면 사라짐)\n' + PN_FOOT_TXT;
     if (ch0 !== PN.chartHelpTxt) { PN.chartHelpTxt = ch0; $('pnChartHelp').innerHTML = help(ch0); }
     var st = rec.err ? 'err' : (rec.running === false) ? 'warn' : rec.in_hours ? 'ok' : '';   // 기록 상태 점 = 엔진 rec 그대로
     meta.title = '기록 ' + (rec.running ? '스레드 가동' : rec.running === false ? '스레드 없음' : '–') + ' · 시간대 ' + hh + (rec.in_hours ? '(안)' : '(밖)') + (rec.last ? ' · 마지막 기록 ' + rec.last : ' · 아직 기록 없음') + (rec.err ? ' · 오류 ' + rec.err : '');
@@ -2375,6 +2380,162 @@
       ctx.fillText(e.text, ca.left + 6, e.up ? ca.top + 8 : ca.bottom - 8); ctx.restore();
     } }] });
     PN.hasChart = true;
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
+  // (0d) 미니 pnl 창(사용자 2026-11-11: '미니미니 하게 · 다른 화면 열려 있을 때도 · 옮길 수 있게 떠 있게')
+  //   같은 미니 콘텐츠를 두 곳에: ① 페이지 안 떠 있는 창(#pnMiniWin · position: fixed · 머리 줄 드래그 · 화면 밖 금지 · 열림·위치 = localStorage otc.pnl.ui · 보드/스프레드/… 어느 탭에서도 유지)
+  //                          ② 다른 창·프로그램 위에도 떠 있는 창(Document Picture-in-Picture · Chrome 116+ · 사용자 클릭 안에서만 · 스타일시트 복제 · 이 탭이 열려 있는 동안만 · 자동 복원 없음).
+  //   값 = PN.data(GET /otc/pnl 응답 total·series·rec 그대로 · 웹 계산 0 · 100만원 이상은 만원 표기만) · 열려 있는 동안은 포지션 탭이 아니어도 5초 갱신(pnFetch 재사용).
+  //   비밀번호(sessionStorage) 없으면 '잠김 — 포지션 탭에서 비밀번호' 한 줄만(요청 0) · 기록 시간대 밖이면 '기록 시간대 아님' 한 줄.
+  // ══════════════════════════════════════════════════════════════════════
+  var PN_PIP_TIP = '다른 창·프로그램 위에도 떠 있는 작은 PnL 창(Chrome 116+ · Document Picture-in-Picture) — 이 장외 호가 탭이 열려 있는 동안만 · 탭을 닫거나 다른 주소로 가면 사라짐 · 페이지를 다시 열면 자동 복원 안 됨(버튼 다시)';
+  function pnMiniOn() { return !!PN.mini || pnPipLive(); }
+  function pnPipLive() { return !!(PN.pip && !PN.pip.closed); }
+  function pnPipOk() { try { return !!(window.documentPictureInPicture && typeof window.documentPictureInPicture.requestWindow === 'function'); } catch (e) { return false; } }
+  function pnMiniWon(v) {   // 원 → 100만원 이상이면 만원 표기(반올림 · 표기만 · 값 무변형)
+    if (!isNum(v)) return '–';
+    var r = Math.round(v);
+    if (Math.abs(r) >= 1e6) { var m = Math.round(r / 1e4); return (m < 0 ? MINUS : m > 0 ? '+' : '') + Math.abs(m).toLocaleString('ko-KR') + '<small>만원</small>'; }
+    return won(r) + '<small>원</small>';
+  }
+  function pnMiniHost(el, d, w, key, closeBtn) { return { el: el, doc: d, win: w, key: key, closeBtn: !!closeBtn, built: false, ax: null, edge: null, cw: 0, ch: 0 }; }
+  function pnMiniQ(h, k) { return h.el.querySelector('[data-k="' + k + '"]'); }
+  function pnMiniBuild(h) {
+    h.el.innerHTML = '<div class="otc-pnm-head" data-k="head"><span class="otc-pnm-title">포지션 PnL</span><span class="otc-pnm-meta" data-k="meta"></span>' +
+      (h.closeBtn ? '<button type="button" class="otc-pnm-x" data-k="x" title="미니 창 닫기" aria-label="미니 창 닫기">×</button>' : '') + '</div>' +
+      '<div class="otc-pnm-body"><div class="otc-pnm-row" data-k="row"></div><div class="otc-pnm-box" data-k="box"></div><div class="otc-pnm-note" data-k="note"></div></div>';
+    h.built = true;
+  }
+  function pnMiniRender() { if (PN.mh && PN.mini) pnMiniHostRender(PN.mh); if (PN.ph && pnPipLive()) pnMiniHostRender(PN.ph); }
+  function pnMiniHostRender(h) {   // 머리 = 평가 시각 + 상태 점 · 줄 = 당일 손익(청산) 크게 + 미드 작게 + 총 손익(청산 · 진입값 있을 때만) · 아래 = 작은 차트(당일 손익(청산) 선 하나 · 0 선) · 한 줄 = 기록 시간대/오류
+    if (!h.built) pnMiniBuild(h);
+    var meta = pnMiniQ(h, 'meta'), row = pnMiniQ(h, 'row'), box = pnMiniQ(h, 'box'), note = pnMiniQ(h, 'note');
+    var d = PN.data, locked = !S.on || !pnPw() || PN.locked;
+    var clear = function () { kill(h.key); box.innerHTML = ''; h.ax = null; h.edge = null; h.cw = 0; h.ch = 0; };
+    note.classList.remove('is-err');
+    if (locked) { meta.innerHTML = ''; meta.title = ''; row.innerHTML = ''; clear(); note.textContent = '잠김 — 포지션 탭에서 비밀번호'; return; }
+    if (!d) { meta.innerHTML = ''; meta.title = ''; row.innerHTML = ''; clear(); note.textContent = PN.err ? '불러오기 실패 — ' + PN.err : '불러오는 중…'; note.classList.toggle('is-err', !!PN.err); return; }
+    var x = d.exch || {}, tot = d.total || {}, s = d.series || {}, rec = d.rec || {}, t = s.t || [];
+    var live = !!x.open && !PN.err;
+    meta.innerHTML = (d.t ? '<span>' + esc(d.t) + '</span>' : '') + '<span class="otc-dot' + (PN.err ? ' err' : live ? ' ok' : (x.expected !== false ? ' warn' : '')) + '" aria-hidden="true"></span>';
+    meta.title = (d.t ? '평가 ' + d.t + ' · ' : '') + (PN.err ? '불러오기 실패 — ' + PN.err : live ? '엑셀 연결' : '엑셀 연결실패') + (d.after_close ? ' · 15:45 이후' : '');
+    var nAll = isNum(tot.n) ? tot.n : (d.positions || []).length;
+    row.innerHTML = '<small class="otc-pnm-lab">당일</small><b class="otc-pnm-big ' + sgn(tot.pnl_liq) + '" title="당일 손익(청산) · 엔진 total.pnl_liq">' + pnMiniWon(tot.pnl_liq) + '</b>' +
+      '<span class="otc-pnm-sub">' + (nAll ? '미드 <b class="' + sgn(tot.pnl_mid) + '">' + pnMiniWon(tot.pnl_mid) + '</b>' + (isNum(tot.pnl_tot_liq) ? ' · 총 <b class="' + sgn(tot.pnl_tot_liq) + '">' + pnMiniWon(tot.pnl_tot_liq) + '</b>' : '') : '등록된 포지션 없음') + '</span>';
+    var hh = rec.hours || '08:55~16:10';
+    note.textContent = PN.err ? '불러오기 실패 — ' + PN.err : rec.err ? '기록 오류 — ' + rec.err : rec.in_hours ? '' : '기록 시간대 아님(' + hh + ')';
+    note.classList.toggle('is-err', !!(PN.err || rec.err));
+    if (!t.length) { clear(); box.innerHTML = '<div class="otc-pnm-ph">오늘 기록 없음</div>'; return; }
+    pnMiniChart(h, box, t, s.pnl_liq || []);
+  }
+  function pnMiniAx(vals) {   // y 범위 = 선의 최소~최대 + 15%(최소 폭 2만원) · 100만원 넘으면 만원 눈금(pnChart 와 같은 규칙 · 표현만)
+    var mn = Infinity, mx = -Infinity;
+    vals.forEach(function (v) { if (isNum(v)) { if (v < mn) mn = v; if (v > mx) mx = v; } });
+    var ax = { ymin: undefined, ymax: undefined, man: false, zero: false, ok: isFinite(mn) };
+    if (!ax.ok) return ax;
+    var w = mx - mn, pad = Math.max(w * 0.15, (w < 2e4 ? (2e4 - w) / 2 : 0), 1e3);
+    ax.man = Math.max(Math.abs(mn - pad), Math.abs(mx + pad)) >= 1e6;
+    var u = ax.man ? 1e4 : 1e3;
+    ax.ymin = Math.floor((mn - pad) / u) * u; ax.ymax = Math.ceil((mx + pad) / u) * u;
+    if (ax.ymax <= ax.ymin) ax.ymax = ax.ymin + u;
+    ax.zero = ax.ymin <= 0 && ax.ymax >= 0;
+    return ax;
+  }
+  function pnMiniChart(h, box, t, liq) {   // 당일 손익(청산) 선 하나 + 0 선(범위 안일 때 · 밖이면 가장자리 '0 ↑/↓') · 범례 없음 · 축 글자 9px · 5초 갱신 = update('none') · responsive 끔(PiP 문서 안에서도 같은 길)
+    var labels = t.map(function (v) { return String(v).slice(0, 5); });
+    var ax = pnMiniAx(liq); h.ax = ax;
+    var ds = [{ label: '당일 손익(청산)', data: liq, borderColor: tk('--wb-ink', 1), backgroundColor: tk('--wb-ink', 1), borderWidth: 1.8, pointRadius: 0, pointHoverRadius: 3, spanGaps: false }];
+    if (ax.zero) ds.push({ label: '0', data: t.map(function () { return 0; }), borderColor: tk('--wb-rule-strong', 1), backgroundColor: tk('--wb-rule-strong', 1), borderWidth: 1, pointRadius: 0, pointHoverRadius: 0, pnRef: true });
+    h.edge = (ax.zero || !ax.ok) ? null : { up: 0 > ax.ymax, text: '0 ' + (0 > ax.ymax ? '↑' : '↓') };
+    var wrap = box.firstElementChild, cv = wrap && wrap.querySelector ? wrap.querySelector('canvas') : null, ch = S.charts[h.key];
+    if (!cv || !ch) { kill(h.key); box.innerHTML = '<div class="otc-pnm-chart"><canvas></canvas></div>'; wrap = box.firstElementChild; cv = wrap.querySelector('canvas'); ch = null; }
+    var cw = Math.max(wrap.clientWidth || 0, 120), chh = Math.max(wrap.clientHeight || 0, 60);
+    var setAx = function (sc) { sc.y.min = ax.ymin; sc.y.max = ax.ymax; };
+    if (ch) { ch.data.labels = labels; ch.data.datasets = ds; setAx(ch.options.scales); if (cw !== h.cw || chh !== h.ch) { h.cw = cw; h.ch = chh; ch.resize(cw, chh); } ch.update('none'); return; }
+    h.cw = cw; h.ch = chh; cv.width = cw; cv.height = chh;
+    var fmtY = function (v) { return (h.ax && h.ax.man) ? n0(Math.round(v / 1e4)) + '만' : n0(Math.round(v)); };
+    var o = baseOpts({ responsive: false, layout: { padding: { top: 4, right: 6, bottom: 0, left: 0 } },
+      scales: { x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 4, font: { size: 9 }, padding: 2 } },
+        y: { ticks: { includeBounds: false, maxTicksLimit: 4, font: { size: 9 }, padding: 2, callback: fmtY }, grid: { drawTicks: false } } },
+      plugins: { tooltip: { filter: function (it) { return !it.dataset.pnRef; }, callbacks: { label: function (it) { return it.dataset.label + ' ' + won(it.parsed.y) + '원'; } } } } });
+    setAx(o.scales);
+    mk(h.key, cv, { type: 'line', data: { labels: labels, datasets: ds }, options: o, plugins: [{ id: 'pnmEdge', afterDatasetsDraw: function (c) {
+      var e = h.edge, ca = c.chartArea; if (!e || !ca) return;
+      var ctx = c.ctx; ctx.save(); ctx.font = '600 9px ' + (cssv('--wb-font') || 'sans-serif'); ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = cssv('--wb-muted');
+      ctx.fillText(e.text, ca.left + 4, e.up ? ca.top + 6 : ca.bottom - 6); ctx.restore();
+    } }] });
+  }
+  // ① 페이지 안 떠 있는 창
+  function pnMiniOpen(save) {
+    var el = $('pnMiniWin'); if (!el) return;
+    if (!PN.mh) PN.mh = pnMiniHost(el, doc, window, 'pnm', true);
+    PN.mini = true; el.hidden = false;
+    pnMiniPlace(isNum(PN.mx) ? PN.mx : null, isNum(PN.my) ? PN.my : null);
+    if (save !== false) pnSave();
+    pnMiniBtnSync(); pnMiniRender(); pnMiniPoll();
+  }
+  function pnMiniClose() {
+    var el = $('pnMiniWin');
+    PN.mini = false; if (el) el.hidden = true; kill('pnm'); if (PN.mh) PN.mh.built = false;
+    pnSave(); pnMiniBtnSync();
+    if (S.view !== 'pnl' && !pnMiniOn()) pnStop();
+  }
+  function pnMiniPlace(x, y) {   // 화면 밖으로 안 나가게(열 때 · 드래그 · 창 크기 바뀔 때) · 처음은 오른쪽 아래
+    var el = $('pnMiniWin'); if (!el) return;
+    var w = el.offsetWidth || 280, hg = el.offsetHeight || 170, W = window.innerWidth || 1280, H = window.innerHeight || 800;
+    if (x == null) x = W - w - 16;
+    if (y == null) y = H - hg - 16;
+    x = Math.max(0, Math.min(x, Math.max(0, W - w))); y = Math.max(0, Math.min(y, Math.max(0, H - hg)));
+    el.style.left = Math.round(x) + 'px'; el.style.top = Math.round(y) + 'px'; PN.mx = Math.round(x); PN.my = Math.round(y);
+  }
+  function pnMiniPoll() {   // 미니/PiP 가 열려 있으면 포지션 탭이 아니어도 5초 갱신(세션에 비밀번호 있을 때만 · 없으면 요청 0)
+    if (!S.on || !pnPw()) { pnMiniRender(); return; }
+    if (PN.locked) pnGate(false, '', false);
+    pnFetch(true); pnStart();
+  }
+  function pnMiniInit() { if (PN.miniInit) return; PN.miniInit = true; if (PN.mini) pnMiniOpen(false); else pnMiniBtnSync(); }   // 페이지 다시 열면 페이지 안 창만 자동 복원(PiP 는 사용자 제스처 필요)
+  function pnMiniBtnSync() {
+    var b = $('pnMiniBtn'), p = $('pnPipBtn'); if (!b || !p) return;
+    b.setAttribute('aria-pressed', PN.mini ? 'true' : 'false'); b.classList.toggle('is-active', !!PN.mini);
+    var ok = pnPipOk(), on = pnPipLive();
+    p.disabled = !ok || !!PN.pipBusy; p.setAttribute('aria-pressed', on ? 'true' : 'false'); p.classList.toggle('is-active', on);
+    p.title = !ok ? '이 브라우저는 안 됨 — 미니 창 사용' : on ? '떠 있는 창 닫기' : PN_PIP_TIP + (PN.pipErr ? ' · 지난 시도 실패 — ' + PN.pipErr : '');
+  }
+  // ② 다른 창·프로그램 위에도 떠 있는 창(Document Picture-in-Picture)
+  function pnPipOpen() {   // 사용자 클릭 핸들러 안에서만(브라우저 제약) · 지원 안 되면 버튼이 이미 비활성
+    if (!pnPipOk()) { pnMiniBtnSync(); return; }
+    if (pnPipLive()) { try { PN.pip.focus(); } catch (e) { /* noop */ } return; }
+    PN.pipBusy = true; pnMiniBtnSync();
+    var p;
+    try { p = window.documentPictureInPicture.requestWindow({ width: 300, height: 190 }); } catch (e) { p = Promise.reject(e); }
+    p.then(function (w) {
+      PN.pip = w; PN.pipErr = '';
+      var pd = w.document, root = pd.documentElement;
+      root.setAttribute('lang', 'ko'); root.setAttribute('data-wb', ''); root.setAttribute('data-theme', doc.documentElement.getAttribute('data-theme') || 'dark');
+      pd.title = '포지션 PnL';
+      pnPipStyles(pd);
+      pd.body.className = 'otc-pnm-pip';
+      var el = pd.createElement('div'); el.className = 'otc-pnm'; el.setAttribute('role', 'dialog'); el.setAttribute('aria-label', '포지션 PnL 떠 있는 창'); pd.body.appendChild(el);
+      PN.ph = pnMiniHost(el, pd, w, 'pnp', false);
+      w.addEventListener('pagehide', pnPipClosed);
+      w.addEventListener('resize', function () { if (PN.ph && pnPipLive()) pnMiniHostRender(PN.ph); });   // 창 크기 바뀌면 차트도(resize 경로)
+      PN.pipBusy = false; pnMiniBtnSync(); pnMiniRender(); pnMiniPoll();   // pnMiniPoll → pnStart = 타이머를 PiP 창으로
+    }).catch(function (e) { PN.pipBusy = false; PN.pipErr = emsg(e); pnMiniBtnSync(); });
+  }
+  function pnPipStyles(pd) {   // 스타일시트 복제: href 있는 시트 = 링크 그대로(상대 url 보존 · wb.css 토큰 :root 규칙 포함) · 인라인 <style> = 규칙 텍스트 복사 · 읽을 수 없는 시트는 건너뜀
+    Array.prototype.forEach.call(doc.styleSheets, function (ss) {
+      try {
+        if (ss.href) { var l = pd.createElement('link'); l.rel = 'stylesheet'; l.href = ss.href; pd.head.appendChild(l); return; }
+        var st = pd.createElement('style'); st.textContent = Array.prototype.map.call(ss.cssRules, function (r) { return r.cssText; }).join('\n'); pd.head.appendChild(st);
+      } catch (e) { /* 타 출처 시트 등 접근 불가 — 건너뜀 */ }
+    });
+  }
+  function pnPipClosed() {   // 사용자가 창을 닫음(pagehide) · 탭을 닫거나 다른 주소로 가도 같은 길
+    kill('pnp'); PN.ph = null; PN.pip = null; PN.pipBusy = false;
+    pnMiniBtnSync();
+    if (!PN.timer) return;
+    if (S.view === 'pnl' || PN.mini) pnStart(); else pnStop();   // 타이머가 PiP 창에 있었으면 이 창으로 되돌림 · 아무 데도 안 보이면 멈춤
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -3532,6 +3693,23 @@
     pnFoldSync();   // 접기(기억 · rbFold 문법) — 차트 카드는 펼칠 때 새로 그린다(접힌 동안 캔버스 크기 0)
     $('pnFold').addEventListener('click', function () { PN.open = !PN.open; pnSave(); pnFoldSync(); });
     $('pnChartFold').addEventListener('click', function () { PN.chartOpen = !PN.chartOpen; pnSave(); pnFoldSync(); if (PN.data && !PN.locked) { PN.hasChart = false; pnChart(PN.data); } });
+    // (0d) 미니 창 — 버튼 두 개(켜짐 = aria-pressed) · 페이지 안 창은 머리 줄 드래그(포인터 캡처 · 화면 밖 금지) · × 닫기
+    $('pnMiniBtn').addEventListener('click', function () { if (PN.mini) pnMiniClose(); else pnMiniOpen(true); });
+    $('pnPipBtn').addEventListener('click', function () { if (pnPipLive()) { try { PN.pip.close(); } catch (e) { /* noop */ } } else pnPipOpen(); });
+    var mw = $('pnMiniWin'), mdrag = null;
+    if (mw) {
+      mw.addEventListener('pointerdown', function (e) {
+        if (!e.target.closest || !e.target.closest('[data-k="head"]') || e.target.closest('button')) return;
+        var r = mw.getBoundingClientRect(); mdrag = { dx: e.clientX - r.left, dy: e.clientY - r.top };
+        try { mw.setPointerCapture(e.pointerId); } catch (er) { /* noop */ }
+        e.preventDefault();
+      });
+      mw.addEventListener('pointermove', function (e) { if (mdrag) pnMiniPlace(e.clientX - mdrag.dx, e.clientY - mdrag.dy); });
+      var mend = function () { if (!mdrag) return; mdrag = null; pnSave(); };
+      mw.addEventListener('pointerup', mend); mw.addEventListener('pointercancel', mend);
+      mw.addEventListener('click', function (e) { if (e.target.closest && e.target.closest('[data-k="x"]')) pnMiniClose(); });
+    }
+    pnMiniBtnSync();
     // (A)
     $('bdLoad').addEventListener('click', function () { bondFromBar(true); });
     $('bdLatest').addEventListener('click', function () { $('bdDate').value = (S.meta && S.meta.latest) || ''; bondFromBar(true, ''); });
@@ -3572,9 +3750,10 @@
       var wb = e.target.closest && e.target.closest('[data-evwin]');
       if (wb) { var t = S.ev.tb; if (!t) return; var k = +wb.getAttribute('data-evwin'); S.team.evWin = k; t.setWindow(k ? t.dayLo(k) : 0, t.src.n - 1); }
     });
-    doc.addEventListener('wb-themechange', function () { if (S.view === 'team' && S.team.sec === 'map') drawMap(); Object.keys(S.ev).forEach(function (k) { S.ev[k].redraw(); }); prRedrawAll(); });
+    doc.addEventListener('wb-themechange', function () { if (S.view === 'team' && S.team.sec === 'map') drawMap(); Object.keys(S.ev).forEach(function (k) { S.ev[k].redraw(); }); prRedrawAll();
+      if (PN.ph && pnPipLive()) { try { PN.ph.doc.documentElement.setAttribute('data-theme', doc.documentElement.getAttribute('data-theme') || 'dark'); } catch (e) { /* noop */ } } });   // PiP 창도 같은 테마
     var rt = null;
-    window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { if (S.view === 'team' && S.team.sec === 'map') drawMap(); if (S.view === 'board') { boFit(); boResize(); panesOpen().forEach(function (p) { if (p.data) spRender(p); }); } }, 200); }, { passive: true });
+    window.addEventListener('resize', function () { clearTimeout(rt); rt = setTimeout(function () { if (S.view === 'team' && S.team.sec === 'map') drawMap(); if (S.view === 'board') { boFit(); boResize(); panesOpen().forEach(function (p) { if (p.data) spRender(p); }); } if (PN.mini) pnMiniPlace(PN.mx, PN.my); }, 200); }, { passive: true });
   }
   function rowNav(e) {
     if (e.target.closest('.wb-help, a, input, select, button')) return;
