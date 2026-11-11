@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    wb-otc.js — 장외 호가 탭(2026-11-04 사용자 지시) · 화면 = tools/otc/index.html
    ───────────────────────────────────────────────────────────────────────────
-   화면 셋(해시): #board 보드 · #spread 종목 스프레드 · #pnl 내 포지션(등록한 현물·선물의 장중 실시간 손익 · 등록/삭제 · 5초 갱신 · 2026-11-11) · #bond 종목 분석 · #broker 브로커 분석 · #team 팀 해부(① 요약 ② 종목×일 ③ 장중 ④ 종목 시계열 ⑤ 일봉 ⑥ 포지션 추정)
+   화면 셋(해시): #board 보드 · #spread 종목 스프레드 · #pnl 포지션(등록한 현물·선물의 장중 실시간 손익 · 당일 = 전일 종가 대비 기본 · 진입값 있으면 총 손익 · 등록/삭제 · 5초 갱신 · 2026-11-11) · #bond 종목 분석 · #broker 브로커 분석 · #team 팀 해부(① 요약 ② 종목×일 ③ 장중 ④ 종목 시계열 ⑤ 일봉 ⑥ 포지션 추정)
    ■ 데이터 = /otc/* (server/app/routers/otc.py → BQH otcdesk.api 그대로). 숫자 = 엔진 값 그대로(재계산 0).
      웹이 하는 일 = 고르기 · 표 배치 · 표기(− 기호 · 비율 → % 자리 이동 · 소수 자리 채우기)뿐.
    ■ 비공개: 모든 GET 에 X-QH-KEY(localStorage 'qh_ops_key' = quant-house 운용 콘솔과 같은 키 이름).
@@ -555,7 +555,7 @@
       var fb2 = await getApiBase(true);
       if (fb2 && fb2 !== base) res = await call(fb2);
     }
-    if (res.status === 401) { var d0 = await detailOf(res); var pe = new Error(d0 || '401'); pe.pw = true; throw pe; }   // 내 포지션 두 번째 문(X-OTC-PW) — 키는 그대로 두고 비밀번호 카드로
+    if (res.status === 401) { var d0 = await detailOf(res); var pe = new Error(d0 || '401'); pe.pw = true; throw pe; }   // 포지션 두 번째 문(X-OTC-PW) — 키는 그대로 두고 비밀번호 카드로
     if (res.status === 403) {
       var d = await detailOf(res);
       if (/OTC_PNL_PW/.test(d)) throw new Error(d);                      // 서버에 비밀번호 미설정(403) — 키 문제가 아니므로 저장 키는 지우지 않는다
@@ -574,7 +574,7 @@
   // 폴링(보드): 직전 응답의 cursor 를 쿼리가 아니라 헤더로 — URL 이 매번 같아야 브라우저가 CORS 사전요청을 캐시한다.
   // 헤더는 처음부터 늘 붙인다('-' = 없음) → 사전요청이 허용한 헤더 목록이 바뀌지 않는다. 값은 한글 별칭 대비 encodeURIComponent.
   function pget(path, since) { return xget(path, { 'X-OTC-Since': since ? encodeURIComponent(since) : '-' }); }
-  function xpost(path, body, extra) { return xget(path, Object.assign({ 'Content-Type': 'application/json' }, extra || {}), { method: 'POST', body: JSON.stringify(body) }); }   // 쓰기 = 3선 키인 · 내 포지션 등록/삭제(2026-11-11 · extra = X-OTC-PW)
+  function xpost(path, body, extra) { return xget(path, Object.assign({ 'Content-Type': 'application/json' }, extra || {}), { method: 'POST', body: JSON.stringify(body) }); }   // 쓰기 = 3선 키인 · 포지션 등록/삭제(2026-11-11 · extra = X-OTC-PW)
   function dropCache(prefix) { Object.keys(S.cache).forEach(function (k) { if (k.indexOf(prefix) === 0) delete S.cache[k]; }); }
   function keyErr(e) {
     if (!e || !e.nokey) return false;
@@ -2086,8 +2086,10 @@
   }
 
   // ══════════════════════════════════════════════════════════════════════
-  // (0c) 내 포지션 — 등록한 현물(억)·선물(계약)의 장중 실시간 손익(사용자 2026-11-11)
+  // (0c) 포지션 — 등록한 현물(억)·선물(계약)의 장중 실시간 손익(사용자 2026-11-11 · 탭 이름 '내 포지션' → '포지션')
   //   데이터 = /otc/pnl (엔진 pnl.live 그대로 · 웹 계산 0 · 표기 = 쉼표 · − 기호 · 소수 자리뿐).
+  //   ★같은 날 추가 요구: 진입값·날짜는 선택. 기본 = 당일 손익(엔진 pnl_mid·pnl_liq · chg_* = 전일 민평/전일 선물 종가(prev · prev_date) 대비) ·
+  //     진입값 넣은 포지션만 총 손익(pnl_tot_mid·pnl_tot_liq · tot_chg_*) — 없으면 null → '–' · 합계 pnl_tot_* 도 진입값 있는 것(n_entry)만 · 없으면 null → '–'.
   //   쓰기 = /otc/pnl/add · /otc/pnl/del — 응답의 live(= GET /otc/pnl 응답 그대로)로 바로 그림(추가 GET 없음) · 엔진 why 는 폼 옆에 그대로.
   //   탭이 보일 때 5초마다 전체 응답(cursor 없음 · 작음) · 탭 떠나면 멈춤 · busy 로 겹침 방지 · 등록/삭제 전에 떠난 옛 GET 응답은 seq 로 버림.
   //   지금 값 = 엔진 mark(mid · liq · src · t · warn) 그대로 — 폴백(전일 민평 · 전일 종가 · 오늘 마지막 틱)은 엔진 warn 을 주황 점 + 툴팁으로 그대로 보인다.
@@ -2169,9 +2171,9 @@
     Array.prototype.forEach.call($('pnSide').children, function (b) { b.classList.toggle('is-active', +b.getAttribute('data-side') === PN.side); });
     $('pnBondF').hidden = fut; $('pnFutF').hidden = !fut;
     $('pnQtyLab').textContent = fut ? '수량(계약)' : '수량(억)';
-    $('pnEntryLab').textContent = fut ? '진입 가격' : '진입 금리(%)';
+    $('pnEntryLab').textContent = (fut ? '진입 가격' : '진입 금리(%)') + ' · 선택';   // 선택(사용자 2026-11-11) — 비우면 당일 손익만
     $('pnQty').placeholder = fut ? '예: 10' : '예: 100';
-    $('pnEntry').placeholder = fut ? '예: 106.45' : '예: 3.720';
+    $('pnEntry').placeholder = '선택';
     $('pnAdd').disabled = PN.wBusy;
     Array.prototype.forEach.call($('pnTbl').querySelectorAll('button[data-pndel]'), function (b) { b.disabled = PN.wBusy; });   // 등록/삭제 응답(live)으로 그린 표는 wBusy 중에 그려지므로 끝나면 × 를 다시 켠다
   }
@@ -2186,15 +2188,16 @@
     var qty = String($('pnQty').value || '').trim(), entry = String($('pnEntry').value || '').trim();
     if (!alias) { PN.msg = { err: true, text: '종목을 넣으세요' }; pnMsgSync(); $('pnAlias').focus(); return; }
     if (!qty) { PN.msg = { err: true, text: ($('pnQty').validity && $('pnQty').validity.badInput) ? '수량이 숫자가 아닙니다' : '수량을 넣으세요' }; pnMsgSync(); $('pnQty').focus(); return; }
-    if (!entry) { PN.msg = { err: true, text: ($('pnEntry').validity && $('pnEntry').validity.badInput) ? '진입 값이 숫자가 아닙니다' : (fut ? '진입 가격을 넣으세요' : '진입 금리를 넣으세요') }; pnMsgSync(); $('pnEntry').focus(); return; }
-    var body = { kind: PN.kind, alias: alias, side: PN.side, qty: Number(qty), entry: Number(entry) };
+    if (!entry && $('pnEntry').validity && $('pnEntry').validity.badInput) { PN.msg = { err: true, text: '진입 값이 숫자가 아닙니다 — 비우거나 숫자로' }; pnMsgSync(); $('pnEntry').focus(); return; }
+    var body = { kind: PN.kind, alias: alias, side: PN.side, qty: Number(qty) };   // 진입·날짜는 선택(사용자 2026-11-11) — 비우면 본문에서 뺀다(엔진 None → 당일 손익만 · 날짜 기본값 없음)
+    if (entry) body.entry = Number(entry);
     var date = String($('pnDate').value || '').trim(), note = String($('pnNote').value || '').trim();
     if (date) body.date = date;
     if (note) body.note = note;
     PN.wBusy = true; PN.msg = null; pnFormSync(); pnMsgSync();
     xpost('/otc/pnl/add', body, pnHdr()).then(function (r) {
       if (r && r.ok) {   // 등록됨 — 입력 비우고(종류·방향·선물 종류는 그대로) 응답 live 로 바로 그림
-        ['pnAlias', 'pnQty', 'pnEntry', 'pnNote'].forEach(function (id) { $(id).value = ''; });
+        ['pnAlias', 'pnQty', 'pnEntry', 'pnDate', 'pnNote'].forEach(function (id) { $(id).value = ''; });   // 날짜도 비움(기본값 없음 — 남은 날짜가 다음 등록에 몰래 붙지 않게)
         var p = r.position || {};
         PN.msg = { err: false, text: '등록 ' + (p.alias || alias) + ' ' + (p.side === -1 || PN.side === -1 ? '매도' : '매수') + ' ' + fq(isNum(p.qty) ? p.qty : Number(qty)) + (fut ? '계약' : '억') + (p.id != null ? ' (#' + p.id + ')' : '') };
         if (r.live) { PN.minSeq = PN.seq + 1; pnApply(r.live); } else pnFetch(true);
@@ -2222,23 +2225,38 @@
   function pnRow(r) {   // 한 줄 = 엔진 positions[i] 그대로(표기만)
     var fut = r.kind === 'fut', mk = r.mark || {}, unit = r.unit || (fut ? '계약' : '억');
     var sideCl = r.side === 1 ? 'otc-buy' : 'otc-sell', sideTx = r.side === 1 ? '매수' : '매도';
-    var sub = [r.nick, isNum(r.rem) ? '잔존 ' + r.rem + '년' : '', r.date ? '진입 ' + r.date : ''].filter(Boolean).join(' · ');
-    var head = '<td class="lt otc-pn-al" title="' + esc([r.name, r.mat ? '만기 ' + r.mat : '', isNum(r.coupon) ? '표면 ' + r.coupon : '', isNum(r.mp) ? (fut ? '전일 종가 ' : '전일 민평 ') + (fut ? fp(r.mp) : fy(r.mp)) : '', r.added ? '등록 ' + r.added : ''].filter(Boolean).join(' · ')) + '"><b>' + esc(r.alias) + '</b>' + (sub ? '<span class="otc-sub">' + esc(sub) + '</span>' : '') + '</td>' +
+    var fx = fut ? fp : fy, dec = fut ? 0 : 1, cu = fut ? '틱' : 'bp';
+    var prevLab = fut ? '전일 종가' : '전일 민평', prevTx = isNum(r.prev) ? fx(r.prev) + (r.prev_date ? ' (' + r.prev_date + ')' : '') : '–';   // 엔진 prev · prev_date 그대로
+    var hasEntry = isNum(r.entry);   // 진입값 선택(사용자 2026-11-11) — 없으면 진입·총 변동·총 손익 열은 '–'
+    var sub = [r.nick, isNum(r.rem) ? '잔존 ' + r.rem + '년' : ''].filter(Boolean).join(' · ');
+    var head = '<td class="lt otc-pn-al" title="' + esc([r.name, r.mat ? '만기 ' + r.mat : '', isNum(r.coupon) ? '표면 ' + r.coupon : '', prevLab + ' ' + prevTx, r.added ? '등록 ' + r.added : ''].filter(Boolean).join(' · ')) + '"><b>' + esc(r.alias) + '</b>' + (sub ? '<span class="otc-sub">' + esc(sub) + '</span>' : '') + '</td>' +
       '<td class="' + sideCl + '">' + sideTx + '</td>' +
-      '<td class="num">' + fq(r.qty) + '<small class="wb-muted"> ' + esc(unit) + '</small></td>' +
-      '<td class="num" title="진입 ' + esc(r.entry_unit || (fut ? '가격' : '%')) + '">' + (fut ? fp(r.entry) : fy(r.entry)) + '</td>';
+      '<td class="num">' + fq(r.qty) + '<small class="wb-muted"> ' + esc(unit) + '</small></td>';
+    var entryTd = '<td class="num tot tot-l" title="' + esc(hasEntry ? '진입(' + (r.entry_unit || (fut ? '가격' : '%')) + ') ' + fx(r.entry) + (r.date ? ' · ' + r.date : ' · 날짜 없음') : '진입값 없음 — 당일 손익만(총 손익 없음)') + '">' +
+      (hasEntry ? fx(r.entry) + (r.date ? '<span class="otc-sub">' + esc(r.date) + '</span>' : '') : '–') + '</td>';
     var tail = '<td class="note lt" title="' + esc(r.note || '') + '">' + esc(r.note || '') + '</td>' +
       '<td><button type="button" class="wb-btn wb-btn--icon otc-pn-x" data-pndel="' + esc(r.id) + '" title="삭제(바로 · 확인 없음)" aria-label="삭제"' + (PN.wBusy ? ' disabled' : '') + '>×</button></td>';
-    if (r.err || !r.mark) return '<tr class="is-err" data-pnid="' + esc(r.id) + '">' + head + '<td class="err lt" colspan="5">평가 실패 — ' + esc(r.err || '지금 값 없음') + '</td>' + tail + '</tr>';
-    var chg = fut ? r.chg_tick : r.chg_bp, chgL = fut ? r.chg_liq_tick : r.chg_liq_bp, cu = fut ? '틱' : 'bp';
-    var midTx = fut ? fp(mk.mid) : fy(mk.mid), liqTx = fut ? fp(mk.liq) : fy(mk.liq);
+    if (r.err || !r.mark) return '<tr class="is-err" data-pnid="' + esc(r.id) + '">' + head + '<td class="err lt" colspan="4">평가 실패 — ' + esc(r.err || '지금 값 없음') + '</td>' + entryTd + '<td class="num tot">–</td><td class="num tot">–</td><td class="num tot">–</td><td class="num">–</td>' + tail + '</tr>';
+    var chg = fut ? r.chg_tick : r.chg_bp, chgL = fut ? r.chg_liq_tick : r.chg_liq_bp;                       // 당일(전일 종가 대비) — 엔진 값
+    var tchg = fut ? r.tot_chg_tick : r.tot_chg_bp, tchgL = fut ? r.tot_chg_liq_tick : r.tot_chg_liq_bp;   // 총(진입 대비) — 진입값 없으면 null
+    var midTx = fx(mk.mid), liqTx = fx(mk.liq);
     var srcTip = '출처 ' + (mk.src || '–') + (mk.t ? ' · ' + mk.t : '') + ' · 미드 ' + midTx + ' · 청산 ' + liqTx +
-      ((mk.bid != null || mk.ask != null) ? ' · bid ' + (fut ? fp(mk.bid) : fy(mk.bid)) + ' / ask ' + (fut ? fp(mk.ask) : fy(mk.ask)) : '') + (mk.warn ? '\n' + mk.warn : '');
+      ((mk.bid != null || mk.ask != null) ? ' · bid ' + fx(mk.bid) + ' / ask ' + fx(mk.ask) : '') + (mk.warn ? '\n' + mk.warn : '');
+    var dayTip = prevLab + ' ' + prevTx + ' 대비 · 미드 ' + fbp(chg, dec) + cu + ' · 청산 ' + fbp(chgL, dec) + cu;
+    var totTip = hasEntry ? '진입 ' + fx(r.entry) + ' 대비 · 미드 ' + fbp(tchg, dec) + cu + ' · 청산 ' + fbp(tchgL, dec) + cu : '진입값 없음';
+    function chgTd(v, vL, tip, cls) {   // 변동 칸 = 미드 기준 크게 + 청산 기준 작게(엔진 값 그대로)
+      if (!isNum(v)) return '<td class="num ' + cls + '" title="' + esc(tip) + '">–</td>';
+      return '<td class="num ' + cls + '" title="' + esc(tip) + '"><span class="' + sgn(v) + '">' + fbp(v, dec) + '</span><small class="wb-muted"> ' + cu + '</small><span class="otc-sub">청산 ' + bpSpan(vL, dec) + '</span></td>';
+    }
     return '<tr data-pnid="' + esc(r.id) + '">' + head +
       '<td class="num src" title="' + esc(srcTip) + '"><b>' + midTx + '</b><span class="otc-sub">' + esc(mk.src || '–') + (mk.t ? ' ' + esc(mk.t) : '') + (mk.warn ? '<span class="otc-dot warn" aria-label="경고"></span>' : '') + '</span></td>' +
-      '<td class="num" title="미드 − 진입 ' + esc(fbp(chg, fut ? 0 : 1)) + cu + ' · 청산 − 진입 ' + esc(fbp(chgL, fut ? 0 : 1)) + cu + '"><span class="' + sgn(chg) + '">' + fbp(chg, fut ? 0 : 1) + '</span><small class="wb-muted"> ' + cu + '</small><span class="otc-sub">청산 ' + bpSpan(chgL, fut ? 0 : 1) + '</span></td>' +
-      '<td class="num pnl ' + sgn(r.pnl_liq) + '" title="청산 ' + liqTx + ' 기준">' + won(r.pnl_liq) + '</td>' +
-      '<td class="num ' + sgn(r.pnl_mid) + '" title="미드 ' + midTx + ' 기준">' + won(r.pnl_mid) + '</td>' +
+      chgTd(chg, chgL, dayTip, '') +
+      '<td class="num pnl ' + sgn(r.pnl_liq) + '" title="당일 · 청산 ' + liqTx + ' − ' + prevLab + ' ' + esc(prevTx) + '">' + won(r.pnl_liq) + '</td>' +
+      '<td class="num ' + sgn(r.pnl_mid) + '" title="당일 · 미드 ' + midTx + ' − ' + prevLab + ' ' + esc(prevTx) + '">' + won(r.pnl_mid) + '</td>' +
+      entryTd +
+      chgTd(tchg, tchgL, totTip, 'tot') +
+      '<td class="num tot pnl ' + sgn(r.pnl_tot_liq) + '" title="' + esc(hasEntry ? '총 · 청산 ' + liqTx + ' − 진입 ' + fx(r.entry) : '진입값 없음') + '">' + won(r.pnl_tot_liq) + '</td>' +
+      '<td class="num tot ' + sgn(r.pnl_tot_mid) + '" title="' + esc(hasEntry ? '총 · 미드 ' + midTx + ' − 진입 ' + fx(r.entry) : '진입값 없음') + '">' + won(r.pnl_tot_mid) + '</td>' +
       '<td class="num" title="DV01(원/bp) · 부호 = 방향">' + won(r.dv01) + '</td>' + tail + '</tr>';
   }
   function pnRender() {
@@ -2248,21 +2266,28 @@
     meta.title = '엑셀 ' + (x.status || '–') + (d && d.value_date ? ' · 평가일 ' + d.value_date : '') + (d && d.after_close ? ' · 15:45 이후(선물 = 키인/마지막 틱/전일 종가)' : '') + (PN.err ? ' · 불러오기 실패 — ' + PN.err : '');
     meta.innerHTML = (d && d.t ? '<span>평가 ' + esc(d.t) + '</span>' : '') + (d && d.after_close ? '<span class="otc-tag otc-tag--key">15:45 이후</span>' : '') +
       '<span class="otc-dot' + (PN.err ? ' err' : live ? ' ok' : (x.expected !== false ? ' warn' : '')) + '" aria-hidden="true"></span> ' + (PN.err ? '불러오기 실패' : live ? '연결' : '연결실패');
-    var ht = ['pnl', 'mid', 'liq', 'src', 'dv01', 'obs'].map(function (k) { return defs[k]; }).filter(Boolean).join('\n');   // ? = 엔진 defs 6문장 그대로
+    var ht = ['pnl', 'tot', 'mid', 'liq', 'src', 'dv01', 'obs'].map(function (k) { return defs[k]; }).filter(Boolean).join('\n');   // ? = 엔진 defs 문장 그대로(당일 pnl · 총 tot 포함)
     if (ht && ht !== PN.helpTxt) { PN.helpTxt = ht; $('pnHelp').innerHTML = help(ht); }
-    if (!d) { if (PN.err) $('pnTbl').innerHTML = errBox('내 포지션', { message: PN.err }); return; }
+    if (!d) { if (PN.err) $('pnTbl').innerHTML = errBox('포지션', { message: PN.err }); return; }
     var rows = d.positions || [], tot = d.total || {};
+    var nEnt = isNum(tot.n_entry) ? tot.n_entry : null, nAll = isNum(tot.n) ? tot.n : rows.length;
+    var entSub = nEnt != null ? '진입값 있는 ' + nEnt + ' / ' + nAll + '개' + (nEnt === 0 ? ' — 없음' : '') : '';   // 총 손익 = 진입값 있는 것만(엔진 n_entry)
     if (!rows.length) $('pnTbl').innerHTML = '<div class="otc-empty" style="padding:var(--wb-s4)">등록된 포지션 없음 — 위에서 등록</div>';
     else $('pnTbl').innerHTML = '<table class="wb-table otc-t otc-pn-t"><thead><tr>' +
-      '<th class="lt">종목</th><th>방향</th><th class="num">수량</th><th class="num">진입</th><th class="num">지금 미드' + help(defs.mid ? defs.mid + (defs.src ? '\n' + defs.src : '') : '') + '</th><th class="num">변동</th>' +
-      '<th class="num">손익(청산)' + help(defs.liq ? defs.liq + (defs.pnl ? '\n' + defs.pnl : '') : '') + '</th><th class="num">손익(미드)</th><th class="num">DV01' + help(defs.dv01) + '</th><th class="lt">메모</th><th></th></tr></thead><tbody>' +
+      '<th class="lt">종목</th><th>방향</th><th class="num">수량</th><th class="num">지금 미드' + help(defs.mid ? defs.mid + (defs.src ? '\n' + defs.src : '') : '') + '</th><th class="num" title="전일 민평 · 전일 선물 종가 대비(미드 · 청산 기준 작게)">전일 대비</th>' +
+      '<th class="num">당일 손익(청산)' + help(defs.pnl ? defs.pnl + (defs.liq ? '\n' + defs.liq : '') : '') + '</th><th class="num">당일 손익(미드)</th>' +
+      '<th class="num tot" title="진입 금리/가격 · 날짜(선택 — 없으면 –)">진입</th><th class="num tot" title="진입 대비 변동(미드 · 청산 기준 작게) — 진입값 없으면 –">총 변동</th>' +
+      '<th class="num tot">총 손익(청산)' + help(defs.tot) + '</th><th class="num tot">총 손익(미드)</th>' +
+      '<th class="num">DV01' + help(defs.dv01) + '</th><th class="lt">메모</th><th></th></tr></thead><tbody>' +
       rows.map(pnRow).join('') + '</tbody></table>';
     var tt = $('pnTot');
     if (!rows.length) { tt.hidden = true; tt.innerHTML = ''; }
     else {
       var kp = [
-        ['손익(청산)', '<span class="wb-kpi-val ' + sgn(tot.pnl_liq) + '">' + won(tot.pnl_liq) + '<small>원</small></span>', isNum(tot.n_ok) && isNum(tot.n) && tot.n_ok < tot.n ? '평가 ' + tot.n_ok + ' / ' + tot.n + ' (실패 제외)' : '', defs.liq],
-        ['손익(미드)', '<span class="wb-kpi-val ' + sgn(tot.pnl_mid) + '">' + won(tot.pnl_mid) + '<small>원</small></span>', '', defs.mid],
+        ['당일 손익(청산)', '<span class="wb-kpi-val ' + sgn(tot.pnl_liq) + '">' + won(tot.pnl_liq) + '<small>원</small></span>', isNum(tot.n_ok) && isNum(tot.n) && tot.n_ok < tot.n ? '평가 ' + tot.n_ok + ' / ' + tot.n + ' (실패 제외)' : '전일 종가 대비 · 전부', defs.pnl ? defs.pnl + (defs.liq ? '\n' + defs.liq : '') : defs.liq],
+        ['당일 손익(미드)', '<span class="wb-kpi-val ' + sgn(tot.pnl_mid) + '">' + won(tot.pnl_mid) + '<small>원</small></span>', '', defs.mid],
+        ['총 손익(청산)', '<span class="wb-kpi-val ' + sgn(tot.pnl_tot_liq) + '">' + won(tot.pnl_tot_liq) + '<small>원</small></span>', entSub, defs.tot],
+        ['총 손익(미드)', '<span class="wb-kpi-val ' + sgn(tot.pnl_tot_mid) + '">' + won(tot.pnl_tot_mid) + '<small>원</small></span>', '', defs.tot],
         ['순 DV01', '<span class="wb-kpi-val">' + won(tot.dv01) + '<small>원/bp</small></span>', '', defs.dv01],
         ['3선 환산', '<span class="wb-kpi-val">' + (isNum(tot.eq_3y_contracts) ? fbp(tot.eq_3y_contracts, 1) : '–') + '<small>계약</small></span>', isNum(tot.dv01_3y_contract) ? '3선 1계약 DV01 ' + won(tot.dv01_3y_contract) + '원/bp' : '', '순 DV01 ÷ 3선 1계약 DV01(엔진 값 · 참고)']
       ];
@@ -3414,7 +3439,7 @@
     doc.addEventListener('visibilitychange', function () { if (!doc.hidden) { boFetch(false); prFetchAll(); pnFetch(false); } });   // 탭으로 돌아오면 바로 한 번
     // (0b) 종목 스프레드 — 패널 두 개 틀 + 패널마다 입력 묶기(prNew 안)
     prBuild();
-    // (0c) 내 포지션 — 등록 폼(Enter = 등록) · 표의 × = 삭제(바로)
+    // (0c) 포지션 — 등록 폼(Enter = 등록 · 진입·날짜 선택) · 표의 × = 삭제(바로)
     $('pnForm').addEventListener('submit', function (e) { e.preventDefault(); pnSubmit(); });
     $('pnKind').addEventListener('click', function (e) { var b = e.target.closest('button[data-kind]'); if (!b) return; PN.kind = b.getAttribute('data-kind') === 'fut' ? 'fut' : 'bond'; pnFormSync(); (PN.kind === 'fut' ? $('pnQty') : $('pnAlias')).focus(); });
     $('pnFut').addEventListener('click', function (e) { var b = e.target.closest('button[data-fut]'); if (!b) return; PN.fut = b.getAttribute('data-fut'); pnFormSync(); });
