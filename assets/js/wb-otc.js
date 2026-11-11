@@ -674,7 +674,7 @@
       if (Array.isArray(o.open) && o.open.length) B.restore = o.open.map(String).slice(0, 2);   // 열려 있던 상세 칸(별칭만)
     } catch (e) { /* 저장값 없음 */ }
   })();
-  function boSave() { try { localStorage.setItem(BO_LS, JSON.stringify({ aliases: B.aliases, days: B.days, auto: B.auto, open: B.restore || panesOpen().map(function (p) { return p.alias; }), rbOpen: B.rb ? B.rb.open : true, rbLegs: B.rb ? B.rb.legs : false, rbRef: B.rb ? B.rb.ref : false, rbStat: B.rb ? B.rb.stat : false })); } catch (e) { /* noop */ } }
+  function boSave() { try { localStorage.setItem(BO_LS, JSON.stringify({ aliases: B.aliases, days: B.days, auto: B.auto, open: B.restore || panesOpen().map(function (p) { return p.alias; }), rbOpen: B.rb ? B.rb.open : true, rbLegs: B.rb ? B.rb.legs : false, rbRef: B.rb ? B.rb.ref : false, rbStat: B.rb ? B.rb.stat : false, rbDays: B.rb ? B.rb.days : 1 })); } catch (e) { /* noop */ } }
   function boPath() { return '/otc/board?' + (B.aliases ? 'aliases=' + enc(B.aliases.join(',')) + '&' : '') + 'days=' + enc(B.days); }
   function hmsOf(iso) { return iso ? String(iso).slice(11, 19) : '–'; }
   function dayLab(n) { return n === 1 ? '당일' : n + '일'; }
@@ -905,21 +905,25 @@
   // ── 실시간 저평(3선) 패널 — /otc/basis (엔진 rt_basis 그대로) ──
   //   웹이 하는 계산은 '진입 문턱까지 거리' 뺄셈 한 줄뿐(엔진 under 와 엔진 thresholds) — 나머지 숫자는 전부 응답 값 그대로.
   //   엑셀(장내 실시간)이 닫혀 있으면 엔진이 ok:false + why 를 준다 → 숫자 자리에 그대로 보여 준다(가짜 값 없음).
-  var RB = B.rb = { cursor: '', data: null, busy: false, open: true, legs: false, ref: false, stat: false, exch: null, now: '', err: '',
+  var RB = B.rb = { cursor: '', data: null, busy: false, open: true, legs: false, ref: false, stat: false, exch: null, now: '', err: '', days: 1, choices: [1, 3, 5, 10],
     seq: 0, minSeq: 0, kBusy: false, kDirty: false, kMsg: null };   // seq/minSeq = 키인 직후 늦게 온 옛 응답 버리기 · kMsg = 엔진 why 그대로
   // 주 표시 = 응답 primary 가 'mix' 면 혼합(지표물 = 장내 호가 · 비지표 = 장외 메신저 호가 · 사용자 2026-11-05 확정) — 전부 장내 호가 값(sell/buy)은 작게 참고
   function rbMix(d) { return !!(d && d.primary === 'mix' && (d.sell_mix || d.buy_mix)); }
   (function () {
-    try { var o = JSON.parse(localStorage.getItem(BO_LS) || 'null'); if (o) { if (o.rbOpen === false) RB.open = false; if (o.rbLegs === true) RB.legs = true; if (o.rbRef === true) RB.ref = true; if (o.rbStat === true) RB.stat = true; } } catch (e) { /* noop */ }
+    try { var o = JSON.parse(localStorage.getItem(BO_LS) || 'null'); if (o) { if (o.rbOpen === false) RB.open = false; if (o.rbLegs === true) RB.legs = true; if (o.rbRef === true) RB.ref = true; if (o.rbStat === true) RB.stat = true; if (o.rbDays > 1) RB.days = +o.rbDays; } } catch (e) { /* noop */ }
   })();
+  function rbDaysSync() {   // 저평 차트 기간(당일/3일/5일/10일 · 사용자 2026-11-11) — 보드 기간 버튼과 같은 모양 · 선택지는 엔진 day_choices
+    $('rbDays').innerHTML = RB.choices.map(function (n) { return '<button type="button" data-days="' + esc(n) + '"' + (n === RB.days ? ' class="is-active"' : '') + '>' + esc(dayLab(n)) + '</button>'; }).join('');
+  }
   function fjn(v, dec) { return isNum(v) ? fbp(v, dec == null ? 2 : dec) : '–'; }   // 전(錢) 단위 부호 표기
   function rbFetch(user) {
     if (!S.on || S.view !== 'board' || (!user && RB.busy)) return;
     RB.busy = true;
     var my = ++RB.seq;
-    pget('/otc/basis', RB.data ? RB.cursor : '').then(function (d) {
+    pget('/otc/basis' + (RB.days > 1 ? '?days=' + RB.days : ''), RB.data ? RB.cursor : '').then(function (d) {
       if (my < RB.minSeq) return;                                          // 키인 적용/해제 전에 떠난 응답 — 버림
       RB.err = ''; if (d.exch) RB.exch = d.exch; RB.now = d.now || '';
+      if (Array.isArray(d.day_choices) && d.day_choices.length && d.day_choices.join() !== RB.choices.join()) { RB.choices = d.day_choices; rbDaysSync(); }
       if (!d.same) { RB.data = d; RB.cursor = d.cursor; }
       rbRender(!d.same);
     }).catch(function (e) { if (keyErr(e)) return; RB.err = emsg(e); rbRender(false); }).then(function () { RB.busy = false; });
@@ -1091,6 +1095,9 @@
   }
   function rbChart(d) {   // 왼쪽 축 = 저평(전 · 그려진 선에 맞춰 좁게) · 오른쪽 축 = 3선 선물 가격
     var s = d.series || {}, t = s.t || [], box = $('rbChartBox');
+    var multi = !!(s.day && s.day.length === t.length && (s.days || 1) > 1);   // 여러 날: 라벨 = MM-DD HH:MM · 날 경계선(엔진 ds)
+    var labels = multi ? t.map(function (x, i) { return mmdd(s.day[i]) + ' ' + String(x).slice(0, 5); }) : t;
+    RB.multi = multi; RB.ds = multi ? s.ds : null; RB.dayOf = multi ? s.day : null;
     if (!t.length) {
       kill('rb'); RB.hasChart = false;
       var ss0 = rbSess(d);
@@ -1139,16 +1146,18 @@
       ax.hasFut = true; ax.fmin = Math.floor((fmn - fpad) * 100) / 100; ax.fmax = Math.ceil((fmx + fpad) * 100) / 100;
       ds.push({ label: '3선', data: fut, yAxisID: 'y1', rbFut: true, borderColor: tk('--wb-series-5'), backgroundColor: tk('--wb-series-5'), borderWidth: 1.6, stepped: true, pointRadius: 0, pointHoverRadius: 4, spanGaps: false });
     }
-    $('rbChartCap').textContent = '왼쪽 = 저평(전) · 오른쪽 = 3선 가격' + (rbSess(d) ? '(계산에 쓴 값 · 키인 포함)' : '') + ' · 점선 = 진입 문턱 ' + fjn(th.sell_enter, 0) + ' / ' + fjn(th.buy_enter, 0) + '(범위 안일 때만) · ' + t[0] + ' ~ ' + t[t.length - 1] + ' · ' + n0(t.length) + '점(5초 솎음)';
+    var dl = s.day_list || [];
+    $('rbChartCap').textContent = '왼쪽 = 저평(전) · 오른쪽 = 3선 가격' + (rbSess(d) ? '(계산에 쓴 값 · 키인 포함)' : '') + ' · 점선 = 진입 문턱 ' + fjn(th.sell_enter, 0) + ' / ' + fjn(th.buy_enter, 0) + '(범위 안일 때만) · ' +
+      (multi ? mmdd(dl[0]) + ' ~ ' + mmdd(dl[dl.length - 1]) + '(' + dl.length + '일 · 기록 있는 날만) ' + t[0] + ' ~ ' + t[t.length - 1] : t[0] + ' ~ ' + t[t.length - 1]) + ' · ' + n0(t.length) + '점(' + (s.bucket || 5) + '초 솎음)';
     var setAx = function (sc) {
       sc.y.min = ax.ymin; sc.y.max = ax.ymax; sc.y.ticks.stepSize = ax.step;
       sc.y1.display = ax.hasFut; sc.y1.min = ax.fmin; sc.y1.max = ax.fmax;
     };
     var ch = S.charts.rb;
-    if (RB.hasChart && ch) { ch.data.labels = t; ch.data.datasets = ds; setAx(ch.options.scales); ch.update('none'); return; }
+    if (RB.hasChart && ch) { ch.data.labels = labels; ch.data.datasets = ds; setAx(ch.options.scales); ch.options.scales.x.ticks.maxTicksLimit = multi ? 8 : 12; ch.update('none'); return; }
     box.innerHTML = '<div class="otc-chart" style="height:250px"><canvas id="rbChart"></canvas></div>';
     var o = baseOpts({
-      scales: { x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 12, callback: function (v) { return String(this.getLabelForValue(v)).slice(0, 5); } } },
+      scales: { x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: multi ? 8 : 12, callback: function (v) { var l = String(this.getLabelForValue(v)); return RB.multi ? l : l.slice(0, 5); } } },
         y: { position: 'left', title: { display: true, text: '저평(전)' }, ticks: { includeBounds: false, maxTicksLimit: 18, callback: function (v) { return fjn(v, Math.abs(v * 2 - Math.round(v * 2)) < 1e-9 && Math.abs(v - Math.round(v)) > 1e-9 ? 1 : 0); } } },
         y1: { position: 'right', display: false, grid: { drawOnChartArea: false }, title: { display: true, text: '3선' }, ticks: { maxTicksLimit: 7, includeBounds: false, callback: function (v) { return fp(v); } } } },
       plugins: { legend: { display: true }, tooltip: { filter: function (it) { return !it.dataset.rbRef; },
@@ -1156,7 +1165,18 @@
     });
     setAx(o.scales);
     o.plugins.legend = Object.assign({}, LEG, { labels: Object.assign({}, LEG.labels, { filter: function (it, data) { return !data.datasets[it.datasetIndex].rbRef; } }) });
-    mk('rb', $('rbChart'), { type: 'line', data: { labels: t, datasets: ds }, options: o, plugins: [{ id: 'rbEdge', afterDatasetsDraw: function (c) {
+    mk('rb', $('rbChart'), { type: 'line', data: { labels: labels, datasets: ds }, options: o, plugins: [{ id: 'rbDays', beforeDatasetsDraw: function (c) {   // 여러 날: 날 경계 세로선 + 날짜(엔진 ds 그대로)
+      var dsx = RB.ds, ca = c.chartArea, xs = c.scales.x; if (!dsx || !ca || !xs) return;
+      var ctx = c.ctx, lastX = -1e9;
+      ctx.save(); ctx.strokeStyle = cssv('--wb-rule-strong'); ctx.lineWidth = 1; ctx.font = '600 10px ' + (cssv('--wb-font') || 'sans-serif'); ctx.textBaseline = 'top'; ctx.fillStyle = cssv('--wb-muted');
+      for (var i = 0; i < dsx.length; i++) {
+        if (!dsx[i]) continue;
+        var x = Math.round(xs.getPixelForValue(i)) + 0.5;
+        if (i > 0) { ctx.beginPath(); ctx.moveTo(x, ca.top); ctx.lineTo(x, ca.bottom); ctx.stroke(); }
+        if (x - lastX >= 44) { ctx.fillText(mmdd(RB.dayOf[i]), Math.max(x, ca.left) + 3, ca.top + 2); lastX = x; }
+      }
+      ctx.restore();
+    } }, { id: 'rbEdge', afterDatasetsDraw: function (c) {
       var e = RB.edge || [], ca = c.chartArea; if (!e.length || !ca) return;
       var ctx = c.ctx, up = 0, dn = 0;
       ctx.save(); ctx.font = '600 10px ' + (cssv('--wb-font') || 'sans-serif'); ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
@@ -3171,6 +3191,11 @@
     $('rbFold').addEventListener('click', function () { RB.open = !RB.open; boSave(); rbFoldSync(); if (RB.open && RB.data) { RB.hasChart = false; rbChart(RB.data); rbLayout(true); } boResize(); });
     if (window.ResizeObserver) new ResizeObserver(function () { var w = $('rbCard').clientWidth; if (w && w !== RB.layW) rbLayout(true); }).observe($('rbCard'));   // 서랍 열림/닫힘 · 창 크기 → 배치 다시
     $('rbLegsBtn').addEventListener('click', function () { RB.legs = !RB.legs; boSave(); rbFoldSync(); if (RB.data) rbChart(RB.data); });
+    rbDaysSync();
+    $('rbDays').addEventListener('click', function (e) {   // 기간 바꾸면 커서를 비워 새 시계열을 받는다(기존 차트는 새 응답이 올 때 교체)
+      var b = e.target.closest('button[data-days]'); if (!b) return;
+      RB.days = +b.getAttribute('data-days'); RB.cursor = ''; RB.minSeq = RB.seq + 1; boSave(); rbDaysSync(); rbFetch(true);   // 떠 있던 옛 기간 응답은 버림(키인과 같은 seq 가드)
+    });
     $('rbRefBtn').addEventListener('click', function () { RB.ref = !RB.ref; boSave(); rbFoldSync(); if (RB.data) rbChart(RB.data); });
     $('rbStatBtn').addEventListener('click', function () { RB.stat = !RB.stat; boSave(); rbStatSync(); });
     $('rbKeyApply').addEventListener('click', rbKeyApply);

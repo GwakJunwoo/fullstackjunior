@@ -178,9 +178,10 @@ def otc_pair(request: Request, a: str = Query(...), b: str | None = None, days: 
 
 
 @router.get("/basis")
-def otc_basis(request: Request, x_otc_since: str | None = Header(default=None, alias="X-OTC-Since")):
-    """실시간 집행 가능 저평(3선) — api.rt_basis(since) 그대로(엑셀이 닫혀 있으면 ok:false + why 를 엔진이 준다 · 보정 0)."""
-    return _send(request, _api().rt_basis, since=_since(x_otc_since))
+def otc_basis(request: Request, days: str | None = None, x_otc_since: str | None = Header(default=None, alias="X-OTC-Since")):
+    """실시간 집행 가능 저평(3선) — api.rt_basis(since, days) 그대로(엑셀이 닫혀 있으면 ok:false + why 를 엔진이 준다 · 보정 0).
+    days(당일 1 · 3 · 5 · 10 · 사용자 2026-11-11) = 지난 날 저평 시계열을 앞에 이어 붙임 — 날 경계·솎음 간격도 엔진이 준다."""
+    return _send(request, _api().rt_basis, since=_since(x_otc_since), days=days)
 
 
 @router.post("/basis/keyin")
