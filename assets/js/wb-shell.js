@@ -63,6 +63,8 @@
         desc: '5종목 동시 · 사자선/팔자선/미드 + 팀 호가 화살표 · 당일/3/5/10일 · 5초 갱신 · 누르면 전체 호가', kw: 'otc board 보드 장외 호가 실시간 사자 팔자 미드 5종목' },
       { id: 'otc-spread', label: '종목 스프레드', href: '/tools/otc/#spread', contest: true, keyOnly: true,   // 2026-11-10 사용자 지시
         desc: '종목−3선 · 종목−종목 장중 금리 스프레드 · A 매도−B 매수 / A 매수−B 매도 · 출처(장외/장내) · 3초 갱신', kw: 'otc spread pair 스프레드 종목 3선 선물 매도 매수 장중 실시간' },
+      { id: 'otc-pnl', label: '내 포지션', href: '/tools/otc/#pnl', contest: true, keyOnly: true,   // 2026-11-11 사용자 지시
+        desc: '등록한 현물(억)·선물(계약)의 장중 실시간 손익 · 미드/청산 · DV01 · 등록·삭제 · 5초 갱신', kw: 'otc pnl 포지션 손익 실시간 현물 선물 등록 삭제 dv01' },
       { id: 'otc-bond', label: '종목 분석', href: '/tools/otc/#bond', contest: true, keyOnly: true,
         desc: '장외 호가 타임라인 · 사자선/팔자선/미드 · 호가 스트림 · 브로커 랭킹', kw: 'otc kbond quote 장외 호가 종목 메신저 사자 팔자' },
       { id: 'otc-broker', label: '브로커 분석', href: '/tools/otc/#broker', contest: true, keyOnly: true,

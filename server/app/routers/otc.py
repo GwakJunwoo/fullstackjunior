@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import gzip
+import hmac
 import json
 import os
 import sys
@@ -22,7 +23,7 @@ from urllib.parse import unquote
 from fastapi import APIRouter, Body, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import Response
 
-from .qh_ops import _require_key
+from .qh_ops import SERVER_ROOT, _require_key
 
 QH_ROOT = Path(os.getenv("QH_ROOT", r"C:\Users\infomax\Desktop\Bond Quant House"))
 
@@ -33,6 +34,24 @@ def _key(x_qh_key: str | None = Header(default=None, alias="X-QH-KEY")) -> None:
         _require_key(x_qh_key)
     except HTTPException as e:
         raise HTTPException(e.status_code, f"장외 호가 API 는 읽기에도 X-QH-KEY 필요 — {e.detail}")
+
+
+def _pw(x_otc_pw: str | None = Header(default=None, alias="X-OTC-PW")) -> None:
+    """내 포지션(/pnl*) 두 번째 문(사용자 2026-11-11) — X-QH-KEY(라우터 공통) 위에 X-OTC-PW 가 server/.env 의 OTC_PNL_PW 와 같아야 한다.
+    _require_key 와 같은 방식: 요청마다 .env 재로드 시도(기존 환경변수는 덮어쓰지 않음) · 미설정 = 403 · 없음/불일치 = 401(화면은 401 을 받으면 비밀번호 카드로 되돌아감).
+    값은 .env 에만(git 밖) — 이 파일·정적 파일 어디에도 없다."""
+    try:
+        from dotenv import load_dotenv
+        load_dotenv(SERVER_ROOT / ".env")
+    except Exception:
+        pass
+    pw = os.getenv("OTC_PNL_PW")
+    if not pw:
+        raise HTTPException(403, "내 포지션 비밀번호(OTC_PNL_PW) 미설정")
+    if not x_otc_pw:
+        raise HTTPException(401, "내 포지션 비밀번호 필요")
+    if not hmac.compare_digest(str(x_otc_pw), str(pw)):
+        raise HTTPException(401, "비밀번호 불일치")
 
 
 router = APIRouter(prefix="/otc", tags=["otc"], dependencies=[Depends(_key)])
@@ -184,9 +203,30 @@ def otc_basis(request: Request, days: str | None = None, x_otc_since: str | None
     return _send(request, _api().rt_basis, since=_since(x_otc_since), days=days)
 
 
+@router.get("/pnl", dependencies=[Depends(_pw)])
+def otc_pnl(request: Request):
+    """내 포지션 실시간 손익(사용자 2026-11-11) — api.pnl_live() 그대로(현물 = 장내/장외 호가 · 선물 = 엑셀/키인 · 폴백은 warn) · 라우터 계산 0."""
+    return _send(request, _api().pnl_live)
+
+
+@router.post("/pnl/add", dependencies=[Depends(_pw)])
+def otc_pnl_add(request: Request, body: dict | None = Body(default=None)):
+    """포지션 등록 — api.pnl_add(kind, alias, side, qty, entry, date, note) 그대로. 본문 {"kind":"bond"|"fut","alias":"26-3","side":1|-1,"qty":110,"entry":3.72,"date"?,"note"?}.
+    종목 존재·범위·숫자 검증은 엔진이 ok:false + why 로(라우터 검증·보정 0). 쓰기 = 이 PC 의 otcdesk/_cache/positions.json."""
+    b = body or {}
+    return _send(request, _api().pnl_add, kind=b.get("kind"), alias=b.get("alias"), side=b.get("side"), qty=b.get("qty"),
+                 entry=b.get("entry"), date=b.get("date"), note=b.get("note"))
+
+
+@router.post("/pnl/del", dependencies=[Depends(_pw)])
+def otc_pnl_del(request: Request, body: dict | None = Body(default=None)):
+    """포지션 삭제 — api.pnl_del(id) 그대로. 본문 {"id": n}."""
+    return _send(request, _api().pnl_del, id=(body or {}).get("id"))
+
+
 @router.post("/basis/keyin")
 def otc_basis_keyin(request: Request, body: dict | None = Body(default=None)):
-    """3선 선물 가격 키인(사용자 2026-11-05) — api.rt_basis_keyin(price) 그대로. 이 라우터의 유일한 쓰기 경로.
+    """3선 선물 가격 키인(사용자 2026-11-05) — api.rt_basis_keyin(price) 그대로. 쓰기 경로는 이것과 /pnl/add · /pnl/del(내 포지션) 뿐.
     본문 {"price": number|null} · null/생략 = 해제(_send 가 None 인자를 빼고 부르므로 엔진 기본값 = 해제).
     허용 시각(15:45 이후)·범위·숫자 여부는 엔진이 판정해 ok:false + why 로 답한다 — 라우터 검증·보정 0."""
     return _send(request, _api().rt_basis_keyin, price=(body or {}).get("price"))

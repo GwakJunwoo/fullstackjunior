@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!-- 2026-11-04 사용자 지시: 장외 호가 탭 — kbond_quote(장외 메신저 호가) 관찰 도구.
-     화면 = #board 보드(첫 화면 · 5종목 동시 · 5초 갱신) · #spread 종목 스프레드(종목−3선 / 종목−종목 · 3초 갱신 · 패널 최대 2개 = 왼쪽/오른쪽 따로) · #bond 종목 분석 · #broker 브로커 분석 · #team 팀 해부(1차 장중 · 2차 일봉).
+     화면 = #board 보드(첫 화면 · 5종목 동시 · 5초 갱신) · #spread 종목 스프레드(종목−3선 / 종목−종목 · 3초 갱신 · 패널 최대 2개 = 왼쪽/오른쪽 따로) · #pnl 내 포지션(등록한 현물·선물의 장중 실시간 손익 · 등록/삭제 · 5초 갱신 · 2026-11-11) · #bond 종목 분석 · #broker 브로커 분석 · #team 팀 해부(1차 장중 · 2차 일봉).
      데이터 = /otc/* (fullstackjunior/server/app/routers/otc.py → BQH otcdesk.api 그대로 · 재계산 0).
      ★공개 범위 = 사이트 탭·비공개: 데이터 API 는 전부 X-QH-KEY(GET 포함). 이 파일·JS 에는 사람 이름·회사 이름이 없다 —
        팀 라벨·명단은 전부 /otc/meta 응답에서 받아 그린다(키 없으면 빈 껍데기 + 키 안내만).
@@ -14,7 +14,7 @@
   <title>장외 호가 · Bond Quant House</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%9B%EF%B8%8F%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="/assets/css/wb.css?v=20261022c">
-  <script src="/assets/js/wb-shell.js?v=20261110a"></script>
+  <script src="/assets/js/wb-shell.js?v=20261111a"></script>
   <style>
     /* ═══ 장외 호가 — 표현만(wb 토큰 · 카드 · 표) · 사자 = 파랑(--wb-down) · 팔자 = 빨강(--wb-up) ═══ */
     .otc-head { align-items: center; }
@@ -383,6 +383,37 @@
       .otc-pr-wrap.is-two .otc-pr-pane .otc-pr-qline { flex-wrap: wrap; }   /* 위 nowrap(같은 특이도 + 뒤) 을 이김 */
       .otc-pr-wrap.is-two .otc-pr-pane .otc-pr-qline > .otc-pr-lq { flex-basis: 100%; }
     }
+    /* (0c) 내 포지션(사용자 2026-11-11 · 엔진 pnl.live 그대로) — 등록 줄 카드 + 포지션 표 + 합계 */
+    .otc-pn-fb { position: static; z-index: auto; margin: 0; padding: var(--wb-s2) var(--wb-s4) var(--wb-s3); background: none; align-items: flex-end; }
+    .otc-pn-fb .wb-field .wb-input { width: 110px; font-variant-numeric: tabular-nums; }
+    .otc-pn-fb .wb-field .wb-input.otc-pn-al { width: 130px; font-weight: 600; }
+    .otc-pn-fb .wb-field .wb-input.otc-pn-note { width: 180px; }
+    .otc-pn-fb input[type="date"].wb-input { width: 140px; }
+    .otc-pn-fb .wb-seg > * { height: var(--wb-ctl); padding: 0 12px; font-size: 12px; }
+    .otc-pn-fb .wb-field[hidden] { display: none !important; }
+    .otc-pn-msg { flex: 1 1 200px; min-width: 0; align-self: center; font-size: 12px; line-height: 18px; color: var(--wb-muted); overflow-wrap: anywhere; }
+    .otc-pn-msg.is-err { color: var(--wb-up); }
+    .otc-pn-kpis { padding: var(--wb-s3) var(--wb-s4); border-top: 1px solid var(--wb-rule); }
+    .otc-pn-kpis .wb-kpi-val { font-size: 20px; line-height: 26px; }
+    .otc-pn-kpis .wb-kpi-val small { margin-left: 3px; font-size: 12px; font-weight: 400; color: var(--wb-muted); }
+    .otc-pn-kpis .wb-kpi-val.wb-up { color: var(--wb-up); } .otc-pn-kpis .wb-kpi-val.wb-down { color: var(--wb-down); }
+    .otc-pn-t td.lt { white-space: normal; }
+    .otc-pn-t td.pnl { font-weight: 600; font-size: 13px; }
+    .otc-pn-t td.src { color: var(--wb-muted); }
+    .otc-pn-t td.src .otc-dot { width: 7px; height: 7px; margin-left: 4px; vertical-align: 1px; }
+    .otc-pn-t td.note { color: var(--wb-muted); max-width: 220px; overflow: hidden; text-overflow: ellipsis; }
+    .otc-pn-t tbody tr.is-err td { color: var(--wb-faint); }
+    .otc-pn-t tbody tr.is-err td.err { color: var(--wb-warn); white-space: normal; }
+    .otc-pn-x { width: 24px; height: 24px; font-size: 14px; line-height: 1; color: var(--wb-muted); }
+    .otc-pn-x:hover { color: var(--wb-up); border-color: var(--wb-up); }
+    .otc-pn-x:disabled { opacity: .4; cursor: not-allowed; }
+    .otc-pn-al b { font-size: 13px; }
+    .otc-pn-head .wb-card-meta { display: inline-flex; align-items: center; gap: 6px; }
+    .otc-pn-head #pnLock { margin-left: 10px; }
+    #pnBody[hidden] { display: none !important; }
+    .otc-pn-gate { max-width: 560px; }
+    .otc-pn-pwf { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--wb-s3) var(--wb-s4); padding: var(--wb-s3) var(--wb-s4) var(--wb-s4); }
+    .otc-pn-pwf .wb-input { width: 220px; }
     @media (max-width: 1180px) { .otc-grid, .otc-grid--55, .otc-grid--3 { grid-template-columns: minmax(0, 1fr); } }
     @media (max-width: 900px) {
       .otc-drawer { width: 100vw; }
@@ -402,7 +433,7 @@
 
 <main class="wb-main" id="otcMain">
   <div class="wb-pagehead otc-head">
-    <h1>장외 호가</h1><span class="wb-help" role="button" tabindex="0" aria-label="설명 보기"><template><p><b>장외 메신저 호가(kbond_quote) 관찰 도구.</b> 보드(5종목 동시 · 5초 갱신) · 종목 스프레드(종목−3선 / 종목−종목 · 3초 갱신) · 종목 분석 · 브로커 분석 · 팀 해부(장중 → 일봉).</p><p>숫자는 엔진(otcdesk) 산출 그대로 — 웹에서 다시 계산하지 않음.</p><p>호가 ≠ 체결 · 체결 = ㅎㅈ/확정/거래 표시만 · 액면은 적힌 것만 · 관찰 전용(추천 0).</p><p>복원 = 2025-06~11 등 kbond_quote 금리 빈 행을 원문+전일민평 정수부로 복원(검증 정확 일치 98.8%).<br>근거 = 검증 2.8만 행(금리 있는 행 지우고 복원 후 대조).<br>금리 출처(복원 · 교정) 설명 = 종목 분석의 복원 · 교정 건수 옆 ? (엔진 규칙 문장 그대로).</p><p>비공개: 데이터는 키(X-QH-KEY)가 있어야 보인다.</p></template></span>
+    <h1>장외 호가</h1><span class="wb-help" role="button" tabindex="0" aria-label="설명 보기"><template><p><b>장외 메신저 호가(kbond_quote) 관찰 도구.</b> 보드(5종목 동시 · 5초 갱신) · 종목 스프레드(종목−3선 / 종목−종목 · 3초 갱신) · 내 포지션(등록한 현물·선물의 장중 실시간 손익 · 5초 갱신) · 종목 분석 · 브로커 분석 · 팀 해부(장중 → 일봉).</p><p>숫자는 엔진(otcdesk) 산출 그대로 — 웹에서 다시 계산하지 않음.</p><p>호가 ≠ 체결 · 체결 = ㅎㅈ/확정/거래 표시만 · 액면은 적힌 것만 · 관찰 전용(추천 0).</p><p>복원 = 2025-06~11 등 kbond_quote 금리 빈 행을 원문+전일민평 정수부로 복원(검증 정확 일치 98.8%).<br>근거 = 검증 2.8만 행(금리 있는 행 지우고 복원 후 대조).<br>금리 출처(복원 · 교정) 설명 = 종목 분석의 복원 · 교정 건수 옆 ? (엔진 규칙 문장 그대로).</p><p>비공개: 데이터는 키(X-QH-KEY)가 있어야 보인다.</p></template></span>
     <span class="wb-badge">관찰 전용</span><span class="wb-badge wb-badge--warn">비공개 · 키</span>
     <span class="otc-head-meta" id="otcMeta"></span>
   </div>
@@ -496,6 +527,42 @@
     </div>
   </section>
 
+  <!-- ══ (0c) 내 포지션 — 등록한 현물(억)·선물(계약)의 장중 실시간 손익(사용자 2026-11-11 · /otc/pnl = 엔진 pnl.live 그대로 · 5초 갱신 · 등록/삭제 = /otc/pnl/add · /otc/pnl/del · 웹 계산 0) ══ -->
+  <section class="otc-view" id="vPnl" data-view="pnl" hidden aria-label="내 포지션">
+    <!-- 두 번째 문(사용자 2026-11-11): 세션에 비밀번호가 없으면 본문 대신 이 카드 · 값은 sessionStorage 에만(탭 닫으면 소멸) · 서버가 X-OTC-PW 를 .env OTC_PNL_PW 와 대조(401 = 틀림 → 다시 이 카드) · 이 파일엔 값 없음 -->
+    <section class="wb-card otc-pn-gate" id="pnGate" hidden aria-label="내 포지션 비밀번호">
+      <div class="wb-card-head"><span class="wb-card-title">내 포지션 — 비밀번호</span><span class="wb-card-meta">키(X-QH-KEY)와 별도 · 이 브라우저 탭에서 한 번</span></div>
+      <form class="otc-pn-pwf" id="pnPwForm" autocomplete="off" novalidate>
+        <label class="wb-field"><span class="wb-label">비밀번호</span><input class="wb-input" type="password" id="pnPw" autocomplete="current-password" aria-label="내 포지션 비밀번호(Enter = 확인)"></label>
+        <div class="otc-btns"><button type="submit" class="wb-btn wb-btn--primary" id="pnPwBtn">확인</button></div>
+        <span class="otc-pn-msg" id="pnPwMsg" role="status" aria-live="polite"></span>
+      </form>
+    </section>
+    <div id="pnBody" hidden>
+    <section class="wb-card" aria-label="포지션 등록">
+      <div class="wb-card-head"><span class="wb-card-title">등록</span><span class="wb-card-meta">현물 = 억 · 진입 금리(%) · 선물 = 계약 · 진입 가격 · Enter = 등록 · 저장은 서버(이 PC) 안</span></div>
+      <form class="wb-filterbar otc-fb otc-pn-fb" id="pnForm" autocomplete="off" novalidate>
+        <div class="wb-field"><span class="wb-label">종류</span><div class="wb-seg" id="pnKind" role="group" aria-label="현물 또는 선물"><button type="button" data-kind="bond" class="is-active" title="국고 종목 — 별칭(예: 26-3)">현물</button><button type="button" data-kind="fut" title="국채선물 — 3선/10선/30선">선물</button></div></div>
+        <label class="wb-field" id="pnBondF"><span class="wb-label">종목</span><input class="wb-input otc-pn-al" id="pnAlias" list="otcBonds" autocomplete="off" spellcheck="false" placeholder="예: 26-3" aria-label="종목 별칭"></label>
+        <div class="wb-field" id="pnFutF" hidden><span class="wb-label">선물</span><div class="wb-seg" id="pnFut" role="group" aria-label="선물 종류"><button type="button" data-fut="3선" class="is-active">3선</button><button type="button" data-fut="10선">10선</button><button type="button" data-fut="30선">30선</button></div></div>
+        <div class="wb-field"><span class="wb-label">방향</span><div class="wb-seg" id="pnSide" role="group" aria-label="매수 또는 매도"><button type="button" data-side="1" class="is-active otc-buy" title="매수 = 금리 내리면 이익">매수</button><button type="button" data-side="-1" class="otc-sell" title="매도 = 금리 오르면 이익">매도</button></div></div>
+        <label class="wb-field"><span class="wb-label" id="pnQtyLab">수량(억)</span><input class="wb-input" id="pnQty" type="number" step="any" inputmode="decimal" placeholder="예: 100" aria-label="수량"></label>
+        <label class="wb-field"><span class="wb-label" id="pnEntryLab">진입 금리(%)</span><input class="wb-input" id="pnEntry" type="number" step="any" inputmode="decimal" placeholder="예: 3.720" aria-label="진입"></label>
+        <label class="wb-field"><span class="wb-label">날짜(선택)</span><input class="wb-input" type="date" id="pnDate" aria-label="진입 날짜 — 비우면 오늘"></label>
+        <label class="wb-field"><span class="wb-label">메모(선택)</span><input class="wb-input otc-pn-note" id="pnNote" maxlength="80" placeholder="메모" aria-label="메모"></label>
+        <div class="otc-btns"><button type="submit" class="wb-btn wb-btn--primary" id="pnAdd">등록</button></div>
+        <span class="otc-pn-msg" id="pnMsg" role="status" aria-live="polite"></span>
+      </form>
+    </section>
+    <section class="wb-card otc-mt" id="pnCard" aria-label="내 포지션 실시간 손익">
+      <div class="wb-card-head otc-pn-head"><span class="wb-card-title">내 포지션 실시간 손익<span id="pnHelp"></span></span><span class="wb-card-meta" id="pnMeta"><span class="wb-loading">불러오는 중…</span></span><button type="button" class="wb-btn wb-btn--sm" id="pnLock" title="이 탭의 비밀번호를 지우고 잠급니다(다시 보려면 비밀번호)">잠금 해제됨 · 잠그기</button></div>
+      <div class="wb-table-wrap otc-scroll" id="pnTbl"><div class="otc-skel"><span class="wb-loading">불러오는 중…</span></div></div>
+      <dl class="wb-kpis otc-pn-kpis" id="pnTot" hidden></dl>
+      <div class="otc-foot" id="pnFoot" style="padding: 0 var(--wb-s4) var(--wb-s3)"></div>
+    </section>
+    </div>
+  </section>
+
   <!-- ══ (A) 종목 분석 ══ -->
   <section class="otc-view" id="vBond" data-view="bond" hidden aria-label="종목 분석">
     <div class="wb-filterbar otc-fb">
@@ -577,6 +644,6 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/wb-chart.js?v=20261022c"></script>
-<script src="/assets/js/wb-otc.js?v=20261111a"></script>
+<script src="/assets/js/wb-otc.js?v=20261111b"></script>
 </body>
 </html>

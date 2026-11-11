@@ -1,7 +1,7 @@
 /* ═══════════════════════════════════════════════════════════════════════════
    wb-otc.js — 장외 호가 탭(2026-11-04 사용자 지시) · 화면 = tools/otc/index.html
    ───────────────────────────────────────────────────────────────────────────
-   화면 셋(해시): #bond 종목 분석 · #broker 브로커 분석 · #team 팀 해부(① 요약 ② 종목×일 ③ 장중 ④ 종목 시계열 ⑤ 일봉 ⑥ 포지션 추정)
+   화면 셋(해시): #board 보드 · #spread 종목 스프레드 · #pnl 내 포지션(등록한 현물·선물의 장중 실시간 손익 · 등록/삭제 · 5초 갱신 · 2026-11-11) · #bond 종목 분석 · #broker 브로커 분석 · #team 팀 해부(① 요약 ② 종목×일 ③ 장중 ④ 종목 시계열 ⑤ 일봉 ⑥ 포지션 추정)
    ■ 데이터 = /otc/* (server/app/routers/otc.py → BQH otcdesk.api 그대로). 숫자 = 엔진 값 그대로(재계산 0).
      웹이 하는 일 = 고르기 · 표 배치 · 표기(− 기호 · 비율 → % 자리 이동 · 소수 자리 채우기)뿐.
    ■ 비공개: 모든 GET 에 X-QH-KEY(localStorage 'qh_ops_key' = quant-house 운용 콘솔과 같은 키 이름).
@@ -555,7 +555,12 @@
       var fb2 = await getApiBase(true);
       if (fb2 && fb2 !== base) res = await call(fb2);
     }
-    if (res.status === 403) { var d = await detailOf(res); dropKey(); S.memKey = ''; throw new KeyErr('키가 맞지 않음 — ' + (d || '403'), true); }
+    if (res.status === 401) { var d0 = await detailOf(res); var pe = new Error(d0 || '401'); pe.pw = true; throw pe; }   // 내 포지션 두 번째 문(X-OTC-PW) — 키는 그대로 두고 비밀번호 카드로
+    if (res.status === 403) {
+      var d = await detailOf(res);
+      if (/OTC_PNL_PW/.test(d)) throw new Error(d);                      // 서버에 비밀번호 미설정(403) — 키 문제가 아니므로 저장 키는 지우지 않는다
+      dropKey(); S.memKey = ''; throw new KeyErr('키가 맞지 않음 — ' + (d || '403'), true);
+    }
     if (!res.ok) { var d2 = await detailOf(res); throw new Error('서버 오류 ' + res.status + (d2 ? ' — ' + d2 : '')); }
     return res.json();
   }
@@ -569,7 +574,7 @@
   // 폴링(보드): 직전 응답의 cursor 를 쿼리가 아니라 헤더로 — URL 이 매번 같아야 브라우저가 CORS 사전요청을 캐시한다.
   // 헤더는 처음부터 늘 붙인다('-' = 없음) → 사전요청이 허용한 헤더 목록이 바뀌지 않는다. 값은 한글 별칭 대비 encodeURIComponent.
   function pget(path, since) { return xget(path, { 'X-OTC-Since': since ? encodeURIComponent(since) : '-' }); }
-  function xpost(path, body) { return xget(path, { 'Content-Type': 'application/json' }, { method: 'POST', body: JSON.stringify(body) }); }   // 유일한 쓰기 = 3선 키인
+  function xpost(path, body, extra) { return xget(path, Object.assign({ 'Content-Type': 'application/json' }, extra || {}), { method: 'POST', body: JSON.stringify(body) }); }   // 쓰기 = 3선 키인 · 내 포지션 등록/삭제(2026-11-11 · extra = X-OTC-PW)
   function dropCache(prefix) { Object.keys(S.cache).forEach(function (k) { if (k.indexOf(prefix) === 0) delete S.cache[k]; }); }
   function keyErr(e) {
     if (!e || !e.nokey) return false;
@@ -579,13 +584,13 @@
   function showGate(msg) {
     $('otcGateMsg').textContent = msg || '이 화면은 키(X-QH-KEY)가 있어야 데이터가 보입니다.';
     $('otcGate').hidden = false;
-    ['vBoard', 'vSpread', 'vBond', 'vBroker', 'vTeam'].forEach(function (id) { $(id).hidden = true; });
-    S.meta = null; S.on = false; boStop(); prStopAll();
+    ['vBoard', 'vSpread', 'vPnl', 'vBond', 'vBroker', 'vTeam'].forEach(function (id) { $(id).hidden = true; });
+    S.meta = null; S.on = false; boStop(); prStopAll(); pnStop();
     if (window.WBShell) WBShell.setPage('otc-' + (parseHash().v));
   }
 
   // ══ 해시 라우터 ════════════════════════════════════════════════════════
-  var VIEWS = { board: { el: 'vBoard', enter: boardEnter, noMeta: true }, spread: { el: 'vSpread', enter: pairEnter, noMeta: true }, bond: { el: 'vBond', enter: bondEnter }, broker: { el: 'vBroker', enter: brokerEnter }, team: { el: 'vTeam', enter: teamEnter } };
+  var VIEWS = { board: { el: 'vBoard', enter: boardEnter, noMeta: true }, spread: { el: 'vSpread', enter: pairEnter, noMeta: true }, pnl: { el: 'vPnl', enter: pnlEnter, noMeta: true }, bond: { el: 'vBond', enter: bondEnter }, broker: { el: 'vBroker', enter: brokerEnter }, team: { el: 'vTeam', enter: teamEnter } };
   function parseHash() {
     var h = String(location.hash || '').replace(/^#/, ''), i = h.indexOf('?');
     var v = (i < 0 ? h : h.slice(0, i)) || 'board';
@@ -608,6 +613,7 @@
     hideHov();
     if (prev === 'board' && r.v !== 'board') boLeave();
     if (prev === 'spread' && r.v !== 'spread') prLeave();
+    if (prev === 'pnl' && r.v !== 'pnl') pnLeave();
     boFit();   // 보드가 아니면 왼쪽 붙임·오른쪽 비움을 푼다
     if (VIEWS[r.v].noMeta || S.meta) VIEWS[r.v].enter(r.p);
     else if (S.metaP) S.metaP.then(function () { if (S.on && S.meta && S.view === r.v) VIEWS[r.v].enter(parseHash().p); });   // 종목·브로커·팀 = meta(기본값·자동완성)가 온 뒤
@@ -2080,6 +2086,195 @@
   }
 
   // ══════════════════════════════════════════════════════════════════════
+  // (0c) 내 포지션 — 등록한 현물(억)·선물(계약)의 장중 실시간 손익(사용자 2026-11-11)
+  //   데이터 = /otc/pnl (엔진 pnl.live 그대로 · 웹 계산 0 · 표기 = 쉼표 · − 기호 · 소수 자리뿐).
+  //   쓰기 = /otc/pnl/add · /otc/pnl/del — 응답의 live(= GET /otc/pnl 응답 그대로)로 바로 그림(추가 GET 없음) · 엔진 why 는 폼 옆에 그대로.
+  //   탭이 보일 때 5초마다 전체 응답(cursor 없음 · 작음) · 탭 떠나면 멈춤 · busy 로 겹침 방지 · 등록/삭제 전에 떠난 옛 GET 응답은 seq 로 버림.
+  //   지금 값 = 엔진 mark(mid · liq · src · t · warn) 그대로 — 폴백(전일 민평 · 전일 종가 · 오늘 마지막 틱)은 엔진 warn 을 주황 점 + 툴팁으로 그대로 보인다.
+  // ══════════════════════════════════════════════════════════════════════
+  //   ★두 번째 문(사용자 2026-11-11): 세 요청 모두 X-OTC-PW 헤더(서버 .env OTC_PNL_PW 와 대조 · 값은 이 파일 어디에도 없음). 비밀번호는 sessionStorage(탭 닫으면 소멸)에만 —
+  //     없으면 본문 대신 비밀번호 카드 · 401 이 오면 언제든 저장을 지우고 카드로 되돌아감 · [잠그기] = 저장 지우고 카드로.
+  var PN_MS = 5000, PN_PW_SS = 'otc.pnl.pw';
+  var PN = S.pnl = { kind: 'bond', fut: '3선', side: 1, data: null, err: '', busy: false, timer: 0, seq: 0, minSeq: 0, wBusy: false, msg: null, helpTxt: '', pwBusy: false, locked: true };
+  function pnPw() { try { return sessionStorage.getItem(PN_PW_SS) || ''; } catch (e) { return PN.memPw || ''; } }
+  function pnPwSet(v) { try { if (v) sessionStorage.setItem(PN_PW_SS, v); else sessionStorage.removeItem(PN_PW_SS); } catch (e) { /* 저장 불가 — 이 화면 동안만 */ } PN.memPw = v || ''; }
+  function pnHdr() { return { 'X-OTC-PW': pnPw() }; }
+  function pwErr(e, msg) {   // 401 = 비밀번호 없음/불일치 → 저장 지우고 비밀번호 카드(키는 그대로)
+    if (!e || !e.pw) return false;
+    pnPwSet(''); pnStop(); PN.data = null; PN.err = '';
+    pnGate(true, msg || ('비밀번호가 틀렸습니다 — ' + emsg(e)), true);
+    return true;
+  }
+  function pnGate(show, msg, err) {   // show = 본문 대신 비밀번호 카드
+    PN.locked = !!show;
+    $('pnGate').hidden = !show; $('pnBody').hidden = !!show;
+    var m = $('pnPwMsg'); m.textContent = msg || ''; m.classList.toggle('is-err', !!err);
+    $('pnPwBtn').disabled = PN.pwBusy; $('pnPw').disabled = PN.pwBusy;
+    if (show) { $('pnTbl').innerHTML = '<div class="otc-skel"><span class="wb-loading">불러오는 중…</span></div>'; $('pnTot').hidden = true; $('pnTot').innerHTML = ''; $('pnFoot').innerHTML = ''; $('pnMeta').innerHTML = ''; $('pnMeta').title = ''; PN.helpTxt = ''; $('pnHelp').innerHTML = ''; }
+    if (show && S.view === 'pnl') { try { $('pnPw').focus(); } catch (e) { /* noop */ } }
+  }
+  function pnUnlock() {   // 입력한 비밀번호를 세션에 저장하고 GET /otc/pnl 로 검증 — 맞으면 본문 + 5초 갱신 · 401 이면 지우고 다시
+    if (PN.pwBusy) return;
+    var v = String($('pnPw').value || '');
+    if (!v) { pnGate(true, '비밀번호를 넣으세요', true); return; }
+    pnPwSet(v); PN.pwBusy = true; pnGate(true, '확인 중…', false);
+    var my = ++PN.seq;
+    xget('/otc/pnl', pnHdr()).then(function (d) {
+      $('pnPw').value = '';
+      PN.pwBusy = false; pnGate(false, '', false);
+      if (S.view !== 'pnl') return;
+      if (my >= PN.minSeq) pnApply(d);
+      pnStart();
+    }).catch(function (e) {
+      PN.pwBusy = false;
+      if (pwErr(e, '비밀번호가 틀렸습니다')) { $('pnPw').value = ''; return; }
+      if (keyErr(e)) return;
+      pnPwSet('');                                                        // 서버/터널 오류 — 저장은 지우고(검증 안 됨) 사유 그대로
+      pnGate(true, '확인 실패 — ' + emsg(e), true);
+    });
+  }
+  function pnLock() { pnPwSet(''); pnStop(); PN.data = null; PN.err = ''; PN.msg = null; pnMsgSync(); pnGate(true, '잠겼습니다 — 다시 보려면 비밀번호', false); }
+  function pnlEnter() {
+    pnFormSync(); pnMsgSync();
+    if (!pnPw()) { pnGate(true, '', false); return; }                      // 세션에 비밀번호 없음 → 카드만(요청 0)
+    pnGate(false, '', false); pnFetch(true); pnStart();
+  }
+  function pnLeave() { pnStop(); hideHov(); }
+  function pnStart() { pnStop(); PN.timer = setInterval(function () { pnFetch(false); }, PN_MS); }
+  function pnStop() { if (PN.timer) { clearInterval(PN.timer); PN.timer = 0; } }
+  function pnFetch(user) {
+    if (!S.on || S.view !== 'pnl' || PN.locked || !pnPw()) return;
+    if (!user && (PN.busy || doc.hidden)) return;
+    PN.busy = true;
+    var my = ++PN.seq;
+    xget('/otc/pnl', pnHdr()).then(function (d) {
+      if (my < PN.minSeq || S.view !== 'pnl' || PN.locked) return;        // 등록/삭제 응답(live)이 먼저 그려졌거나 그 사이 잠겼으면 버림
+      pnApply(d);
+    }).catch(function (e) {
+      if (pwErr(e) || keyErr(e) || my < PN.minSeq) return;
+      PN.err = emsg(e); pnRender();                                       // 조용히 다음 주기에 재시도 · 머리에 빨간 점 + 사유
+    }).then(function () { PN.busy = false; });
+  }
+  function pnApply(d) { PN.err = ''; PN.data = d; pnRender(); }
+  function won(v) {   // 원 → 천 단위 쉼표 · + / − 기호(표기만)
+    if (!isNum(v)) return '–';
+    var r = Math.round(v), s = Math.abs(r).toLocaleString('ko-KR');
+    return (r < 0 ? MINUS : r > 0 ? '+' : '') + s;
+  }
+  function fq(v) { return !isNum(v) ? '–' : Number.isInteger(v) ? v.toLocaleString('ko-KR') : v.toLocaleString('ko-KR', { maximumFractionDigits: 2 }); }
+  function pnFormSync() {   // 종류(현물/선물)에 따라 종목 칸 ↔ 선물 세그 · 단위 라벨
+    var fut = PN.kind === 'fut';
+    Array.prototype.forEach.call($('pnKind').children, function (b) { b.classList.toggle('is-active', b.getAttribute('data-kind') === PN.kind); });
+    Array.prototype.forEach.call($('pnFut').children, function (b) { b.classList.toggle('is-active', b.getAttribute('data-fut') === PN.fut); });
+    Array.prototype.forEach.call($('pnSide').children, function (b) { b.classList.toggle('is-active', +b.getAttribute('data-side') === PN.side); });
+    $('pnBondF').hidden = fut; $('pnFutF').hidden = !fut;
+    $('pnQtyLab').textContent = fut ? '수량(계약)' : '수량(억)';
+    $('pnEntryLab').textContent = fut ? '진입 가격' : '진입 금리(%)';
+    $('pnQty').placeholder = fut ? '예: 10' : '예: 100';
+    $('pnEntry').placeholder = fut ? '예: 106.45' : '예: 3.720';
+    $('pnAdd').disabled = PN.wBusy;
+    Array.prototype.forEach.call($('pnTbl').querySelectorAll('button[data-pndel]'), function (b) { b.disabled = PN.wBusy; });   // 등록/삭제 응답(live)으로 그린 표는 wBusy 중에 그려지므로 끝나면 × 를 다시 켠다
+  }
+  function pnMsgSync() {
+    var m = $('pnMsg');
+    m.textContent = PN.wBusy ? '보내는 중…' : (PN.msg ? PN.msg.text : '');
+    m.classList.toggle('is-err', !PN.wBusy && !!(PN.msg && PN.msg.err));
+  }
+  function pnSubmit() {
+    if (PN.wBusy) return;
+    var fut = PN.kind === 'fut', alias = fut ? PN.fut : String($('pnAlias').value || '').trim();
+    var qty = String($('pnQty').value || '').trim(), entry = String($('pnEntry').value || '').trim();
+    if (!alias) { PN.msg = { err: true, text: '종목을 넣으세요' }; pnMsgSync(); $('pnAlias').focus(); return; }
+    if (!qty) { PN.msg = { err: true, text: ($('pnQty').validity && $('pnQty').validity.badInput) ? '수량이 숫자가 아닙니다' : '수량을 넣으세요' }; pnMsgSync(); $('pnQty').focus(); return; }
+    if (!entry) { PN.msg = { err: true, text: ($('pnEntry').validity && $('pnEntry').validity.badInput) ? '진입 값이 숫자가 아닙니다' : (fut ? '진입 가격을 넣으세요' : '진입 금리를 넣으세요') }; pnMsgSync(); $('pnEntry').focus(); return; }
+    var body = { kind: PN.kind, alias: alias, side: PN.side, qty: Number(qty), entry: Number(entry) };
+    var date = String($('pnDate').value || '').trim(), note = String($('pnNote').value || '').trim();
+    if (date) body.date = date;
+    if (note) body.note = note;
+    PN.wBusy = true; PN.msg = null; pnFormSync(); pnMsgSync();
+    xpost('/otc/pnl/add', body, pnHdr()).then(function (r) {
+      if (r && r.ok) {   // 등록됨 — 입력 비우고(종류·방향·선물 종류는 그대로) 응답 live 로 바로 그림
+        ['pnAlias', 'pnQty', 'pnEntry', 'pnNote'].forEach(function (id) { $(id).value = ''; });
+        var p = r.position || {};
+        PN.msg = { err: false, text: '등록 ' + (p.alias || alias) + ' ' + (p.side === -1 || PN.side === -1 ? '매도' : '매수') + ' ' + fq(isNum(p.qty) ? p.qty : Number(qty)) + (fut ? '계약' : '억') + (p.id != null ? ' (#' + p.id + ')' : '') };
+        if (r.live) { PN.minSeq = PN.seq + 1; pnApply(r.live); } else pnFetch(true);
+      } else PN.msg = { err: true, text: (r && r.why) || '엔진이 받지 않음(사유 없음)' };   // 거절이면 친 값은 칸에 남겨 둔다(고쳐서 다시)
+    }).catch(function (e) {
+      if (pwErr(e) || keyErr(e)) return;
+      PN.msg = { err: true, text: '등록 전송 실패 — ' + emsg(e) };
+    }).then(function () { PN.wBusy = false; pnFormSync(); pnMsgSync(); });
+  }
+  function pnDel(id, btn) {
+    if (PN.wBusy || id == null) return;
+    PN.wBusy = true; PN.msg = null; pnFormSync(); pnMsgSync();
+    if (btn) btn.disabled = true;
+    xpost('/otc/pnl/del', { id: id }, pnHdr()).then(function (r) {
+      if (r && r.ok) {
+        var dl = r.deleted || {};
+        PN.msg = { err: false, text: '삭제 #' + (dl.id != null ? dl.id : id) + (dl.alias ? ' ' + dl.alias : '') };
+        if (r.live) { PN.minSeq = PN.seq + 1; pnApply(r.live); } else pnFetch(true);
+      } else { PN.msg = { err: true, text: '삭제 안 됨 — ' + ((r && r.why) || '사유 없음') }; if (btn) btn.disabled = false; }
+    }).catch(function (e) {
+      if (pwErr(e) || keyErr(e)) return;
+      PN.msg = { err: true, text: '삭제 전송 실패 — ' + emsg(e) }; if (btn) btn.disabled = false;
+    }).then(function () { PN.wBusy = false; pnFormSync(); pnMsgSync(); });
+  }
+  function pnRow(r) {   // 한 줄 = 엔진 positions[i] 그대로(표기만)
+    var fut = r.kind === 'fut', mk = r.mark || {}, unit = r.unit || (fut ? '계약' : '억');
+    var sideCl = r.side === 1 ? 'otc-buy' : 'otc-sell', sideTx = r.side === 1 ? '매수' : '매도';
+    var sub = [r.nick, isNum(r.rem) ? '잔존 ' + r.rem + '년' : '', r.date ? '진입 ' + r.date : ''].filter(Boolean).join(' · ');
+    var head = '<td class="lt otc-pn-al" title="' + esc([r.name, r.mat ? '만기 ' + r.mat : '', isNum(r.coupon) ? '표면 ' + r.coupon : '', isNum(r.mp) ? (fut ? '전일 종가 ' : '전일 민평 ') + (fut ? fp(r.mp) : fy(r.mp)) : '', r.added ? '등록 ' + r.added : ''].filter(Boolean).join(' · ')) + '"><b>' + esc(r.alias) + '</b>' + (sub ? '<span class="otc-sub">' + esc(sub) + '</span>' : '') + '</td>' +
+      '<td class="' + sideCl + '">' + sideTx + '</td>' +
+      '<td class="num">' + fq(r.qty) + '<small class="wb-muted"> ' + esc(unit) + '</small></td>' +
+      '<td class="num" title="진입 ' + esc(r.entry_unit || (fut ? '가격' : '%')) + '">' + (fut ? fp(r.entry) : fy(r.entry)) + '</td>';
+    var tail = '<td class="note lt" title="' + esc(r.note || '') + '">' + esc(r.note || '') + '</td>' +
+      '<td><button type="button" class="wb-btn wb-btn--icon otc-pn-x" data-pndel="' + esc(r.id) + '" title="삭제(바로 · 확인 없음)" aria-label="삭제"' + (PN.wBusy ? ' disabled' : '') + '>×</button></td>';
+    if (r.err || !r.mark) return '<tr class="is-err" data-pnid="' + esc(r.id) + '">' + head + '<td class="err lt" colspan="5">평가 실패 — ' + esc(r.err || '지금 값 없음') + '</td>' + tail + '</tr>';
+    var chg = fut ? r.chg_tick : r.chg_bp, chgL = fut ? r.chg_liq_tick : r.chg_liq_bp, cu = fut ? '틱' : 'bp';
+    var midTx = fut ? fp(mk.mid) : fy(mk.mid), liqTx = fut ? fp(mk.liq) : fy(mk.liq);
+    var srcTip = '출처 ' + (mk.src || '–') + (mk.t ? ' · ' + mk.t : '') + ' · 미드 ' + midTx + ' · 청산 ' + liqTx +
+      ((mk.bid != null || mk.ask != null) ? ' · bid ' + (fut ? fp(mk.bid) : fy(mk.bid)) + ' / ask ' + (fut ? fp(mk.ask) : fy(mk.ask)) : '') + (mk.warn ? '\n' + mk.warn : '');
+    return '<tr data-pnid="' + esc(r.id) + '">' + head +
+      '<td class="num src" title="' + esc(srcTip) + '"><b>' + midTx + '</b><span class="otc-sub">' + esc(mk.src || '–') + (mk.t ? ' ' + esc(mk.t) : '') + (mk.warn ? '<span class="otc-dot warn" aria-label="경고"></span>' : '') + '</span></td>' +
+      '<td class="num" title="미드 − 진입 ' + esc(fbp(chg, fut ? 0 : 1)) + cu + ' · 청산 − 진입 ' + esc(fbp(chgL, fut ? 0 : 1)) + cu + '"><span class="' + sgn(chg) + '">' + fbp(chg, fut ? 0 : 1) + '</span><small class="wb-muted"> ' + cu + '</small><span class="otc-sub">청산 ' + bpSpan(chgL, fut ? 0 : 1) + '</span></td>' +
+      '<td class="num pnl ' + sgn(r.pnl_liq) + '" title="청산 ' + liqTx + ' 기준">' + won(r.pnl_liq) + '</td>' +
+      '<td class="num ' + sgn(r.pnl_mid) + '" title="미드 ' + midTx + ' 기준">' + won(r.pnl_mid) + '</td>' +
+      '<td class="num" title="DV01(원/bp) · 부호 = 방향">' + won(r.dv01) + '</td>' + tail + '</tr>';
+  }
+  function pnRender() {
+    var d = PN.data, x = (d && d.exch) || {}, defs = (d && d.defs) || {};
+    var live = !!x.open && !PN.err;   // 머리 상태 = '연결' / '연결실패'(실시간 저평 패널과 같은 문법) · 엑셀 상태 · 평가 시각 · 불러오기 오류는 툴팁
+    var meta = $('pnMeta');
+    meta.title = '엑셀 ' + (x.status || '–') + (d && d.value_date ? ' · 평가일 ' + d.value_date : '') + (d && d.after_close ? ' · 15:45 이후(선물 = 키인/마지막 틱/전일 종가)' : '') + (PN.err ? ' · 불러오기 실패 — ' + PN.err : '');
+    meta.innerHTML = (d && d.t ? '<span>평가 ' + esc(d.t) + '</span>' : '') + (d && d.after_close ? '<span class="otc-tag otc-tag--key">15:45 이후</span>' : '') +
+      '<span class="otc-dot' + (PN.err ? ' err' : live ? ' ok' : (x.expected !== false ? ' warn' : '')) + '" aria-hidden="true"></span> ' + (PN.err ? '불러오기 실패' : live ? '연결' : '연결실패');
+    var ht = ['pnl', 'mid', 'liq', 'src', 'dv01', 'obs'].map(function (k) { return defs[k]; }).filter(Boolean).join('\n');   // ? = 엔진 defs 6문장 그대로
+    if (ht && ht !== PN.helpTxt) { PN.helpTxt = ht; $('pnHelp').innerHTML = help(ht); }
+    if (!d) { if (PN.err) $('pnTbl').innerHTML = errBox('내 포지션', { message: PN.err }); return; }
+    var rows = d.positions || [], tot = d.total || {};
+    if (!rows.length) $('pnTbl').innerHTML = '<div class="otc-empty" style="padding:var(--wb-s4)">등록된 포지션 없음 — 위에서 등록</div>';
+    else $('pnTbl').innerHTML = '<table class="wb-table otc-t otc-pn-t"><thead><tr>' +
+      '<th class="lt">종목</th><th>방향</th><th class="num">수량</th><th class="num">진입</th><th class="num">지금 미드' + help(defs.mid ? defs.mid + (defs.src ? '\n' + defs.src : '') : '') + '</th><th class="num">변동</th>' +
+      '<th class="num">손익(청산)' + help(defs.liq ? defs.liq + (defs.pnl ? '\n' + defs.pnl : '') : '') + '</th><th class="num">손익(미드)</th><th class="num">DV01' + help(defs.dv01) + '</th><th class="lt">메모</th><th></th></tr></thead><tbody>' +
+      rows.map(pnRow).join('') + '</tbody></table>';
+    var tt = $('pnTot');
+    if (!rows.length) { tt.hidden = true; tt.innerHTML = ''; }
+    else {
+      var kp = [
+        ['손익(청산)', '<span class="wb-kpi-val ' + sgn(tot.pnl_liq) + '">' + won(tot.pnl_liq) + '<small>원</small></span>', isNum(tot.n_ok) && isNum(tot.n) && tot.n_ok < tot.n ? '평가 ' + tot.n_ok + ' / ' + tot.n + ' (실패 제외)' : '', defs.liq],
+        ['손익(미드)', '<span class="wb-kpi-val ' + sgn(tot.pnl_mid) + '">' + won(tot.pnl_mid) + '<small>원</small></span>', '', defs.mid],
+        ['순 DV01', '<span class="wb-kpi-val">' + won(tot.dv01) + '<small>원/bp</small></span>', '', defs.dv01],
+        ['3선 환산', '<span class="wb-kpi-val">' + (isNum(tot.eq_3y_contracts) ? fbp(tot.eq_3y_contracts, 1) : '–') + '<small>계약</small></span>', isNum(tot.dv01_3y_contract) ? '3선 1계약 DV01 ' + won(tot.dv01_3y_contract) + '원/bp' : '', '순 DV01 ÷ 3선 1계약 DV01(엔진 값 · 참고)']
+      ];
+      tt.hidden = false;
+      tt.innerHTML = kp.map(function (k) { return '<div class="wb-kpi"><dt>' + esc(k[0]) + help(k[3]) + '</dt><dd>' + k[1] + (k[2] ? '<span class="wb-kpi-sub">' + esc(k[2]) + '</span>' : '') + '</dd></div>'; }).join('');
+    }
+    var errs = d.errors || [];
+    $('pnFoot').innerHTML = (defs.obs ? esc(defs.obs) + ' · ' : '') + '숫자는 엔진(otcdesk/pnl.py) 값 그대로 · 저장 = 서버(이 PC) positions.json' +
+      (errs.length ? '<br><span class="wb-error">평가 실패 ' + errs.length + '건: ' + esc(errs.map(function (e) { return '#' + e.id + ' ' + (e.alias || '') + ' — ' + e.err; }).join(' · ')) + '</span>' : '');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════
   // (A) 종목 분석
   // ══════════════════════════════════════════════════════════════════════
   function bondEnter(p) {
@@ -3216,9 +3411,21 @@
     });
     $('boDrawer').addEventListener('click', spNav);
     doc.addEventListener('keydown', function (e) { if (e.key === 'Escape' && panesOpen().length && S.view === 'board') boClose(); });   // Esc = 마지막에 연 칸부터
-    doc.addEventListener('visibilitychange', function () { if (!doc.hidden) { boFetch(false); prFetchAll(); } });   // 탭으로 돌아오면 바로 한 번
+    doc.addEventListener('visibilitychange', function () { if (!doc.hidden) { boFetch(false); prFetchAll(); pnFetch(false); } });   // 탭으로 돌아오면 바로 한 번
     // (0b) 종목 스프레드 — 패널 두 개 틀 + 패널마다 입력 묶기(prNew 안)
     prBuild();
+    // (0c) 내 포지션 — 등록 폼(Enter = 등록) · 표의 × = 삭제(바로)
+    $('pnForm').addEventListener('submit', function (e) { e.preventDefault(); pnSubmit(); });
+    $('pnKind').addEventListener('click', function (e) { var b = e.target.closest('button[data-kind]'); if (!b) return; PN.kind = b.getAttribute('data-kind') === 'fut' ? 'fut' : 'bond'; pnFormSync(); (PN.kind === 'fut' ? $('pnQty') : $('pnAlias')).focus(); });
+    $('pnFut').addEventListener('click', function (e) { var b = e.target.closest('button[data-fut]'); if (!b) return; PN.fut = b.getAttribute('data-fut'); pnFormSync(); });
+    $('pnSide').addEventListener('click', function (e) { var b = e.target.closest('button[data-side]'); if (!b) return; PN.side = +b.getAttribute('data-side') === -1 ? -1 : 1; pnFormSync(); });
+    $('pnForm').addEventListener('input', function () { if (PN.msg) { PN.msg = null; pnMsgSync(); } });
+    $('pnTbl').addEventListener('click', function (e) { var b = e.target.closest('button[data-pndel]'); if (b) pnDel(+b.getAttribute('data-pndel'), b); });
+    ['pnAlias', 'pnQty', 'pnEntry', 'pnDate', 'pnNote'].forEach(function (id) { onEnter(id, pnSubmit); });   // Enter = 등록(submit 과 같은 길 · preventDefault 라 두 번 가지 않음)
+    $('pnPwForm').addEventListener('submit', function (e) { e.preventDefault(); pnUnlock(); });   // 비밀번호 카드(Enter = 확인)
+    onEnter('pnPw', pnUnlock);
+    $('pnPw').addEventListener('input', function () { if ($('pnPwMsg').textContent && !PN.pwBusy) pnGate(true, '', false); });
+    $('pnLock').addEventListener('click', pnLock);
     // (A)
     $('bdLoad').addEventListener('click', function () { bondFromBar(true); });
     $('bdLatest').addEventListener('click', function () { $('bdDate').value = (S.meta && S.meta.latest) || ''; bondFromBar(true, ''); });
