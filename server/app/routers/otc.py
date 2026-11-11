@@ -77,6 +77,7 @@ def _prewarm() -> None:
         store.ensure()
         api._team_tables()
         api.board()            # 첫 화면(보드) 블록도 데워 둔다
+        api.pnl_start()        # 포지션 장중 손익 시계열 기록 스레드(사용자 2026-11-11) — 탭을 안 열어도 서버 기동 때부터 쌓이게(포지션 있을 때만 기록 · 실패해도 서버는 뜸)
     except Exception as e:   # 예열 실패는 조용히 넘기지 않는다 — 로그에 남기고 첫 호출이 정직 에러를 낸다
         print(f"[otc] prewarm 실패: {type(e).__name__}: {e}", flush=True)
 

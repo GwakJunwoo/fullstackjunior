@@ -2096,8 +2096,13 @@
   // ══════════════════════════════════════════════════════════════════════
   //   ★두 번째 문(사용자 2026-11-11): 세 요청 모두 X-OTC-PW 헤더(서버 .env OTC_PNL_PW 와 대조 · 값은 이 파일 어디에도 없음). 비밀번호는 sessionStorage(탭 닫으면 소멸)에만 —
   //     없으면 본문 대신 비밀번호 카드 · 401 이 오면 언제든 저장을 지우고 카드로 되돌아감 · [잠그기] = 저장 지우고 카드로.
-  var PN_MS = 5000, PN_PW_SS = 'otc.pnl.pw';
-  var PN = S.pnl = { kind: 'bond', fut: '3선', side: 1, data: null, err: '', busy: false, timer: 0, seq: 0, minSeq: 0, wBusy: false, msg: null, helpTxt: '', pwBusy: false, locked: true };
+  //   ★추가 요구(사용자 2026-11-11): 왼쪽 = 손익 실시간 차트(엔진 series = 5초 기록 시계열 · rec = 기록 상태 — 둘 다 그대로 · 웹 계산 0 · 북 전체 손익이라 포지션을 더하거나 지우면 그 시각부터 값이 뛴다) ·
+  //     오른쪽 = 등록 줄 + 그리드 · 푸터 글자('관찰 전용 … positions.json')는 머리 ? 에만 · 두 카드 접기(localStorage otc.pnl.ui 기억 · rbFold 문법 · 접으면 머리 줄에 당일/총 손익(청산) 작게).
+  var PN_MS = 5000, PN_PW_SS = 'otc.pnl.pw', PN_LS = 'otc.pnl.ui';
+  var PN = S.pnl = { kind: 'bond', fut: '3선', side: 1, data: null, err: '', busy: false, timer: 0, seq: 0, minSeq: 0, wBusy: false, msg: null, helpTxt: '', pwBusy: false, locked: true,
+    open: true, chartOpen: true, hasChart: false, chartHelpTxt: '', edge: null, ax: null };
+  (function () { try { var o = JSON.parse(localStorage.getItem(PN_LS) || 'null'); if (o) { if (o.open === false) PN.open = false; if (o.chartOpen === false) PN.chartOpen = false; } } catch (e) { /* noop */ } })();
+  function pnSave() { try { localStorage.setItem(PN_LS, JSON.stringify({ open: PN.open, chartOpen: PN.chartOpen })); } catch (e) { /* noop */ } }
   function pnPw() { try { return sessionStorage.getItem(PN_PW_SS) || ''; } catch (e) { return PN.memPw || ''; } }
   function pnPwSet(v) { try { if (v) sessionStorage.setItem(PN_PW_SS, v); else sessionStorage.removeItem(PN_PW_SS); } catch (e) { /* 저장 불가 — 이 화면 동안만 */ } PN.memPw = v || ''; }
   function pnHdr() { return { 'X-OTC-PW': pnPw() }; }
@@ -2112,7 +2117,10 @@
     $('pnGate').hidden = !show; $('pnBody').hidden = !!show;
     var m = $('pnPwMsg'); m.textContent = msg || ''; m.classList.toggle('is-err', !!err);
     $('pnPwBtn').disabled = PN.pwBusy; $('pnPw').disabled = PN.pwBusy;
-    if (show) { $('pnTbl').innerHTML = '<div class="otc-skel"><span class="wb-loading">불러오는 중…</span></div>'; $('pnTot').hidden = true; $('pnTot').innerHTML = ''; $('pnFoot').innerHTML = ''; $('pnMeta').innerHTML = ''; $('pnMeta').title = ''; PN.helpTxt = ''; $('pnHelp').innerHTML = ''; }
+    if (show) {
+      $('pnTbl').innerHTML = '<div class="otc-skel"><span class="wb-loading">불러오는 중…</span></div>'; $('pnTot').hidden = true; $('pnTot').innerHTML = ''; $('pnFoot').innerHTML = ''; $('pnFoot').hidden = true; $('pnMeta').innerHTML = ''; $('pnMeta').title = ''; PN.helpTxt = ''; $('pnHelp').innerHTML = '';
+      kill('pn'); PN.hasChart = false; $('pnChartBox').innerHTML = '<div class="otc-pn-chart"><div class="otc-bo-ph">불러오는 중…</div></div>'; $('pnChartCap').innerHTML = ''; $('pnChartMeta').innerHTML = ''; $('pnChartMeta').title = ''; PN.chartHelpTxt = ''; $('pnChartHelp').innerHTML = ''; $('pnMini').innerHTML = ''; $('pnChartMini').innerHTML = '';
+    }
     if (show && S.view === 'pnl') { try { $('pnPw').focus(); } catch (e) { /* noop */ } }
   }
   function pnUnlock() {   // 입력한 비밀번호를 세션에 저장하고 GET /otc/pnl 로 검증 — 맞으면 본문 + 5초 갱신 · 401 이면 지우고 다시
@@ -2266,9 +2274,9 @@
     meta.title = '엑셀 ' + (x.status || '–') + (d && d.value_date ? ' · 평가일 ' + d.value_date : '') + (d && d.after_close ? ' · 15:45 이후(선물 = 키인/마지막 틱/전일 종가)' : '') + (PN.err ? ' · 불러오기 실패 — ' + PN.err : '');
     meta.innerHTML = (d && d.t ? '<span>평가 ' + esc(d.t) + '</span>' : '') + (d && d.after_close ? '<span class="otc-tag otc-tag--key">15:45 이후</span>' : '') +
       '<span class="otc-dot' + (PN.err ? ' err' : live ? ' ok' : (x.expected !== false ? ' warn' : '')) + '" aria-hidden="true"></span> ' + (PN.err ? '불러오기 실패' : live ? '연결' : '연결실패');
-    var ht = ['pnl', 'tot', 'mid', 'liq', 'src', 'dv01', 'obs'].map(function (k) { return defs[k]; }).filter(Boolean).join('\n');   // ? = 엔진 defs 문장 그대로(당일 pnl · 총 tot 포함)
+    var ht = ['pnl', 'tot', 'mid', 'liq', 'src', 'dv01', 'obs'].map(function (k) { return defs[k]; }).filter(Boolean).concat(d ? [PN_FOOT_TXT] : []).join('\n');   // ? = 엔진 defs 문장 그대로(당일 pnl · 총 tot 포함) + 옛 푸터 문장(화면에선 숨김 · 사용자 2026-11-11)
     if (ht && ht !== PN.helpTxt) { PN.helpTxt = ht; $('pnHelp').innerHTML = help(ht); }
-    if (!d) { if (PN.err) $('pnTbl').innerHTML = errBox('포지션', { message: PN.err }); return; }
+    if (!d) { if (PN.err) $('pnTbl').innerHTML = errBox('포지션', { message: PN.err }); pnFoldSync(); return; }
     var rows = d.positions || [], tot = d.total || {};
     var nEnt = isNum(tot.n_entry) ? tot.n_entry : null, nAll = isNum(tot.n) ? tot.n : rows.length;
     var entSub = nEnt != null ? '진입값 있는 ' + nEnt + ' / ' + nAll + '개' + (nEnt === 0 ? ' — 없음' : '') : '';   // 총 손익 = 진입값 있는 것만(엔진 n_entry)
@@ -2294,9 +2302,79 @@
       tt.hidden = false;
       tt.innerHTML = kp.map(function (k) { return '<div class="wb-kpi"><dt>' + esc(k[0]) + help(k[3]) + '</dt><dd>' + k[1] + (k[2] ? '<span class="wb-kpi-sub">' + esc(k[2]) + '</span>' : '') + '</dd></div>'; }).join('');
     }
-    var errs = d.errors || [];
-    $('pnFoot').innerHTML = (defs.obs ? esc(defs.obs) + ' · ' : '') + '숫자는 엔진(otcdesk/pnl.py) 값 그대로 · 저장 = 서버(이 PC) positions.json' +
-      (errs.length ? '<br><span class="wb-error">평가 실패 ' + errs.length + '건: ' + esc(errs.map(function (e) { return '#' + e.id + ' ' + (e.alias || '') + ' — ' + e.err; }).join(' · ')) + '</span>' : '');
+    var errs = d.errors || [], ft = $('pnFoot');   // 푸터 = 평가 실패 목록만(엔진 errors) · '관찰 전용 … positions.json' 문장은 머리 ? 로(사용자 2026-11-11)
+    ft.hidden = !errs.length;
+    ft.innerHTML = errs.length ? '<span class="wb-error">평가 실패 ' + errs.length + '건: ' + esc(errs.map(function (e) { return '#' + e.id + ' ' + (e.alias || '') + ' — ' + e.err; }).join(' · ')) + '</span>' : '';
+    pnFoldSync();
+    pnChart(d);
+  }
+  var PN_FOOT_TXT = '숫자는 엔진(otcdesk/pnl.py) 값 그대로 · 저장 = 서버(이 PC) positions.json';
+  function pnFoldSync() {   // 두 카드 접기(rbFold 문법) — 접으면 머리 줄에 당일 손익(청산) · 총 손익(청산) 작게(엔진 total 그대로 · 차트는 시계열 마지막 점)
+    $('pnGridBody').hidden = !PN.open; $('pnChartBody').hidden = !PN.chartOpen;
+    var b = $('pnFold'); b.textContent = PN.open ? '접기 ▴' : '펼치기 ▾'; b.setAttribute('aria-expanded', PN.open ? 'true' : 'false');
+    var c = $('pnChartFold'); c.textContent = PN.chartOpen ? '접기 ▴' : '펼치기 ▾'; c.setAttribute('aria-expanded', PN.chartOpen ? 'true' : 'false');
+    var d = PN.data, tot = (d && d.total) || {}, s = (d && d.series) || {}, t = s.t || [], n = t.length;
+    var mini = function (liq, tl, when) { return '당일 <b class="' + sgn(liq) + '">' + won(liq) + '</b> · 총 <b class="' + sgn(tl) + '">' + won(tl) + '</b><small>원</small>' + (when ? ' <span class="wb-muted">' + esc(when) + '</span>' : ''); };
+    $('pnMini').innerHTML = (!PN.open && d) ? mini(tot.pnl_liq, tot.pnl_tot_liq, d.t) : '';
+    $('pnChartMini').innerHTML = (!PN.chartOpen && d) ? (n ? mini((s.pnl_liq || [])[n - 1], (s.pnl_tot_liq || [])[n - 1], String(t[n - 1]).slice(0, 5)) : '<span class="wb-muted">오늘 기록 없음</span>') : '';
+  }
+  function pnChart(d) {   // 왼쪽 = 손익 실시간 차트: x = 엔진 series.t(HH:MM) · 당일 손익(청산) 굵게 · 당일 손익(미드) 가늘게 · 총 손익(청산) 점선(전부 null 이면 안 그림) · 0 선 · y = 원(큰 값은 만원 눈금 · 축 제목에 단위) · 범위 = 그려진 선에 맞춰 좁게(rbChart 방식)
+    var s = d.series || {}, rec = d.rec || {}, t = s.t || [], box = $('pnChartBox'), cap = $('pnChartCap'), meta = $('pnChartMeta');
+    var hh = rec.hours || '08:55~16:10', sec = s.sec || rec.sec || 5;
+    var ch0 = '시계열 = 엔진 otcdesk/pnl.py 기록 스레드가 평일 ' + hh + ' 에 ' + sec + '초마다 적은 북 전체 손익(원 · 포지션이 있을 때만)\n포지션을 더하거나 지우면 그 시각부터 값이 뛴다(북 전체 손익이라 정상)\n굵은 선 = 당일 손익(청산) · 가는 선 = 당일 손익(미드) · 점선 = 총 손익(청산 · 진입값 있는 포지션만 · 없으면 안 그림) · 0 선은 범위 안일 때만\n' + PN_FOOT_TXT;
+    if (ch0 !== PN.chartHelpTxt) { PN.chartHelpTxt = ch0; $('pnChartHelp').innerHTML = help(ch0); }
+    var st = rec.err ? 'err' : (rec.running === false) ? 'warn' : rec.in_hours ? 'ok' : '';   // 기록 상태 점 = 엔진 rec 그대로
+    meta.title = '기록 ' + (rec.running ? '스레드 가동' : rec.running === false ? '스레드 없음' : '–') + ' · 시간대 ' + hh + (rec.in_hours ? '(안)' : '(밖)') + (rec.last ? ' · 마지막 기록 ' + rec.last : ' · 아직 기록 없음') + (rec.err ? ' · 오류 ' + rec.err : '');
+    meta.innerHTML = '<span class="otc-dot' + (st ? ' ' + st : '') + '" aria-hidden="true"></span> ' + (rec.err ? '기록 오류' : rec.running === false ? '기록 없음' : rec.in_hours ? '기록 중' + (rec.last ? ' ' + esc(rec.last) : '') : '기록 시간대 아님');
+    var capTail = (rec.last ? ' · 마지막 기록 ' + esc(rec.last) : '') + (rec.in_hours ? '' : ' · 기록 시간대 아님(' + esc(hh) + ')') + (rec.running === false ? ' · 기록 스레드 꺼짐' : '') +
+      (s.day && d.value_date && s.day !== d.value_date ? ' · <span class="is-err">기록 날 ' + esc(s.day) + ' ≠ 평가일 ' + esc(d.value_date) + '</span>' : '') + (rec.err ? ' · <span class="is-err">기록 오류 — ' + esc(rec.err) + '</span>' : '');
+    if (!t.length) {
+      kill('pn'); PN.hasChart = false;
+      box.innerHTML = '<div class="otc-pn-chart"><div class="otc-bo-ph">오늘 기록 없음 — 포지션이 있으면 ' + sec + '초마다 쌓임' + (rec.in_hours ? '' : '(기록 시간대 ' + esc(hh) + ')') + '</div></div>';
+      cap.innerHTML = '기록 없음' + capTail;
+      return;
+    }
+    var labels = t.map(function (x) { return String(x).slice(0, 5); });
+    var line = function (label, data, col, w, dash, a) { return { label: label, data: data || [], borderColor: tk(col, a == null ? 1 : a), backgroundColor: tk(col, a == null ? 1 : a), borderWidth: w, borderDash: dash || [], pointRadius: 0, pointHoverRadius: 4, spanGaps: false }; };
+    var ds = [line('당일 손익(청산)', s.pnl_liq, '--wb-ink', 2.4), line('당일 손익(미드)', s.pnl_mid, '--wb-muted', 1.1)];
+    var tl = s.pnl_tot_liq || [], hasTot = tl.some(isNum);   // 진입값 있는 포지션이 없으면 전부 null → 안 그림
+    if (hasTot) ds.push(line('총 손익(청산)', tl, '--wb-series-5', 1.6, [6, 4]));
+    // y 범위 = 그려진 선의 최소~최대 + 여백(범위의 15% · 최소 폭 2만원) — 0 선 때문에 넓히지 않는다(값 그대로 · 표현만) · 100만원 넘으면 만원 눈금(축 제목에 단위)
+    var mn = Infinity, mx = -Infinity;
+    ds.forEach(function (o) { o.data.forEach(function (v) { if (isNum(v)) { if (v < mn) mn = v; if (v > mx) mx = v; } }); });
+    var ax = { ymin: undefined, ymax: undefined, man: false, zero: false };
+    if (isFinite(mn)) {
+      var w = mx - mn, pad = Math.max(w * 0.15, (w < 2e4 ? (2e4 - w) / 2 : 0), 1e3);
+      ax.man = Math.max(Math.abs(mn - pad), Math.abs(mx + pad)) >= 1e6;
+      var u = ax.man ? 1e4 : 1e3;
+      ax.ymin = Math.floor((mn - pad) / u) * u; ax.ymax = Math.ceil((mx + pad) / u) * u;
+      if (ax.ymax <= ax.ymin) ax.ymax = ax.ymin + u;
+      ax.zero = ax.ymin <= 0 && ax.ymax >= 0;
+    }
+    if (ax.zero) { var z = line('0', t.map(function () { return 0; }), '--wb-rule-strong', 1); z.pnRef = true; z.pointHoverRadius = 0; ds.push(z); }
+    PN.edge = (ax.zero || !isFinite(mn)) ? null : { up: 0 > ax.ymax, text: '0 ' + (0 > ax.ymax ? '↑' : '↓') };
+    cap.innerHTML = '기록 ' + sec + '초 · ' + esc(t[0]) + ' ~ ' + esc(t[t.length - 1]) + ' · ' + n0(t.length) + '점' + (hasTot ? '' : ' · 총 손익 선 없음(진입값 있는 포지션 없음)') + capTail;
+    PN.ax = ax;   // 눈금 포맷터는 갱신(update) 경로에서도 지금 단위를 봐야 하므로 PN.ax 로(첫 생성 때 클로저 고정 금지)
+    var fmtY = function (v) { return (PN.ax && PN.ax.man) ? n0(Math.round(v / 1e4)) : n0(Math.round(v)); };
+    var setAx = function (sc) { sc.y.min = ax.ymin; sc.y.max = ax.ymax; sc.y.title.text = ax.man ? '손익(만원)' : '손익(원)'; };
+    if (!PN.chartOpen) { kill('pn'); PN.hasChart = false; return; }   // 접혀 있으면 그리지 않는다(펼칠 때 새로)
+    var ch = S.charts.pn;
+    if (PN.hasChart && ch) { ch.data.labels = labels; ch.data.datasets = ds; setAx(ch.options.scales); ch.update('none'); return; }
+    box.innerHTML = '<div class="otc-pn-chart"><canvas id="pnChart"></canvas></div>';
+    var o = baseOpts({
+      scales: { x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: true, maxTicksLimit: 10 } },
+        y: { position: 'left', title: { display: true, text: '손익(원)' }, ticks: { includeBounds: false, maxTicksLimit: 9, callback: fmtY } } },
+      plugins: { legend: { display: true }, tooltip: { filter: function (it) { return !it.dataset.pnRef; },
+        callbacks: { label: function (it) { return it.dataset.label + ' ' + won(it.parsed.y) + '원'; } } } }
+    });
+    setAx(o.scales);
+    o.plugins.legend = Object.assign({}, LEG, { labels: Object.assign({}, LEG.labels, { filter: function (it, data) { return !data.datasets[it.datasetIndex].pnRef; } }) });
+    mk('pn', $('pnChart'), { type: 'line', data: { labels: labels, datasets: ds }, options: o, plugins: [{ id: 'pnEdge', afterDatasetsDraw: function (c) {   // 0 이 범위 밖이면 축 가장자리에 작은 표시(rbEdge 문법)
+      var e = PN.edge, ca = c.chartArea; if (!e || !ca) return;
+      var ctx = c.ctx; ctx.save(); ctx.font = '600 10px ' + (cssv('--wb-font') || 'sans-serif'); ctx.textAlign = 'left'; ctx.textBaseline = 'middle'; ctx.fillStyle = cssv('--wb-muted');
+      ctx.fillText(e.text, ca.left + 6, e.up ? ca.top + 8 : ca.bottom - 8); ctx.restore();
+    } }] });
+    PN.hasChart = true;
   }
 
   // ══════════════════════════════════════════════════════════════════════
@@ -3451,6 +3529,9 @@
     onEnter('pnPw', pnUnlock);
     $('pnPw').addEventListener('input', function () { if ($('pnPwMsg').textContent && !PN.pwBusy) pnGate(true, '', false); });
     $('pnLock').addEventListener('click', pnLock);
+    pnFoldSync();   // 접기(기억 · rbFold 문법) — 차트 카드는 펼칠 때 새로 그린다(접힌 동안 캔버스 크기 0)
+    $('pnFold').addEventListener('click', function () { PN.open = !PN.open; pnSave(); pnFoldSync(); });
+    $('pnChartFold').addEventListener('click', function () { PN.chartOpen = !PN.chartOpen; pnSave(); pnFoldSync(); if (PN.data && !PN.locked) { PN.hasChart = false; pnChart(PN.data); } });
     // (A)
     $('bdLoad').addEventListener('click', function () { bondFromBar(true); });
     $('bdLatest').addEventListener('click', function () { $('bdDate').value = (S.meta && S.meta.latest) || ''; bondFromBar(true, ''); });
