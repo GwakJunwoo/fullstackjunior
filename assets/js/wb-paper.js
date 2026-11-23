@@ -530,9 +530,9 @@
     var h = '', left = leftMs();
     if (f.scored) h += '<div class="wb-notice wb-notice--warn pp-vnote">이 대상일(' + esc(f.target) + ')은 이미 채점됐습니다 — 더 적을 수 없습니다.</div>';
     else if (left != null && left <= 0) h += '<div class="wb-notice wb-notice--warn pp-vnote"><b>마감(' + esc(deadlineHm(f)) + ')이 지났습니다.</b> 지금 적는 값은 기록은 남지만 채점에 들어가지 않습니다. 다음 대상일 칸은 ' + esc(f.target) + ' 종가 자료가 들어온 뒤 열립니다.</div>';
-    if (!f.scored) {
-      h += f.sealed ? '<div class="wb-notice wb-notice--warn pp-vnote">이미 시스템 기대가 나와 있습니다 — 지금 적는 값은 \'본 뒤\'로 기록됩니다.</div>'
-        : '<div class="wb-notice pp-vnote">시스템 기대가 아직 봉인되기 전입니다 — 먼저 적으면 따로 채점됩니다.</div>';
+    if (!f.scored) {                                                   // 마감이 지났으면 '먼저 적으면 따로 채점' 줄은 내지 않는다(채점에 안 들어가는 값이다)
+      if (f.sealed) h += '<div class="wb-notice wb-notice--warn pp-vnote">이미 시스템 기대가 나와 있습니다 — 지금 적는 값은 \'본 뒤\'로 기록됩니다.</div>';
+      else if (!(left != null && left <= 0)) h += '<div class="wb-notice pp-vnote">시스템 기대가 아직 봉인되기 전입니다 — 먼저 적으면 따로 채점됩니다.</div>';
     }
     return h;
   }
