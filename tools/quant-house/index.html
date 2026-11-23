@@ -13,7 +13,7 @@
   <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%20100%20100'%3E%3Ctext%20y='.9em'%20font-size='90'%3E%F0%9F%8F%9B%EF%B8%8F%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="/assets/css/main.css">
   <link rel="stylesheet" href="/assets/css/wb.css?v=20261027b">
-  <script src="/assets/js/wb-shell.js?v=20261105a"></script>
+  <script src="/assets/js/wb-shell.js?v=20261123a"></script>
   <style>
     /* CONTEST_MODE (2026-09 사내대회) — 대회 후 원복. html[data-contest] 일 때만 적용(이 페이지 한정).
        주간 리뷰 외 탭 버튼·뷰 + 상단 네비 링크 시각적 숨김(DOM·JS·API 무수정). */
@@ -621,6 +621,59 @@
     @media (max-width: 720px) { .bs-bet { grid-template-columns: minmax(0, 1fr); } .bs-modal { padding: 8px; } }
     @media (max-width: 720px) { .bs-grid-4 { grid-template-columns: minmax(0, 1fr); } .bs-map { grid-template-columns: minmax(0, 1fr); } .bs-band { grid-template-columns: repeat(13, minmax(0, 1fr)); } }
   </style>
+  <style id="wb-paper-style">
+    /* ═══ 조간 탭 (2026-11-23 · 발화점 계층) — wb 토큰만 · #view-paper 안쪽만. 신문 본문(iframe 안)의 판형·글꼴·색은 엔진 HTML 그대로 — 여기서 건드리지 않는다. ═══ */
+    #view-paper [hidden] { display: none !important; }      /* wb 배지·카드의 display 지정이 hidden 속성을 이기지 못하게(비밀번호 전에는 견본 배지도 안 보임) */
+    #view-paper .wb-pagehead { align-items: center; }
+    #view-paper .pp-line { margin: 0 0 var(--wb-s3); font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-muted); }
+    #view-paper .pp-gate { max-width: 560px; }
+    #view-paper .pp-pwf { display: flex; align-items: flex-end; flex-wrap: wrap; gap: var(--wb-s3); padding: var(--wb-inset); }
+    #view-paper .pp-pwf .wb-input { width: 220px; max-width: 100%; }
+    #view-paper .pp-msg { min-height: var(--wb-ctl); display: inline-flex; align-items: center; font-size: 13px; color: var(--wb-muted); }
+    #view-paper .pp-msg.is-err { color: var(--wb-warn); }
+    #view-paper .wb-stepper .wb-btn { width: 24px; height: 24px; padding: 0; border-color: transparent; color: var(--wb-muted); }
+    #view-paper .pp-date { min-width: 128px; font-weight: 600; font-variant-numeric: tabular-nums; background: var(--wb-bg); color: var(--wb-ink); cursor: pointer; }
+    #view-paper .pp-date:disabled { cursor: default; opacity: 1; }
+    #view-paper .pp-notice { margin-bottom: var(--wb-s3); }
+    #view-paper .pp-paper { overflow: hidden; }
+    #view-paper .pp-frame { display: block; width: 100%; height: 70vh; min-height: 480px; border: 0; background: transparent; }
+    #view-paper .pp-frame.is-fixed { height: 85vh; }
+    #view-paper .wb-section-head { flex-wrap: wrap; }
+    #view-paper .pp-fold > summary { cursor: pointer; list-style: none; user-select: none; border-bottom: 0; }
+    #view-paper .pp-fold > summary::-webkit-details-marker { display: none; }
+    #view-paper .pp-fold > summary::before { content: '▸'; font-size: 10px; color: var(--wb-muted); width: 10px; }
+    #view-paper .pp-fold[open] > summary::before { content: '▾'; }
+    #view-paper .pp-fold[open] > summary { border-bottom: 1px solid var(--wb-rule); }
+    #view-paper .pp-fold > summary .wb-card-meta { white-space: normal; text-align: right; }
+    #view-paper .pp-fold-body { min-width: 0; }
+    #view-paper .pp-empty { padding: var(--wb-s4); font-size: 13px; color: var(--wb-muted); }
+    #view-paper .pp-narr { margin: 0; padding: var(--wb-s3) var(--wb-s4); font-size: 13px; line-height: 22px; overflow-wrap: anywhere; }
+    #view-paper .pp-table td { height: auto; padding-top: 6px; padding-bottom: 6px; font-variant-numeric: tabular-nums; }
+    #view-paper .pp-table td.pp-wrap { white-space: normal; min-width: 180px; overflow-wrap: anywhere; }
+    #view-paper .pp-table tr.pp-closed td { color: var(--wb-muted); }
+    #view-paper .pp-dim { font-size: var(--wb-fs-label); line-height: var(--wb-lh-label); color: var(--wb-muted); font-weight: 400; }
+    #view-paper .pp-warn { color: var(--wb-warn); }
+    #view-paper .pp-pad { padding: var(--wb-s2) var(--wb-s4); font-size: 13px; }
+    #view-paper .pp-tag { display: inline-block; margin-right: 4px; font-size: var(--wb-fs-label); color: var(--wb-muted); white-space: nowrap; }
+    #view-paper .pp-list { margin: 4px 0 0; padding: 0 0 0 18px; font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
+    #view-paper .pp-list > li + li { margin-top: 4px; }
+    #view-paper .pp-sub { padding: var(--wb-s2) var(--wb-s4) var(--wb-s3); border-top: 1px solid var(--wb-rule); }
+    #view-paper .pp-sub > summary { cursor: pointer; font-size: var(--wb-fs-label); color: var(--wb-muted); user-select: none; }
+    #view-paper .pp-sub > .wb-table-wrap { margin-top: var(--wb-s2); }
+    #view-paper .pp-notes { border-top: 0; padding: 0 0 var(--wb-s3); }
+    #view-paper .pp-group { padding: var(--wb-s3) var(--wb-s4) 0; font-size: var(--wb-fs-label); color: var(--wb-muted); }
+    #view-paper .pp-points { list-style: none; margin: 0; padding: 0; }
+    #view-paper .pp-point { padding: var(--wb-s3) var(--wb-s4); border-bottom: 1px solid var(--wb-rule); font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
+    #view-paper .pp-points:last-child > .pp-point:last-child { border-bottom: 0; }
+    #view-paper .pp-point-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
+    #view-paper .pp-point-body { margin-top: 4px; }
+    #view-paper .pp-kpis { padding: var(--wb-s4); }
+    @media (max-width: 720px) {
+      #view-paper .pp-fold > summary .wb-card-meta { margin-left: 0; width: 100%; text-align: left; }
+      #view-paper .pp-table td.pp-wrap { min-width: 150px; }
+      #view-paper .wb-kpi-sub { white-space: normal; }
+    }
+  </style>
   <link rel="stylesheet" href="/assets/css/wb-review-plain.css?v=20261022c"><!-- 일반 보기 스타일(예전 인라인 4단계 블록 그대로 · 같은 캐스케이드 자리) -->
 </head>
 <body>
@@ -637,6 +690,7 @@
     <button class="tabbtn" id="tab-review" onclick="switchTab('review')">주간 리뷰</button>
     <button class="tabbtn" id="tab-news" onclick="switchTab('news')">뉴스</button>
     <button class="tabbtn" id="tab-bootstrap" onclick="switchTab('bootstrap')">부트스트랩</button>
+    <button class="tabbtn" id="tab-paper" onclick="switchTab('paper')">조간</button>
   </div>
 
   <div id="view-strat">
@@ -930,11 +984,62 @@
       </div>
     </div>
   </div>
+
+  <!-- ════════ 조간 — 발화점 계층(기대 봉인 → 채점 → 어긋난 곳) · 박대기 기자 (2026-11-23 사용자 지시 · 계약 = BQH 06_workflow/IGNITION_CONTRACT.md)
+       ★비밀번호(사용자 2026-11-23): 메뉴에는 보이고, 들어오면 비밀번호 칸만. 서버가 X-IGN-PASS 를 검증(401 = 틀림) — 이 파일·정적 파일 어디에도 값 없음 · 맞은 값은 sessionStorage 에만.
+       본문 = 엔진 조간 HTML 그대로(<iframe sandbox srcdoc> · 스크립트 불허 · 인증된 응답으로만 채움) · 현황 = 엔진 상태 json 그대로(웹 재계산 0 · 본인 관련 필드는 서버가 뺌).
+       읽기 전용 — 기록·판정·본인 확률 입력 없음. 로직 = /assets/js/wb-paper.js. 대회 모드(data-contest)에서도 메뉴에 보이는 탭. ════════ -->
+  <div id="view-paper" style="display:none">
+    <div class="wb-pagehead">
+      <h1>조간</h1><button type="button" class="wb-help" data-help="매일 아침 그날의 기대(사건별 확률)를 먼저 적어 봉인하고, 다음 날 채점해서 어긋난 곳(발화점)을 올리는 관측 기록. 조간 = 그 기록을 기자(AI)가 신문으로 쓴 것 — 본문은 엔진이 만든 파일 그대로. 아래 현황 = 엔진 상태 그대로(웹에서 다시 계산하지 않음). 본인 확률 · 본인 점수 · 판정 · 메모는 웹에 싣지 않는다. 읽기 전용 — 이 화면에서 기록 · 판정 · 입력은 없다. 지금은 1단계(기록만) — 매매 제안 없음." aria-label="설명 보기"></button>
+      <span class="wb-badge">관찰 전용</span>
+      <span class="wb-badge wb-badge--warn" id="ppSample" hidden>견본(시험 발행) — 운영 기록 아님</span>
+    </div>
+    <p class="pp-line">관측 기록 · 매매 권유 아님 · AI 작성(박대기 기자) · 비밀번호 필요</p>
+
+    <section class="wb-card pp-gate" id="ppGate" hidden aria-label="조간 비밀번호">
+      <div class="wb-card-head"><span class="wb-card-title">조간 — 비밀번호</span><span class="wb-card-meta">이 브라우저 탭에서 한 번 · 탭을 닫으면 지워짐</span></div>
+      <form class="pp-pwf" id="ppPwForm" autocomplete="off" novalidate>
+        <label class="wb-field"><span class="wb-label">비밀번호</span><input class="wb-input" type="password" id="ppPw" autocomplete="off" aria-label="조간 비밀번호(Enter = 확인)"></label>
+        <button type="submit" class="wb-btn wb-btn--primary" id="ppPwBtn">확인</button>
+        <span class="pp-msg" id="ppPwMsg" role="status" aria-live="polite"></span>
+      </form>
+    </section>
+
+    <div id="ppBody" hidden>
+      <div class="wb-filterbar">
+        <div class="wb-field">
+          <span class="wb-label">발행일</span>
+          <span class="wb-stepper">
+            <button type="button" class="wb-btn" id="ppPrev" disabled aria-label="이전 발행일">‹</button>
+            <select class="wb-input pp-date" id="ppDate" aria-label="발행일 고르기"></select>
+            <button type="button" class="wb-btn" id="ppNext" disabled aria-label="다음 발행일">›</button>
+          </span>
+        </div>
+        <span id="ppMsg" class="wb-filterbar-status" role="status" aria-live="polite"></span>
+        <div class="wb-filterbar-end">
+          <button type="button" class="wb-btn wb-btn--text" id="ppLock" title="이 탭에 기억한 비밀번호를 지우고 내용을 닫는다">잠그기</button>
+          <button type="button" class="wb-btn wb-btn--primary" id="ppReload">새로고침</button>
+        </div>
+      </div>
+      <div id="ppNotice"></div>
+      <section class="wb-card pp-paper" id="ppPaper" aria-label="조간 본문"></section>
+
+      <div class="wb-section-head">
+        <h2 class="wb-section-title">현황<button type="button" class="wb-help" data-help="엔진 상태 그대로 — 오늘의 기대 · 발화점 · 서사 줄기 · 쌓이는 중인 어긋남 · 성적표. 줄을 누르면 펼치고 접는다(접은 상태는 이 브라우저에 기억). 숫자는 웹에서 다시 계산하지 않는다 · 확률만 %로 바꿔 소수 1자리까지 표시." aria-label="설명 보기"></button></h2>
+        <span class="wb-section-meta" id="ppStMeta"></span>
+      </div>
+      <div id="ppStNotice"></div>
+      <div class="wb-stack" id="ppState"></div>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/wb-chart.js?v=20261022c"></script>
+<script src="/assets/js/wb-paper.js?v=20261123a"></script><!-- 조간 탭(비밀번호 뒤 · 읽기 전용) — window.PAPER -->
+
 <!-- redesign-wb 4단계: 주간 리뷰 '일반 | 고급' 보기 — snapshot.plain 을 그리기만(번역·판정·재계산 0) · 고급 = 기존 renderReview 그대로 -->
 <script src="/assets/js/wb-review-plain.js?v=20261022c"></script>
 <script>
@@ -3920,12 +4025,14 @@ const BS_LOCAL = /^(127\.0\.0\.1|localhost|\[::1\])$/.test(String((window.locati
 const BS_VISIBLE = !document.documentElement.hasAttribute('data-bootstrap-private') || BS_LOCAL;
 let _bsInit = false;
 function switchTab(t){
-  if (CONTEST_MODE && t!=='review' && !(t==='bootstrap' && BS_VISIBLE)) t='review';   // CONTEST_MODE (2026-09 사내대회) — 대회 후 원복: 숨긴 탭 진입 → 주간 리뷰로
+  if (CONTEST_MODE && t!=='review' && t!=='paper' && !(t==='bootstrap' && BS_VISIBLE)) t='review';   // CONTEST_MODE (2026-09 사내대회) — 대회 후 원복: 숨긴 탭 진입 → 주간 리뷰로 · 조간(paper)은 대회 모드에서도 열림(내용은 비밀번호 뒤 · 2026-11-23)
   document.getElementById('view-strat').style.display = (t==='strat')?'':'none';
   document.getElementById('view-ops').style.display = (t==='ops')?'':'none';
   document.getElementById('view-review').style.display = (t==='review')?'':'none';
   document.getElementById('view-news').style.display = (t==='news')?'':'none';
   document.getElementById('view-bootstrap').style.display = (t==='bootstrap')?'':'none';
+  document.getElementById('view-paper').style.display = (t==='paper')?'':'none';
+  document.getElementById('tab-paper').classList.toggle('active', t==='paper');
   document.getElementById('tab-strat').classList.toggle('active', t==='strat');
   document.getElementById('tab-ops').classList.toggle('active', t==='ops');
   document.getElementById('tab-review').classList.toggle('active', t==='review');
@@ -3936,6 +4043,7 @@ function switchTab(t){
   if (t==='news' && !_newsInit){ _newsInit=true; gLoadNewsflowPanel(); loadNewsEmbed(); }
   if (t==='bootstrap' && !_bsInit && window.BS){ _bsInit=true; window.BS.load(); }
   else if (t==='bootstrap' && window.BS && window.BS.spy){ window.BS.spy(); }   // 탭 재진입 시 목차 현재 섹션 하이라이트 갱신(숨김 중엔 스파이가 쉼)
+  if (t==='paper' && window.PAPER){ window.PAPER.show(); }   // 조간: 세션에 비밀번호 없으면 칸만(요청 0) · 있으면 처음 한 번 불러오고 재진입 땐 높이만 다시
 }
 if (!BS_VISIBLE) { const _bsTab = document.getElementById('tab-bootstrap'); if (_bsTab) _bsTab.style.display = 'none'; }
 
@@ -6261,12 +6369,12 @@ if (CONTEST_MODE) switchTab('review');   // CONTEST_MODE (2026-09 사내대회) 
   process();
 
   // ── 셸 연동: 활성 탭 → 셸 활성 표시 · 해시 딥링크 ──
-  var TABS = ['strat', 'ops', 'review', 'news', 'bootstrap'];
+  var TABS = ['strat', 'ops', 'review', 'news', 'bootstrap', 'paper'];
   function activeTab() {
     for (var i = 0; i < TABS.length; i++) { var b = document.getElementById('tab-' + TABS[i]); if (b && b.classList.contains('active')) return TABS[i]; }
     return null;
   }
-  var TAB_TITLE = { strat: '전략 등록부', ops: '운용 콘솔', review: '주간 리뷰', news: '뉴스 흐름', bootstrap: '부트스트랩' };
+  var TAB_TITLE = { strat: '전략 등록부', ops: '운용 콘솔', review: '주간 리뷰', news: '뉴스 흐름', bootstrap: '부트스트랩', paper: '조간' };
   function syncShell() {
     var t = activeTab();
     if (t && window.WBShell) window.WBShell.setPage(t);

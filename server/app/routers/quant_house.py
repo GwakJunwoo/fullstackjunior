@@ -1340,3 +1340,212 @@ def game_board_game(body: dict = Body(...), x_qh_key: str | None = Header(defaul
         snap = dict(snap); snap["available"] = True
     return _gb_json({"ok": True, "event": kind, "appended": appended if isinstance(appended, (dict, str, int, list)) else str(appended),
                      "engine": {"ledger_fn": fn_name, "snapshot_fn": build_name}, "snapshot": snap})
+
+
+# ═══ 발화점 계층 — 조간(박대기 기자) · 상태 (2026-11-23 · 계약 = BQH 06_workflow/IGNITION_CONTRACT.md) ═══
+#   엔진 산출 = 진실 · 라우터 = 전달자(재계산 0):
+#     GET /quant-house/ignition/papers        → 조간 날짜 목록
+#     GET /quant-house/ignition/paper?date=   → 그 날짜(기본 = 최신) 조간 HTML 원문(파일 그대로 · json 에 실어 보냄)
+#     GET /quant-house/ignition/state         → ignition_state.json(본인 관련 필드 제외) + 엔진 이름표
+#   ★비밀번호 필수(사용자 2026-11-23): 세 엔드포인트 전부 X-IGN-PASS 헤더 없이는 401(견본 포함).
+#     검증은 여기서만 — 서버 .env 의 IGN_PASS_HASH(솔트 섞은 PBKDF2 해시 · git 밖)와 상수 시간 비교. 평문·해시는 저장소 어디에도 없다.
+#     URL 쿼리로는 받지 않는다(기록에 남음). 같은 주소에서 연속 실패가 쌓이면 잠깐 막는다(메모리 카운터).
+#   ★읽기 전용: 쓰기 엔드포인트 · 판정(집음/버림) · 본인 확률 입력 없음(감사 2026-11-05 = 웹 무인증 쓰기 금지). 원장 파일은 내보내지 않는다.
+#   ★견본: 운영 조간(paper/paper_YYYY-MM-DD.html)이 하나도 없을 때만 outputs/ignition_sample 의 시험 발행본을 sample:true 로 보낸다.
+#     운영 조간이 하나라도 생기면 견본은 더 이상 나가지 않는다.
+#   ★경로: 날짜 인자는 YYYY-MM-DD 정규식만 받고, 파일은 폴더 목록에서 찾은 것만 연다(입력으로 파일 이름을 만들지 않음).
+import hashlib as _ign_hashlib
+import hmac as _ign_hmac
+import math as _ign_math
+import re as _ign_re
+import threading as _ign_threading
+import time as _ign_time
+from datetime import datetime as _ign_datetime
+
+from fastapi import Depends, Request
+
+_IGN_DIR = QH_ROOT / "05_registry" / "research" / "ignition"
+_IGN_PAPER_DIR = _IGN_DIR / "paper"
+_IGN_STATE = _IGN_DIR / "ignition_state.json"
+_IGN_SAMPLE_DIR = QH_ROOT / "outputs" / "ignition_sample"
+_IGN_ENV = Path(__file__).resolve().parents[2] / ".env"          # server/.env (qh_ops.SERVER_ROOT 와 같은 자리)
+_IGN_DATE_RE = _ign_re.compile(r"\d{4}-\d{2}-\d{2}")
+_IGN_PAPER_RE = _ign_re.compile(r"paper_(\d{4}-\d{2}-\d{2})\.html")
+_IGN_SAMPLE_RE = _ign_re.compile(r"paper_sample_(\d{4}-\d{2}-\d{2})\.html")
+_IGN_HTML_MAX = 2_000_000                                        # 조간 1부 상한(바이트) — 넘으면 내보내지 않음
+_IGN_HINT = "평일 아침 일일 갱신(발화점 단계)이 만든다"
+_IGN_FAIL_MAX = 5                                                # 연속 실패 이 횟수부터 잠금
+_IGN_FAIL_LOCK_S = 60.0
+_IGN_FAIL_FORGET_S = 900.0
+_IGN_FAILS: dict = {}                                            # 주소 → [연속 실패 수, 잠금 해제 시각, 마지막 실패 시각]
+_IGN_FAILS_MAX = 4096
+_IGN_LOCK = _ign_threading.Lock()
+
+
+def _ign_pass_cfg():
+    """server/.env 의 IGN_PASS_HASH = 'pbkdf2_sha256:<반복>:<솔트 hex>:<해시 hex>'. 요청마다 다시 읽는다(교체 후 재기동 불필요)."""
+    raw = None
+    try:
+        from dotenv import dotenv_values
+        raw = dotenv_values(_IGN_ENV).get("IGN_PASS_HASH")
+    except Exception:
+        raw = None
+    parts = str(raw or os.getenv("IGN_PASS_HASH") or "").strip().split(":")
+    if len(parts) != 4 or parts[0] != "pbkdf2_sha256":
+        return None
+    try:
+        iters, salt, want = int(parts[1]), bytes.fromhex(parts[2]), bytes.fromhex(parts[3])
+    except ValueError:
+        return None
+    if iters < 1000 or len(salt) < 8 or len(want) < 16:
+        return None
+    return iters, salt, want
+
+
+def _ign_ip(request: Request) -> str:
+    """요청 주소 — 터널을 거치면 접속 주소가 전부 로컬이라 터널이 붙이는 헤더를 먼저 본다."""
+    h = request.headers
+    ip = (h.get("cf-connecting-ip") or (h.get("x-forwarded-for") or "").split(",")[0]
+          or (request.client.host if request.client else "") or "unknown")
+    return ip.strip()[:64] or "unknown"
+
+
+def _ign_auth(request: Request, x_ign_pass: str | None = Header(default=None, alias="X-IGN-PASS")) -> None:
+    """조간·상태 읽기 문 — 미설정 403 · 잠금 중 429 · 없음/불일치 401(화면은 401 이면 비밀번호 칸으로 돌아간다)."""
+    cfg = _ign_pass_cfg()
+    if cfg is None:
+        raise HTTPException(403, "조간 비밀번호 미설정 — 서버 설정 필요")
+    iters, salt, want = cfg
+    ip, now = _ign_ip(request), _ign_time.monotonic()
+    with _IGN_LOCK:
+        rec = _IGN_FAILS.get(ip)
+        if rec and rec[1] > now:
+            raise HTTPException(429, "연속 실패 — 잠시 뒤 다시 시도하세요",
+                                headers={"Retry-After": str(int(rec[1] - now) + 1)})
+    if not x_ign_pass:
+        raise HTTPException(401, "비밀번호 필요")
+    got = _ign_hashlib.pbkdf2_hmac("sha256", str(x_ign_pass).encode("utf-8", "replace")[:256], salt, iters)
+    if _ign_hmac.compare_digest(got, want):
+        with _IGN_LOCK:
+            _IGN_FAILS.pop(ip, None)
+        return
+    with _IGN_LOCK:
+        rec = _IGN_FAILS.get(ip)
+        n = (rec[0] if rec and now - rec[2] < _IGN_FAIL_FORGET_S else 0) + 1
+        if len(_IGN_FAILS) >= _IGN_FAILS_MAX and ip not in _IGN_FAILS:      # 표가 차면 오래된 기록부터 버림
+            for k in sorted(_IGN_FAILS, key=lambda x: _IGN_FAILS[x][2])[:_IGN_FAILS_MAX // 4]:
+                _IGN_FAILS.pop(k, None)
+        _IGN_FAILS[ip] = [n, (now + _IGN_FAIL_LOCK_S) if n >= _IGN_FAIL_MAX else 0.0, now]
+    raise HTTPException(401, "비밀번호 불일치")
+
+
+def _ign_scan(folder: Path, rx) -> dict:
+    """폴더 안에서 이름이 규칙과 정확히 맞는 파일만 {날짜: 경로}."""
+    out = {}
+    try:
+        if folder.is_dir():
+            for fp in folder.iterdir():
+                m = rx.fullmatch(fp.name)
+                if m and fp.is_file():
+                    out[m.group(1)] = fp
+    except OSError:
+        pass
+    return out
+
+
+def _ign_papers():
+    live = _ign_scan(_IGN_PAPER_DIR, _IGN_PAPER_RE)
+    if live:
+        return "live", live
+    sample = _ign_scan(_IGN_SAMPLE_DIR, _IGN_SAMPLE_RE)
+    if sample:
+        return "sample", sample
+    return "none", {}
+
+
+def _ign_papers_head(source: str, files: dict) -> dict:
+    dates = sorted(files, reverse=True)
+    out = {"available": bool(dates), "source": source, "sample": source == "sample",
+           "dates": dates, "latest": dates[0] if dates else None}
+    if source == "sample":
+        out["note"] = "견본(시험 발행) — 운영 기록 아님 · 성적 의미 없음. 운영 조간이 아직 없어 견본을 보낸다."
+    elif source == "none":
+        out["note"] = f"조간 없음 — 아직 첫 발행 전. {_IGN_HINT}."
+    return out
+
+
+def _ign_private_key(k) -> bool:
+    """본인 관련 키 — 본인 확률·본인 점수·판정(집음/버림)·메모. 깊이와 상관없이 뺀다."""
+    k = str(k).lower()
+    return k in ("user", "taste", "tastes") or k.startswith("user_") or k.endswith("_user") or "memo" in k
+
+
+def _ign_clean(obj):
+    """본인 관련 키 제거 + NaN/무한대 → null(브라우저 JSON 은 NaN 을 못 읽는다). 그 밖의 값은 그대로."""
+    if isinstance(obj, dict):
+        return {k: _ign_clean(v) for k, v in obj.items() if not _ign_private_key(k)}
+    if isinstance(obj, list):
+        return [_ign_clean(v) for v in obj]
+    if isinstance(obj, float) and not _ign_math.isfinite(obj):
+        return None
+    return obj
+
+
+def _ign_labels(state_spec) -> dict:
+    """화면 이름표(사건 이름 · 무효 조건 계열 이름 · 누적 어긋남 문턱 · 승급 검토 최소 일수) — 엔진 config 가 단일 출처.
+    서버가 올려 둔 엔진 규칙이 상태 파일의 규칙과 다르면 stale:true(이름표가 낡았을 수 있음 — 화면에 그대로 알린다)."""
+    try:
+        from engine.research.ignition import config as IC
+        return {"available": True,
+                "obs": {o["id"]: o["label"] for o in IC.OBSERVABLES},
+                "thread_metrics": dict(IC.THREAD_METRICS),
+                "cusum_h": IC.CUSUM_H, "stage2_min_days": IC.STAGE2_MIN_DAYS,
+                "stale": bool(state_spec) and IC.spec_hash() != state_spec}
+    except Exception as e:
+        return {"available": False, "note": f"엔진 이름표 읽기 실패 — {type(e).__name__}: {e}"}
+
+
+@router.get("/ignition/papers", dependencies=[Depends(_ign_auth)])
+def ignition_papers():
+    """조간 날짜 목록(최신 먼저). source = live(운영) | sample(견본 — 운영 조간이 없을 때만) | none."""
+    return _ign_papers_head(*_ign_papers())
+
+
+@router.get("/ignition/paper", dependencies=[Depends(_ign_auth)])
+def ignition_paper(date: str | None = Query(default=None, max_length=10)):
+    """조간 1부 — HTML 원문 그대로(변형 0). date 생략 = 최신. 그 날짜가 없으면 available:false(가짜 본문 없음)."""
+    if date is not None and not _IGN_DATE_RE.fullmatch(date):
+        raise HTTPException(400, "date 는 YYYY-MM-DD")
+    source, files = _ign_papers()
+    out = _ign_papers_head(source, files)
+    if not files:
+        return out
+    pick = date or out["latest"]
+    out["date"] = pick
+    fp = files.get(pick)                      # 폴더 목록에서 찾은 경로만 — 입력으로 경로를 만들지 않는다
+    if fp is None:
+        out["available"] = False
+        out["note"] = f"{pick} 조간 없음 — 발행된 날짜만 고를 수 있다."
+        return out
+    try:
+        if fp.stat().st_size > _IGN_HTML_MAX:
+            raise ValueError(f"파일이 너무 큼({fp.stat().st_size} 바이트)")
+        out["html"] = fp.read_text(encoding="utf-8")
+        out["written_at"] = _ign_datetime.fromtimestamp(fp.stat().st_mtime).strftime("%Y-%m-%dT%H:%M:%S")
+    except Exception as e:
+        out["available"] = False
+        out["note"] = f"{pick} 조간 읽기 실패 — {type(e).__name__}: {e}"
+    return _gb_json(out)
+
+
+@router.get("/ignition/state", dependencies=[Depends(_ign_auth)])
+def ignition_state():
+    """발화점 상태 — ignition_state.json 그대로(숫자 재계산 0) · 본인 관련 필드만 제외 · 엔진 이름표(labels) 부가.
+    파일이 없으면 available:false(첫 실행 전 — 가짜 상태 없음)."""
+    st = _review_passthrough(_IGN_STATE, _IGN_HINT)
+    if not st.get("available"):
+        return {"available": False, "note": f"아직 첫 실행 전 — {_IGN_HINT}. ({st.get('note')})"}
+    out = _ign_clean(st)
+    out["labels"] = _ign_labels(st.get("spec_hash"))
+    out["web_filter"] = "본인 확률 · 본인 점수 · 판정(집음/버림) · 메모는 웹 응답에서 뺐다."
+    return _gb_json(out)

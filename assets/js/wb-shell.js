@@ -30,6 +30,11 @@
     { id: 'review', label: '주간 리뷰', pages: [
       { id: 'review', label: '주간 리뷰', href: '/tools/quant-house/#review', contest: true,
         desc: '일반 | 고급 · 결론 · 금리·커브·테너·종목 그림 · 눈에 띄는 곳 · 믿어도 되나', kw: 'weekly review market 리뷰 시장 일반 고급 top pick 눈에 띄는 곳' } ] },
+    // 2026-11-23 사용자 지시: 조간(발화점 계층 — 기대 봉인 → 채점 → 어긋난 곳 · 박대기 기자) — 메뉴에는 보이고(대회 모드 포함) 내용은 비밀번호 뒤.
+    //   비밀번호는 서버가 요청 헤더로 검증한다 — 이 파일·정적 파일 어디에도 값 없음. 화면 = tools/quant-house/#paper · 로직 = wb-paper.js.
+    { id: 'paper', label: '조간', pages: [
+      { id: 'paper', label: '조간', href: '/tools/quant-house/#paper', contest: true,
+        desc: '아침 신문(AI 작성) · 오늘의 기대 · 발화점 · 서사 줄기 · 성적표 — 비밀번호 필요 · 관측 기록', kw: 'paper morning news ignition 조간 신문 발화점 기대 박대기 서사 줄기 성적표 비밀번호' } ] },
     { id: 'strategy', label: '전략', pages: [
       { id: 'strat', label: '전략 등록부', href: '/tools/quant-house/#strat', desc: '다전략 등록부 · 감사 · 성과', kw: 'strategy registry quant house' },
       { id: 'ops', label: '운용 콘솔', href: '/tools/quant-house/#ops', desc: '집행표 · 신호 인박스 · 보유 인벤토리', kw: 'ops operation console' },
