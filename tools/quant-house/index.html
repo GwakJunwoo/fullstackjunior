@@ -694,6 +694,15 @@
     #view-paper .pp-taste-memo { flex: 1 1 140px; min-width: 100px; }
     #view-paper .pp-taste-msg { min-height: 0; }
     #view-paper .pp-group b { color: var(--wb-ink); }
+    /* 리서치 창고(2026-11-23 밤): 목록 = wb-table · 번호 글자는 wb 표식색(새 색 없음) · 노트 = 조간과 같은 틀(.pp-frame). 노트 문서 안의 글꼴·색은 엔진 것 그대로. */
+    #view-paper #ppResOpen:not(:empty), #view-paper #ppResNotice:not(:empty) { margin-bottom: var(--wb-s3); }
+    #view-paper .pp-resnote { margin-top: var(--wb-gap); }
+    #view-paper .pp-rrow { cursor: pointer; }
+    #view-paper .pp-rrow:focus-visible { outline: 1px solid var(--wb-mark); outline-offset: -1px; }
+    #view-paper .pp-rid { color: var(--wb-mark); font-weight: 600; font-variant-numeric: tabular-nums; text-decoration: underline; text-underline-offset: 2px; }
+    #view-paper .pp-rlink { padding: 0; border: 0; background: none; cursor: pointer; font: inherit; }
+    #view-paper .pp-ropen { margin: 0; padding: var(--wb-s3) var(--wb-s4) var(--wb-s3) calc(var(--wb-s4) + 18px); font-size: 13px; line-height: 20px; overflow-wrap: anywhere; }
+    #view-paper .pp-ropen > li + li { margin-top: 4px; }
     @media (max-width: 720px) {
       #view-paper .pp-fold > summary .wb-card-meta { margin-left: 0; width: 100%; text-align: left; }
       #view-paper .pp-table td.pp-wrap { min-width: 150px; }
@@ -1043,6 +1052,13 @@
     <div id="ppBody" hidden>
       <div class="wb-filterbar">
         <div class="wb-field">
+          <span class="wb-label">보기</span>
+          <span class="wb-seg" id="ppMode" role="group" aria-label="조간 탭 보기">
+            <button type="button" data-m="paper" aria-pressed="true">조간</button>
+            <button type="button" data-m="research" aria-pressed="false">리서치 창고</button>
+          </span>
+        </div>
+        <div class="wb-field" id="ppDateField">
           <span class="wb-label">발행일</span>
           <span class="wb-stepper">
             <button type="button" class="wb-btn" id="ppPrev" disabled aria-label="이전 발행일">‹</button>
@@ -1056,6 +1072,15 @@
           <button type="button" class="wb-btn wb-btn--primary" id="ppReload">새로고침</button>
         </div>
       </div>
+      <!-- 리서치 창고(사용자 2026-11-23 밤 "모든 리서치는 in-house research 로 번호를 달아 지식 창고로") — 엔진 inhouse.catalog() 목록 그대로 · 줄을 누르면 엔진 render_page() 문서를
+           조간과 같은 방식(<iframe sandbox srcdoc> · 스크립트 불허)으로 띄운다. '아직 못 푼 물음' = 상태 json research.open 그대로. 운영 노트가 없을 때만 견본(sample:true). -->
+      <div id="ppRes" hidden>
+        <div id="ppResNotice"></div>
+        <div id="ppResOpen"></div>
+        <section class="wb-card" id="ppResList" aria-label="리서치 노트 목록"></section>
+        <section class="wb-card pp-paper pp-resnote" id="ppResNote" aria-label="리서치 노트" hidden></section>
+      </div>
+      <div id="ppMain">
       <div id="ppNotice"></div>
       <section class="wb-card pp-paper" id="ppPaper" aria-label="조간 본문"></section>
 
@@ -1067,6 +1092,7 @@
       <div id="ppView"></div><!-- 내 확률(입력) — 엔진 form() 그대로 · 상태 파일이 없어도 뜬다 -->
       <div class="wb-stack" id="ppState"></div>
       <div id="ppHist"></div><!-- 내 기록 — 엔진 mine() 그대로 -->
+      </div><!-- /ppMain -->
     </div>
   </div>
 </div>
@@ -1074,7 +1100,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/wb-chart.js?v=20261022c"></script>
-<script src="/assets/js/wb-paper.js?v=20261123c"></script><!-- 조간 탭(비밀번호 뒤 · 읽기 + 내 확률·발화점 판정 입력) — window.PAPER -->
+<script src="/assets/js/wb-paper.js?v=20261123d"></script><!-- 조간 탭(비밀번호 뒤 · 읽기 + 내 확률·발화점 판정 입력) — window.PAPER -->
 
 <!-- redesign-wb 4단계: 주간 리뷰 '일반 | 고급' 보기 — snapshot.plain 을 그리기만(번역·판정·재계산 0) · 고급 = 기존 renderReview 그대로 -->
 <script src="/assets/js/wb-review-plain.js?v=20261022c"></script>

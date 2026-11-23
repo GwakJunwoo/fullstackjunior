@@ -1349,6 +1349,10 @@ def game_board_game(body: dict = Body(...), x_qh_key: str | None = Header(defaul
 #     GET /quant-house/ignition/state         → ignition_state.json(본인 관련 필드 제외) + 이름표 + 유사 국면 문장(엔진 analog_text)
 #     GET /quant-house/ignition/form          → 엔진 api.form() 그대로(본인 확률 입력 화면 — 대상일 · 마감 · 사건 · 이미 적은 값)
 #     GET /quant-house/ignition/mine          → 엔진 api.mine() 그대로(내 기록 — 내 확률·시스템 기대·실현·오차 · 발화점 판정)
+#     GET /quant-house/ignition/research      → 인하우스 리서치 노트 목록(엔진 inhouse.catalog 그대로 · 번호순) + 주제 이름표(엔진 KIND_KO)
+#     GET /quant-house/ignition/research/note?id=IHR-0001 → 그 노트 한 장(엔진 inhouse.render_page 의 HTML 을 json 에 실어 보냄 · 변형 0)
+#       · 운영 노트(엔진 config.RESEARCH_DIR)가 하나라도 있으면 운영 것만 · 없으면 견본(outputs/ignition_sample/research · sample:true) · 둘 다 없으면 available:false
+#       · id 는 IHR-숫자 4자리 이상만(정규식) — 파일은 엔진 inhouse.get 이 연다(라우터는 경로를 만들지 않는다)
 #     POST /quant-house/ignition/view         → 엔진 api.submit_view(views, memo=)   body {views:{사건 id: 확률}, memo?}
 #     POST /quant-house/ignition/taste        → 엔진 api.submit_taste(id, verdict, memo=)   body {ignition_id, verdict, memo?}
 #   ★비밀번호 필수(사용자 2026-11-23): 전 엔드포인트 X-IGN-PASS 헤더 없이는 401(견본 포함).
@@ -1399,6 +1403,9 @@ _IGN_WRITE_WINDOW_S = 60.0
 _IGN_WRITES: dict = {}                                           # 주소 → [쓰기 요청 시각…]
 _IGN_SITE_ORIGINS = ("https://www.fullstackjunior.com", "https://fullstackjunior.com")
 _IGN_ERR_500 = "서버 오류 — 처리하지 못했습니다(기록됐는지는 '내 기록'에서 확인)"
+_IGN_ERR_READ = "서버 오류 — 읽지 못했습니다"
+_IGN_RESEARCH_SAMPLE_DIR = _IGN_SAMPLE_DIR / "research"          # 견본 노트(운영 노트가 하나도 없을 때만)
+_IGN_NOTE_RE = _ign_re.compile(r"IHR-[0-9]{4,12}")
 _ign_log = __import__("logging").getLogger("uvicorn.error")
 
 
@@ -1648,6 +1655,28 @@ def _ign_engine(what: str, fn):
         raise HTTPException(500, _IGN_ERR_500)
 
 
+def _ign_read(what: str, fn):
+    """읽기 전용 엔진 호출(리서치 창고) — 어떤 실패든 500 + 정해 둔 문구(깨진 파일의 파싱 문구도 밖으로 안 나간다)."""
+    try:
+        return _ign_clean(fn(), strip=False)
+    except HTTPException:
+        raise
+    except Exception:
+        _ign_log.exception("ignition %s 실패", what)
+        raise HTTPException(500, _IGN_ERR_READ)
+
+
+def _ign_research_src():
+    """(source, 폴더, 엔진 inhouse 모듈) — 운영 노트가 하나라도 있으면 운영 폴더만(폴더 None = 엔진 config.RESEARCH_DIR) ·
+    없으면 견본 폴더 · 그것도 없으면 none. 조간 견본과 같은 규칙."""
+    from engine.research.ignition import inhouse as IH
+    if IH.ids():
+        return "live", None, IH
+    if IH.ids(_IGN_RESEARCH_SAMPLE_DIR):
+        return "sample", _IGN_RESEARCH_SAMPLE_DIR, IH
+    return "none", None, IH
+
+
 @router.get("/ignition/papers", dependencies=[Depends(_ign_auth)])
 def ignition_papers():
     """조간 날짜 목록(최신 먼저). source = live(운영) | sample(견본 — 운영 조간이 없을 때만) | none."""
@@ -1746,3 +1775,42 @@ async def ignition_taste(request: Request):
         raise HTTPException(400, "verdict 는 pick | drop")
     memo = _ign_memo(body)
     return _gb_json(await run_in_threadpool(_ign_engine, "taste", lambda a: a.submit_taste(iid, verdict, memo=memo)))
+
+
+@router.get("/ignition/research", dependencies=[Depends(_ign_auth)])
+def ignition_research():
+    """리서치 창고 목록 — 엔진 inhouse.catalog() 그대로(번호순 · 재계산 0). kinds = 엔진 KIND_KO(주제 이름표).
+    source = live(운영) | sample(견본 — 운영 노트가 없을 때만) | none."""
+    def run():
+        source, folder, IH = _ign_research_src()
+        out = {"available": source != "none", "source": source, "sample": source == "sample",
+               "notes": IH.catalog(folder) if source != "none" else [], "kinds": dict(IH.KIND_KO)}
+        if source == "sample":
+            out["note"] = "견본(시험 발행) 노트 — 운영 기록 아님. 운영 노트가 아직 없어 견본을 보낸다."
+        elif source == "none":
+            out["note"] = f"리서치 노트 없음 — 아직 첫 실행 전. {_IGN_HINT}."
+        return out
+    return _gb_json(_ign_read("research", run))
+
+
+@router.get("/ignition/research/note", dependencies=[Depends(_ign_auth)])
+def ignition_research_note(id: str = Query(..., max_length=16)):
+    """리서치 노트 한 장 — 엔진 inhouse.render_page(노트)의 HTML 그대로(혼자 서는 문서 · 스크립트 0 · 변형 0).
+    그 번호가 없으면 available:false(가짜 본문 없음)."""
+    if not _IGN_NOTE_RE.fullmatch(id):
+        raise HTTPException(400, "id 는 IHR-0001 모양")
+
+    def run():
+        source, folder, IH = _ign_research_src()
+        out = {"available": False, "source": source, "sample": source == "sample", "id": id}
+        n = IH.get(id, folder) if source != "none" else None
+        if n is None:
+            out["note"] = f"{id} 노트 없음"
+            return out
+        page = IH.render_page(n)
+        if len(page.encode("utf-8")) > _IGN_HTML_MAX:
+            out["note"] = f"{id} 노트가 너무 큼"
+            return out
+        out["available"], out["html"] = True, page
+        return out
+    return _gb_json(_ign_read("research note", run))

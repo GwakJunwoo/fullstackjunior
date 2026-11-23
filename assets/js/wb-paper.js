@@ -7,6 +7,12 @@
      /quant-house/ignition/state                     엔진 상태(본인 관련 필드는 서버가 뺌) + 이름표(labels) + 유사 국면 문장(analog_text)
      /quant-house/ignition/form                      본인 확률 입력 화면(엔진 api.form — 대상일 · 마감 · 봉인 여부 · 사건 · 이미 적은 값)
      /quant-house/ignition/mine                      내 기록(엔진 api.mine — 내 확률·시스템 기대·실현·오차 · 발화점 판정)
+     /quant-house/ignition/research                  리서치 창고 목록(엔진 inhouse.catalog — 번호순) + 주제 이름표 + 견본 여부
+     /quant-house/ignition/research/note?id=IHR-0001 리서치 노트 한 장(엔진 inhouse.render_page 의 HTML 원문)
+   리서치 창고(2026-11-23 밤 사용자 지시): 보기 [조간 | 리서치 창고](#paper/research[/IHR-0001]). 목록은 최신 번호부터(순서만 뒤집음),
+     줄을 누르면 노트를 조간과 같은 틀(<iframe sandbox srcdoc> · 스크립트 불허 · 문서 무변경)로 띄운다. '아직 못 푼 물음' = 상태 json research.open.
+   조간 안의 리서치 팝업(파란 번호 → 체크박스로 여닫는 창 · 스크립트 0)은 엔진 HTML 그대로 동작한다. 팝업이 든 신문은 틀을 고정 높이로 둔다
+     (틀을 내용만큼 늘리면 position:fixed 팝업이 신문 전체의 가운데에 떠서 화면 밖으로 나간다).
    쓰기 = POST 2개(2026-11-23 사용자 지시 "웹에서 본인 확률·발화점 판정 입력") — 같은 비밀번호 뒤 · JSON 본문만:
      /quant-house/ignition/view   {views:{사건 id: 확률 0~1}, memo?}   적은 칸·바꾼 칸만 보낸다
      /quant-house/ignition/taste  {ignition_id, verdict: pick|drop, memo?}
@@ -26,14 +32,16 @@
   var SS = 'ign.pass', FOLD_LS = 'paper.fold';
   var P = { mem: '', busy: false, seq: 0, started: false, date: null, dates: [], paper: null, state: null, frame: null, ro: null,
             form: null, formAt: 0, formErr: '', mine: null, mineErr: '', draft: {}, memo: '', viewRes: null, vmsg: null, wbusy: false,
-            tdraft: {}, tmsg: {}, tbusy: '', tick: null };
+            tdraft: {}, tmsg: {}, tbusy: '', tick: null, crossed: '',
+            mode: 'paper', res: null, resErr: '', noteId: null, noteMsg: '', nframe: null, nro: null, nseq: 0 };
   var KIND = { miss: '하루 오답', cum: '누적 어긋남', thread: '서사 줄기 무효' };
   var STAGE = { 1: '기록', 2: '제안', 3: '한도 내 자율', 4: '다시장' };
   var VERDICT = { pick: '집음', drop: '버림' };
   var FATE = { confirmed: '맞음', invalidated: '틀림', expired: '판가름 안 남', closed_by_model: '닫음' };
   var FOLD_DEFAULT = { view: true, expect: false, ign: true, threads: false, outlook: false, cum: false, score: false, hist: false };
-  var STEP = 5, STEP_MIN = 5, STEP_MAX = 95, STEP_START = 50;    // − / + 버튼의 걸음(%p)과 멈추는 곳 — 누르기 편하라고 둔 것일 뿐, 받는 범위는 엔진이 정한다
+  var STEP = 5, STEP_START = 50;                                 // − / + 버튼의 걸음(%p) · 빈 칸에서 처음 누르면 서는 곳. 멈추는 곳 = 엔진 form() 의 p_min · p_max
   var FORM_STALE_MS = 60000, TICK_MS = 20000;
+  var NOTE_RE = /^IHR-[0-9]{4,12}$/;
 
   function $(id) { return doc.getElementById(id); }
   function esc(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
@@ -110,10 +118,12 @@
   function clearContent() {       // 잠그면 받은 내용도 화면에서 지운다
     P.paper = null; P.state = null; P.dates = []; P.date = null; P.seq++;
     P.form = null; P.formAt = 0; P.formErr = ''; P.mine = null; P.mineErr = ''; P.draft = {}; P.memo = ''; P.viewRes = null; P.vmsg = null;
-    P.wbusy = false; P.tdraft = {}; P.tmsg = {}; P.tbusy = '';
+    P.wbusy = false; P.tdraft = {}; P.tmsg = {}; P.tbusy = ''; P.crossed = '';
+    P.res = null; P.resErr = ''; P.noteId = null; P.noteMsg = ''; P.nseq++;
     if (P.tick) { clearInterval(P.tick); P.tick = null; }
-    dropFrame();
-    ['ppPaper', 'ppView', 'ppState', 'ppHist', 'ppNotice', 'ppStNotice'].forEach(function (id) { var el = $(id); if (el) el.innerHTML = ''; });
+    dropFrame(); dropNote();
+    ['ppPaper', 'ppView', 'ppState', 'ppHist', 'ppNotice', 'ppStNotice', 'ppResNotice', 'ppResOpen', 'ppResList', 'ppResNote'].forEach(function (id) { var el = $(id); if (el) el.innerHTML = ''; });
+    var rn = $('ppResNote'); if (rn) rn.hidden = true;
     var sm = $('ppStMeta'); if (sm) sm.textContent = '';
     var sel = $('ppDate'); if (sel) sel.innerHTML = '';
     setMsg('');
@@ -132,6 +142,7 @@
       P.busy = false; gate(false, '', false);
       renderPaper(j);
       loadState(); loadInput();
+      syncMode();
     } catch (e) {
       P.busy = false; pwSet('');
       gate(true, emsg(e), true);
@@ -142,7 +153,8 @@
   // ── 조간 본문 ────────────────────────────────────────────────────────
   function paperPath(date) { return '/quant-house/ignition/paper' + (isDate(date) ? '?date=' + date : ''); }
   function hashDate() { var d = (location.hash || '').slice(1).split('/')[1]; return isDate(d) ? d : null; }
-  function setMsg(t, err) { var el = $('ppMsg'); if (!el) return; el.textContent = t || ''; el.classList.toggle('wb-error', !!err); }
+  function showMsg(t, err) { var el = $('ppMsg'); if (!el) return; el.textContent = t || ''; el.classList.toggle('wb-error', !!err); }
+  function setMsg(t, err) { P.pmsg = [t || '', !!err]; if (P.mode !== 'research') showMsg(t, err); }   // 조간 쪽 상태 줄(리서치 창고를 보는 동안은 기억만)
   function dropFrame() {
     if (P.ro) { try { P.ro.disconnect(); } catch (e) { /* noop */ } P.ro = null; }
     if (P.frame && P.frame.parentNode) P.frame.parentNode.removeChild(P.frame);
@@ -153,13 +165,53 @@
     var f = P.frame; if (!f) return;
     var d = frameDoc();
     if (!d || !d.body) { f.classList.add('is-fixed'); return; }
+    // 리서치 팝업(.ihr-t — 체크박스로 여닫는 position:fixed 창 · 스크립트 0)이 든 신문은 고정 높이 + 안쪽 스크롤로 둔다.
+    // 틀 높이를 내용만큼 늘리면 팝업이 '신문 전체'의 가운데에 떠서 화면 밖으로 나간다 — 틀이 화면 안에 있어야 팝업도 보이는 자리에 뜬다.
+    if (d.querySelector('input.ihr-t')) { f.classList.add('is-fixed'); f.style.height = ''; return; }
     if (f.offsetParent === null) return;                               // 탭이 숨겨져 있으면 폭이 0 — 다시 보일 때 잰다
     var h = Math.ceil(Math.max(d.body.scrollHeight || 0, d.body.getBoundingClientRect().height || 0));
     if (h > 0) { f.classList.remove('is-fixed'); f.style.height = (h + 1) + 'px'; }
   }
-  function themeSync() {           // 신문이 스스로 가진 밝은/어두운 판형을 사이트 테마에 맞춘다(신문 CSS 가 읽는 속성만 · 본문 무변경)
-    var d = frameDoc(); if (!d || !d.documentElement) return;
+  function themeOf(d) {            // 문서가 스스로 가진 밝은/어두운 판형을 사이트 테마에 맞춘다(그 문서의 CSS 가 읽는 속성만 · 본문 무변경)
+    if (!d || !d.documentElement) return;
     d.documentElement.setAttribute('data-theme', root.getAttribute('data-theme') === 'light' ? 'light' : 'dark');
+  }
+  function themeSync() { themeOf(frameDoc()); themeOf(noteDoc()); }
+  // 리서치 노트 틀 — 조간과 같은 방식(sandbox · 스크립트 불허 · 문서 문자열 무변경). 노트 문서에는 팝업이 없어 높이를 내용에 맞춘다.
+  function dropNote() {
+    if (P.nro) { try { P.nro.disconnect(); } catch (e) { /* noop */ } P.nro = null; }
+    if (P.nframe && P.nframe.parentNode) P.nframe.parentNode.removeChild(P.nframe);
+    P.nframe = null;
+  }
+  function noteDoc() { try { return P.nframe ? P.nframe.contentDocument : null; } catch (e) { return null; } }
+  function fitNote() {
+    var f = P.nframe; if (!f) return;
+    var d = noteDoc();
+    if (!d || !d.body) { f.classList.add('is-fixed'); return; }
+    if (f.offsetParent === null) return;
+    var h = Math.ceil(Math.max(d.body.scrollHeight || 0, d.body.getBoundingClientRect().height || 0));
+    if (h > 0) { f.classList.remove('is-fixed'); f.style.height = (h + 1) + 'px'; }
+  }
+  function mountNote(html, id) {
+    var host = $('ppResNoteBody'); if (!host) return;
+    dropNote(); host.innerHTML = '';
+    var f = doc.createElement('iframe');
+    f.className = 'pp-frame';
+    f.setAttribute('sandbox', 'allow-same-origin');                    // allow-scripts 없음 = 스크립트 불허
+    f.setAttribute('title', '리서치 노트 ' + (id || ''));
+    f.setAttribute('referrerpolicy', 'no-referrer');
+    f.addEventListener('load', function () {
+      if (P.nframe !== f) return;
+      themeOf(noteDoc()); fitNote();
+      var d = noteDoc();
+      if (d && d.body && window.ResizeObserver) {
+        try { P.nro = new ResizeObserver(function () { fitNote(); }); P.nro.observe(d.body); } catch (e) { P.nro = null; }
+      }
+      setTimeout(fitNote, 300);
+    });
+    P.nframe = f;
+    f.srcdoc = html;
+    host.appendChild(f);
   }
   function mountFrame(html, date) {
     var host = $('ppPaper'); if (!host) return;
@@ -208,7 +260,8 @@
     if (note) note.innerHTML = nh;
     if (P.paper.available && typeof P.paper.html === 'string' && P.paper.html) {
       mountFrame(P.paper.html, P.date);
-      setMsg((P.paper.sample ? '견본 · ' : '') + '발행일 ' + (P.date || '—') + (P.paper.written_at ? ' · 파일 기록 ' + String(P.paper.written_at).slice(0, 16).replace('T', ' ') : ''));
+      setMsg((P.paper.sample ? '견본 · ' : '') + '발행일 ' + (P.date || '—') + (P.paper.written_at ? ' · 파일 기록 ' + String(P.paper.written_at).slice(0, 16).replace('T', ' ') : '') +
+        (P.paper.html.indexOf('class="ihr-t"') >= 0 ? ' · 파란 번호 = 리서치 팝업(신문은 틀 안에서 스크롤)' : ''));
     } else {
       dropFrame();
       var none = P.paper.source === 'none';
@@ -225,7 +278,7 @@
       var j = await xget(paperPath(date), pass);
       if (seq !== P.seq) return;
       renderPaper(j);
-      if (isDate(P.date) && (location.hash || '').slice(1).split('/')[0] === 'paper') {
+      if (isDate(P.date) && P.mode !== 'research' && (location.hash || '').slice(1).split('/')[0] === 'paper') {
         try { history.replaceState(null, '', '#paper/' + P.date); } catch (e) { /* noop */ }
       }
     } catch (e) {
@@ -484,6 +537,7 @@
     if (nt) nt.innerHTML = n;
     host.innerHTML = blockExpect(s, L) + blockIgn(s, L) + blockThreads(s, L) + blockOutlook(s) + blockCum(s, L) + blockScore(s, L);
     bindFolds(host);
+    renderResOpen();                                                   // 리서치 창고의 '아직 못 푼 물음'도 같은 상태에서
   }
   function bindFolds(host) {
     host.querySelectorAll('details.pp-fold').forEach(function (d) {
@@ -529,12 +583,16 @@
   function formNotes(f) {
     var h = '', left = leftMs();
     if (f.scored) h += '<div class="wb-notice wb-notice--warn pp-vnote">이 대상일(' + esc(f.target) + ')은 이미 채점됐습니다 — 더 적을 수 없습니다.</div>';
-    else if (left != null && left <= 0) h += '<div class="wb-notice wb-notice--warn pp-vnote"><b>마감(' + esc(deadlineHm(f)) + ')이 지났습니다.</b> 지금 적는 값은 기록은 남지만 채점에 들어가지 않습니다. 다음 대상일 칸은 ' + esc(f.target) + ' 종가 자료가 들어온 뒤 열립니다.</div>';
-    if (!f.scored) {                                                   // 마감이 지났으면 '먼저 적으면 따로 채점' 줄은 내지 않는다(채점에 안 들어가는 값이다)
+    else if (left != null && left <= 0) h += '<div class="wb-notice wb-notice--warn pp-vnote"><b>이 대상일(' + esc(f.target) + ')의 마감(' + esc(deadlineHm(f)) + ')이 지났습니다.</b> 이 칸에 적는 값은 채점에 들어가지 않습니다. 새로고침하면 엔진이 주는 다음 대상일 칸으로 바뀝니다.</div>';
+    if (!f.scored) {                                                   // 마감이 지났으면 '먼저 적은 것' 줄은 내지 않는다(채점에 안 들어가는 값이다)
       if (f.sealed) h += '<div class="wb-notice wb-notice--warn pp-vnote">이미 시스템 기대가 나와 있습니다 — 지금 적는 값은 \'본 뒤\'로 기록됩니다.</div>';
-      else if (!(left != null && left <= 0)) h += '<div class="wb-notice pp-vnote">시스템 기대가 아직 봉인되기 전입니다 — 먼저 적으면 따로 채점됩니다.</div>';
+      else if (!(left != null && left <= 0)) h += '<div class="wb-notice pp-vnote">시스템 기대가 아직 봉인되기 전입니다 — 지금 적으면 \'먼저 적은 것\'으로 표시가 남습니다.</div>';
     }
     return h;
+  }
+  function pRange() {              // 엔진이 받는 확률 범위(%) — form() 의 p_min · p_max. 없으면 null(걸음 버튼은 0~100 에서만 멈춘다 · 판정은 엔진)
+    var f = P.form;
+    return (f && isNum(f.p_min) && isNum(f.p_max)) ? [Math.round(f.p_min * 1000) / 10, Math.round(f.p_max * 1000) / 10] : null;
   }
   function viewResHtml() {
     var v = P.viewRes; if (!v || !v.r) return '';
@@ -544,12 +602,16 @@
       (v.shown && r.target !== v.shown ? '<div class="pp-warn">화면에 보이던 대상일(' + esc(v.shown) + ')과 기록된 대상일(' + esc(r.target) + ')이 다릅니다 — 그 사이 대상일이 넘어갔습니다.</div>' : '') + '</div>';
   }
   function formMeta(f) { return '대상일 ' + esc(f.target) + ' · 마감 ' + esc(deadlineHm(f)) + ' · <span id="ppVLeft">' + esc(leftText(leftMs())) + '</span>'; }
-  var VIEW_HELP = '사건마다 일어날 확률을 %로 적는다(엔진이 받는 범위 5~95% · 소수 1자리까지). 적은 칸 · 바꾼 칸만 보낸다 — 비운 칸은 보내지 않고, 이미 저장한 값은 그대로 남는다(기록은 덧붙기만 하고 지워지지 않는다). ' +
-    '마감 = 대상일 08:45(국채선물 개장). 마감 전에 적은 값만 채점에 들어간다. 시스템 기대가 봉인되기 전에 적은 값은 \'먼저 적은 것\'으로 따로 채점된다. ' +
-    '유효 · 먼저 적음 여부는 서버 원장이 받은 시각으로 판정해 돌려준 값 그대로 보여 준다(화면의 남은 시간은 표시일 뿐). 칸에 채워진 값 = 마감 전에 적은 것 중 마지막 값. 대상일은 엔진이 정한다(자료가 있는 마지막 거래일의 다음 거래일).';
+  function viewHelp() {
+    var r = pRange();
+    return '사건마다 일어날 확률을 %로 적는다(' + (r ? '엔진이 받는 범위 ' + r[0] + '~' + r[1] + '% · ' : '') + '소수 1자리까지). 적은 칸 · 바꾼 칸만 보낸다 — 비운 칸은 보내지 않고, 이미 저장한 값은 그대로 남는다(기록은 덧붙기만 하고 지워지지 않는다). ' +
+      '마감 = 대상일 08:45(국채선물 개장). 채점은 마감 전에 적은 마지막 값으로 한다. 시스템 기대가 봉인되기 전에 적으면 \'먼저 적은 것\'으로 표시가 남는다. ' +
+      '유효 · 먼저 적음 여부는 서버 원장이 받은 시각으로 판정해 돌려준 값 그대로 보여 준다(화면의 남은 시간은 표시일 뿐). 칸에 채워진 값 = 마감 전에 적은 것 중 마지막 값. ' +
+      '대상일은 엔진이 정한다 — 거래일 08:45 전이면 오늘, 그 뒤면 다음 거래일.';
+  }
   function renderForm() {
     var host = $('ppView'); if (!host) return;
-    var f = P.form, open = folds().view;
+    var f = P.form, open = folds().view, VIEW_HELP = viewHelp();
     if (!f) {
       host.innerHTML = card('view', '내 확률', '', P.formErr
         ? '<div class="wb-empty"><div class="wb-empty-title">입력 화면을 불러오지 못했습니다</div><div class="wb-empty-text">' + esc(P.formErr) + '</div></div>'
@@ -582,7 +644,9 @@
     if (!P.form || doc.hidden) return;
     var l = $('ppVLeft'); if (l) l.textContent = leftText(leftMs());
     var n = $('ppVNotes'); if (n) { var h = formNotes(P.form); if (n.innerHTML !== h) n.innerHTML = h; }
-    if (Date.now() - P.formAt > 5 * FORM_STALE_MS) refreshForm();     // 열어 둔 채 오래됐으면 봉인 여부를 다시 읽는다
+    var left = leftMs();
+    if (left != null && left <= 0 && P.crossed !== P.form.target) { P.crossed = P.form.target; refreshForm(); }   // 마감을 넘긴 순간 한 번 — 엔진이 다음 대상일을 준다
+    else if (Date.now() - P.formAt > 5 * FORM_STALE_MS) refreshForm(); // 열어 둔 채 오래됐으면 봉인 여부를 다시 읽는다
   }
   function rowOf(el) { var li = el && el.closest ? el.closest('.pp-vrow') : null; if (!li) return null; var o = obsList()[+li.getAttribute('data-i')]; return o ? { li: li, o: o, inp: li.querySelector('.pp-vin') } : null; }
   function rowMark(r) { var st = cellState(r.o); r.li.classList.toggle('is-dirty', st === 'dirty'); r.li.classList.toggle('is-bad', st === 'bad'); }
@@ -598,7 +662,8 @@
     var b = ev.target && ev.target.closest ? ev.target.closest('.pp-vstep') : null; if (!b) return;
     var r = rowOf(b); if (!r || !r.inp) return;
     var p = s2p(r.inp.value), cur = (p === null || isNaN(p)) ? null : p * 100, d = +b.getAttribute('data-d') * STEP;
-    var nx = cur == null ? STEP_START : Math.max(STEP_MIN, Math.min(STEP_MAX, Math.round((cur + d) * 10) / 10));
+    var rg = pRange() || [0, 100];
+    var nx = Math.max(rg[0], Math.min(rg[1], cur == null ? STEP_START : Math.round((cur + d) * 10) / 10));
     r.inp.value = String(nx); P.draft[r.o.id] = r.inp.value; rowMark(r);
     if (P.vmsg) vmsg('');
   }
@@ -717,6 +782,158 @@
     }
   }
 
+  // ── 리서치 창고(인하우스 리서치 노트) ─────────────────────────────────
+  //   목록 = 엔진 inhouse.catalog() 그대로(순서만 최신 번호부터) · 노트 = 엔진 render_page() 문서 그대로 · 아직 못 푼 물음 = 상태 json research.open 그대로.
+  function hashRes() {
+    var p = (location.hash || '').slice(1).split('/');
+    return (p[0] === 'paper' && p[1] === 'research') ? { on: true, id: NOTE_RE.test(p[2] || '') ? p[2] : null } : { on: false, id: null };
+  }
+  function setHash(h) { try { history.replaceState(null, '', h); } catch (e) { /* noop */ } }
+  function applyMode() {
+    var res = P.mode === 'research', r = $('ppRes'), m = $('ppMain'), df = $('ppDateField'), seg = $('ppMode');
+    if (r) r.hidden = !res;
+    if (m) m.hidden = res;
+    if (df) df.hidden = res;
+    if (seg) seg.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-m') === P.mode ? 'true' : 'false'); });
+    if (res) showMsg(resMsg(), false);
+    else { showMsg(P.pmsg ? P.pmsg[0] : '', P.pmsg ? P.pmsg[1] : false); if (P.paper) setTimeout(fit, 0); }
+  }
+  function resMsg() {
+    var j = P.res; if (!j) return P.resErr ? '' : '불러오는 중…';
+    var n = Array.isArray(j.notes) ? j.notes.length : 0;
+    return (j.sample ? '견본 · ' : '') + '리서치 노트 ' + n + '장';
+  }
+  function syncMode() {            // 주소(#paper/research[/IHR-0001])가 가리키는 보기로 맞춘다
+    var h = hashRes();
+    P.mode = h.on ? 'research' : 'paper';
+    applyMode();
+    if (!h.on || !pw()) return;
+    if (!P.res) loadRes(h.id);
+    else if (h.id && h.id !== P.noteId) openNote(h.id);
+  }
+  function setMode(m) {
+    if (m !== 'paper' && m !== 'research') return;
+    P.mode = m;
+    if ((location.hash || '').slice(1).split('/')[0] === 'paper') {
+      setHash(m === 'research' ? '#paper/research' + (P.noteId ? '/' + P.noteId : '') : '#paper' + (isDate(P.date) ? '/' + P.date : ''));
+    }
+    applyMode();
+    if (m === 'research' && !P.res && pw()) loadRes(null);
+    if (m === 'research') setTimeout(fitNote, 0);
+  }
+  function renderResOpen() {
+    var host = $('ppResOpen'); if (!host) return;
+    var s = P.state, op = (s && s.available && s.research && Array.isArray(s.research.open)) ? s.research.open : [];
+    if (!op.length || !P.res) { host.innerHTML = ''; return; }
+    var known = {}; ((P.res && P.res.notes) || []).forEach(function (n) { known[n.id] = 1; });
+    host.innerHTML = '<section class="wb-card"><div class="wb-card-head"><span class="wb-card-title">아직 못 푼 물음</span>' +
+      help('오늘 리서치가 답하지 못하고 남긴 물음 — 엔진 상태(research.open) 그대로. 번호는 그 물음을 남긴 노트.') +
+      '<span class="wb-card-meta">' + op.length + '건 · 상태 기준 ' + esc(s.today || '—') + '</span></div><ul class="pp-ropen">' +
+      op.map(function (o) {
+        var id = o && o['번호'], q = o && o['물음'];
+        return '<li>' + esc(q == null ? '' : q) + ' ' + (id != null && known[id] ? '<button type="button" class="pp-rlink pp-rid" data-id="' + esc(id) + '">' + esc(id) + '</button>'
+          : '<span class="pp-dim">' + esc(id == null ? '' : id) + '</span>') + '</li>';
+      }).join('') + '</ul></section>';
+  }
+  function renderRes() {
+    var host = $('ppResList'), nt = $('ppResNotice'); if (!host) return;
+    var j = P.res;
+    if (P.mode === 'research') showMsg(resMsg(), false);
+    if (!j) {
+      if (nt) nt.innerHTML = '';
+      host.innerHTML = P.resErr
+        ? '<div class="wb-empty"><div class="wb-empty-title">리서치 창고를 불러오지 못했습니다</div><div class="wb-empty-text">' + esc(P.resErr) + '</div></div>'
+        : '<div class="wb-empty"><div class="wb-empty-title wb-loading">읽는 중</div></div>';
+      renderResOpen(); return;
+    }
+    if (nt) nt.innerHTML = j.sample ? '<div class="wb-notice wb-notice--warn pp-notice"><b>견본(시험 발행) 노트 — 운영 기록 아님.</b> 운영 노트가 아직 없어 견본을 보여 줍니다 — 첫 운영 노트가 생기면 견본은 자동으로 빠집니다.</div>' : '';
+    var notes = Array.isArray(j.notes) ? j.notes.slice().reverse() : [], kinds = (j.kinds && typeof j.kinds === 'object') ? j.kinds : {};
+    var head = '<div class="wb-card-head"><span class="wb-card-title">리서치 창고</span>' +
+      help('조간이 중요한 말을 쓰기 전에 그 말을 따로 연구해 남긴 노트(인하우스 리서치 · IHR). 번호는 계속 쌓이고 지우지 않는다. 같은 주제의 결론이 그대로면 번호를 유지하고 날짜만 보탠다 — 결론이 바뀌면 새 번호를 딴다. ' +
+        '며칠째 = 같은 결론이 이어진 날 수(엔진 값). 줄을 누르면 노트 전문이 아래에 열린다(엔진이 만든 문서 그대로). 관측 기록 — 매매 권유가 아니다.') +
+      '<span class="wb-card-meta">' + (j.sample ? '견본 · ' : '') + notes.length + '장 · 최신 번호부터</span></div>';
+    if (!notes.length) {
+      host.innerHTML = head + '<div class="wb-empty"><div class="wb-empty-title">아직 쌓인 리서치 노트가 없습니다</div><div class="wb-empty-text">' + esc(j.note || '평일 아침 일일 갱신 때 쌓입니다.') + '</div></div>';
+      renderResOpen(); return;
+    }
+    var rows = notes.map(function (n) {
+      var chain = (n.supersedes ? '<div class="pp-dim">앞 노트 ' + esc(n.supersedes) + ' 의 결론이 바뀌어 새로 땀</div>' : '') +
+        (n.superseded_by ? '<div class="pp-dim">뒤 노트 ' + esc(n.superseded_by) + ' 로 이어짐</div>' : '');
+      return '<tr class="pp-rrow' + (n.id === P.noteId ? ' is-selected' : '') + '" data-id="' + esc(n.id) + '" tabindex="0" role="button" aria-label="' + esc(n.id) + ' 노트 열기">' +
+        '<td><span class="pp-rid">' + esc(n.id) + '</span></td><td class="pp-wrap"><b>' + esc(n.title) + '</b>' + chain + '</td>' +
+        '<td>' + esc(kinds[n.kind] != null ? kinds[n.kind] : n.kind) + '</td><td>' + esc(n.first_seen) + '</td><td>' + esc(n.last_seen) + '</td>' +
+        '<td class="num">' + (n.n_seen == null ? '—' : num(n.n_seen) + '일째') + '</td></tr>';
+    });
+    host.innerHTML = head + table([{ t: '번호' }, { t: '제목' }, { t: '주제' }, { t: '처음 본 날' }, { t: '마지막 날' }, { t: '며칠째', num: 1 }], rows);
+    renderResOpen();
+  }
+  async function loadRes(openId) {
+    var pass = pw(); if (!pass) return;
+    if (!P.res) { P.resErr = ''; renderRes(); }
+    try {
+      var j = await xget('/quant-house/ignition/research', pass);
+      if (!pw()) return;
+      P.res = j || {}; P.resErr = '';
+    } catch (e) {
+      if (e && e.kind === 'pw') { lock(emsg(e)); gate(true, emsg(e), true); return; }
+      if (!pw()) return;
+      if (!P.res) P.resErr = emsg(e);
+    }
+    renderRes();
+    if (openId && P.res) openNote(openId);
+  }
+  function noteTitle(id) {
+    var n = ((P.res && P.res.notes) || []).filter(function (x) { return x.id === id; })[0];
+    return n ? n.title : '';
+  }
+  function noteShell(id, bodyHtml) {
+    var box = $('ppResNote'); if (!box) return;
+    var t = noteTitle(id);
+    box.hidden = false;
+    box.innerHTML = '<div class="wb-card-head"><span class="wb-card-title">' + esc(id) + (t ? ' · ' + esc(t) : '') + '</span>' +
+      '<span class="wb-card-meta">' + (P.res && P.res.sample ? '견본 · ' : '') + '<button type="button" class="wb-btn wb-btn--sm" id="ppResNoteClose">닫기</button></span></div>' +
+      '<div id="ppResNoteBody">' + (bodyHtml || '') + '</div>';
+  }
+  function markRow() {
+    var host = $('ppResList'); if (!host) return;
+    host.querySelectorAll('.pp-rrow').forEach(function (tr) { tr.classList.toggle('is-selected', tr.getAttribute('data-id') === P.noteId); });
+  }
+  async function openNote(id) {
+    if (!NOTE_RE.test(String(id || ''))) return;                       // 번호 모양이 아니면 요청하지 않는다
+    var pass = pw(); if (!pass) { gate(true, '', false); return; }
+    var seq = ++P.nseq;
+    P.noteId = id; markRow(); dropNote();
+    noteShell(id, '<div class="wb-empty"><div class="wb-empty-title wb-loading">읽는 중</div></div>');
+    if (P.mode === 'research' && (location.hash || '').slice(1).split('/')[0] === 'paper') setHash('#paper/research/' + id);
+    try {
+      var j = await xget('/quant-house/ignition/research/note?id=' + id, pass);
+      if (seq !== P.nseq || !pw()) return;
+      if (j && j.available && typeof j.html === 'string' && j.html) {
+        noteShell(id, '');
+        mountNote(j.html, id);
+        var box = $('ppResNote'); if (box && box.scrollIntoView && P.mode === 'research') { try { box.scrollIntoView({ block: 'nearest' }); } catch (e5) { /* noop */ } }
+      } else {
+        noteShell(id, '<div class="wb-empty"><div class="wb-empty-title">이 번호의 노트가 없습니다</div><div class="wb-empty-text">' + esc((j && j.note) || '') + '</div></div>');
+      }
+    } catch (e) {
+      if (seq !== P.nseq) return;
+      if (e && e.kind === 'pw') { lock(emsg(e)); gate(true, emsg(e), true); return; }
+      if (!pw()) return;
+      noteShell(id, '<div class="wb-empty"><div class="wb-empty-title">노트를 불러오지 못했습니다</div><div class="wb-empty-text">' + esc(emsg(e)) + '</div></div>');
+    }
+  }
+  function closeNote() {
+    P.nseq++; P.noteId = null; dropNote(); markRow();
+    var box = $('ppResNote'); if (box) { box.innerHTML = ''; box.hidden = true; }
+    if (P.mode === 'research' && (location.hash || '').slice(1).split('/')[0] === 'paper') setHash('#paper/research');
+  }
+  function onResClick(ev) {
+    var t = ev.target; if (!t || !t.closest) return;
+    if (t.closest('#ppResNoteClose')) { closeNote(); return; }
+    var el = t.closest('.pp-rlink') || t.closest('.pp-rrow');
+    if (el && el.getAttribute('data-id')) openNote(el.getAttribute('data-id'));
+  }
+
   // ── 진입점 ───────────────────────────────────────────────────────────
   function wire() {
     if (P.started) return; P.started = true;
@@ -749,21 +966,33 @@
       tickForm();
       if (Date.now() - P.formAt > FORM_STALE_MS) refreshForm();
     });
+    var md = $('ppMode'); if (md) md.addEventListener('click', function (ev) { var b = ev.target && ev.target.closest ? ev.target.closest('button[data-m]') : null; if (b) setMode(b.getAttribute('data-m')); });
+    var rs = $('ppRes');
+    if (rs) {
+      rs.addEventListener('click', onResClick);
+      rs.addEventListener('keydown', function (ev) {
+        if (ev.key !== 'Enter' && ev.key !== ' ') return;
+        var tr = ev.target && ev.target.closest ? ev.target.closest('.pp-rrow') : null;
+        if (tr && ev.target === tr) { ev.preventDefault(); openNote(tr.getAttribute('data-id')); }
+      });
+    }
     var t = null;
-    window.addEventListener('resize', function () { clearTimeout(t); t = setTimeout(fit, 120); }, { passive: true });
-    doc.addEventListener('wb-themechange', function () { themeSync(); fit(); });
+    window.addEventListener('resize', function () { clearTimeout(t); t = setTimeout(function () { fit(); fitNote(); }, 120); }, { passive: true });
+    doc.addEventListener('wb-themechange', function () { themeSync(); fit(); fitNote(); });
   }
   function load(force) {
     wire();
     if (!pw()) { clearContent(); gate(true, '', false); return; }      // 세션에 비밀번호 없음 → 칸만(요청 0)
     gate(false, '', false);
     if (force || !P.paper) { loadPaper(force ? P.date : hashDate()); loadState(); if (force && P.form) { loadForm(true); loadMine(); } else loadInput(); }
+    if (force && P.res) { loadRes(P.noteId); } else syncMode();
   }
   function show() {               // 탭이 보일 때마다(switchTab) — 처음이면 불러오고, 아니면 높이만 다시
     wire();
-    if (!pw()) { if (P.paper || P.state) clearContent(); gate(true, '', false); return; }
+    if (!pw()) { if (P.paper || P.state || P.res) clearContent(); P.mode = hashRes().on ? 'research' : 'paper'; applyMode(); gate(true, '', false); return; }
     if (!P.paper) { load(false); return; }
     gate(false, '', false);
+    syncMode();
     if (P.form) { tickForm(); if (Date.now() - P.formAt > FORM_STALE_MS) refreshForm(); }
     var hd = hashDate();
     if (hd && hd !== P.date && P.dates.indexOf(hd) >= 0) loadPaper(hd);
