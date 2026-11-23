@@ -668,10 +668,42 @@
     #view-paper .pp-point-head { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 8px; }
     #view-paper .pp-point-body { margin-top: 4px; }
     #view-paper .pp-kpis { padding: var(--wb-s4); }
+    /* 입력(2026-11-23 — 내 확률 · 발화점 집음/버림 · 내 기록): 칸은 wb 밑줄 입력 · 버튼은 wb-btn/wb-chip 그대로. 휴대폰 폭에서는 사건 이름 위 · 칸 아래로 쌓고 누르는 곳을 40px 로. */
+    #view-paper #ppView:not(:empty) { margin-bottom: var(--wb-gap); }
+    #view-paper #ppHist:not(:empty) { margin-top: var(--wb-gap); }
+    #view-paper .pp-vnote { margin: var(--wb-s3) var(--wb-s4) 0; font-size: 13px; line-height: 20px; }
+    #view-paper .pp-vlist { list-style: none; margin: var(--wb-s2) 0 0; padding: 0; }
+    #view-paper .pp-vrow { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px var(--wb-s4); padding: 6px var(--wb-s4); border-bottom: 1px solid var(--wb-rule); }
+    #view-paper .pp-vlab { font-size: 13px; line-height: 20px; overflow-wrap: anywhere; cursor: pointer; }
+    #view-paper .pp-vsaved { white-space: nowrap; margin-left: 4px; }
+    #view-paper .pp-vctl { display: inline-flex; align-items: center; gap: 6px; }
+    #view-paper .pp-vin { width: 60px; text-align: right; font-variant-numeric: tabular-nums; }
+    #view-paper .pp-vunit { font-size: var(--wb-fs-label); color: var(--wb-muted); }
+    #view-paper .pp-vstep { width: 36px; padding: 0; font-size: 16px; line-height: 1; }
+    #view-paper .pp-vrow.is-dirty .pp-vin { border-bottom-color: var(--wb-mark); font-weight: 600; }
+    #view-paper .pp-vrow.is-bad .pp-vin { border-bottom-color: var(--wb-warn); color: var(--wb-warn); }
+    #view-paper .pp-vfoot { display: flex; align-items: flex-end; flex-wrap: wrap; gap: var(--wb-s3); padding: var(--wb-s3) var(--wb-s4); }
+    #view-paper .pp-vmemo { flex: 1 1 220px; }
+    #view-paper .pp-vmemo .wb-input { width: 100%; }
+    #view-paper .pp-vres { padding: 0 var(--wb-s4) var(--wb-s3); font-size: 13px; line-height: 24px; overflow-wrap: anywhere; }
+    #view-paper .pp-vres .wb-badge { white-space: normal; height: auto; min-height: 20px; }
+    #view-paper .pp-taste { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 8px; }
+    #view-paper .pp-taste-now { flex: 1 1 100%; overflow-wrap: anywhere; }
+    #view-paper .pp-taste-now b { color: var(--wb-ink); }
+    #view-paper .pp-taste-ctl { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; flex: 1 1 260px; min-width: 0; }
+    #view-paper .pp-taste-memo { flex: 1 1 140px; min-width: 100px; }
+    #view-paper .pp-taste-msg { min-height: 0; }
+    #view-paper .pp-group b { color: var(--wb-ink); }
     @media (max-width: 720px) {
       #view-paper .pp-fold > summary .wb-card-meta { margin-left: 0; width: 100%; text-align: left; }
       #view-paper .pp-table td.pp-wrap { min-width: 150px; }
       #view-paper .wb-kpi-sub { white-space: normal; }
+      #view-paper .pp-vrow { grid-template-columns: minmax(0, 1fr); padding: 8px var(--wb-s4); }
+      #view-paper .pp-vin { width: 84px; height: 40px; font-size: 16px; }
+      #view-paper .pp-vstep { width: 48px; height: 40px; font-size: 18px; }
+      #view-paper .pp-vfoot .wb-input, #view-paper .pp-taste-memo { height: 40px; font-size: 16px; }
+      #view-paper .pp-vfoot .wb-btn { height: 40px; padding: 0 20px; }
+      #view-paper .pp-tbtn { height: 36px; padding: 0 14px; font-size: 13px; }
     }
   </style>
   <link rel="stylesheet" href="/assets/css/wb-review-plain.css?v=20261022c"><!-- 일반 보기 스타일(예전 인라인 4단계 블록 그대로 · 같은 캐스케이드 자리) -->
@@ -988,11 +1020,13 @@
   <!-- ════════ 조간 — 발화점 계층(기대 봉인 → 채점 → 어긋난 곳) · 박대기 기자 (2026-11-23 사용자 지시 · 계약 = BQH 06_workflow/IGNITION_CONTRACT.md)
        ★비밀번호(사용자 2026-11-23): 메뉴에는 보이고, 들어오면 비밀번호 칸만. 서버가 X-IGN-PASS 를 검증(401 = 틀림) — 이 파일·정적 파일 어디에도 값 없음 · 맞은 값은 sessionStorage 에만.
        본문 = 엔진 조간 HTML 그대로(<iframe sandbox srcdoc> · 스크립트 불허 · 인증된 응답으로만 채움) · 현황 = 엔진 상태 json 그대로(웹 재계산 0 · 본인 관련 필드는 서버가 뺌).
-       읽기 전용 — 기록·판정·본인 확률 입력 없음. 로직 = /assets/js/wb-paper.js. 대회 모드(data-contest)에서도 메뉴에 보이는 탭. ════════ -->
+       ★입력(사용자 2026-11-23 "웹에서 본인 확률·발화점 판정 입력"): 내 확률 카드(#ppView · 현황 맨 위) · 발화점 항목의 집음/버림 · 내 기록 카드(#ppHist · 접힘).
+         쓰기 = 같은 비밀번호 뒤의 POST 둘(/ignition/view · /ignition/taste) — 원장에는 엔진 창구(engine.research.ignition.api)만 쓴다. 유효·먼저 적음은 원장이 판정한 값 그대로 표시.
+       로직 = /assets/js/wb-paper.js. 대회 모드(data-contest)에서도 메뉴에 보이는 탭. ════════ -->
   <div id="view-paper" style="display:none">
     <div class="wb-pagehead">
-      <h1>조간</h1><button type="button" class="wb-help" data-help="매일 아침 그날의 기대(사건별 확률)를 먼저 적어 봉인하고, 다음 날 채점해서 어긋난 곳(발화점)을 올리는 관측 기록. 조간 = 그 기록을 기자(AI)가 신문으로 쓴 것 — 본문은 엔진이 만든 파일 그대로. 아래 현황 = 엔진 상태 그대로(웹에서 다시 계산하지 않음). 본인 확률 · 본인 점수 · 판정 · 메모는 웹에 싣지 않는다. 읽기 전용 — 이 화면에서 기록 · 판정 · 입력은 없다. 지금은 1단계(기록만) — 매매 제안 없음." aria-label="설명 보기"></button>
-      <span class="wb-badge">관찰 전용</span>
+      <h1>조간</h1><button type="button" class="wb-help" data-help="매일 아침 그날의 기대(사건별 확률)를 먼저 적어 봉인하고, 다음 날 채점해서 어긋난 곳(발화점)을 올리는 관측 기록. 조간 = 그 기록을 기자(AI)가 신문으로 쓴 것 — 본문은 엔진이 만든 파일 그대로. 아래 현황 = 엔진 상태 그대로(웹에서 다시 계산하지 않음). 이 화면에서 적을 수 있는 것은 둘 — 내 확률(대상일 08:45 전까지 유효)과 발화점 집음 / 버림. 둘 다 서버 원장에 덧붙는 기록이고 지우거나 고칠 수 없다. 유효 여부 · 시스템 기대보다 먼저 적었는지는 원장이 받은 시각으로 판정한다. 지금은 1단계(기록만) — 매매 제안 없음." aria-label="설명 보기"></button>
+      <span class="wb-badge">관측 계층 · 매매 없음</span>
       <span class="wb-badge wb-badge--warn" id="ppSample" hidden>견본(시험 발행) — 운영 기록 아님</span>
     </div>
     <p class="pp-line">관측 기록 · 매매 권유 아님 · AI 작성(박대기 기자) · 비밀번호 필요</p>
@@ -1026,11 +1060,13 @@
       <section class="wb-card pp-paper" id="ppPaper" aria-label="조간 본문"></section>
 
       <div class="wb-section-head">
-        <h2 class="wb-section-title">현황<button type="button" class="wb-help" data-help="엔진 상태 그대로 — 오늘의 기대 · 발화점 · 서사 줄기 · 쌓이는 중인 어긋남 · 성적표. 줄을 누르면 펼치고 접는다(접은 상태는 이 브라우저에 기억). 숫자는 웹에서 다시 계산하지 않는다 · 확률만 %로 바꿔 소수 1자리까지 표시." aria-label="설명 보기"></button></h2>
+        <h2 class="wb-section-title">현황<button type="button" class="wb-help" data-help="맨 위 = 내 확률(적는 칸) · 그 아래 엔진 상태 그대로 — 오늘의 기대 · 발화점(집음 / 버림) · 서사 줄기 · 흐름 전망 · 쌓이는 중인 어긋남 · 성적표 · 맨 아래 = 내 기록. 줄을 누르면 펼치고 접는다(접은 상태는 이 브라우저에 기억). 숫자는 웹에서 다시 계산하지 않는다 · 확률만 %로 바꿔 소수 1자리까지 표시." aria-label="설명 보기"></button></h2>
         <span class="wb-section-meta" id="ppStMeta"></span>
       </div>
       <div id="ppStNotice"></div>
+      <div id="ppView"></div><!-- 내 확률(입력) — 엔진 form() 그대로 · 상태 파일이 없어도 뜬다 -->
       <div class="wb-stack" id="ppState"></div>
+      <div id="ppHist"></div><!-- 내 기록 — 엔진 mine() 그대로 -->
     </div>
   </div>
 </div>
@@ -1038,7 +1074,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="/assets/js/api.js"></script>
 <script src="/assets/js/wb-chart.js?v=20261022c"></script>
-<script src="/assets/js/wb-paper.js?v=20261123a"></script><!-- 조간 탭(비밀번호 뒤 · 읽기 전용) — window.PAPER -->
+<script src="/assets/js/wb-paper.js?v=20261123b"></script><!-- 조간 탭(비밀번호 뒤 · 읽기 + 내 확률·발화점 판정 입력) — window.PAPER -->
 
 <!-- redesign-wb 4단계: 주간 리뷰 '일반 | 고급' 보기 — snapshot.plain 을 그리기만(번역·판정·재계산 0) · 고급 = 기존 renderReview 그대로 -->
 <script src="/assets/js/wb-review-plain.js?v=20261022c"></script>

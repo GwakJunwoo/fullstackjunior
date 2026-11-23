@@ -1346,11 +1346,23 @@ def game_board_game(body: dict = Body(...), x_qh_key: str | None = Header(defaul
 #   엔진 산출 = 진실 · 라우터 = 전달자(재계산 0):
 #     GET /quant-house/ignition/papers        → 조간 날짜 목록
 #     GET /quant-house/ignition/paper?date=   → 그 날짜(기본 = 최신) 조간 HTML 원문(파일 그대로 · json 에 실어 보냄)
-#     GET /quant-house/ignition/state         → ignition_state.json(본인 관련 필드 제외) + 엔진 이름표
-#   ★비밀번호 필수(사용자 2026-11-23): 세 엔드포인트 전부 X-IGN-PASS 헤더 없이는 401(견본 포함).
+#     GET /quant-house/ignition/state         → ignition_state.json(본인 관련 필드 제외) + 이름표 + 유사 국면 문장(엔진 analog_text)
+#     GET /quant-house/ignition/form          → 엔진 api.form() 그대로(본인 확률 입력 화면 — 대상일 · 마감 · 사건 · 이미 적은 값)
+#     GET /quant-house/ignition/mine          → 엔진 api.mine() 그대로(내 기록 — 내 확률·시스템 기대·실현·오차 · 발화점 판정)
+#     POST /quant-house/ignition/view         → 엔진 api.submit_view(views, memo=)   body {views:{사건 id: 확률}, memo?}
+#     POST /quant-house/ignition/taste        → 엔진 api.submit_taste(id, verdict, memo=)   body {ignition_id, verdict, memo?}
+#   ★비밀번호 필수(사용자 2026-11-23): 전 엔드포인트 X-IGN-PASS 헤더 없이는 401(견본 포함).
 #     검증은 여기서만 — 서버 .env 의 IGN_PASS_HASH(솔트 섞은 PBKDF2 해시 · git 밖)와 상수 시간 비교. 평문·해시는 저장소 어디에도 없다.
 #     URL 쿼리로는 받지 않는다(기록에 남음). 같은 주소에서 연속 실패가 쌓이면 잠깐 막는다(메모리 카운터).
-#   ★읽기 전용: 쓰기 엔드포인트 · 판정(집음/버림) · 본인 확률 입력 없음(감사 2026-11-05 = 웹 무인증 쓰기 금지). 원장 파일은 내보내지 않는다.
+#   ★쓰기(사용자 2026-11-23 "웹에서 본인 확률·발화점 판정 입력"): POST 둘뿐 · 같은 비밀번호 문 뒤(감사 2026-11-05 = 웹 무인증 쓰기 금지).
+#     · 원장에 쓰는 길은 엔진 engine.research.ignition.api 하나 — 라우터는 원장 파일을 열지 않는다. 시각·유효(valid)·먼저 적음(blind)·
+#       확률 범위·없는 발화점 id 판정은 전부 엔진/원장이 한다(라우터는 본문 모양만 본다 · 값 보정 0 · 대상일은 엔진이 정한다).
+#     · JSON 본문만(쿼리 인자가 붙으면 400) · 본문 8KB 상한(413) · Content-Type application/json 아니면 415.
+#     · 엔진 ValueError → 400(엔진 문구 그대로) · 그 밖의 실패 → 500(정해 둔 문구만 — 내부 문구는 서버 로그에만).
+#     · 출처: Origin 헤더가 사이트 출처(_IGN_SITE_ORIGINS + server/.env IGN_WRITE_ORIGINS)일 때만(없거나 다르면 403).
+#       전역 CORS(allow_origins=*)는 건드리지 않는다 — 다른 탭 영향 0.
+#     · 같은 주소에서 쓰기 분당 20회 초과 → 429. 틀린 비밀번호 쓰기 요청도 읽기와 같은 연속 실패 카운터에 든다.
+#     · 원장 파일 자체는 어디로도 내보내지 않는다. /state 는 전처럼 본인 관련 필드를 뺀다(내 기록은 /mine 으로만).
 #   ★견본: 운영 조간(paper/paper_YYYY-MM-DD.html)이 하나도 없을 때만 outputs/ignition_sample 의 시험 발행본을 sample:true 로 보낸다.
 #     운영 조간이 하나라도 생기면 견본은 더 이상 나가지 않는다.
 #   ★경로: 날짜 인자는 YYYY-MM-DD 정규식만 받고, 파일은 폴더 목록에서 찾은 것만 연다(입력으로 파일 이름을 만들지 않음).
@@ -1380,6 +1392,14 @@ _IGN_FAIL_FORGET_S = 900.0
 _IGN_FAILS: dict = {}                                            # 주소 → [연속 실패 수, 잠금 해제 시각, 마지막 실패 시각]
 _IGN_FAILS_MAX = 4096
 _IGN_LOCK = _ign_threading.Lock()
+_IGN_BODY_MAX = 8192                                             # 쓰기 본문 상한(바이트)
+_IGN_MEMO_MAX = 300                                              # 엔진 api 가 메모를 300자에서 자른다 — 조용히 잘리지 않게 넘으면 400
+_IGN_WRITE_MAX = 20                                              # 같은 주소 · _IGN_WRITE_WINDOW_S 안의 쓰기 요청 상한
+_IGN_WRITE_WINDOW_S = 60.0
+_IGN_WRITES: dict = {}                                           # 주소 → [쓰기 요청 시각…]
+_IGN_SITE_ORIGINS = ("https://www.fullstackjunior.com", "https://fullstackjunior.com")
+_IGN_ERR_500 = "서버 오류 — 처리하지 못했습니다(기록됐는지는 '내 기록'에서 확인)"
+_ign_log = __import__("logging").getLogger("uvicorn.error")
 
 
 def _ign_pass_cfg():
@@ -1480,29 +1500,152 @@ def _ign_private_key(k) -> bool:
     return k in ("user", "taste", "tastes") or k.startswith("user_") or k.endswith("_user") or "memo" in k
 
 
-def _ign_clean(obj):
-    """본인 관련 키 제거 + NaN/무한대 → null(브라우저 JSON 은 NaN 을 못 읽는다). 그 밖의 값은 그대로."""
+def _ign_clean(obj, strip: bool = True):
+    """본인 관련 키 제거(strip=False 면 안 뺌 — 내 기록·입력 화면용) + NaN/무한대 → null(브라우저 JSON 은 NaN 을 못 읽는다). 그 밖의 값은 그대로."""
     if isinstance(obj, dict):
-        return {k: _ign_clean(v) for k, v in obj.items() if not _ign_private_key(k)}
-    if isinstance(obj, list):
-        return [_ign_clean(v) for v in obj]
+        return {k: _ign_clean(v, strip) for k, v in obj.items() if not (strip and _ign_private_key(k))}
+    if isinstance(obj, (list, tuple)):
+        return [_ign_clean(v, strip) for v in obj]
     if isinstance(obj, float) and not _ign_math.isfinite(obj):
         return None
     return obj
 
 
-def _ign_labels(state_spec) -> dict:
-    """화면 이름표(사건 이름 · 무효 조건 계열 이름 · 누적 어긋남 문턱 · 승급 검토 최소 일수) — 엔진 config 가 단일 출처.
-    서버가 올려 둔 엔진 규칙이 상태 파일의 규칙과 다르면 stale:true(이름표가 낡았을 수 있음 — 화면에 그대로 알린다)."""
+def _ign_labels(st: dict) -> dict:
+    """화면 이름표.
+    · 사건 이름(obs) = 상태 파일의 labels 그대로 — 엔진이 상태를 쓸 때 같이 적는다(규칙이 바뀌어도 서버 재기동 없이 맞는다).
+      상태 파일에 labels 가 없으면(옛 상태 파일) 엔진 config 로 물러나고 source 로 알린다.
+    · 무효 조건 계열 이름 · 누적 어긋남 문턱 · 승급 검토 최소 일수는 상태 파일에 없어 엔진 config 에서 읽는다.
+      서버가 올려 둔 엔진 규칙이 상태 파일의 규칙과 다르면 stale:true(그 셋이 낡았을 수 있음 — 화면에 그대로 알린다)."""
+    obs = st.get("labels") if isinstance(st.get("labels"), dict) and st.get("labels") else None
+    out = {"available": bool(obs), "obs": dict(obs or {}), "source": "state" if obs else None, "stale": False}
     try:
         from engine.research.ignition import config as IC
-        return {"available": True,
-                "obs": {o["id"]: o["label"] for o in IC.OBSERVABLES},
-                "thread_metrics": dict(IC.THREAD_METRICS),
-                "cusum_h": IC.CUSUM_H, "stage2_min_days": IC.STAGE2_MIN_DAYS,
-                "stale": bool(state_spec) and IC.spec_hash() != state_spec}
+        out["thread_metrics"] = dict(IC.THREAD_METRICS)
+        out["cusum_h"], out["stage2_min_days"] = IC.CUSUM_H, IC.STAGE2_MIN_DAYS
+        out["stale"] = bool(st.get("spec_hash")) and IC.spec_hash() != st.get("spec_hash")
+        if not obs:
+            out["obs"] = {o["id"]: o["label"] for o in IC.OBSERVABLES}
+            out["source"], out["available"] = "engine_config", True
     except Exception as e:
-        return {"available": False, "note": f"엔진 이름표 읽기 실패 — {type(e).__name__}: {e}"}
+        out["note"] = f"엔진 이름표 읽기 실패 — {type(e).__name__}"
+    return out
+
+
+def _ign_analog_text(st: dict, out: dict) -> None:
+    """발화점의 유사 국면(analog dict)을 엔진 analog_text 로 한 줄 문장으로 바꿔 analog_text 로 싣는다(화면은 다시 계산하지 않는다).
+    문장을 못 만들면 analog_text:null + 사유(가짜 문장 없음). analog dict 자체는 그대로 둔다."""
+    src, dst = st.get("ignitions"), out.get("ignitions")
+    if not isinstance(src, list) or not isinstance(dst, list) or len(src) != len(dst):
+        return
+    if not any(isinstance(p, dict) and p.get("analog") is not None for p in src):
+        return
+    try:
+        from engine.research.ignition import analog as IA
+    except Exception as e:
+        out["analog_text_note"] = f"유사 국면 문장을 만들지 못함 — {type(e).__name__}"
+        return
+    for p, q in zip(src, dst):
+        if isinstance(p, dict) and isinstance(q, dict) and p.get("analog") is not None:
+            try:
+                q["analog_text"] = str(IA.analog_text(p["analog"]))
+            except Exception as e:
+                q["analog_text"] = None
+                q["analog_text_note"] = f"유사 국면 문장을 만들지 못함 — {type(e).__name__}"
+
+
+def _ign_origins() -> tuple:
+    """쓰기를 받는 출처 — 사이트 주소 + server/.env IGN_WRITE_ORIGINS(쉼표 구분 · 선택)."""
+    extra = None
+    try:
+        from dotenv import dotenv_values
+        extra = dotenv_values(_IGN_ENV).get("IGN_WRITE_ORIGINS")
+    except Exception:
+        extra = None
+    more = [x.strip().rstrip("/") for x in str(extra or os.getenv("IGN_WRITE_ORIGINS") or "").split(",") if x.strip()]
+    return tuple(_IGN_SITE_ORIGINS) + tuple(more)
+
+
+def _ign_write_gate(request: Request, _auth: None = Depends(_ign_auth)) -> None:
+    """쓰기 문 — 비밀번호(_ign_auth) 뒤에 ① 사이트 출처만 ② 같은 주소 분당 쓰기 상한. 본문은 이 뒤에 읽는다."""
+    origin = (request.headers.get("origin") or "").strip().rstrip("/")
+    if not origin or origin not in _ign_origins():
+        raise HTTPException(403, "이 출처에서는 기록할 수 없습니다 — 사이트 화면에서만")
+    ip, now = _ign_ip(request), _ign_time.monotonic()
+    with _IGN_LOCK:
+        hits = [t for t in _IGN_WRITES.get(ip, []) if now - t < _IGN_WRITE_WINDOW_S]
+        if len(hits) >= _IGN_WRITE_MAX:
+            _IGN_WRITES[ip] = hits
+            wait = int(_IGN_WRITE_WINDOW_S - (now - hits[0])) + 1
+            raise HTTPException(429, f"쓰기 요청이 너무 잦습니다(분당 {_IGN_WRITE_MAX}회) — {wait}초 뒤 다시",
+                                headers={"Retry-After": str(wait)})
+        if len(_IGN_WRITES) >= _IGN_FAILS_MAX and ip not in _IGN_WRITES:    # 표가 차면 오래된 주소부터 버림
+            for k in sorted(_IGN_WRITES, key=lambda x: (_IGN_WRITES[x] or [0.0])[-1])[:_IGN_FAILS_MAX // 4]:
+                _IGN_WRITES.pop(k, None)
+        hits.append(now)
+        _IGN_WRITES[ip] = hits
+
+
+async def _ign_body(request: Request) -> dict:
+    """쓰기 본문 — JSON 객체만 · 쿼리 인자 불가 · 8KB 상한(길이 헤더가 없어도 읽으면서 끊는다)."""
+    if request.url.query:
+        raise HTTPException(400, "값은 본문(JSON)으로만 받습니다 — 주소에 붙인 인자는 받지 않음")
+    if (request.headers.get("content-type") or "").split(";")[0].strip().lower() != "application/json":
+        raise HTTPException(415, "본문은 application/json")
+    try:
+        declared = int(request.headers.get("content-length") or 0)
+    except ValueError:
+        declared = 0
+    if declared > _IGN_BODY_MAX:
+        raise HTTPException(413, f"본문이 너무 큼(상한 {_IGN_BODY_MAX} 바이트)")
+    buf = bytearray()
+    async for chunk in request.stream():
+        buf += chunk
+        if len(buf) > _IGN_BODY_MAX:
+            raise HTTPException(413, f"본문이 너무 큼(상한 {_IGN_BODY_MAX} 바이트)")
+    try:
+        obj = json.loads(bytes(buf).decode("utf-8"))
+    except (UnicodeDecodeError, ValueError):
+        raise HTTPException(400, "본문이 JSON 이 아님")
+    if not isinstance(obj, dict):
+        raise HTTPException(400, "본문은 JSON 객체")
+    return obj
+
+
+def _ign_keys(body: dict, allowed: tuple) -> None:
+    extra = sorted(str(k)[:40] for k in body if k not in allowed)
+    if extra:
+        raise HTTPException(400, f"모르는 항목 {extra} — 받는 항목은 {list(allowed)}")
+
+
+def _ign_memo(body: dict):
+    memo = body.get("memo")
+    if memo is None or memo == "":
+        return None
+    if not isinstance(memo, str):
+        raise HTTPException(400, "메모는 글자")
+    if len(memo) > _IGN_MEMO_MAX:
+        raise HTTPException(400, f"메모는 {_IGN_MEMO_MAX}자까지")
+    return memo
+
+
+def _ign_api():
+    """엔진 창구(engine.research.ignition.api) — 쓰기·내 기록은 이 모듈의 함수만 부른다."""
+    from engine.research.ignition import api as ign_api
+    return ign_api
+
+
+def _ign_engine(what: str, fn):
+    """엔진 호출 — ValueError 는 400 으로 문구 그대로 · 그 밖은 500 + 정해 둔 문구(내부 문구는 서버 로그에만)."""
+    try:
+        return _ign_clean(fn(_ign_api()), strip=False)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception:
+        _ign_log.exception("ignition %s 실패", what)
+        raise HTTPException(500, _IGN_ERR_500)
 
 
 @router.get("/ignition/papers", dependencies=[Depends(_ign_auth)])
@@ -1540,12 +1683,66 @@ def ignition_paper(date: str | None = Query(default=None, max_length=10)):
 
 @router.get("/ignition/state", dependencies=[Depends(_ign_auth)])
 def ignition_state():
-    """발화점 상태 — ignition_state.json 그대로(숫자 재계산 0) · 본인 관련 필드만 제외 · 엔진 이름표(labels) 부가.
+    """발화점 상태 — ignition_state.json 그대로(숫자 재계산 0) · 본인 관련 필드만 제외 · 이름표(labels) · 유사 국면 문장(analog_text) 부가.
     파일이 없으면 available:false(첫 실행 전 — 가짜 상태 없음)."""
     st = _review_passthrough(_IGN_STATE, _IGN_HINT)
     if not st.get("available"):
         return {"available": False, "note": f"아직 첫 실행 전 — {_IGN_HINT}. ({st.get('note')})"}
     out = _ign_clean(st)
-    out["labels"] = _ign_labels(st.get("spec_hash"))
-    out["web_filter"] = "본인 확률 · 본인 점수 · 판정(집음/버림) · 메모는 웹 응답에서 뺐다."
+    out["labels"] = _ign_labels(st)
+    _ign_analog_text(st, out)
+    out["web_filter"] = "본인 확률 · 본인 점수 · 판정(집음/버림) · 메모는 이 응답에서 뺐다 — 내 기록은 /ignition/mine."
     return _gb_json(out)
+
+
+@router.get("/ignition/form", dependencies=[Depends(_ign_auth)])
+def ignition_form():
+    """본인 확률 입력 화면 — 엔진 api.form() 그대로(대상일 · 마감 · 시스템 기대 봉인 여부 · 사건 목록 · 이미 적은 값).
+    server_now = 이 서버의 지금 시각(원장이 유효 여부를 가르는 바로 그 시계 — 화면의 남은 시간 표시용 · 엔진 값 아님)."""
+    out = _ign_engine("form", lambda a: a.form())
+    if isinstance(out, dict):
+        out["server_now"] = _ign_datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return _gb_json(out)
+
+
+@router.get("/ignition/mine", dependencies=[Depends(_ign_auth)])
+def ignition_mine():
+    """내 기록 — 엔진 api.mine() 그대로(대상일별 내 확률·시스템 기대·실현·오차 · 발화점 판정). 재계산 0."""
+    return _gb_json(_ign_engine("mine", lambda a: a.mine()))
+
+
+@router.post("/ignition/view", dependencies=[Depends(_ign_write_gate)])
+async def ignition_view(request: Request):
+    """본인 확률 기입 → 엔진 api.submit_view(views, memo=). 대상일은 엔진이 정한다(다음 거래일).
+    응답 = 엔진 반환 그대로 {target, n, valid, blind, ts}. 라우터는 모양(사건 id → 숫자)만 본다 — 범위·사건 id·채점 여부는 엔진."""
+    from starlette.concurrency import run_in_threadpool
+    body = await _ign_body(request)
+    _ign_keys(body, ("views", "memo"))
+    views = body.get("views")
+    if not isinstance(views, dict) or not views:
+        raise HTTPException(400, "views 는 {사건 id: 확률} — 적은 값이 없음")
+    if len(views) > 64:
+        raise HTTPException(400, "사건이 너무 많음")
+    for k, p in views.items():
+        if not isinstance(k, str) or not k or len(k) > 64:
+            raise HTTPException(400, "사건 id 모양이 맞지 않음")
+        if isinstance(p, bool) or not isinstance(p, (int, float)):
+            raise HTTPException(400, f"{k} 확률은 숫자")
+    memo = _ign_memo(body)
+    return _gb_json(await run_in_threadpool(_ign_engine, "view", lambda a: a.submit_view(dict(views), memo=memo)))
+
+
+@router.post("/ignition/taste", dependencies=[Depends(_ign_write_gate)])
+async def ignition_taste(request: Request):
+    """발화점 판정(집음 pick / 버림 drop) → 엔진 api.submit_taste(ignition_id, verdict, memo=).
+    다시 보내면 새 판정이 덧붙는다(마지막 것이 유효 — 엔진 mine().tastes). 없는 발화점 id · 다른 verdict 는 엔진이 400 사유를 낸다."""
+    from starlette.concurrency import run_in_threadpool
+    body = await _ign_body(request)
+    _ign_keys(body, ("ignition_id", "verdict", "memo"))
+    iid, verdict = body.get("ignition_id"), body.get("verdict")
+    if not isinstance(iid, str) or not iid or len(iid) > 64:
+        raise HTTPException(400, "ignition_id 는 발화점 id(글자)")
+    if not isinstance(verdict, str) or len(verdict) > 16:
+        raise HTTPException(400, "verdict 는 pick | drop")
+    memo = _ign_memo(body)
+    return _gb_json(await run_in_threadpool(_ign_engine, "taste", lambda a: a.submit_taste(iid, verdict, memo=memo)))
