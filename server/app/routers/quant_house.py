@@ -1346,6 +1346,9 @@ def game_board_game(body: dict = Body(...), x_qh_key: str | None = Header(defaul
 #   엔진 산출 = 진실 · 라우터 = 전달자(재계산 0):
 #     GET /quant-house/ignition/papers        → 조간 날짜 목록
 #     GET /quant-house/ignition/paper?date=   → 그 날짜(기본 = 최신) 조간 HTML 원문(파일 그대로 · json 에 실어 보냄)
+#     GET /quant-house/ignition/paper/pdf?date= → 그 날짜(기본 = 최신) 조간 PDF(엔진이 조간과 같이 만든 paper_날짜.pdf 를 바이트 그대로 · 내려받기)
+#       · 운영 조간 목록에 있는 날짜만 · 그 폴더 바로 아래 실제 파일일 때만 · 견본에는 PDF 가 없다(404) · 상한 _IGN_PDF_MAX(넘으면 413)
+#       · /papers · /paper 응답의 pdf(그 날짜 PDF 가 있나) · pdf_dates(PDF 가 있는 날짜들) 로 화면이 버튼을 켠다
 #     GET /quant-house/ignition/state         → ignition_state.json(본인 관련 필드 제외) + 이름표 + 유사 국면 문장(엔진 analog_text)
 #     GET /quant-house/ignition/form          → 엔진 api.form() 그대로(본인 확률 입력 화면 — 대상일 · 마감 · 사건 · 이미 적은 값)
 #     GET /quant-house/ignition/mine          → 엔진 api.mine() 그대로(내 기록 — 내 확률·시스템 기대·실현·오차 · 발화점 판정)
@@ -1389,6 +1392,7 @@ _IGN_DATE_RE = _ign_re.compile(r"\d{4}-\d{2}-\d{2}")
 _IGN_PAPER_RE = _ign_re.compile(r"paper_(\d{4}-\d{2}-\d{2})\.html")
 _IGN_SAMPLE_RE = _ign_re.compile(r"paper_sample_(\d{4}-\d{2}-\d{2})\.html")
 _IGN_HTML_MAX = 2_000_000                                        # 조간 1부 상한(바이트) — 넘으면 내보내지 않음
+_IGN_PDF_MAX = 30_000_000                                        # 조간 PDF 1부 상한(바이트) — 넘으면 내보내지 않음(413)
 _IGN_HINT = "평일 아침 일일 갱신(발화점 단계)이 만든다"
 _IGN_FAIL_MAX = 5                                                # 연속 실패 이 횟수부터 잠금
 _IGN_FAIL_LOCK_S = 60.0
@@ -1490,10 +1494,41 @@ def _ign_papers():
     return "none", {}
 
 
+def _ign_pdf_path(source: str, files: dict, day):
+    """그 날짜 조간의 PDF 경로(없으면 None). 운영 조간 목록(files)에 있는 날짜만 — 이름은 목록에서 찾은 날짜로 짓고(입력으로 경로를 만들지 않는다),
+    그 경로가 조간 폴더 바로 아래의 실제 파일일 때만 돌려준다(링크로 폴더 밖을 가리키면 None). 견본에는 PDF 가 없다."""
+    if source != "live" or day not in files or not _IGN_DATE_RE.fullmatch(str(day)):
+        return None
+    fp = _IGN_PAPER_DIR / f"paper_{day}.pdf"
+    try:
+        if fp.parent != _IGN_PAPER_DIR or fp.is_symlink() or not fp.is_file():
+            return None
+        if fp.resolve().parent != _IGN_PAPER_DIR.resolve():
+            return None
+    except OSError:
+        return None
+    return fp
+
+
+def _ign_pdf_dates(source: str, files: dict) -> list:
+    """PDF 를 내려줄 수 있는 날짜(최신 먼저) — 파일이 있고 비어 있지 않고 상한 이하."""
+    out = []
+    for day in sorted(files, reverse=True):
+        fp = _ign_pdf_path(source, files, day)
+        try:
+            if fp is not None and 0 < fp.stat().st_size <= _IGN_PDF_MAX:
+                out.append(day)
+        except OSError:
+            pass
+    return out
+
+
 def _ign_papers_head(source: str, files: dict) -> dict:
     dates = sorted(files, reverse=True)
     out = {"available": bool(dates), "source": source, "sample": source == "sample",
            "dates": dates, "latest": dates[0] if dates else None}
+    out["pdf_dates"] = _ign_pdf_dates(source, files)          # 화면이 'PDF 내려받기' 버튼을 켤지 정한다
+    out["pdf"] = bool(dates) and dates[0] in out["pdf_dates"]  # 기준 날짜(여기서는 최신 · /paper 는 고른 날짜)의 PDF 가 있나
     if source == "sample":
         out["note"] = "견본(시험 발행) — 운영 기록 아님 · 성적 의미 없음. 운영 조간이 아직 없어 견본을 보낸다."
     elif source == "none":
@@ -1694,6 +1729,7 @@ def ignition_paper(date: str | None = Query(default=None, max_length=10)):
         return out
     pick = date or out["latest"]
     out["date"] = pick
+    out["pdf"] = pick in out["pdf_dates"]     # 지금 보는 날짜의 PDF 가 있나
     fp = files.get(pick)                      # 폴더 목록에서 찾은 경로만 — 입력으로 경로를 만들지 않는다
     if fp is None:
         out["available"] = False
@@ -1708,6 +1744,43 @@ def ignition_paper(date: str | None = Query(default=None, max_length=10)):
         out["available"] = False
         out["note"] = f"{pick} 조간 읽기 실패 — {type(e).__name__}: {e}"
     return _gb_json(out)
+
+
+@router.get("/ignition/paper/pdf", dependencies=[Depends(_ign_auth)])
+def ignition_paper_pdf(date: str | None = Query(default=None, max_length=10)):
+    """조간 PDF 1부 — 엔진이 조간과 같이 만든 파일을 바이트 그대로(변형 0 · 내려받기). date 생략 = 최신.
+    운영 조간 목록에 있는 날짜만 · 그 날짜의 PDF 가 없으면 404(견본만 있을 때도 404) · 상한을 넘으면 413."""
+    from fastapi.responses import Response
+    if date is not None and not _IGN_DATE_RE.fullmatch(date):
+        raise HTTPException(400, "date 는 YYYY-MM-DD")
+    source, files = _ign_papers()
+    if source != "live":
+        raise HTTPException(404, "PDF 없음 — 견본에는 PDF 가 없습니다" if source == "sample" else "PDF 없음 — 아직 첫 발행 전")
+    pick = date or sorted(files, reverse=True)[0]
+    if pick not in files:
+        raise HTTPException(404, f"{pick} 조간 없음 — 발행된 날짜만 내려받을 수 있다")
+    fp = _ign_pdf_path(source, files, pick)
+    if fp is None:
+        raise HTTPException(404, f"{pick} 조간은 PDF 가 없습니다")
+    try:
+        size = fp.stat().st_size
+        if size > _IGN_PDF_MAX:
+            raise HTTPException(413, f"{pick} PDF 가 너무 큼({size} 바이트 · 상한 {_IGN_PDF_MAX}) — 내보내지 않음")
+        with fp.open("rb") as fh:
+            data = fh.read(_IGN_PDF_MAX + 1)
+    except HTTPException:
+        raise
+    except OSError:
+        _ign_log.exception("ignition paper pdf 읽기 실패")
+        raise HTTPException(500, _IGN_ERR_READ)
+    if len(data) > _IGN_PDF_MAX:                                  # 크기를 본 뒤에 파일이 커진 경우
+        raise HTTPException(413, f"{pick} PDF 가 너무 큼(상한 {_IGN_PDF_MAX} 바이트) — 내보내지 않음")
+    if not data.startswith(b"%PDF-"):                             # 비었거나 쓰는 중이거나 PDF 가 아닌 파일은 PDF 라고 내보내지 않는다
+        raise HTTPException(404, f"{pick} 조간은 PDF 가 없습니다(파일이 PDF 가 아님)")
+    from urllib.parse import quote
+    disp = f"attachment; filename=\"BQH_paper_{pick}.pdf\"; filename*=UTF-8''{quote(f'BQH_조간_{pick}.pdf')}"
+    return Response(content=data, media_type="application/pdf",
+                    headers={"Content-Disposition": disp, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"})
 
 
 @router.get("/ignition/state", dependencies=[Depends(_ign_auth)])

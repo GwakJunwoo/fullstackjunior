@@ -9,6 +9,11 @@
      /quant-house/ignition/mine                      내 기록(엔진 api.mine — 내 확률·시스템 기대·실현·오차 · 발화점 판정)
      /quant-house/ignition/research                  리서치 창고 목록(엔진 inhouse.catalog — 번호순) + 주제 이름표 + 견본 여부
      /quant-house/ignition/research/note?id=IHR-0001 리서치 노트 한 장(엔진 inhouse.render_page 의 HTML 원문)
+     /quant-house/ignition/paper/pdf?date=YYYY-MM-DD 조간 PDF(엔진이 조간과 같이 만든 파일 그대로 · 내려받기)
+   PDF 내려받기(2026-11-24 사용자 지시): 발행일 옆 단추. 서버가 그 날짜에 PDF 가 있다고 알려 준 날(pdf_dates · pdf)만 켠다 — 없으면 눌리지 않고
+     '이 날짜는 PDF 가 없습니다' · 견본 · 리서치 창고 · 서버가 PDF 여부를 안 알려 준 경우에는 단추를 숨긴다.
+     받기 = fetch(X-IGN-PASS 헤더) → blob → 임시 주소(createObjectURL) → <a download> 누름 → 임시 주소 해제. 비밀번호는 주소에 싣지 않는다(새 창으로 직접 열지 않는다).
+     파일 이름은 화면이 날짜로 짓는다(BQH_조간_날짜.pdf · 응답 헤더를 읽지 않는다). PDF 안의 파란 리서치 번호 → 부록의 그 리서치로 가는 연결은 엔진이 만든 파일 안에 있다.
    리서치 창고(2026-11-23 밤 사용자 지시): 보기 [조간 | 리서치 창고](#paper/research[/IHR-0001]). 목록은 최신 번호부터(순서만 뒤집음),
      줄을 누르면 노트를 조간과 같은 틀(<iframe sandbox srcdoc> · 스크립트 불허 · 문서 무변경)로 띄운다. '아직 못 푼 물음' = 상태 json research.open.
    조간 안의 리서치 팝업(파란 번호 → 체크박스로 여닫는 창 · 스크립트 0)은 엔진 HTML 그대로 동작한다. 팝업이 든 신문은 틀을 고정 높이로 둔다
@@ -38,7 +43,11 @@
             form: null, formAt: 0, formErr: '', mine: null, mineErr: '', draft: {}, memo: '', viewRes: null, vmsg: null, wbusy: false,
             tdraft: {}, tmsg: {}, tbusy: '', tick: null, crossed: '',
             mode: 'paper', res: null, resErr: '', noteId: null, noteMsg: '', nframe: null, nro: null, nseq: 0,
-            moved: null, rmsg: '' };                              // moved = 낡은 주소 날짜 → 최신으로 옮긴 기록({from,to}) · rmsg = 리서치 창고 한 줄 알림
+            moved: null, rmsg: '',                                 // moved = 낡은 주소 날짜 → 최신으로 옮긴 기록({from,to}) · rmsg = 리서치 창고 한 줄 알림
+            pdfBusy: false, pdfDate: null, pdfMsg: null, pdfSeq: 0 }; // PDF 내려받기 — 받는 중 · 받는 날짜 · 마지막 결과 한 줄({date,t,err})
+  var PDF_HINT = 'PDF 에서는 파란 리서치 번호를 누르면 아래 부록의 그 리서치로 갑니다';
+  var PDF_NONE = '이 날짜는 PDF 가 없습니다';
+  var PDF_REVOKE_MS = 30000;                                     // 임시 주소는 저장이 시작된 뒤에 해제한다(바로 해제하면 저장이 끊기는 브라우저가 있다)
   var KIND = { miss: '하루 오답', cum: '누적 어긋남', thread: '서사 줄기 무효' };
   var STAGE = { 1: '기록', 2: '제안', 3: '한도 내 자율', 4: '다시장' };
   var VERDICT = { pick: '집음', drop: '버림' };
@@ -69,7 +78,8 @@
   function E(kind, msg) { var e = new Error(msg || kind); e.kind = kind; e.detail = msg || ''; return e; }
   function xget(path, pass) { return xsend('GET', path, pass); }
   function xpost(path, pass, body) { return xsend('POST', path, pass, body); }
-  async function xsend(method, path, pass, body) {
+  // 응답 객체까지(주소 해석 · 주소가 바뀌었을 때만 다시 보내기) — json 은 xsend · PDF 는 xblob 이 읽는다.
+  async function xres(method, path, pass, body) {
     if (!pass || /[^\x20-\x7e]/.test(pass)) throw E('pw');           // 헤더에 실을 수 없는 글자 = 틀린 값(요청 안 보냄)
     var base = await getApiBase();
     if (!base) base = await getApiBase(true);
@@ -79,17 +89,38 @@
     if (method === 'POST') { hd['Content-Type'] = 'application/json'; opt.method = 'POST'; opt.body = JSON.stringify(body); }
     // 다시 보내기는 '주소가 바뀌었을 때만'(옛 터널 주소로 간 요청은 서버에 닿지 못했다) — 같은 주소로는 다시 보내지 않는다(쓰기 중복 방지).
     var call = function (b) { return fetch(b + path, opt); };
-    var res;
+    var res, moved = false;
     try { res = await call(base); }
     catch (e) {
       var fb = await getApiBase(true);
-      if (fb && fb !== base) { try { res = await call(fb); } catch (e2) { throw E('net'); } }
+      if (fb && fb !== base) { moved = true; try { res = await call(fb); } catch (e2) { throw E('net'); } }
       else throw E('net');
     }
-    if (res.status === 404 || res.status === 502 || res.status === 503 || res.status === 530) {   // 터널 주소가 바뀐 신호 → 새 주소로 1회
+    if (!moved && (res.status === 404 || res.status === 502 || res.status === 503 || res.status === 530)) {   // 터널 주소가 바뀐 신호 → 새 주소로 1회(이미 옮겨 보냈으면 다시 안 보낸다)
       var fb2 = await getApiBase(true);
       if (fb2 && fb2 !== base) { try { res = await call(fb2); } catch (e3) { throw E('net'); } }
     }
+    return res;
+  }
+  // 조간 PDF — 파일 바이트를 blob 으로. 비밀번호는 헤더로만 간다(주소에 안 실음).
+  async function xblob(path, pass) {
+    var res = await xres('GET', path, pass);
+    if (res.status === 401) throw E('pw');
+    if (res.status === 404) throw E('nopdf');
+    if (res.status === 413) throw E('big');
+    if (res.status === 429) throw E('lock');
+    if (res.status === 403) throw E('unset');
+    if (!res.ok) throw E('http', String(res.status));
+    var ct = '';
+    try { ct = String((res.headers && res.headers.get && res.headers.get('content-type')) || '').toLowerCase(); } catch (e) { ct = ''; }
+    if (ct.indexOf('application/pdf') !== 0) throw E('badpdf');        // PDF 가 아닌 응답(중간 안내 쪽 등)을 PDF 이름으로 저장하지 않는다
+    var b;
+    try { b = await res.blob(); } catch (e2) { throw E('net'); }       // 받는 도중 끊김
+    if (!b || !b.size) throw E('badpdf');
+    return b;
+  }
+  async function xsend(method, path, pass, body) {
+    var res = await xres(method, path, pass, body);
     if (res.status === 401) throw E('pw');
     if (res.ok) return res.json();
     if (method === 'POST') {                                           // 쓰기 거부 사유 = 서버(엔진) 문구 그대로
@@ -109,6 +140,9 @@
     if (k === 'unset') return '서버에 비밀번호가 설정되지 않았습니다';
     if (k === 'net') return '서버에 연결할 수 없습니다';
     if (k === 'http') return '서버 오류 ' + (e.message || '');
+    if (k === 'nopdf') return PDF_NONE;
+    if (k === 'big') return 'PDF 가 너무 커서 서버가 내보내지 않습니다';
+    if (k === 'badpdf') return 'PDF 가 아닌 응답을 받았습니다 — 저장하지 않았습니다';
     return '불러오기 실패';
   }
 
@@ -126,6 +160,7 @@
     P.wbusy = false; P.tdraft = {}; P.tmsg = {}; P.tbusy = ''; P.crossed = '';
     P.res = null; P.resErr = ''; P.noteId = null; P.noteMsg = ''; P.nseq++;
     P.moved = null; P.rmsg = '';
+    P.pdfSeq++; P.pdfBusy = false; P.pdfDate = null; P.pdfMsg = null; syncPdf();   // 받던 PDF 는 버린다(잠근 뒤에는 저장하지 않는다)
     if (P.tick) { clearInterval(P.tick); P.tick = null; }
     dropFrame(); dropNote();
     ['ppPaper', 'ppView', 'ppState', 'ppHist', 'ppNotice', 'ppStNotice', 'ppResNotice', 'ppResOpen', 'ppResList', 'ppResNote'].forEach(function (id) { var el = $(id); if (el) el.innerHTML = ''; });
@@ -280,6 +315,68 @@
       if (host) host.innerHTML = '<div class="wb-empty"><div class="wb-empty-title">' + (none ? '아직 첫 발행 전입니다' : '이 날짜의 조간이 없습니다') + '</div>' +
         '<div class="wb-empty-text">' + (none ? '조간은 평일 아침 일일 갱신 때 만들어집니다.' : esc(P.paper.note || '')) + '</div></div>';
       setMsg(none ? '조간 없음' : (P.date ? P.date + ' 없음' : '조간 없음'), !none);
+    }
+    syncPdf();
+  }
+  // ── PDF 내려받기 ─────────────────────────────────────────────────────
+  //   켜는 기준 = 서버 응답(pdf_dates · pdf) 그대로. 서버가 PDF 여부를 안 알려 줬으면(옛 서버) 모르는 것이므로 단추를 숨긴다.
+  function pdfState() {            // 'hide' | 'on' | 'off'
+    var j = P.paper;
+    if (P.mode === 'research' || !j || !j.available || j.sample || j.source !== 'live' || !isDate(P.date)) return 'hide';
+    var list = Array.isArray(j.pdf_dates) ? j.pdf_dates : null, flag = typeof j.pdf === 'boolean';
+    if (!list && !flag) return 'hide';
+    if (list ? list.indexOf(P.date) >= 0 : (j.pdf === true && j.date === P.date)) return 'on';
+    return 'off';
+  }
+  function pdfName(date) { return 'BQH_조간_' + date + '.pdf'; }
+  function syncPdf() {
+    var box = $('ppPdfField'), btn = $('ppPdf'), msg = $('ppPdfMsg');
+    if (!box || !btn) return;
+    var st = pdfState();
+    box.hidden = st === 'hide';
+    if (st === 'hide') { btn.disabled = true; if (msg) { msg.textContent = ''; msg.classList.toggle('is-err', false); } return; }
+    btn.disabled = st !== 'on' || P.pdfBusy;
+    btn.textContent = P.pdfBusy ? '받는 중…' : 'PDF 내려받기';
+    btn.setAttribute('aria-busy', P.pdfBusy ? 'true' : 'false');
+    btn.setAttribute('title', st === 'on' ? (P.date + ' 조간을 PDF 파일로 받는다(' + pdfName(P.date) + ')') : PDF_NONE);
+    if (!msg) return;
+    var m = P.pdfBusy ? { t: P.pdfDate + ' PDF 받는 중…', err: false } : ((P.pdfMsg && P.pdfMsg.date === P.date) ? P.pdfMsg : null);
+    msg.textContent = m ? m.t : (st === 'on' ? PDF_HINT : PDF_NONE);
+    msg.classList.toggle('is-err', !!(m && m.err));
+  }
+  function saveBlob(blob, name) {  // 받은 바이트를 파일로 — 임시 주소(blob:)는 이 탭 안에서만 통하고 비밀번호가 들어 있지 않다
+    var U = window.URL || window.webkitURL;
+    var url = U.createObjectURL(blob);
+    var a = doc.createElement('a');
+    a.href = url; a.download = name; a.rel = 'noopener';
+    if (a.style) a.style.display = 'none';
+    var host = doc.body || root;
+    host.appendChild(a);
+    a.click();
+    if (a.parentNode) a.parentNode.removeChild(a);
+    setTimeout(function () { try { U.revokeObjectURL(url); } catch (e) { /* noop */ } }, PDF_REVOKE_MS);
+  }
+  function mb(n) { return isNum(n) ? (Math.round(n / 104857.6) / 10) + 'MB' : ''; }
+  async function downloadPdf() {
+    if (P.pdfBusy || pdfState() !== 'on') return;                      // 받는 중에는 다시 누를 수 없다 · PDF 없는 날짜는 요청하지 않는다
+    var pass = pw(); if (!pass) { gate(true, '', false); return; }
+    var date = P.date, seq = ++P.pdfSeq;
+    P.pdfBusy = true; P.pdfDate = date; P.pdfMsg = null; syncPdf();
+    try {
+      var blob = await xblob('/quant-house/ignition/paper/pdf?date=' + date, pass);
+      if (seq !== P.pdfSeq || !pw()) return;                           // 그 사이 잠김 — 저장하지 않는다
+      saveBlob(blob, pdfName(date));
+      P.pdfMsg = { date: date, t: pdfName(date) + ' 받음' + (mb(blob.size) ? ' · ' + mb(blob.size) : '') + ' — 브라우저 내려받기 목록에서 확인', err: false };
+    } catch (e) {
+      if (seq !== P.pdfSeq) return;
+      if (e && e.kind === 'pw') { P.pdfBusy = false; lock(emsg(e)); gate(true, emsg(e), true); return; }
+      if (e && e.kind === 'nopdf' && P.paper) {                        // 서버가 지금은 없다고 한다 — 단추도 끈다
+        if (Array.isArray(P.paper.pdf_dates)) P.paper.pdf_dates = P.paper.pdf_dates.filter(function (d) { return d !== date; });
+        if (P.paper.date === date) P.paper.pdf = false;
+      }
+      P.pdfMsg = { date: date, t: (e && e.kind) ? emsg(e) : 'PDF 를 저장하지 못했습니다', err: true };
+    } finally {
+      if (seq === P.pdfSeq) { P.pdfBusy = false; P.pdfDate = null; syncPdf(); }
     }
   }
   // 주소에서 온 날짜가 서버 날짜 목록에 없을 때 대신 열 날짜(서버가 준 latest) — 그 밖에는 null.
@@ -831,6 +928,7 @@
     if (seg) seg.querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-m') === P.mode ? 'true' : 'false'); });
     if (res) showMsg(resMsg(), false);
     else { showMsg(P.pmsg ? P.pmsg[0] : '', P.pmsg ? P.pmsg[1] : false); if (P.paper) setTimeout(fit, 0); }
+    syncPdf();                                                         // PDF 단추는 조간 보기에서만
   }
   function resMsg() {
     var j = P.res; if (!j) return P.resErr ? '' : '불러오는 중…';
@@ -1012,6 +1110,7 @@
     var nx = $('ppNext'); if (nx) nx.addEventListener('click', function () { step(1); });
     var rf = $('ppReload'); if (rf) rf.addEventListener('click', function () { load(true); });
     var lk = $('ppLock'); if (lk) lk.addEventListener('click', function () { lock(); });
+    var pd = $('ppPdf'); if (pd) pd.addEventListener('click', function () { downloadPdf(); });
     var vw = $('ppView');
     if (vw) {
       vw.addEventListener('input', onViewInput);
