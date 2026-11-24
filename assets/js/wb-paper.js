@@ -23,6 +23,10 @@
    조간 본문: <iframe sandbox="allow-same-origin" srcdoc> — 스크립트 불허(allow-scripts 없음).
              same-origin 은 바깥에서 높이를 재고 신문 자체의 밝은/어두운 테마 속성(data-theme)을 맞추는 데만 쓴다.
              본문 HTML 문자열은 한 글자도 바꾸지 않는다. 인증된 응답으로만 채운다.
+   낡은 주소(2026-11-24 — 견본 → 운영 전환 때 주소에 남은 견본 날짜가 '이 날짜의 조간이 없습니다'로 떴다):
+     주소에서 온 날짜(#paper/날짜 · 새로고침 버튼 · 열려 있던 탭의 다시 읽기)가 서버 날짜 목록(dates)에 없으면 서버가 준 최신(latest)으로 한 번만 다시 받고
+     주소도 그 날짜로 고친다 + 한 줄 알림. 다시 받는 것은 그 한 번뿐(두 번째도 없으면 없다고 보여 준다). 목록에서 직접 고른 날짜는 그대로 '없습니다'.
+     리서치 창고도 같다 — 주소에 남은 번호가 지금 목록에 없으면 목록으로(노트 요청 0) + 한 줄 · 창고 출처(견본 ↔ 운영)가 바뀌었으면 같은 번호라도 다른 노트라 열지 않는다.
    표시 규칙: 확률 = 값×100 을 소수 1자리까지(표시만) · 그 밖의 숫자는 json 값 그대로 · 없는 값은 '—'.
              입력 칸도 % 소수 1자리(70.5 → 0.705 로 보냄 · 엔진이 소수 3자리로 받는다).
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -33,7 +37,8 @@
   var P = { mem: '', busy: false, seq: 0, started: false, date: null, dates: [], paper: null, state: null, frame: null, ro: null,
             form: null, formAt: 0, formErr: '', mine: null, mineErr: '', draft: {}, memo: '', viewRes: null, vmsg: null, wbusy: false,
             tdraft: {}, tmsg: {}, tbusy: '', tick: null, crossed: '',
-            mode: 'paper', res: null, resErr: '', noteId: null, noteMsg: '', nframe: null, nro: null, nseq: 0 };
+            mode: 'paper', res: null, resErr: '', noteId: null, noteMsg: '', nframe: null, nro: null, nseq: 0,
+            moved: null, rmsg: '' };                              // moved = 낡은 주소 날짜 → 최신으로 옮긴 기록({from,to}) · rmsg = 리서치 창고 한 줄 알림
   var KIND = { miss: '하루 오답', cum: '누적 어긋남', thread: '서사 줄기 무효' };
   var STAGE = { 1: '기록', 2: '제안', 3: '한도 내 자율', 4: '다시장' };
   var VERDICT = { pick: '집음', drop: '버림' };
@@ -120,6 +125,7 @@
     P.form = null; P.formAt = 0; P.formErr = ''; P.mine = null; P.mineErr = ''; P.draft = {}; P.memo = ''; P.viewRes = null; P.vmsg = null;
     P.wbusy = false; P.tdraft = {}; P.tmsg = {}; P.tbusy = ''; P.crossed = '';
     P.res = null; P.resErr = ''; P.noteId = null; P.noteMsg = ''; P.nseq++;
+    P.moved = null; P.rmsg = '';
     if (P.tick) { clearInterval(P.tick); P.tick = null; }
     dropFrame(); dropNote();
     ['ppPaper', 'ppView', 'ppState', 'ppHist', 'ppNotice', 'ppStNotice', 'ppResNotice', 'ppResOpen', 'ppResList', 'ppResNote'].forEach(function (id) { var el = $(id); if (el) el.innerHTML = ''; });
@@ -136,11 +142,14 @@
     if (!v) { gate(true, '비밀번호를 넣으세요', true); return; }
     P.busy = true; gate(true, '확인 중…', false);
     try {
-      var j = await xget(paperPath(hashDate()), v);
+      var hd = hashDate();
+      var j = await xget(paperPath(hd), v);
       pwSet(v);                                                        // 서버가 맞다고 한 값만 세션에
       if (inp) inp.value = '';
       P.busy = false; gate(false, '', false);
-      renderPaper(j);
+      var to = staleTo(j, hd);                                         // 주소에 남은 날짜가 목록에 없다 → 최신으로 한 번(다시 옮기지 않는다)
+      if (to) loadPaper(to, false, { from: hd, to: to, held: j });
+      else renderPaper(j);
       loadState(); loadInput();
       syncMode();
     } catch (e) {
@@ -257,6 +266,9 @@
     if (!P.paper.sample && dates.length && dates[0] !== today) {
       nh += '<div class="wb-notice pp-notice">오늘(' + esc(today) + ') 발행분은 없습니다 · 최신 발행 ' + esc(dates[0]) + '</div>';
     }
+    if (P.moved && P.paper.available && P.moved.to === P.date) {       // 낡은 주소에서 옮겨 온 경우만(옮긴 날짜가 실제로 열렸을 때)
+      nh += '<div class="wb-notice pp-notice" id="ppMoved">' + esc(P.moved.from) + ' 조간은 없습니다 — 가장 최근 발행분(' + esc(P.moved.to) + ')을 엽니다.</div>';
+    }
     if (note) note.innerHTML = nh;
     if (P.paper.available && typeof P.paper.html === 'string' && P.paper.html) {
       mountFrame(P.paper.html, P.date);
@@ -270,20 +282,42 @@
       setMsg(none ? '조간 없음' : (P.date ? P.date + ' 없음' : '조간 없음'), !none);
     }
   }
-  async function loadPaper(date) {
+  // 주소에서 온 날짜가 서버 날짜 목록에 없을 때 대신 열 날짜(서버가 준 latest) — 그 밖에는 null.
+  //   null 인 경우: 날짜를 안 물었다 · 그 날짜가 열렸다 · 목록이 비었다(첫 발행 전) · 목록에 있는데 못 읽었다(읽기 실패는 그대로 보여 준다).
+  function staleTo(j, asked) {
+    if (!isDate(asked) || !j || j.available || j.source === 'none') return null;
+    var dates = Array.isArray(j.dates) ? j.dates.filter(isDate) : [];
+    if (!dates.length || dates.indexOf(asked) >= 0) return null;
+    return (isDate(j.latest) && dates.indexOf(j.latest) >= 0) ? j.latest : dates[0];
+  }
+  // fromAddr = 날짜가 주소에서 왔다(해시 · 새로고침 버튼 · 열려 있던 탭의 다시 읽기) — 목록에 없으면 최신으로 한 번 옮긴다.
+  //            목록에서 직접 고른 날짜(고르기 칸 · ‹ ›)는 fromAddr 없이 부른다 → 없으면 '없습니다' 그대로.
+  // mv       = 이미 옮겨서 부르는 경우({from,to,held} — 비밀번호 확인 응답에서 낡은 날짜를 본 뒤). 이때는 다시 옮기지 않는다.
+  async function loadPaper(date, fromAddr, mv) {
     var pass = pw(); if (!pass) { gate(true, '', false); return; }
     var seq = ++P.seq;
+    P.moved = null;
     setMsg('불러오는 중…');
     try {
       var j = await xget(paperPath(date), pass);
       if (seq !== P.seq) return;
+      if (!mv && fromAddr) {
+        var to = staleTo(j, date);
+        if (to) {                                                      // 한 번만 — 두 번째 응답은 무엇이든 그대로 그린다
+          mv = { from: date, to: to, held: j };
+          j = await xget(paperPath(to), pass);
+          if (seq !== P.seq) return;
+        }
+      }
+      if (mv) P.moved = { from: mv.from, to: mv.to };
       renderPaper(j);
-      if (isDate(P.date) && P.mode !== 'research' && (location.hash || '').slice(1).split('/')[0] === 'paper') {
-        try { history.replaceState(null, '', '#paper/' + P.date); } catch (e) { /* noop */ }
+      if (P.mode !== 'research' && (location.hash || '').slice(1).split('/')[0] === 'paper') {   // 주소 = 지금 보이는 날짜(없으면 날짜 없이)
+        setHash(isDate(P.date) ? '#paper/' + P.date : '#paper');
       }
     } catch (e) {
       if (seq !== P.seq) return;
       if (e && e.kind === 'pw') { lock(emsg(e)); gate(true, emsg(e), true); return; }
+      if (mv && mv.held) renderPaper(mv.held);                         // 옮겨 받기가 실패 — 서버가 준 '없음' 응답을 그대로(낡은 본문을 남기지 않는다)
       setMsg(emsg(e), true);
       if (!P.paper) { var host = $('ppPaper'); if (host) host.innerHTML = '<div class="wb-empty"><div class="wb-empty-title">조간을 불러오지 못했습니다</div><div class="wb-empty-text">' + esc(emsg(e)) + '</div></div>'; }
     }
@@ -809,7 +843,7 @@
     applyMode();
     if (!h.on || !pw()) return;
     if (!P.res) loadRes(h.id);
-    else if (h.id && h.id !== P.noteId) openNote(h.id);
+    else if (h.id && h.id !== P.noteId) openNote(h.id, true);
   }
   function setMode(m) {
     if (m !== 'paper' && m !== 'research') return;
@@ -846,7 +880,7 @@
         : '<div class="wb-empty"><div class="wb-empty-title wb-loading">읽는 중</div></div>';
       renderResOpen(); return;
     }
-    if (nt) nt.innerHTML = j.sample ? '<div class="wb-notice wb-notice--warn pp-notice"><b>견본(시험 발행) 노트 — 운영 기록 아님.</b> 운영 노트가 아직 없어 견본을 보여 줍니다 — 첫 운영 노트가 생기면 견본은 자동으로 빠집니다.</div>' : '';
+    resNotice();
     var notes = Array.isArray(j.notes) ? j.notes.slice().reverse() : [], kinds = (j.kinds && typeof j.kinds === 'object') ? j.kinds : {};
     var head = '<div class="wb-card-head"><span class="wb-card-title">리서치 창고</span>' +
       help('조간이 중요한 말을 쓰기 전에 그 말을 따로 연구해 남긴 노트(인하우스 리서치 · IHR). 번호는 계속 쌓이고 지우지 않는다. 같은 주제의 결론이 그대로면 번호를 유지하고 날짜만 보탠다 — 결론이 바뀌면 새 번호를 딴다. ' +
@@ -867,20 +901,44 @@
     host.innerHTML = head + table([{ t: '번호' }, { t: '제목' }, { t: '주제' }, { t: '처음 본 날' }, { t: '마지막 날' }, { t: '며칠째', num: 1 }], rows);
     renderResOpen();
   }
+  function resNotice() {           // 리서치 창고 위 띠 = 견본 표시 + 한 줄 알림(낡은 주소 번호 · 창고 출처 바뀜)
+    var nt = $('ppResNotice'); if (!nt) return;
+    var j = P.res;
+    nt.innerHTML = ((j && j.sample) ? '<div class="wb-notice wb-notice--warn pp-notice"><b>견본(시험 발행) 노트 — 운영 기록 아님.</b> 운영 노트가 아직 없어 견본을 보여 줍니다 — 첫 운영 노트가 생기면 견본은 자동으로 빠집니다.</div>' : '') +
+      (P.rmsg ? '<div class="wb-notice pp-notice" id="ppResMoved">' + esc(P.rmsg) + '</div>' : '');
+  }
+  function srcOf(j) { return !j ? null : (typeof j.source === 'string' ? j.source : (j.sample ? 'sample' : 'live')); }
+  function hasNote(id) { return ((P.res && P.res.notes) || []).some(function (x) { return x && x.id === id; }); }
+  function swapMsg(id, from, to) { // 창고 출처가 바뀐 뒤에는 같은 번호라도 다른 노트다
+    return (from === 'sample' && to === 'live')
+      ? '리서치 창고가 견본에서 운영 기록으로 바뀌었습니다 — 견본 때의 ' + id + ' 은 같은 번호라도 다른 노트라 열지 않고 목록을 보여 줍니다.'
+      : '리서치 창고가 바뀌었습니다 — 앞서 보던 ' + id + ' 은 같은 번호라도 다른 노트일 수 있어 열지 않고 목록을 보여 줍니다.';
+  }
+  function noteGone(id, why) {     // 주소에 남은 번호를 열 수 없다 → 노트를 닫고 목록으로 + 한 줄(주소도 목록으로)
+    P.nseq++; P.noteId = null; dropNote(); markRow();
+    var box = $('ppResNote'); if (box) { box.innerHTML = ''; box.hidden = true; }
+    P.rmsg = why || (id + ' 노트는 지금 창고에 없어 목록을 보여 줍니다.');
+    if (P.mode === 'research' && (location.hash || '').slice(1).split('/')[0] === 'paper') setHash('#paper/research');
+    resNotice();
+  }
   async function loadRes(openId) {
     var pass = pw(); if (!pass) return;
     if (!P.res) { P.resErr = ''; renderRes(); }
+    var was = srcOf(P.res), fresh = false;
     try {
       var j = await xget('/quant-house/ignition/research', pass);
       if (!pw()) return;
-      P.res = j || {}; P.resErr = '';
+      P.res = j || {}; P.resErr = ''; fresh = true;
     } catch (e) {
       if (e && e.kind === 'pw') { lock(emsg(e)); gate(true, emsg(e), true); return; }
       if (!pw()) return;
       if (!P.res) P.resErr = emsg(e);
     }
     renderRes();
-    if (openId && P.res) openNote(openId);
+    if (openId && P.res) {
+      if (fresh && was && srcOf(P.res) !== was) noteGone(openId, swapMsg(openId, was, srcOf(P.res)));   // 열려 있던 탭: 그 사이 견본 → 운영
+      else openNote(openId, true);                                     // 주소 · 다시 읽기에서 온 번호
+    }
   }
   function noteTitle(id) {
     var n = ((P.res && P.res.notes) || []).filter(function (x) { return x.id === id; })[0];
@@ -898,9 +956,13 @@
     var host = $('ppResList'); if (!host) return;
     host.querySelectorAll('.pp-rrow').forEach(function (tr) { tr.classList.toggle('is-selected', tr.getAttribute('data-id') === P.noteId); });
   }
-  async function openNote(id) {
+  // fromAddr = 번호가 주소(#paper/research/IHR-…)나 다시 읽기에서 왔다 — 지금 목록에 없으면 요청 없이 목록으로 + 한 줄.
+  //            목록에서 직접 누른 번호는 fromAddr 없이 부른다 → 없으면 '이 번호의 노트가 없습니다' 그대로.
+  async function openNote(id, fromAddr) {
     if (!NOTE_RE.test(String(id || ''))) return;                       // 번호 모양이 아니면 요청하지 않는다
     var pass = pw(); if (!pass) { gate(true, '', false); return; }
+    if (fromAddr && P.res && Array.isArray(P.res.notes) && !hasNote(id)) { noteGone(id); return; }
+    if (P.rmsg) { P.rmsg = ''; resNotice(); }
     var seq = ++P.nseq;
     P.noteId = id; markRow(); dropNote();
     noteShell(id, '<div class="wb-empty"><div class="wb-empty-title wb-loading">읽는 중</div></div>');
@@ -908,6 +970,12 @@
     try {
       var j = await xget('/quant-house/ignition/research/note?id=' + id, pass);
       if (seq !== P.nseq || !pw()) return;
+      if (j && P.res && srcOf(j) !== srcOf(P.res)) {                   // 들고 있던 목록이 낡았다(그 사이 견본 ↔ 운영) — 낡은 제목·견본 표시로 다른 노트를 띄우지 않는다
+        noteGone(id, swapMsg(id, srcOf(P.res), srcOf(j)));
+        loadRes(null);                                                 // 목록만 새로(노트는 다시 열지 않는다)
+        return;
+      }
+      if (fromAddr && !(j && j.available)) { noteGone(id); return; }   // 목록에는 있었는데 그 사이 사라진 번호
       if (j && j.available && typeof j.html === 'string' && j.html) {
         noteShell(id, '');
         mountNote(j.html, id);
@@ -984,7 +1052,7 @@
     wire();
     if (!pw()) { clearContent(); gate(true, '', false); return; }      // 세션에 비밀번호 없음 → 칸만(요청 0)
     gate(false, '', false);
-    if (force || !P.paper) { loadPaper(force ? P.date : hashDate()); loadState(); if (force && P.form) { loadForm(true); loadMine(); } else loadInput(); }
+    if (force || !P.paper) { loadPaper(force ? P.date : hashDate(), true); loadState(); if (force && P.form) { loadForm(true); loadMine(); } else loadInput(); }
     if (force && P.res) { loadRes(P.noteId); } else syncMode();
   }
   function show() {               // 탭이 보일 때마다(switchTab) — 처음이면 불러오고, 아니면 높이만 다시
@@ -995,7 +1063,7 @@
     syncMode();
     if (P.form) { tickForm(); if (Date.now() - P.formAt > FORM_STALE_MS) refreshForm(); }
     var hd = hashDate();
-    if (hd && hd !== P.date && P.dates.indexOf(hd) >= 0) loadPaper(hd);
+    if (hd && hd !== P.date) loadPaper(hd, true);                      // 주소가 다른 날짜를 가리킨다 — 목록에 없으면 최신으로 한 번 + 주소 교정
     else setTimeout(fit, 0);
   }
 
