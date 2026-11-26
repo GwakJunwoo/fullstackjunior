@@ -1043,6 +1043,7 @@
   function rbLegs(d, stack) {   // 종목별 저평 · 전일 대비 — 원인 종목 행 = 노랑 강조 · 가장 약해짐(매수 좌표)/강해짐(매도 좌표) 배지 · stack = 매도/매수 좌표 표 두 덩이(좁은 폭)
     var mix = rbMix(d), sl = {}, bl = {}, defs = d.defs || {}, drv = (d.driver && d.driver.alias) || null;
     var sub = function (b, l) {   // 비지표인데 오늘 장외 호가가 없어 장내로 대체된 종목(엔진 legs[].fallback) = 눈에 띄게
+      if (l && l.src === '장외 추정') { var isS = (l === sl[b.alias]), sp = isNum(l.est_sp_bp) ? l.est_sp_bp + 'bp' : '중앙 스프레드'; return ' ' + tag(isS ? '사자선 없음 → 팔자선 + ' + sp : '팔자선 없음 → 사자선 − ' + sp, 'rst'); }   // 한쪽 장외 호가만 있음 → 최근 5일 장외 사자−팔자 중앙값으로 반대쪽 추정(엔진 · 사용자 2026-11-26)
       return (l && l.fallback === true) ? ' ' + tag('장외 호가 없음 → 장내', 'rst') : '';
     };
     (((d[mix ? 'sell_mix' : 'sell'] || {}).legs) || []).forEach(function (l) { sl[l.alias] = l; });
